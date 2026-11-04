@@ -471,12 +471,24 @@ export function WeddingOrnamentAdminLayer(props: {
         /* kéo vẫn theo pointer trên document */
       }
     }
+    const dismiss = () => {
+      if (draggingRef.current || selectedRef.current == null) return
+      chooseRef.current(null)
+    }
     const onDown = (event: PointerEvent) => {
       if (event.button !== 0) return
       const target = event.target
-      if (ignoredTouch(target)) return
+      const frame = layer.parentElement
+      if (target instanceof Element && frame?.contains(target) && target.closest('[data-ornament-tools]')) return
+      if (ignoredTouch(target)) {
+        dismiss()
+        return
+      }
       const picked = pickOrnamentHit(layer, event.clientX, event.clientY, hitSlop(event.pointerType))
-      if (picked == null) return
+      if (picked == null) {
+        dismiss()
+        return
+      }
       const nodes = [...layer.querySelectorAll<HTMLElement>(`[data-ornament-hit][data-ornament-index="${picked}"]`)]
       let node = nodes[0]
       let best = Number.POSITIVE_INFINITY
@@ -527,7 +539,7 @@ export function WeddingOrnamentAdminLayer(props: {
     window.addEventListener('touchstart', onTouchStart, { capture: true, passive: false })
     window.addEventListener('touchend', onTouchEnd)
     window.addEventListener('touchcancel', onTouchEnd)
-    stage.addEventListener('pointerdown', onDown, true)
+    window.addEventListener('pointerdown', onDown, true)
     stage.addEventListener('pointermove', onMove)
     return () => {
       if (marked) marked.removeAttribute('data-ornament-editing')
@@ -536,7 +548,7 @@ export function WeddingOrnamentAdminLayer(props: {
       window.removeEventListener('touchstart', onTouchStart, { capture: true })
       window.removeEventListener('touchend', onTouchEnd)
       window.removeEventListener('touchcancel', onTouchEnd)
-      stage.removeEventListener('pointerdown', onDown, true)
+      window.removeEventListener('pointerdown', onDown, true)
       stage.removeEventListener('pointermove', onMove)
     }
   }, [props.editable])
@@ -638,8 +650,8 @@ export function WeddingOrnamentAdminLayer(props: {
               className={cn('pointer-events-none block w-full max-w-none select-none', active && 'cursor-grabbing')}
               style={{
                 ...weddingOrnamentImageStyle(item),
-                outline: props.frameLines === false ? 'none' : active ? '3px solid #e11d48' : '2px dashed rgba(225,29,72,0.85)',
-                outlineOffset: props.frameLines === false ? 0 : 3,
+                outline: props.frameLines === false || !active ? 'none' : '3px solid #e11d48',
+                outlineOffset: props.frameLines === false || !active ? 0 : 3,
               }}
             />
           </div>

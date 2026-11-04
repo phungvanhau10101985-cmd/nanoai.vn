@@ -630,6 +630,11 @@ export function PartnerMessagingSettingsClient({
   const [customEmbedHeadHtml, setCustomEmbedHeadHtml] = useState('')
   const [customEmbedBodyOpenHtml, setCustomEmbedBodyOpenHtml] = useState('')
   const [customEmbedBodyCloseHtml, setCustomEmbedBodyCloseHtml] = useState('')
+  const [facebookChatPageId, setFacebookChatPageId] = useState('')
+  const [zaloOaId, setZaloOaId] = useState('')
+  const [zaloPersonalUrl, setZaloPersonalUrl] = useState('')
+  const [zaloOpen, setZaloOpen] = useState<'personal' | 'oa'>('personal')
+  const [zaloCustomHtml, setZaloCustomHtml] = useState('')
   const [tiktokEventsApiToken, setTiktokEventsApiToken] = useState('')
   const [tiktokEventsApiConfigured, setTiktokEventsApiConfigured] = useState(false)
   const [defaultCurrency, setDefaultCurrency] = useState('VND')
@@ -1351,6 +1356,11 @@ export function PartnerMessagingSettingsClient({
       setCustomEmbedHeadHtml(res.customEmbedHeadHtml ?? '')
       setCustomEmbedBodyOpenHtml(res.customEmbedBodyOpenHtml ?? '')
       setCustomEmbedBodyCloseHtml(res.customEmbedBodyCloseHtml ?? '')
+      setFacebookChatPageId((res.facebookChatPageId ?? '').trim())
+      setZaloOaId((res.zaloOaId ?? '').trim())
+      setZaloPersonalUrl((res.zaloPersonalUrl ?? '').trim())
+      setZaloOpen(res.zaloOpen === 'oa' ? 'oa' : 'personal')
+      setZaloCustomHtml(res.zaloCustomHtml ?? '')
       setTiktokEventsApiConfigured(Boolean(res.tiktokEventsApiConfigured))
       setTiktokEventsApiToken('')
     })()
@@ -2095,6 +2105,11 @@ export function PartnerMessagingSettingsClient({
           customEmbedHeadHtml,
           customEmbedBodyOpenHtml,
           customEmbedBodyCloseHtml,
+          facebookChatPageId,
+          zaloOaId,
+          zaloPersonalUrl,
+          zaloOpen,
+          zaloCustomHtml,
           tiktokEventsApiToken,
         })
       const res = tiktokEventsApiToken.trim() ? await runWithStepUp(run) : await run()
@@ -2106,6 +2121,10 @@ export function PartnerMessagingSettingsClient({
         }
         if (res.error === 'INVALID_VERIFY_TOKEN') {
           toast({ title: t.shopVerifyInvalidToast, variant: 'destructive' })
+          return
+        }
+        if (res.error === 'INVALID_CHAT_WIDGET') {
+          toast({ title: t.shopChatWidgetsInvalidToast, variant: 'destructive' })
           return
         }
         toast({ title: res.error, variant: 'destructive' })
@@ -3893,6 +3912,77 @@ export function PartnerMessagingSettingsClient({
                 roleCopy={roleCopy}
               />
             ) : null}
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t.shopChatWidgetsTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.shopChatWidgetsHint}</p>
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopZaloOpenLabel}</Label>
+                      <Select value={zaloOpen} onValueChange={(v) => setZaloOpen(v === 'oa' ? 'oa' : 'personal')}>
+                        <SelectTrigger className="h-9 w-full bg-background">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="personal">{t.shopZaloOpenPersonal}</SelectItem>
+                          <SelectItem value="oa">{t.shopZaloOpenOa}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        {zaloOpen === 'personal' ? t.shopZaloOpenPersonalHint : t.shopZaloOpenOaHint}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopFacebookChatPageLabel}</Label>
+                      <Input
+                        className="h-9 text-sm font-mono"
+                        value={facebookChatPageId}
+                        onChange={(e) => setFacebookChatPageId(e.target.value)}
+                        placeholder={t.shopFacebookChatPagePlaceholder}
+                        autoComplete="off"
+                        inputMode="numeric"
+                      />
+                      <p className="text-[11px] text-muted-foreground">{t.shopFacebookChatPageHint}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopZaloOaLabel}</Label>
+                      <Input
+                        className="h-9 text-sm font-mono"
+                        value={zaloOaId}
+                        onChange={(e) => setZaloOaId(e.target.value)}
+                        placeholder={t.shopZaloOaPlaceholder}
+                        autoComplete="off"
+                        inputMode="numeric"
+                      />
+                      <p className="text-[11px] text-muted-foreground">{t.shopZaloOaHint}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopZaloPersonalLabel}</Label>
+                      <Input
+                        className="h-9 text-sm"
+                        value={zaloPersonalUrl}
+                        onChange={(e) => setZaloPersonalUrl(e.target.value)}
+                        placeholder={t.shopZaloPersonalPlaceholder}
+                        autoComplete="off"
+                      />
+                      <p className="text-[11px] text-muted-foreground">{t.shopZaloPersonalHint}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopZaloCustomHtmlLabel}</Label>
+                      <Textarea
+                        className="min-h-[88px] font-mono text-[11px]"
+                        value={zaloCustomHtml}
+                        onChange={(e) => setZaloCustomHtml(e.target.value)}
+                        placeholder={t.shopZaloCustomHtmlHint}
+                      />
+                    </div>
+                  </div>
+                </SettingsDataRoleBox>
+              </CardContent>
+            </Card>
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t.shopCustomHtmlTitle}</CardTitle>

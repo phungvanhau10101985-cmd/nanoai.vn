@@ -12,6 +12,9 @@ const PAID_POLISH_FIELDS = [
   'dressCode',
   'storyText',
   'thankYouText',
+  'invitationText',
+  'invitationTextEn',
+  'parentsLine',
 ] as const
 
 export function weddingPolishFieldCostsCredit(field: string): boolean {

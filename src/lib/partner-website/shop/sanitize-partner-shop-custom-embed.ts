@@ -7,6 +7,7 @@ const SCRIPT_SRC_HOSTS = [
   'connect.facebook.net',
   'analytics.tiktok.com',
   'www.facebook.com',
+  'sp.zalo.me',
 ]
 const IFRAME_SRC_HOSTS = ['www.googletagmanager.com', 'www.google.com', 'www.facebook.com']
 

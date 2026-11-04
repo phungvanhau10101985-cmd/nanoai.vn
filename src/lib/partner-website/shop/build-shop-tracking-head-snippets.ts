@@ -4,6 +4,7 @@
  */
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { metaClickIdHeadBootstrapJs } from '@/lib/tracking/meta-click-ids'
+import { buildPartnerShopChatWidgetsHtml } from '@/lib/partner-website/shop/partner-shop-chat-widgets'
 import {
   partnerShopVerifyMetaTags,
   sanitizePartnerShopCustomEmbedHtml,
@@ -225,5 +226,7 @@ export function injectPartnerShopLiveTrackingHtml(
   if (bodyOpen) out = insertAfterBodyOpen(out, `<!-- pw-custom-body-open -->\n${bodyOpen}`)
   const bodyClose = sanitizePartnerShopCustomEmbedHtml(config.customEmbedBodyCloseHtml)
   if (bodyClose) out = insertBeforeBodyClose(out, `<!-- pw-custom-body-close -->\n${bodyClose}`)
+  const chatWidgets = buildPartnerShopChatWidgetsHtml(config)
+  if (chatWidgets) out = insertBeforeBodyClose(out, `<!-- pw-chat-widgets -->\n${chatWidgets}`)
   return out
 }

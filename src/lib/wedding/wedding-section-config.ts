@@ -114,7 +114,7 @@ export type WeddingSectionConfig = {
   buttonColorId?: WeddingButtonColorId
   /** Màu nút Có đi trên vỏ thiệp và trong thiệp. Không theo màu nút Mở thiệp. */
   coverRsvpColorId?: WeddingButtonColorId
-  /** Một khung là kiểu cũ. Hai khung chồng chỉ ghi khi khách chọn. */
+  /** Một khung của chủ đề. Bố cục hai khung chồng không còn được ghi. */
   heroPhotoLayout?: WeddingHeroPhotoLayout
   /** Vị trí khung và tên trên bố cục hai khung, phần trăm sân khấu. Có đủ tám số thì mới dùng. */
   stackGroomFrameX?: number
@@ -156,17 +156,17 @@ export type WeddingTextStyle = {
 
 export type WeddingHeroPhotoLayout = 'single' | 'stack'
 
-export function readHeroPhotoLayout(value: unknown): WeddingHeroPhotoLayout {
-  return value === 'stack' ? 'stack' : 'single'
+/** Bố cục hai khung chồng đã bỏ. Mọi giá trị đọc ra đều là một khung của chủ đề. */
+export function readHeroPhotoLayout(_value: unknown): WeddingHeroPhotoLayout {
+  return 'single'
 }
 
-/** Bố cục đã chọn trên thiệp thắng bộ nền. Chưa chọn thì theo mẫu nền. */
+/** Vỏ và nội dung dùng một khung của giao diện đang chọn. */
 export function resolveShownHeroLayout(
-  config: Pick<WeddingSectionConfig, 'heroPhotoLayout'>,
-  fallback: WeddingHeroPhotoLayout,
+  _config: Pick<WeddingSectionConfig, 'heroPhotoLayout'>,
+  _fallback: WeddingHeroPhotoLayout,
 ): WeddingHeroPhotoLayout {
-  if (config.heroPhotoLayout === 'stack' || config.heroPhotoLayout === 'single') return config.heroPhotoLayout
-  return fallback === 'stack' ? 'stack' : 'single'
+  return 'single'
 }
 
 /** Zoom và điểm neo của một ảnh album khi hiện trên thiệp. Gắn theo vị trí trong danh sách ảnh. */
@@ -604,7 +604,7 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       coverFrameChosen: obj.coverFrameChosen === true ? true : undefined,
       buttonColorId: isWeddingButtonColorId(obj.buttonColorId) ? obj.buttonColorId : undefined,
       coverRsvpColorId: isWeddingButtonColorId(obj.coverRsvpColorId) ? obj.coverRsvpColorId : undefined,
-      heroPhotoLayout: obj.heroPhotoLayout === 'stack' ? 'stack' : obj.heroPhotoLayout === 'single' ? 'single' : undefined,
+      heroPhotoLayout: obj.heroPhotoLayout === 'single' ? 'single' : undefined,
       ...readStackPlaceFields(obj),
       stackGroomFrameRotate: readStackFrameRotate(obj.stackGroomFrameRotate),
       stackBrideFrameRotate: readStackFrameRotate(obj.stackBrideFrameRotate),
@@ -669,7 +669,7 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (config.coverFrameChosen) payload.coverFrameChosen = true
   if (isWeddingButtonColorId(config.buttonColorId)) payload.buttonColorId = config.buttonColorId
   if (isWeddingButtonColorId(config.coverRsvpColorId)) payload.coverRsvpColorId = config.coverRsvpColorId
-  if (config.heroPhotoLayout === 'stack' || config.heroPhotoLayout === 'single') payload.heroPhotoLayout = config.heroPhotoLayout
+  if (config.heroPhotoLayout === 'single') payload.heroPhotoLayout = 'single'
   writeStackPlace(payload, config)
   writeStackRotate(payload, config)
   if (config.deviceShell?.desktop || config.deviceShell?.mobile) payload.deviceShell = config.deviceShell

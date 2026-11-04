@@ -39,6 +39,8 @@ type Props = {
   'aria-label'?: string
   /** 404 / mất file CDN — báo để khách không thấy 0:00 mãi */
   onSourceError?: React.ReactEventHandler<HTMLAudioElement>
+  /** File đã có metadata. Gỡ báo lỗi tải giả khi thiệp đang thu nhỏ. */
+  onReady?: () => void
   /** Phát / tạm dừng (cho nút nổi thiệp công khai). */
   onPlayingChange?: (playing: boolean) => void
 }
@@ -56,6 +58,7 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
       className = 'w-full',
       'aria-label': ariaLabel,
       onSourceError,
+      onReady,
       onPlayingChange,
     },
     ref,
@@ -63,6 +66,7 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
     const audioRef = useRef<HTMLAudioElement>(null)
     const segmentRef = useRef({ start: 0, end: null as number | null })
     const playingChangeRef = useRef(onPlayingChange)
+    const onReadyRef = useRef(onReady)
     const unmuteOnNextPlayRef = useRef(false)
     const queueKey = (trackQueue ?? []).join('\0')
     const [mixOrder, setMixOrder] = useState<string[]>(() => weddingMusicQueue(trackQueue))
@@ -77,6 +81,7 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
     const queueMode = mixOrder.length > 0
     const activeSrc = queueMode ? mixOrder[mixIndex] || mixOrder[0] || '' : src
     playingChangeRef.current = onPlayingChange
+    onReadyRef.current = onReady
 
     const goNext = useCallback((autoplay = true) => {
       const step = nextWeddingMusicMix(mixOrderRef.current, mixIndexRef.current)
@@ -108,6 +113,7 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
 
       const onLoadedMetadata = () => {
         recomputeSegment()
+        onReadyRef.current?.()
         const { start } = segmentRef.current
         try {
           el.currentTime = start
@@ -183,6 +189,22 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
 
     useEffect(() => {
       const el = audioRef.current
+      if (!el || typeof ResizeObserver === 'undefined') return
+      let lastWidth = el.offsetWidth
+      const retry = () => {
+        const width = el.offsetWidth
+        const grew = width >= 2 && lastWidth < 2
+        lastWidth = width
+        if (!grew || !el.error) return
+        el.load()
+      }
+      const observer = new ResizeObserver(retry)
+      observer.observe(el)
+      return () => observer.disconnect()
+    }, [activeSrc])
+
+    useEffect(() => {
+      const el = audioRef.current
       if (!el) return
       const cb = playingChangeRef.current
       if (!cb) return
@@ -220,10 +242,11 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
             void el.play().catch(() => {})
           }
 
+          if (el.error) el.load()
           seekToSegmentStartThenPlay()
 
           /** Preload/chưa buffer: play() trong gesture có thể thất bại — thử lại khi có đủ dữ liệu. */
-          if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA || el.error) {
+          if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA && !el.error) {
             return
           }
           const cleanup = () => {
@@ -273,7 +296,9 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
         className={className}
         aria-label={ariaLabel}
         onError={(event) => {
-          if (event.currentTarget.error?.code === MediaError.MEDIA_ERR_ABORTED) return
+          const el = event.currentTarget
+          if (el.error?.code === MediaError.MEDIA_ERR_ABORTED) return
+          if (el.offsetWidth < 2) return
           if (!queueMode) {
             onSourceError?.(event)
             return

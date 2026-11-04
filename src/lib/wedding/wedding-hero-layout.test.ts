@@ -11,14 +11,14 @@ import {
   weddingPreviewFrameSelectionKey,
 } from './wedding-section-config'
 
-test('hero layout stays single unless the card explicitly chooses the stacked pair', () => {
+test('a saved two-frame layout is dropped so the card keeps the theme frame', () => {
   assert.equal(readHeroPhotoLayout(undefined), 'single')
-  assert.equal(readHeroPhotoLayout('stack'), 'stack')
+  assert.equal(readHeroPhotoLayout('stack'), 'single')
   assert.equal(parseWeddingSectionConfig('{}').heroPhotoLayout, undefined)
   const stacked = stringifyWeddingSectionConfig({ heroPhotoLayout: 'stack', coverPresetId: 'classic_red' })
-  assert.equal(parseWeddingSectionConfig(stacked).heroPhotoLayout, 'stack')
+  assert.equal(parseWeddingSectionConfig(stacked).heroPhotoLayout, undefined)
   assert.equal(parseWeddingSectionConfig(stacked).coverPresetId, 'classic_red')
-  const back = mergeWeddingSectionConfig(stacked, { heroPhotoLayout: 'single' })
+  const back = mergeWeddingSectionConfig('{"heroPhotoLayout":"stack","coverPresetId":"classic_red"}', { heroPhotoLayout: 'single' })
   assert.equal(parseWeddingSectionConfig(back).heroPhotoLayout, 'single')
   assert.equal(parseWeddingSectionConfig(back).coverPresetId, 'classic_red')
 })
@@ -30,17 +30,17 @@ test('stacked frame rotate stays at the default until someone turns a frame', ()
   const parsed = parseWeddingSectionConfig(turned)
   assert.equal(parsed.stackGroomFrameRotate, -12)
   assert.equal(parsed.stackBrideFrameRotate, undefined)
-  assert.equal(parsed.heroPhotoLayout, 'stack')
+  assert.equal(parsed.heroPhotoLayout, undefined)
   assert.equal(resolveStackFrameRotate(parsed, 'groom'), -12)
   assert.equal(resolveStackFrameRotate(parsed, 'bride'), 3)
   const restored = stringifyWeddingSectionConfig({ stackGroomFrameRotate: -6 })
   assert.equal(parseWeddingSectionConfig(restored).stackGroomFrameRotate, undefined)
 })
 
-test('shown hero layout keeps the card choice over the background fallback', () => {
-  assert.equal(resolveShownHeroLayout({}, 'stack'), 'stack')
+test('cover and letter stay on the theme frame even when an old card stored two stacked frames', () => {
+  assert.equal(resolveShownHeroLayout({}, 'stack'), 'single')
   assert.equal(resolveShownHeroLayout({ heroPhotoLayout: 'single' }, 'stack'), 'single')
-  assert.equal(resolveShownHeroLayout({ heroPhotoLayout: 'stack' }, 'single'), 'stack')
+  assert.equal(resolveShownHeroLayout({ heroPhotoLayout: 'stack' }, 'single'), 'single')
 })
 
 test('preview frame choice writes cover and pair shells, kit clears them', () => {

@@ -2,6 +2,8 @@
 
 import { useLayoutEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
+import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
+import { WEDDING_EDIT_SIDE, type WeddingEditSide } from '@/lib/wedding/wedding-side-edit-color'
 import './wedding-cover-intro.css'
 
 /** Cỡ chữ tạm để tên dài không tràn trước khi đo. Tên ngắn vẫn chạm trần của class. */
@@ -43,16 +45,26 @@ function CoupleNameField(props: {
   text: string
   flyIn?: boolean
   from?: 'left' | 'right'
+  side?: WeddingEditSide
 }) {
   if (props.edit) {
+    const side = props.side ?? (props.from === 'right' ? 'bride' : 'groom')
+    const tone = WEDDING_EDIT_SIDE[side]
     return (
       <input
         aria-label={props.edit.label}
-        data-wedding-text={props.from === 'right' ? 'brideName' : 'groomName'}
+        data-wedding-text={side === 'bride' ? 'brideName' : 'groomName'}
+        data-wedding-side={side}
         value={props.edit.value}
         onChange={(event) => props.edit?.onChange(event.target.value)}
+        onBlur={(event) => {
+          const raw = event.target.value
+          const next = capitalizeInvitationPersonName(raw)
+          if (next !== raw) props.edit?.onChange(next)
+        }}
         onFocus={props.edit.onFocus}
-        className="min-w-[3rem] max-w-[46%] truncate bg-transparent text-center outline-none ring-1 ring-dashed ring-rose-300/90 [font:inherit] [color:inherit]"
+        style={{ color: tone.ink }}
+        className={cn('min-w-[3rem] max-w-[46%] truncate bg-transparent text-center outline-none ring-1 ring-dashed [font:inherit]', tone.ring)}
       />
     )
   }
@@ -107,7 +119,7 @@ export function WeddingCoupleNames(props: {
     return (
       <h1 ref={ref} className={cn('flex items-baseline justify-center', frame)} style={fitStyle}>
         {props.groomEdit ? (
-          <CoupleNameField edit={props.groomEdit} text={groomName} />
+          <CoupleNameField edit={props.groomEdit} text={groomName} side="groom" />
         ) : (
           <span className={cn('inline-block max-w-full', flyIn ? 'whitespace-nowrap' : 'break-words', flyIn && 'wedding-couple-from-left')}>{groomName}</span>
         )}
@@ -120,9 +132,9 @@ export function WeddingCoupleNames(props: {
       className={cn('flex flex-nowrap items-baseline justify-center gap-x-[0.35em]', frame)}
       style={fitStyle}
     >
-      <CoupleNameField edit={props.groomEdit} text={groomName} flyIn={flyIn} from="left" />
+      <CoupleNameField edit={props.groomEdit} text={groomName} flyIn={flyIn} from="left" side="groom" />
       <span className={cn('shrink-0', flyIn && 'wedding-couple-amp')}>&</span>
-      <CoupleNameField edit={props.layout === 'primary' ? undefined : props.brideEdit} text={brideName} flyIn={flyIn} from="right" />
+      <CoupleNameField edit={props.layout === 'primary' ? undefined : props.brideEdit} text={brideName} flyIn={flyIn} from="right" side="bride" />
     </h1>
   )
 }

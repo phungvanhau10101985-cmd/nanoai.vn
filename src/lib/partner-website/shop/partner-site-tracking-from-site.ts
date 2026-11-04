@@ -24,6 +24,11 @@ export function partnerSiteTrackingFromPublicRow(site: PartnerWebsitePublicRow):
     customEmbedHeadHtml: site.customEmbedHeadHtml || null,
     customEmbedBodyOpenHtml: site.customEmbedBodyOpenHtml || null,
     customEmbedBodyCloseHtml: site.customEmbedBodyCloseHtml || null,
+    facebookChatPageId: site.facebookChatPageId?.trim() || null,
+    zaloOaId: site.zaloOaId?.trim() || null,
+    zaloPersonalUrl: site.zaloPersonalUrl?.trim() || null,
+    zaloOpen: site.zaloOpen === 'oa' || site.zaloOpen === 'personal' ? site.zaloOpen : null,
+    zaloCustomHtml: site.zaloCustomHtml || null,
   }
 }
 

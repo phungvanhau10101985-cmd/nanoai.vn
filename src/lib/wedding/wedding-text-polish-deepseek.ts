@@ -14,6 +14,9 @@ export const WEDDING_POLISH_FIELDS = [
   'dressCode',
   'storyText',
   'thankYouText',
+  'invitationText',
+  'invitationTextEn',
+  'parentsLine',
 ] as const
 
 export type WeddingPolishField = (typeof WEDDING_POLISH_FIELDS)[number]
@@ -47,6 +50,12 @@ function fieldInstruction(field: WeddingPolishField, occasionKey: unknown): stri
       return `Loại thiệp: ${editor.label}. ${brief.storyBrief} ${brief.toneBrief} ${NO_SHARED_ADDRESS}`
     case 'thankYouText':
       return `Loại thiệp: ${editor.label}. ${brief.thanksBrief} ${NO_SHARED_ADDRESS}`
+    case 'invitationText':
+      return `Loại thiệp: ${editor.label}. Lời mời in trên thiệp. Giữ tên khách nếu bản nháp đã có. Một đoạn ngắn, lịch sự, trọn ý. ${NO_SHARED_ADDRESS}`
+    case 'invitationTextEn':
+      return `Loại thiệp: ${editor.label}. English invitation paragraph on the card. Keep guest names already in the draft. Short, warm, and complete. Do not add a street address or venue name.`
+    case 'parentsLine':
+      return `Loại thiệp: ${editor.label}. Dòng bố mẹ hoặc gia đình. Giữ nguyên tên người trong bản nháp. Viết ngắn, lịch sự. Không thêm địa chỉ, không bịa thêm người.`
   }
 }
 
@@ -113,7 +122,7 @@ export async function polishWeddingTextWithDeepseek(input: {
   const temperature =
     input.field === 'loveQuote'
       ? 0.85
-      : input.field === 'coupleIntro' || input.field === 'storyText'
+      : input.field === 'coupleIntro' || input.field === 'storyText' || input.field === 'invitationText' || input.field === 'invitationTextEn'
         ? 0.75
         : input.field === 'eventTimeline'
           ? 0.2

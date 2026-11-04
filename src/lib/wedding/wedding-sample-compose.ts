@@ -1,3 +1,4 @@
+import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
 import { invitationComposeBrief, invitationComposeNamesReady } from '@/lib/wedding/invitation-compose'
 import { invitationEditorCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
@@ -242,8 +243,8 @@ export function weddingCardOpeningFromCompose(
   weddingDate?: string | null,
 ): WeddingCardOpeningCopy | null {
   const opening: WeddingCardOpeningCopy = {
-    groomName: copy?.groomName.trim() ?? '',
-    brideName: copy?.brideName.trim() ?? '',
+    groomName: capitalizeInvitationPersonName(copy?.groomName ?? ''),
+    brideName: capitalizeInvitationPersonName(copy?.brideName ?? ''),
     coupleIntro: copy?.coupleIntro.trim() ?? '',
     loveQuote: copy?.loveQuote.trim() ?? '',
     storyText: copy?.storyText.trim() ?? '',
@@ -267,8 +268,8 @@ export function weddingCardOpeningFromCompose(
  * Ref trình soạn vẫn là thiệp đang mở cho đến lần render sau — không lấy thiệp đó làm gốc.
  */
 export function weddingComposeNamesOnly(groomName: string, brideName: string): WeddingSampleComposeFields | null {
-  const groom = groomName.trim()
-  const bride = brideName.trim()
+  const groom = capitalizeInvitationPersonName(groomName)
+  const bride = capitalizeInvitationPersonName(brideName)
   if (!groom && !bride) return null
   return {
     groomName: groom,

@@ -568,6 +568,8 @@ export function WeddingAlbumStage(props: {
             onJump={jumpTo}
             onExpand={props.onExpand}
             onOpenAlbum={props.onOpenAlbum}
+            edit={props.edit}
+            locale={props.locale}
             onIndex={(next) => {
               setGlide(0)
               glideRef.current = 0
@@ -915,6 +917,8 @@ function AlbumFrame(props: {
   onOpenAlbum?: () => void
   onIndex: (index: number) => void
   locked?: boolean
+  edit?: WeddingAlbumStageEdit
+  locale?: WebLocale
 }) {
   const { urls, alt, index, glide, smooth } = props
   const count = urls.length
@@ -943,6 +947,21 @@ function AlbumFrame(props: {
               ) : null}
             </>
           )
+          if (props.edit) {
+            return (
+              <div key={`${url}-${i}`} className="relative overflow-hidden rounded-2xl shadow-sm ring-1 ring-black/10">
+                <div className="relative aspect-[3/4] overflow-hidden">
+                  <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} className="absolute inset-0" />
+                  <AlbumStageEditor index={i} frame={props.frameOf(i)} locale={props.locale} edit={props.edit} />
+                </div>
+                {showExtra ? (
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 font-semibold text-white">
+                    <span className={props.compact ? 'text-lg' : 'text-2xl sm:text-3xl'}>+{extra}</span>
+                  </span>
+                ) : null}
+              </div>
+            )
+          }
           const openAlbum = props.onOpenAlbum
             ? () => props.onOpenAlbum?.()
             : props.onExpand

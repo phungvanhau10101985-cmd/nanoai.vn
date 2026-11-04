@@ -16,6 +16,7 @@ import {
   rememberPartnerSiteMetaCustomer,
 } from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import { PW_SHOP_SOFT_NAV_EVENT } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
+import { buildPartnerShopChatWidgetsHtml } from '@/lib/partner-website/shop/partner-shop-chat-widgets'
 import { sanitizePartnerShopCustomEmbedHtml } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 
 declare global {
@@ -188,7 +189,10 @@ export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
     }
     applyCustomHtml(tracking.customEmbedHeadHtml || '', 'head')
     applyCustomHtml(tracking.customEmbedBodyOpenHtml || '', 'body-start')
-    applyCustomHtml(tracking.customEmbedBodyCloseHtml || '', 'body-end')
+    applyCustomHtml(
+      [tracking.customEmbedBodyCloseHtml || '', buildPartnerShopChatWidgetsHtml(tracking)].filter(Boolean).join('\n'),
+      'body-end'
+    )
 
     const ga4 = (tracking.ga4MeasurementId ?? '').trim()
     if (/^G-[A-Z0-9]+$/i.test(ga4)) {

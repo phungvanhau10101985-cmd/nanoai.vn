@@ -142,6 +142,10 @@ import {
   normalizeGoogleMerchantCenterVerify,
   normalizeGoogleSearchConsoleVerify,
 } from '@/lib/partner-website/shop/normalize-ads-conversion-label'
+import {
+  normalizeChatDigitsId,
+  normalizeZaloPersonalUrl,
+} from '@/lib/partner-website/shop/partner-shop-chat-widgets'
 import { sanitizePartnerShopCustomEmbedHtml } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 import type { PartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
 import {
@@ -780,6 +784,11 @@ export async function getPartnerMessagingShopTrackingExtras(partnerId: string) {
     customEmbedHeadHtml: extras.custom_embed_head_html,
     customEmbedBodyOpenHtml: extras.custom_embed_body_open_html,
     customEmbedBodyCloseHtml: extras.custom_embed_body_close_html,
+    facebookChatPageId: extras.facebook_chat_page_id,
+    zaloOaId: extras.zalo_oa_id,
+    zaloPersonalUrl: extras.zalo_personal_url,
+    zaloOpen: extras.zalo_open === 'oa' ? 'oa' : extras.zalo_personal_url ? 'personal' : extras.zalo_open === 'personal' ? 'personal' : 'oa',
+    zaloCustomHtml: extras.zalo_custom_html,
     tiktokEventsApiConfigured: Boolean(extras.tiktok_events_api_token),
   }
 }
@@ -818,6 +827,11 @@ export async function savePartnerMessagingShopTrackingExtras(
     customEmbedHeadHtml: string
     customEmbedBodyOpenHtml: string
     customEmbedBodyCloseHtml: string
+    facebookChatPageId?: string
+    zaloOaId?: string
+    zaloPersonalUrl?: string
+    zaloOpen?: string
+    zaloCustomHtml?: string
     tiktokEventsApiToken?: string
   }
 ) {
@@ -847,6 +861,21 @@ export async function savePartnerMessagingShopTrackingExtras(
     return { error: 'INVALID_VERIFY_TOKEN' as const }
   }
 
+  const facebookChatRaw = String(input.facebookChatPageId ?? '').trim()
+  const zaloOaRaw = String(input.zaloOaId ?? '').trim()
+  const zaloPersonalRaw = String(input.zaloPersonalUrl ?? '').trim()
+  const facebookChatPageId = facebookChatRaw ? normalizeChatDigitsId(facebookChatRaw) : null
+  const zaloOaId = zaloOaRaw ? normalizeChatDigitsId(zaloOaRaw) : null
+  const zaloPersonalUrl = zaloPersonalRaw ? normalizeZaloPersonalUrl(zaloPersonalRaw) : null
+  if ((facebookChatRaw && !facebookChatPageId) || (zaloOaRaw && !zaloOaId) || (zaloPersonalRaw && !zaloPersonalUrl)) {
+    return { error: 'INVALID_CHAT_WIDGET' as const }
+  }
+  const zaloCustomRaw = String(input.zaloCustomHtml ?? '').trim()
+  const zaloCustomHtml = sanitizePartnerShopCustomEmbedHtml(zaloCustomRaw)
+  if (zaloCustomRaw && !zaloCustomHtml) {
+    return { error: 'INVALID_CHAT_WIDGET' as const }
+  }
+
   const tiktokTok = String(input.tiktokEventsApiToken ?? '').trim()
   const updateTiktok = tiktokTok.length > 0
   if (updateTiktok) {
@@ -870,6 +899,11 @@ export async function savePartnerMessagingShopTrackingExtras(
       custom_embed_head_html: sanitizePartnerShopCustomEmbedHtml(input.customEmbedHeadHtml) || null,
       custom_embed_body_open_html: sanitizePartnerShopCustomEmbedHtml(input.customEmbedBodyOpenHtml) || null,
       custom_embed_body_close_html: sanitizePartnerShopCustomEmbedHtml(input.customEmbedBodyCloseHtml) || null,
+      facebook_chat_page_id: facebookChatPageId,
+      zalo_oa_id: zaloOaId,
+      zalo_personal_url: zaloPersonalUrl,
+      zalo_open: input.zaloOpen === 'oa' ? 'oa' : 'personal',
+      zalo_custom_html: zaloCustomHtml || null,
       update_tiktok_events_api_token: updateTiktok,
       tiktok_events_api_token: updateTiktok ? tiktokTok : null,
     },

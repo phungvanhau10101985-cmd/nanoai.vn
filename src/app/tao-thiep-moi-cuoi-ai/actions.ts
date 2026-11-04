@@ -90,8 +90,8 @@ import {
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { invitationComposeBrief, invitationComposeNamesReady } from '@/lib/wedding/invitation-compose'
-import { invitationOccasionShape, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
-import { applyClientWeddingSectionConfig, applyWeddingFrameChoice, clearWeddingFrameChoice, forgetPrivateDeviceShell, mergeWeddingSectionConfig, parseWeddingDeviceShell, parseWeddingSectionConfig, readHeroPhotoLayout, readTextStyles, resolveCoverPhotoUrl, stringifyWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
+import { normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
+import { applyClientWeddingSectionConfig, applyWeddingFrameChoice, clearWeddingFrameChoice, forgetPrivateDeviceShell, mergeWeddingSectionConfig, parseWeddingDeviceShell, parseWeddingSectionConfig, readTextStyles, resolveCoverPhotoUrl, stringifyWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import {
   isWeddingPolishField,
@@ -103,6 +103,7 @@ import {
   weddingPolishFieldCostsCredit,
 } from '@/lib/wedding/wedding-text-polish-credit'
 import { composeWeddingSampleCopyWithDeepseek } from '@/lib/wedding/wedding-sample-compose-deepseek'
+import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
 import {
   WEDDING_SAMPLE_COMPOSE_CREDIT,
   type WeddingCardOpeningCopy,
@@ -673,7 +674,7 @@ export async function saveWeddingPreviewEdit(
     brideInviteEventTimeline: clipPreviewText(patch.brideInviteEventTimeline, 4000),
     sectionConfig: previewSectionConfig(existing.sectionConfig, patch, access.templateEditor),
     effectsEnabled: typeof patch.effectsEnabled === 'boolean' ? patch.effectsEnabled : undefined,
-    rsvpEnabled: typeof patch.rsvpEnabled === 'boolean' ? patch.rsvpEnabled : undefined,
+    rsvpEnabled: true,
     giftQrEnabled: typeof patch.giftQrEnabled === 'boolean' ? patch.giftQrEnabled : undefined,
     giftQrImageUrl: clipPreviewText(patch.giftQrImageUrl, 500),
     groomGiftBankId: clipPreviewText(patch.groomGiftBankId, 20),
@@ -874,24 +875,16 @@ function clipOpening(value: unknown, max: number): string {
 
 export async function createNewWeddingCard(
   occasionKey?: string,
-  heroPhotoLayout?: string,
+  _heroPhotoLayout?: string,
   opening?: WeddingCardOpeningCopy | null,
 ) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const draft = await createWeddingCardDraft(ownerUserId, 'luxury', occasionKey)
-  const stack =
-    readHeroPhotoLayout(heroPhotoLayout) === 'stack' && invitationOccasionShape(occasionKey) === 'couple'
-  let seeded = stack
-    ? (await saveWeddingCardSectionConfig(
-        draft.id,
-        ownerUserId,
-        stringifyWeddingSectionConfig({ heroPhotoLayout: 'stack' }),
-      )) ?? draft
-    : draft
-  const groomName = clipOpening(opening?.groomName, 300)
-  const brideName = clipOpening(opening?.brideName, 300)
+  let seeded = draft
+  const groomName = capitalizeInvitationPersonName(clipOpening(opening?.groomName, 300))
+  const brideName = capitalizeInvitationPersonName(clipOpening(opening?.brideName, 300))
   const coupleIntro = clipOpening(opening?.coupleIntro, MAX_TEXT)
   const loveQuote = clipOpening(opening?.loveQuote, 600)
   const storyText = clipOpening(opening?.storyText, MAX_TEXT)
@@ -1058,7 +1051,7 @@ export async function saveWeddingCardBrief(formData: FormData) {
     musicPlayEndSec,
     selectedStyleId: clean(formData.get('selectedStyleId'), 80) || 'luxury',
     colorPalette: clean(formData.get('colorPalette'), 200),
-    rsvpEnabled: boolValue(formData.get('rsvpEnabled')),
+    rsvpEnabled: true,
     giftQrEnabled,
     giftQrImageUrl,
     groomGiftBankId,
@@ -1501,7 +1494,7 @@ export async function polishWeddingCardText(formData: FormData) {
   if (!draft) return { error: 'Nhập nội dung sơ bộ trước khi tối ưu bằng AI.' }
 
   const field = fieldRaw as WeddingPolishField
-  const maxLen = field === 'loveQuote' || field === 'dressCode' ? 600 : MAX_TEXT
+  const maxLen = field === 'loveQuote' || field === 'dressCode' || field === 'parentsLine' ? 600 : MAX_TEXT
   if (draft.length > maxLen) {
     return { error: `Nội dung quá dài (tối đa ${maxLen} ký tự).` }
   }
@@ -1514,7 +1507,7 @@ export async function polishWeddingCardText(formData: FormData) {
       return {
         error:
           charge.code === 'INSUFFICIENT_CREDITS'
-            ? 'Không đủ credit. Mỗi lần Tối ưu AI tốn 0,1 credit.'
+            ? 'Không đủ credit. Mỗi lần Chuẩn hóa AI tốn 0,1 credit.'
             : charge.error,
         ...(charge.code === 'INSUFFICIENT_CREDITS' ? { code: 'INSUFFICIENT_CREDITS' as const } : {}),
       }

@@ -5,6 +5,7 @@ import type { PartnerStaffPermissionMap } from '@/lib/messaging/partner-staff-pe
 import { normalizeStaffPermissionsFromJson, WEBSITE_CHILD_PERMS } from '@/lib/messaging/partner-staff-permissions'
 import type { PartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
 import { normalizePartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
+import { resolvePartnerShopZaloClickUrl } from '@/lib/partner-website/shop/partner-shop-chat-widgets'
 
 export type MessagingPartnerRow = Database['public']['Tables']['messaging_partners']['Row']
 
@@ -75,7 +76,12 @@ function isMissingPartnerProfileColumnError(e: unknown): boolean {
     msg.includes('google_merchant_center_verify') ||
     msg.includes('facebook_domain_verification') ||
     msg.includes('custom_embed_') ||
-    msg.includes('tiktok_events_api_token')
+    msg.includes('tiktok_events_api_token') ||
+    msg.includes('facebook_chat_page_id') ||
+    msg.includes('zalo_oa_id') ||
+    msg.includes('zalo_personal_url') ||
+    msg.includes('zalo_open') ||
+    msg.includes('zalo_custom_html')
   )
 }
 
@@ -408,6 +414,11 @@ export type MessagingPartnerShopTrackingExtras = {
   custom_embed_body_close_html: string | null
   tiktok_events_api_token: string | null
   google_customer_reviews_merchant_id: number | null
+  facebook_chat_page_id: string | null
+  zalo_oa_id: string | null
+  zalo_personal_url: string | null
+  zalo_open: string | null
+  zalo_custom_html: string | null
 }
 
 const EMPTY_SHOP_TRACKING_EXTRAS: MessagingPartnerShopTrackingExtras = {
@@ -424,6 +435,11 @@ const EMPTY_SHOP_TRACKING_EXTRAS: MessagingPartnerShopTrackingExtras = {
   custom_embed_body_close_html: null,
   tiktok_events_api_token: null,
   google_customer_reviews_merchant_id: null,
+  facebook_chat_page_id: null,
+  zalo_oa_id: null,
+  zalo_personal_url: null,
+  zalo_open: null,
+  zalo_custom_html: null,
 }
 
 export async function fetchMessagingPartnerShopTrackingExtrasFromPg(
@@ -447,6 +463,11 @@ export async function fetchMessagingPartnerShopTrackingExtrasFromPg(
       custom_embed_body_close_html: string | null
       tiktok_events_api_token: string | null
       google_customer_reviews_merchant_id: number | string | null
+      facebook_chat_page_id: string | null
+      zalo_oa_id: string | null
+      zalo_personal_url: string | null
+      zalo_open: string | null
+      zalo_custom_html: string | null
     }>(
       `select nullif(trim(coalesce(ads_conversion_pdp, '')), '') as ads_conversion_pdp,
               nullif(trim(coalesce(ads_conversion_add_to_cart, '')), '') as ads_conversion_add_to_cart,
@@ -460,7 +481,12 @@ export async function fetchMessagingPartnerShopTrackingExtrasFromPg(
               nullif(custom_embed_body_open_html, '') as custom_embed_body_open_html,
               nullif(custom_embed_body_close_html, '') as custom_embed_body_close_html,
               nullif(trim(coalesce(tiktok_events_api_token, '')), '') as tiktok_events_api_token,
-              google_customer_reviews_merchant_id
+              google_customer_reviews_merchant_id,
+              nullif(trim(coalesce(facebook_chat_page_id, '')), '') as facebook_chat_page_id,
+              nullif(trim(coalesce(zalo_oa_id, '')), '') as zalo_oa_id,
+              nullif(trim(coalesce(zalo_personal_url, '')), '') as zalo_personal_url,
+              nullif(trim(coalesce(zalo_open, '')), '') as zalo_open,
+              nullif(zalo_custom_html, '') as zalo_custom_html
        from public.messaging_partners where id = $1::uuid limit 1`,
       [pid]
     )
@@ -480,6 +506,11 @@ export async function fetchMessagingPartnerShopTrackingExtrasFromPg(
       custom_embed_body_close_html: row.custom_embed_body_close_html,
       tiktok_events_api_token: row.tiktok_events_api_token,
       google_customer_reviews_merchant_id: Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : null,
+      facebook_chat_page_id: row.facebook_chat_page_id,
+      zalo_oa_id: row.zalo_oa_id,
+      zalo_personal_url: row.zalo_personal_url,
+      zalo_open: row.zalo_open === 'oa' || row.zalo_open === 'personal' ? row.zalo_open : null,
+      zalo_custom_html: row.zalo_custom_html,
     }
   } catch (e) {
     if (isMissingPartnerProfileColumnError(e)) return EMPTY_SHOP_TRACKING_EXTRAS
@@ -524,6 +555,11 @@ export async function updateMessagingPartnerShopTrackingExtrasForOwnerFromPg(par
     add('custom_embed_body_open_html', p.custom_embed_body_open_html ?? null)
   if ('custom_embed_body_close_html' in p)
     add('custom_embed_body_close_html', p.custom_embed_body_close_html ?? null)
+  if ('facebook_chat_page_id' in p) add('facebook_chat_page_id', p.facebook_chat_page_id ?? null)
+  if ('zalo_oa_id' in p) add('zalo_oa_id', p.zalo_oa_id ?? null)
+  if ('zalo_personal_url' in p) add('zalo_personal_url', p.zalo_personal_url ?? null)
+  if ('zalo_open' in p) add('zalo_open', p.zalo_open === 'oa' ? 'oa' : p.zalo_open === 'personal' ? 'personal' : null)
+  if ('zalo_custom_html' in p) add('zalo_custom_html', p.zalo_custom_html ?? null)
   if (p.update_tiktok_events_api_token) add('tiktok_events_api_token', p.tiktok_events_api_token ?? null)
   if (!sets.length) return true
   try {
@@ -661,8 +697,14 @@ export async function fetchMessagingPartnerContactChannelsBySiteSlugFromPg(siteS
       contact_zalo_url: string | null
       contact_messenger_url: string | null
       contact_instagram_url: string | null
+      zalo_personal_url: string | null
+      zalo_oa_id: string | null
+      zalo_open: string | null
     }>(
-      `select p.contact_phone, p.contact_zalo_url, p.contact_messenger_url, p.contact_instagram_url
+      `select p.contact_phone, p.contact_zalo_url, p.contact_messenger_url, p.contact_instagram_url,
+              nullif(trim(p.zalo_personal_url), '') as zalo_personal_url,
+              nullif(trim(p.zalo_oa_id), '') as zalo_oa_id,
+              nullif(trim(p.zalo_open), '') as zalo_open
          from public.messaging_partner_websites w
          inner join public.messaging_partners p on p.id = w.partner_id
         where w.site_slug = $1
@@ -674,11 +716,44 @@ export async function fetchMessagingPartnerContactChannelsBySiteSlugFromPg(siteS
     if (!row) return null
     return {
       contact_phone: row.contact_phone,
-      contact_zalo_url: row.contact_zalo_url,
+      contact_zalo_url: resolvePartnerShopZaloClickUrl({
+        zaloOpen: row.zalo_open,
+        zaloPersonalUrl: row.zalo_personal_url,
+        zaloOaId: row.zalo_oa_id,
+        contactZaloUrl: row.contact_zalo_url,
+      }),
       contact_messenger_url: row.contact_messenger_url,
       contact_instagram_url: row.contact_instagram_url,
     }
   } catch (e) {
+    const missing = String((e as { message?: string }).message ?? '')
+    if (
+      isMissingPartnerProfileColumnError(e) &&
+      (missing.includes('zalo_personal_url') || missing.includes('zalo_open') || missing.includes('zalo_oa_id'))
+    ) {
+      try {
+        const row = await pgQueryOne<{
+          contact_phone: string | null
+          contact_zalo_url: string | null
+          contact_messenger_url: string | null
+          contact_instagram_url: string | null
+        }>(
+          `select p.contact_phone, p.contact_zalo_url, p.contact_messenger_url, p.contact_instagram_url
+             from public.messaging_partner_websites w
+             inner join public.messaging_partners p on p.id = w.partner_id
+            where w.site_slug = $1
+              and coalesce(p.is_active, true) = true
+              and p.purge_at is null
+            limit 1`,
+          [slug]
+        )
+        if (!row) return null
+        return row
+      } catch (inner) {
+        console.warn('[fetchMessagingPartnerContactChannelsBySiteSlugFromPg] fallback', inner)
+        return null
+      }
+    }
     if (isMissingPartnerProfileColumnError(e)) {
       return {
         contact_phone: null,

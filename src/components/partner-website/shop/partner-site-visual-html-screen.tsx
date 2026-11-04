@@ -158,7 +158,7 @@ export async function PartnerSiteVisualHtmlScreen({
   const shopCtx = await loadPartnerSiteShopContext(site.siteSlug).catch(() => null)
   const tracking = partnerSiteTrackingFromPublicRow(site)
   const trackingCacheToken = [
-    'track-188-1',
+    'track-188-2',
     site.gtmContainerId || '',
     site.googleSearchConsoleVerify || '',
     site.googleMerchantCenterVerify || '',
@@ -166,6 +166,11 @@ export async function PartnerSiteVisualHtmlScreen({
     String(site.customEmbedHeadHtml?.length || 0),
     String(site.customEmbedBodyOpenHtml?.length || 0),
     String(site.customEmbedBodyCloseHtml?.length || 0),
+    site.facebookChatPageId || '',
+    site.zaloOaId || '',
+    site.zaloPersonalUrl || '',
+    site.zaloOpen || '',
+    String(site.zaloCustomHtml?.length || 0),
   ].join('|')
   const [liveCategoryBind, liveMarketingBanners, liveBrand] = await Promise.all([
     loadSiteLiveCategoryBind(site.siteSlug, navOnly),

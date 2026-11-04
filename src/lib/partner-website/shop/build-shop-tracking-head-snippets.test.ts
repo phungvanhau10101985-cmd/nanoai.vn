@@ -33,8 +33,27 @@ test('injectPartnerShopLiveTrackingHtml adds verify metas and sanitized custom H
   assert.match(out, /name="custom-ok"/)
   assert.match(out, /pw-custom-body-open/)
   assert.match(out, /pw-custom-body-close/)
+  assert.doesNotMatch(out, /pw-chat-widgets/)
   assert.doesNotMatch(out, /fbq\('track','PageView'\)/)
   assert.doesNotMatch(out, /ttq\.page\(\)/)
+})
+
+test('injectPartnerShopLiveTrackingHtml adds Zalo OA and Facebook chat from IDs', () => {
+  const config: PartnerSiteShopTrackingConfig = {
+    ga4MeasurementId: null,
+    facebookPixelId: null,
+    googleAdsId: null,
+    tiktokPixelId: null,
+    facebookChatPageId: '1234567890',
+    zaloOpen: 'oa',
+    zaloOaId: '99887766',
+    zaloPersonalUrl: 'https://zalo.me/0968659836',
+  }
+  const out = injectPartnerShopLiveTrackingHtml(baseHtml, config)
+  assert.match(out, /pw-chat-widgets/)
+  assert.match(out, /page_id="1234567890"/)
+  assert.match(out, /data-oaid="99887766"/)
+  assert.doesNotMatch(out, /zalo\.me\/0968659836/)
 })
 
 test('injectPartnerShopLiveTrackingHtml no-ops without config', () => {

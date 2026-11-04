@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 import {
-  attachInvitedGuestWish,
   createWeddingRsvp,
   createWeddingWish,
   getPublishedWeddingCardBySlug,
@@ -49,32 +48,27 @@ export async function submitWeddingGuestResponse(slug: string, formData: FormDat
     ? Math.min(40, adultCount + childCount)
     : Math.max(0, Math.min(40, Number(formData.get('guestCount') || (attending ? 1 : 0)) || 0))
   if (!guestName) return { error: 'Vui lòng nhập tên khách mời.' }
-  if (card.rsvpEnabled) {
-    await createWeddingRsvp({
-      cardId: card.id,
-      guestName,
-      attending,
-      guestCount,
-      adultCount: hasParty ? adultCount : attending ? guestCount : 0,
-      childCount: hasParty ? childCount : 0,
-      message,
-    })
-    await syncInvitedGuestFromRsvp({
-      cardId: card.id,
-      guestName,
-      attending,
-      guestCount,
-      adultCount: hasParty ? adultCount : attending ? guestCount : 0,
-      childCount: hasParty ? childCount : 0,
-      message,
-      inviteVenue,
-    })
-  }
+  await createWeddingRsvp({
+    cardId: card.id,
+    guestName,
+    attending,
+    guestCount,
+    adultCount: hasParty ? adultCount : attending ? guestCount : 0,
+    childCount: hasParty ? childCount : 0,
+    message,
+  })
+  await syncInvitedGuestFromRsvp({
+    cardId: card.id,
+    guestName,
+    attending,
+    guestCount,
+    adultCount: hasParty ? adultCount : attending ? guestCount : 0,
+    childCount: hasParty ? childCount : 0,
+    message,
+    inviteVenue,
+  })
   if (message) {
     await createWeddingWish({ cardId: card.id, guestName, message })
-    if (!card.rsvpEnabled) {
-      await attachInvitedGuestWish({ cardId: card.id, guestName, message, inviteVenue })
-    }
   }
   revalidatePath(`/thiep-moi-cuoi/${slug}`)
   return { success: true }

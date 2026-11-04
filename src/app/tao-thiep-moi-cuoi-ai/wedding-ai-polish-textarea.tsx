@@ -51,7 +51,7 @@ export function WeddingAiPolishTextarea({
     if (!value.trim()) {
       toast({
         title: 'Chưa có nội dung',
-        description: `Gõ sơ ý của bạn rồi bấm «Tối ưu AI · ${WEDDING_TEXT_POLISH_CREDIT_LABEL}» — AI sẽ viết lại cho hay và mượt hơn.`,
+        description: `Gõ sơ ý của bạn rồi bấm «Chuẩn hóa AI · ${WEDDING_TEXT_POLISH_CREDIT_LABEL}» — AI sẽ viết lại cho hay và mượt hơn.`,
         variant: 'destructive',
       })
       return
@@ -88,34 +88,34 @@ export function WeddingAiPolishTextarea({
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-start justify-between gap-2">
-        <Label className="text-sm leading-snug">{label}</Label>
+    <div className="min-w-0 space-y-2">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <Label className="min-w-[11rem] flex-1 text-sm leading-snug">{label}</Label>
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="h-7 shrink-0 px-2 text-xs"
+          className="h-8 max-w-full shrink-0 px-2.5 text-xs"
           disabled={polishing}
           onClick={() => void polish()}
           title={
             costsCredit
-              ? `Viết lại cho hay hơn. Mỗi lần ${WEDDING_TEXT_POLISH_CREDIT_LABEL}.`
+              ? `Chuẩn hóa cho hay hơn. Mỗi lần ${WEDDING_TEXT_POLISH_CREDIT_LABEL}.`
               : 'DeepSeek viết lại cho hay, mượt — giữ ý bạn đã nhập'
           }
         >
-          {polishing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
-          {costsCredit ? `Tối ưu AI · ${WEDDING_TEXT_POLISH_CREDIT_LABEL}` : 'Tối ưu AI'}
+          {polishing ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}
+          {costsCredit ? `Chuẩn hóa AI · ${WEDDING_TEXT_POLISH_CREDIT_LABEL}` : 'Chuẩn hóa AI'}
         </Button>
       </div>
       <Textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={className}
+        className={className ? `w-full min-w-0 ${className}` : 'w-full min-w-0'}
         disabled={polishing}
       />
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="text-xs leading-5 text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }

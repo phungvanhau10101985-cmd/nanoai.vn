@@ -9,6 +9,8 @@ import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import { WEDDING_GUEST_NAME_CLASS, WeddingGuestNameFontLink } from '@/components/wedding/wedding-guest-name-font'
 import { albumPhotoFrameStyle, centeredFrameBoxStyle, STACK_BRIDE_FRAME_ROTATE, STACK_FRAME_ROTATE_MAX, STACK_FRAME_ROTATE_MIN, STACK_GROOM_FRAME_ROTATE, WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
+import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
+import { WEDDING_EDIT_SIDE, type WeddingEditSide } from '@/lib/wedding/wedding-side-edit-color'
 
 const DEFAULT_FRAME: WeddingAlbumPhotoFrame = { x: 50, y: 18, scale: 1 }
 const EMPTY_HOLE: CoverFrameHolePct = { x: 0, y: 0, w: 100, h: 100 }
@@ -435,19 +437,21 @@ function MoveCrossIcon() {
 }
 
 const PERSON_DOCK_TONE = {
-  ink: {
-    wash: 'bg-slate-50',
-    label: 'text-slate-700',
-    solid: 'bg-slate-900',
-    moveName: 'bg-slate-600',
-    dial: 'bg-slate-800',
+  groom: {
+    wash: WEDDING_EDIT_SIDE.groom.wash,
+    label: WEDDING_EDIT_SIDE.groom.label,
+    solid: WEDDING_EDIT_SIDE.groom.solid,
+    moveName: WEDDING_EDIT_SIDE.groom.moveName,
+    dial: WEDDING_EDIT_SIDE.groom.dial,
+    panelBorder: WEDDING_EDIT_SIDE.groom.panelBorder,
   },
-  rose: {
-    wash: 'bg-rose-50',
-    label: 'text-rose-700',
-    solid: 'bg-rose-800',
-    moveName: 'bg-rose-500',
-    dial: 'bg-rose-700',
+  bride: {
+    wash: WEDDING_EDIT_SIDE.bride.wash,
+    label: WEDDING_EDIT_SIDE.bride.label,
+    solid: WEDDING_EDIT_SIDE.bride.solid,
+    moveName: WEDDING_EDIT_SIDE.bride.moveName,
+    dial: WEDDING_EDIT_SIDE.bride.dial,
+    panelBorder: WEDDING_EDIT_SIDE.bride.panelBorder,
   },
 } as const
 
@@ -477,6 +481,7 @@ function StackSideName(props: {
   caption?: string
   className?: string
   compact?: boolean
+  side: WeddingEditSide
   /** Cô dâu nằm trái khung: chữ căn phải để sát mép khung. */
   align?: 'start' | 'end'
   style?: CSSProperties
@@ -484,22 +489,35 @@ function StackSideName(props: {
   const text = (props.edit?.value ?? props.name ?? '').trim()
   const caption = (props.edit?.caption ?? props.caption ?? '').trim()
   const end = props.align === 'end'
+  const tone = WEDDING_EDIT_SIDE[props.side]
   if (!props.edit && !text) return null
   return (
     <div className={cn('bg-transparent', end ? 'text-right' : 'text-left', props.edit && 'cursor-grab')}>
       {caption ? (
-        <p className={cn(WEDDING_GUEST_NAME_CLASS, 'leading-none opacity-80', props.compact ? 'text-[11px]' : 'text-[13px] sm:text-sm')}>{caption}</p>
+        <p
+          className={cn(WEDDING_GUEST_NAME_CLASS, 'leading-none', props.edit ? 'opacity-100' : 'opacity-80', props.compact ? 'text-[11px]' : 'text-[13px] sm:text-sm')}
+          style={props.edit ? { color: tone.ink } : undefined}
+        >
+          {caption}
+        </p>
       ) : null}
       {props.edit ? (
         <input
           aria-label={props.edit.label}
+          data-wedding-side={props.side}
           value={props.edit.value}
           placeholder={props.edit.placeholder}
           onChange={(event) => props.edit?.onChange(event.target.value)}
-          style={props.style}
+          onBlur={(event) => {
+            const raw = event.target.value
+            const next = capitalizeInvitationPersonName(raw)
+            if (next !== raw) props.edit?.onChange(next)
+          }}
+          style={{ ...props.style, color: tone.ink }}
           className={cn(
             WEDDING_GUEST_NAME_CLASS,
-            'bg-transparent leading-none outline-none placeholder:text-current/35',
+            'bg-transparent leading-none outline-none ring-1 ring-dashed placeholder:text-current/35',
+            tone.ring,
             end ? 'text-right' : 'text-left',
             'w-full text-[clamp(13px,12cqi,1.35rem)]',
             props.className,
@@ -746,13 +764,13 @@ export function WeddingStackedCouplePhotos(props: {
   const moveChip = (side: 'first' | 'second', kind: 'frame' | 'name') => {
     if (!tools || !props.onPlace) return null
     const label = kind === 'frame' ? props.moveFrameLabel || props.moveLabel || '' : props.moveNameLabel || props.moveLabel || ''
-    return <StackMoveChip label={label} who={personCaption(side)} tone={side === 'first' ? 'ink' : 'rose'} kind={kind} />
+    return <StackMoveChip label={label} who={personCaption(side)} tone={side === 'first' ? 'groom' : 'bride'} kind={kind} />
   }
   const attachedTools = (side: 'first' | 'second', edit?: WeddingStackedPhotoEdit, hasPhoto?: boolean) => {
     if (!tools || pickedFrame !== side) return null
     const rotate = rotateEdit(side)
     const choose = side === 'first' ? (props.onChooseFirstFrame ?? props.onChooseFrame) : (props.onChooseSecondFrame ?? props.onChooseFrame)
-    const tone = side === 'first' ? PERSON_DOCK_TONE.ink : PERSON_DOCK_TONE.rose
+    const tone = side === 'first' ? PERSON_DOCK_TONE.groom : PERSON_DOCK_TONE.bride
     const crop = edit?.crop
     if (!props.onPlace && !rotate && !choose && !props.frameScaleEdit && !edit) return null
     const hold = (event: React.PointerEvent<HTMLElement>) => event.stopPropagation()
@@ -760,7 +778,7 @@ export function WeddingStackedCouplePhotos(props: {
     return (
       <div
         data-wedding-frame-tools=""
-        className="flex w-max flex-col gap-1 rounded-xl border border-rose-200 bg-white/95 p-1 shadow-lg"
+        className={cn('flex w-max flex-col gap-1 rounded-xl border bg-white/95 p-1 shadow-lg', tone.panelBorder)}
         onPointerDown={(event) => {
           const target = event.target
           if (!(target instanceof Element) || !target.closest('[data-stack-move]')) event.stopPropagation()
@@ -829,16 +847,6 @@ export function WeddingStackedCouplePhotos(props: {
             {rotate ? <span>{rotate.degrees}°</span> : null}
             {props.frameScaleEdit ? <span>{weddingFrameScalePercent(sharedFrameScale)}%</span> : null}
           </div>
-        ) : null}
-        {choose ? (
-          <button
-            type="button"
-            className="h-9 rounded-lg bg-white px-2 text-xs font-medium text-stone-800 ring-1 ring-stone-200"
-            onPointerDown={hold}
-            onClick={choose}
-          >
-            {props.chooseFrameLabel}
-          </button>
         ) : null}
         {crop && hasPhoto ? (
           <div className="flex h-7 items-center rounded-full bg-black/70 px-0.5 text-white shadow" onPointerDown={hold}>
@@ -933,6 +941,7 @@ export function WeddingStackedCouplePhotos(props: {
                   edit={tools ? props.firstNameEdit : undefined}
                   caption={props.firstCaption}
                   compact={props.compact}
+                  side="groom"
                   className={props.nameClassName}
                   style={props.firstNameStyle}
                 />
@@ -951,6 +960,7 @@ export function WeddingStackedCouplePhotos(props: {
                   edit={tools ? props.secondNameEdit : undefined}
                   caption={props.secondCaption}
                   compact={props.compact}
+                  side="bride"
                   align="end"
                   className={props.nameClassName}
                   style={props.secondNameStyle}

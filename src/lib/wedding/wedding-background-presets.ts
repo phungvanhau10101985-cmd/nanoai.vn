@@ -1944,9 +1944,9 @@ export function weddingUsesPairedAiFrame(section: {
   return (mode === 'library' || mode === 'ai') && Boolean(section.coverAiFrameUrl?.trim())
 }
 
-/** Bố cục ảnh của bộ nền. Khách không chọn bố cục riêng. */
-export function weddingHeroPhotoLayout(preset: Pick<WeddingBackgroundPreset, 'heroPhotoLayout'> | null | undefined): 'single' | 'stack' {
-  return preset?.heroPhotoLayout === 'stack' ? 'stack' : 'single'
+/** Một khung của chủ đề. Bố cục hai khung chồng không còn. */
+export function weddingHeroPhotoLayout(_preset: Pick<WeddingBackgroundPreset, 'heroPhotoLayout'> | null | undefined): 'single' | 'stack' {
+  return 'single'
 }
 
 function weddingKitPhotoIsBare(coverPresetId: string) {

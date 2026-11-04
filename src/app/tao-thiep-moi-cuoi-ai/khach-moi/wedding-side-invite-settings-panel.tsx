@@ -10,6 +10,7 @@ import { WeddingTimelineEditor } from '@/components/wedding/wedding-timeline-edi
 import { WeddingTimeField } from '@/components/wedding/wedding-time-field'
 import { parseWeddingTimeClockAndWeekday } from '@/lib/wedding/wedding-calendar-utils'
 import type { WeddingSideInviteSettings } from '@/lib/wedding/wedding-side-invite-settings'
+import { WEDDING_EDIT_SIDE } from '@/lib/wedding/wedding-side-edit-color'
 
 type Side = 'groom' | 'bride'
 
@@ -51,8 +52,8 @@ export function WeddingSideInviteSettingsPanel({
     `Chỉ điền thông tin riêng của ${sideLabel}. Tên cô dâu chú rể, lời mời, dress code và lời cảm ơn nằm ở phần chung.`
   const prefix = groom ? 'groomInvite' : 'brideInvite'
   const tone = groom
-    ? 'border-2 border-sky-600 bg-sky-200'
-    : 'border-2 border-rose-600 bg-rose-200'
+    ? cn('border-2', WEDDING_EDIT_SIDE.groom.panelBorder, WEDDING_EDIT_SIDE.groom.wash, WEDDING_EDIT_SIDE.groom.label)
+    : cn('border-2', WEDDING_EDIT_SIDE.bride.panelBorder, WEDDING_EDIT_SIDE.bride.wash, WEDDING_EDIT_SIDE.bride.label)
   const parents = groom ? card?.groomParents ?? '' : card?.brideParents ?? ''
 
   const patch = (field: keyof WeddingSideInviteSettings, value: string) => {

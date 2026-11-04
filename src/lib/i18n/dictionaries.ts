@@ -685,6 +685,25 @@ export type Dictionary = {
     shopCustomHtmlBodyOpenLabel: string
     shopCustomHtmlBodyCloseLabel: string
     shopTrackingExtrasSaveButton: string
+    shopChatWidgetsTitle: string
+    shopChatWidgetsHint: string
+    shopFacebookChatPageLabel: string
+    shopFacebookChatPageHint: string
+    shopFacebookChatPagePlaceholder: string
+    shopZaloOpenLabel: string
+    shopZaloOpenPersonal: string
+    shopZaloOpenOa: string
+    shopZaloOpenPersonalHint: string
+    shopZaloOpenOaHint: string
+    shopZaloOaLabel: string
+    shopZaloOaHint: string
+    shopZaloOaPlaceholder: string
+    shopZaloPersonalLabel: string
+    shopZaloPersonalHint: string
+    shopZaloPersonalPlaceholder: string
+    shopZaloCustomHtmlLabel: string
+    shopZaloCustomHtmlHint: string
+    shopChatWidgetsInvalidToast: string
     shopTiktokEventsTokenLabel: string
     shopTiktokEventsTokenHint: string
     shopTiktokEventsTokenPlaceholder: string
@@ -3966,11 +3985,23 @@ export type Dictionary = {
     previewQuote: string
     previewInvite: string
     previewInviteEn: string
+    previewPolishAi: string
+    previewPolishEmptyTitle: string
+    previewPolishEmptyBody: string
+    previewPolishDoneTitle: string
+    previewPolishDoneBody: string
+    previewPolishFailTitle: string
     previewTimelineAdd: string
     previewTimelineRemove: string
     previewMapUrl: string
     previewContact: string
     previewPartyTime: string
+    previewFieldDate: string
+    previewFieldReception: string
+    previewFieldParty: string
+    previewFieldVenue: string
+    previewFieldMap: string
+    previewFieldContact: string
     previewAlbumLayout: string
     previewGiftEnable: string
     previewRsvpEnable: string
@@ -5193,6 +5224,27 @@ export const VI_DICTIONARY: Dictionary = {
     shopCustomHtmlBodyOpenLabel: 'Đầu body',
     shopCustomHtmlBodyCloseLabel: 'Cuối body',
     shopTrackingExtrasSaveButton: 'Lưu thẻ Ads / xác minh / HTML',
+    shopChatWidgetsTitle: 'Zalo và chat Facebook',
+    shopChatWidgetsHint:
+      'Chọn nút Zalo trên shop mở số cá nhân hay Official Account. Widget OA chỉ hiện khi chọn Official Account.',
+    shopZaloOpenLabel: 'Bấm nút Zalo thì mở',
+    shopZaloOpenPersonal: 'Zalo cá nhân — số hoặc link ở dưới',
+    shopZaloOpenOa: 'Zalo Official Account — widget OA',
+    shopZaloOpenPersonalHint: 'Nút Zalo và «Nhắn Zalo» mở số cá nhân. Widget OA tắt.',
+    shopZaloOpenOaHint: 'Nút Zalo mở Official Account. Số cá nhân không được mở khi khách bấm.',
+    shopFacebookChatPageLabel: 'Facebook — Chat plugin (Page ID)',
+    shopFacebookChatPageHint: 'Chỉ nhập Page ID (số). Không dán script.',
+    shopFacebookChatPagePlaceholder: 'Ví dụ: 123456789012345',
+    shopZaloOaLabel: 'Zalo — Chat / Widget Official Account',
+    shopZaloOaHint: 'Chỉ nhập OA ID (chuỗi số). Không dán script.',
+    shopZaloOaPlaceholder: 'OA ID',
+    shopZaloPersonalLabel: 'Zalo cá nhân — nút nhắn shop',
+    shopZaloPersonalHint:
+      'Số điện thoại hoặc link https://zalo.me/…. Nút liên hệ dùng số này khi ô link Zalo ở mục liên hệ đang trống.',
+    shopZaloPersonalPlaceholder: '0968659836 hoặc https://zalo.me/0968659836',
+    shopZaloCustomHtmlLabel: 'Zalo — mã khác (ZNS,…)',
+    shopZaloCustomHtmlHint: 'HTML đã lọc (script Zalo / thẻ cho phép). Không dán script lạ.',
+    shopChatWidgetsInvalidToast: 'Nhập Page ID, OA ID, số Zalo hoặc HTML Zalo hợp lệ.',
     shopTiktokEventsTokenLabel: 'TikTok Events API token',
     shopTiktokEventsTokenHint: 'Chỉ lưu — chưa gửi server (giống 188). Pixel TikTok phía trên vẫn bắn trên web.',
     shopTiktokEventsTokenPlaceholder: 'Dán token Events API',
@@ -8509,11 +8561,23 @@ export const VI_DICTIONARY: Dictionary = {
     previewQuote: 'Câu quote',
     previewInvite: 'Lời mời',
     previewInviteEn: 'Lời mời tiếng Anh',
+    previewPolishAi: 'Chuẩn hóa AI · 0,1 credit',
+    previewPolishEmptyTitle: 'Chưa có nội dung',
+    previewPolishEmptyBody: 'Gõ sơ ý rồi bấm Chuẩn hóa AI. Mỗi lần 0,1 credit.',
+    previewPolishDoneTitle: 'Đã chuẩn hóa bằng AI',
+    previewPolishDoneBody: 'Đã trừ 0,1 credit. Có thể sửa thêm hoặc bấm lại.',
+    previewPolishFailTitle: 'Chuẩn hóa thất bại',
     previewTimelineAdd: 'Thêm mục',
     previewTimelineRemove: 'Xóa',
     previewMapUrl: 'Link bản đồ',
     previewContact: 'Liên hệ',
     previewPartyTime: 'Giờ khai tiệc',
+    previewFieldDate: 'Ngày cưới',
+    previewFieldReception: 'Giờ đón khách',
+    previewFieldParty: 'Giờ khai tiệc',
+    previewFieldVenue: 'Địa điểm tổ chức',
+    previewFieldMap: 'Link Google Maps',
+    previewFieldContact: 'Số điện thoại liên hệ',
     previewAlbumLayout: 'Kiểu album',
     previewGiftEnable: 'Bật hộp mừng cưới',
     previewRsvpEnable: 'Bật xác nhận tham dự',
@@ -8650,7 +8714,7 @@ export const VI_DICTIONARY: Dictionary = {
     buttonColorBlack: 'Đen',
     buttonColorCream: 'Vàng kem',
     heroLayoutLabel: 'Bố cục ảnh',
-    heroLayoutHint: 'Một khung là kiểu đang có. Hai khung chồng đưa hai ảnh lên trên, tên ở dưới.',
+    heroLayoutHint: 'Khung theo giao diện đang chọn. Vỏ thiệp và nội dung thiệp dùng một ảnh trong khung của chủ đề.',
     heroLayoutSingle: 'Một khung',
     heroLayoutSingleHint: 'Một ảnh trong khung. Chân dung hai người đứng ngang phía dưới.',
     heroLayoutStack: 'Hai khung chồng',

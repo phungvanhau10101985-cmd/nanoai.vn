@@ -29,6 +29,11 @@ export type PartnerSiteShopTrackingConfig = {
   customEmbedHeadHtml?: string | null
   customEmbedBodyOpenHtml?: string | null
   customEmbedBodyCloseHtml?: string | null
+  facebookChatPageId?: string | null
+  zaloOaId?: string | null
+  zaloPersonalUrl?: string | null
+  zaloOpen?: string | null
+  zaloCustomHtml?: string | null
 }
 
 export type PartnerSiteShopTrackingProduct = {

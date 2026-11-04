@@ -1,6 +1,7 @@
 'use client'
 
 import { MapPin } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { WeddingGuestNameFontLink, renderWeddingGuestName, WEDDING_GUEST_NAME_CLASS } from '@/components/wedding/wedding-guest-name-font'
 import { cn } from '@/lib/utils'
 import { resolveGuestInviteMapUrl } from '@/lib/wedding/google-maps-embed-url'
@@ -8,6 +9,7 @@ import { formatGuestInviteVenueDateTime } from '@/lib/wedding/wedding-calendar-u
 import { type WeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingMapButtonColors } from '@/lib/wedding/wedding-theme'
 import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
+import { WEDDING_EDIT_SIDE, type WeddingEditSide } from '@/lib/wedding/wedding-side-edit-color'
 
 type Props = {
   guestName: string
@@ -36,6 +38,7 @@ type Props = {
     onChange: (value: string) => void
     onFocus?: () => void
     label: string
+    polish?: ReactNode
   }
   /** Tên trong câu mời giữ font của câu, chỉ đậm. Tên lớn phía trên vẫn thư pháp. */
   plainBodyName?: boolean
@@ -44,6 +47,8 @@ type Props = {
   dense?: boolean
   /** Trong thiệp đã mở: từng dòng hiện lần lượt sau tên cô dâu chú rể. */
   scriptLines?: boolean
+  /** Chế độ sửa: dòng nhà đang xem theo xanh / hồng. Khách xem không truyền. */
+  editSide?: WeddingEditSide
 }
 
 export function WeddingGuestInviteBlock(props: Props) {
@@ -54,6 +59,7 @@ export function WeddingGuestInviteBlock(props: Props) {
   const address = props.addressText?.trim() ?? ''
   const mapsHref = resolveGuestInviteMapUrl(props.mapUrl ?? '', address)
   const mapColors = props.buttonColor ?? getWeddingMapButtonColors(props.weddingThemeId)
+  const editInk = props.editSide ? { color: WEDDING_EDIT_SIDE[props.editSide].ink } : undefined
 
   const guestNameClass = cn(
     props.plainBodyName ? 'font-semibold' : cn(WEDDING_GUEST_NAME_CLASS, 'text-[1.45em] leading-none'),
@@ -85,6 +91,8 @@ export function WeddingGuestInviteBlock(props: Props) {
           {name}
         </p>
         {props.inviteEdit ? (
+          <>
+          {props.inviteEdit.polish ? <div className="mt-2 flex justify-center">{props.inviteEdit.polish}</div> : null}
           <textarea
             aria-label={props.inviteEdit.label}
             data-wedding-text="invite"
@@ -97,6 +105,7 @@ export function WeddingGuestInviteBlock(props: Props) {
               props.personalInviteClassName,
             )}
           />
+          </>
         ) : props.personalInviteText?.trim() ? (
           <p
             className={cn(
@@ -112,7 +121,7 @@ export function WeddingGuestInviteBlock(props: Props) {
         ) : null}
         {venue ? (
           <>
-            <p className={cn('mt-1 font-medium sm:mt-2', props.compact ? 'text-xs' : 'text-xs sm:text-sm', props.scriptLines && 'wedding-open-line wedding-open-venue', props.venueClassName)}>
+            <p className={cn('mt-1 font-medium sm:mt-2', props.compact ? 'text-xs' : 'text-xs sm:text-sm', props.scriptLines && 'wedding-open-line wedding-open-venue', props.editSide ? undefined : props.venueClassName)} style={editInk}>
               {venue}
             </p>
             {venueDateTime ? (
@@ -121,8 +130,9 @@ export function WeddingGuestInviteBlock(props: Props) {
                   'mt-0.5 font-medium',
                   props.compact ? 'text-[11px]' : 'text-xs sm:text-sm',
                   props.scriptLines && 'wedding-open-line wedding-open-when',
-                  props.venueDateTimeClassName ?? props.venueClassName,
+                  props.editSide ? undefined : (props.venueDateTimeClassName ?? props.venueClassName),
                 )}
+                style={editInk}
               >
                 {venueDateTime}
               </p>
@@ -135,8 +145,9 @@ export function WeddingGuestInviteBlock(props: Props) {
               'mt-1 flex items-start justify-center gap-1.5 text-left leading-relaxed sm:mt-2',
               props.compact ? 'text-xs' : 'text-xs sm:text-sm',
               props.scriptLines && 'wedding-open-line wedding-open-address',
-              props.addressClassName,
+              props.editSide ? undefined : props.addressClassName,
             )}
+            style={editInk}
           >
             <MapPin className={cn('mt-0.5 h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4', props.compact && 'h-3.5 w-3.5')} aria-hidden />
             <span>{address}</span>

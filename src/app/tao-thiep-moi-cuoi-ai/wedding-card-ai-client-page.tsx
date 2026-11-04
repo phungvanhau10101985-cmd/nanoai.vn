@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type SetStateAction } from 'react'
 import { ExternalLink, Eye, Heart, Loader2, MapPin, Pencil, Plus, QrCode, Trash2, Upload, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -82,6 +82,7 @@ import { weddingBackgroundPlateUrls } from '@/lib/wedding/wedding-background-pla
 import { findWeddingSampleCard, findWeddingSampleInUse, isWeddingSamplePhotoUrl, stripWeddingSamplePhotos, weddingLibrarySampleSectionPatch, weddingOccasionDemos, weddingSamplesWithActiveFirst, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
 import { clearPendingWeddingSampleUse, readPendingWeddingSampleUse } from '@/lib/wedding/wedding-sample-use-target'
 import { WeddingSampleComposeModal } from '@/components/wedding/wedding-sample-compose-modal'
+import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
 import {
   applyComposeCopyToCard,
   carryWeddingSampleFacts,
@@ -147,7 +148,7 @@ import {
   WEDDING_OPEN_FALL_SECOND_STOPS,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingOpenEffects } from '@/components/wedding/wedding-open-effects'
-import { WeddingStackedCouplePhotos, type WeddingStackedFrameScaleEdit, type WeddingStackedNameEdit, type WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
+import { type WeddingStackedFrameScaleEdit, type WeddingStackedNameEdit, type WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
 import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
 import { WeddingAlbumPhotoCropThumb } from '@/components/wedding/wedding-album-photo-crop-thumb'
 import { FrameEdgeGrips, FrameScaleDragBar, WeddingCoverShellCard, WeddingFramedPhoto, type FrameScaleEdit } from '@/components/wedding/wedding-cover-shell-card'
@@ -406,6 +407,7 @@ function rememberCardInUrl(cardId: string) {
 const LIVE_WORKSPACE_MS = 20000
 type LiveWorkspace = {
   at: number
+  epoch: number
   card: WeddingCard
   images: WeddingAiImage[]
   rsvps: WeddingRsvp[]
@@ -419,6 +421,11 @@ type LiveWorkspace = {
 }
 let liveWorkspace: LiveWorkspace | null = null
 const liveWorkspaceListeners = new Set<(snapshot: LiveWorkspace) => void>()
+let savedCardListEpoch = 0
+type SavedCardListSnap = { cards: WeddingCardSummary[]; epoch: number; seq: number }
+const SAVED_CARD_LIST_SERVER: SavedCardListSnap = { cards: [], epoch: 0, seq: 0 }
+let savedCardListSnap: SavedCardListSnap = SAVED_CARD_LIST_SERVER
+const savedCardListListeners = new Set<() => void>()
 
 function freshLiveWorkspace() {
   if (typeof window === 'undefined' || !liveWorkspace) return null
@@ -426,8 +433,41 @@ function freshLiveWorkspace() {
   return liveWorkspace
 }
 
-function publishLiveWorkspace(snapshot: Omit<LiveWorkspace, 'at'>) {
-  const next = { ...snapshot, at: Date.now() }
+function beginSavedCardListWrite() {
+  savedCardListEpoch += 1
+  return savedCardListEpoch
+}
+
+function publishSavedCardList(cards: WeddingCardSummary[], epoch: number) {
+  if (epoch < savedCardListSnap.epoch) return
+  savedCardListSnap = { cards, epoch, seq: savedCardListSnap.seq + 1 }
+  savedCardListListeners.forEach((listener) => listener())
+}
+
+function subscribeSavedCardList(listener: () => void) {
+  savedCardListListeners.add(listener)
+  return () => {
+    savedCardListListeners.delete(listener)
+  }
+}
+
+function getSavedCardListSnap() {
+  return savedCardListSnap
+}
+
+function getSavedCardListServerSnap() {
+  return SAVED_CARD_LIST_SERVER
+}
+
+/** Thiệp vừa tạo chưa có trong payload cũ thì giữ ở đầu danh sách. */
+function mergeLocalCardsFirst(current: WeddingCardSummary[], incoming: WeddingCardSummary[]) {
+  const incomingIds = new Set(incoming.map((item) => item.id))
+  const onlyLocal = current.filter((item) => item.id && !incomingIds.has(item.id))
+  return [...onlyLocal, ...incoming]
+}
+
+function publishLiveWorkspace(snapshot: Omit<LiveWorkspace, 'at' | 'epoch'>) {
+  const next = { ...snapshot, at: Date.now(), epoch: savedCardListEpoch }
   liveWorkspace = next
   liveWorkspaceListeners.forEach((listener) => listener(next))
 }
@@ -520,7 +560,24 @@ export default function WeddingCardAiClientPage() {
   const { toast } = useToast()
   const [uiLocale, setUiLocale] = useState<WebLocale>(DEFAULT_WEB_LOCALE)
   const [card, setCard] = useState<WeddingCard>(() => seededWorkspace?.card ?? emptyBrief())
-  const [savedCards, setSavedCards] = useState<WeddingCardSummary[]>(() => seededWorkspace?.cards ?? [])
+  const [savedCards, setSavedCardsState] = useState<WeddingCardSummary[]>(() => {
+    const initial = seededWorkspace?.cards ?? []
+    if (typeof window !== 'undefined' && savedCardListSnap.seq === 0 && initial.length > 0) {
+      savedCardListSnap = { cards: initial, epoch: savedCardListEpoch, seq: 1 }
+    }
+    return savedCardListSnap.seq > 0 ? savedCardListSnap.cards : initial
+  })
+  const savedCardsStateRef = useRef(savedCards)
+  savedCardsStateRef.current = savedCards
+  const liveSavedList = useSyncExternalStore(subscribeSavedCardList, getSavedCardListSnap, getSavedCardListServerSnap)
+  const savedCardList = liveSavedList.seq > 0 ? liveSavedList.cards : savedCards
+  const setSavedCards = (value: SetStateAction<WeddingCardSummary[]>, epoch = savedCardListEpoch) => {
+    if (epoch < savedCardListEpoch) return
+    const source = savedCardListSnap.seq > 0 ? savedCardListSnap.cards : savedCardsStateRef.current
+    const next = typeof value === 'function' ? value(source) : value
+    publishSavedCardList(next, epoch)
+    setSavedCardsState(next)
+  }
   const [switchingCard, setSwitchingCard] = useState(false)
   const [images, setImages] = useState<WeddingAiImage[]>(() => seededWorkspace?.images ?? [])
   const [library, setLibrary] = useState<WeddingBackgroundLibraryItem[]>(() => seededWorkspace?.library ?? [])
@@ -702,6 +759,7 @@ export default function WeddingCardAiClientPage() {
 
   const applyLiveWorkspaceRef = useRef<(snapshot: LiveWorkspace) => void>(() => {})
   applyLiveWorkspaceRef.current = (snapshot) => {
+    if (snapshot.epoch < savedCardListEpoch) return
     setCard(snapshot.card)
     setImages(snapshot.images)
     setLibrary(snapshot.library)
@@ -711,7 +769,7 @@ export default function WeddingCardAiClientPage() {
     setOrnamentAdmin(snapshot.ornamentAdmin)
     setMusicLibrary(snapshot.musicLibrary)
     setRsvps(snapshot.rsvps)
-    setSavedCards(snapshot.cards)
+    setSavedCards(snapshot.cards, snapshot.epoch)
     setLoading(false)
     rememberCardInUrl(snapshot.card.id)
   }
@@ -740,6 +798,7 @@ export default function WeddingCardAiClientPage() {
       url.searchParams.delete('openSamples')
       window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
     }
+    const epochAtLoad = savedCardListEpoch
     const liveNow = freshLiveWorkspace()
     if (liveNow) {
       applyLiveWorkspaceRef.current(liveNow)
@@ -747,6 +806,7 @@ export default function WeddingCardAiClientPage() {
     }
     let mounted = true
     const showLoadedWorkspace = (result: Exclude<Awaited<ReturnType<typeof loadWeddingCardWorkspace>>, { error: string }>) => {
+      if (epochAtLoad < savedCardListEpoch) return
       lastSavedPersistRef.current = buildSavedSnapshotForCard(result.card)
       baselineHydratedRef.current = true
       const localDraft = readWeddingLocalDraft(result.card.id)
@@ -775,7 +835,7 @@ export default function WeddingCardAiClientPage() {
       setOrnamentAdmin(Boolean(result.ornamentAdmin))
       setMusicLibrary(result.musicLibrary)
       setRsvps(result.rsvps)
-      setSavedCards(result.cards)
+      setSavedCards((prev) => mergeLocalCardsFirst(prev, result.cards), epochAtLoad)
       rememberCardInUrl(result.card.id)
     }
     void (async () => {
@@ -1596,7 +1656,7 @@ export default function WeddingCardAiClientPage() {
         brideImageUrl: c.brideImageUrl,
         selectedStyleId: c.selectedStyleId,
         colorPalette: c.colorPalette,
-        rsvpEnabled: String(c.rsvpEnabled),
+        rsvpEnabled: 'true',
         giftQrEnabled: String(c.giftQrEnabled),
         giftQrImageUrl: c.giftQrImageUrl,
         groomGiftBankId: c.groomGiftBankId,
@@ -1949,6 +2009,7 @@ export default function WeddingCardAiClientPage() {
   ): Promise<WeddingCard | null> => {
     const source = persistInputsRef.current.card
     if (!source.id || applyingLibraryId) return null
+    const epochAtLoad = savedCardListEpoch
     setApplyingLibraryId(libraryId)
     const formData = new FormData()
     formData.append('cardId', source.id)
@@ -1963,7 +2024,7 @@ export default function WeddingCardAiClientPage() {
         return null
       }
       const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
-      if ('error' in fresh) return null
+      if ('error' in fresh || epochAtLoad < savedCardListEpoch) return null
       const next = cardWithAiBackgroundKit(fresh.card, fresh.images, fresh.library, fresh.frameLibrary)
       const produced = !kitStyleId
         ? { ...next, weddingDate: source.weddingDate }
@@ -1982,7 +2043,7 @@ export default function WeddingCardAiClientPage() {
       setOrnamentAdmin(Boolean(fresh.ornamentAdmin))
       setMusicLibrary(fresh.musicLibrary)
       setRsvps(fresh.rsvps)
-      setSavedCards(fresh.cards)
+      setSavedCards((prev) => mergeLocalCardsFirst(prev, fresh.cards), epochAtLoad)
       if (commitCard) {
         setCard(produced)
         setBackgroundConfirmOpen(true)
@@ -2110,7 +2171,7 @@ export default function WeddingCardAiClientPage() {
       ? { ask: true as const }
       : resolveWeddingSampleNameReuse({
           current: persistInputsRef.current.card,
-          saved: savedCards,
+          saved: savedCardList,
           occasionKey: normalizeInvitationOccasion(sample.occasionKey ?? persistInputsRef.current.card.occasionKey),
         })
     if (reuse.ask) {
@@ -2249,8 +2310,8 @@ export default function WeddingCardAiClientPage() {
     const sample = creating ? null : findWeddingSampleCard(composeSampleId)
     if (!creating && !sample) return
     if (composeBusy) return
-    const groomName = readComposeField('wedding-compose-groom', composeGroom)
-    const brideName = readComposeField('wedding-compose-bride', composeBride)
+    const groomName = capitalizeInvitationPersonName(readComposeField('wedding-compose-groom', composeGroom))
+    const brideName = capitalizeInvitationPersonName(readComposeField('wedding-compose-bride', composeBride))
     const eventDate = readComposeField('wedding-compose-date', composeDate)
     const storyNotes = readComposeField('wedding-compose-story', composeStory)
     if (!invitationComposeNamesReady({ occasionKey: occasion, primaryName: groomName, secondaryName: brideName })) {
@@ -2392,6 +2453,12 @@ export default function WeddingCardAiClientPage() {
     },
     options?: { restoreLocalDraft?: boolean },
   ) => {
+    const listEpoch = beginSavedCardListWrite()
+    const serverCards = Array.isArray(result.cards) ? result.cards : []
+    const immediateCards = serverCards.some((item) => item.id === result.card.id)
+      ? serverCards
+      : [summaryFromCard(result.card), ...serverCards]
+    setSavedCards(immediateCards, listEpoch)
     persistEpochRef.current += 1
     persistQueuedRef.current = false
     if (autosaveTimerRef.current) {
@@ -2407,9 +2474,6 @@ export default function WeddingCardAiClientPage() {
     setBridePortraitFile(null)
     setGroomPortraitClear(false)
     setBridePortraitClear(false)
-    setExtraPrompt('')
-    setStyleReferenceFile(null)
-    setStyleReferenceUrl('')
     setPreviewLetterView('groom')
     setLetterAskOpen(false)
     const localDraft = options?.restoreLocalDraft ? readWeddingLocalDraft(result.card.id) : null
@@ -2459,7 +2523,7 @@ export default function WeddingCardAiClientPage() {
     setOrnamentAdmin(Boolean(result.ornamentAdmin))
     setMusicLibrary(result.musicLibrary)
     setRsvps(result.rsvps)
-    setSavedCards(shownCards)
+    setSavedCards(shownCards, listEpoch)
     setLoading(false)
     rememberCardInUrl(result.card.id)
     publishLiveWorkspace({
@@ -2581,7 +2645,7 @@ export default function WeddingCardAiClientPage() {
 
   const removeSavedCard = async (cardId: string) => {
     if (!cardId || deletingCardIdsRef.current.has(cardId)) return
-    const row = savedCards.find((item) => item.id === cardId)
+    const row = savedCardList.find((item) => item.id === cardId)
     const title = row ? weddingCardListTitle(row) : 'thiệp này'
     if (!window.confirm(`Xóa «${title}»? Link đã xuất bản và khách mời của thiệp này cũng mất.`)) return
     if (deletingCardIdsRef.current.has(cardId)) return
@@ -2626,7 +2690,7 @@ export default function WeddingCardAiClientPage() {
         return
       }
       clearWeddingLocalDraft(cardId)
-      setSavedCards(result.cards)
+      setSavedCards((prev) => mergeLocalCardsFirst(prev, result.cards).filter((item) => item.id !== cardId))
       if (!wasCurrent) {
         toast({ title: 'Đã xóa thiệp' })
         return
@@ -2773,16 +2837,16 @@ export default function WeddingCardAiClientPage() {
           </div>
         </div>
 
-        <Card>
+        <Card id="wedding-saved-cards">
           <CardHeader className="gap-1">
             <CardTitle>Thiệp đã lưu</CardTitle>
             <CardDescription>Mỗi thiệp giữ riêng. Bấm tên thiệp hoặc Sửa để mở thiệp đó. Khách mời và Xem nhanh mở đúng thiệp. Xóa khi không dùng.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {savedCards.length === 0 ? (
+            {savedCardList.length === 0 ? (
               <p className="text-sm text-muted-foreground">Chưa có thiệp nào.</p>
             ) : (
-              savedCards.map((item) => {
+              savedCardList.map((item) => {
                 const active = item.id === card.id
                 return (
                   <div
@@ -3127,20 +3191,16 @@ export default function WeddingCardAiClientPage() {
                       openButtonLabel={txCover.previewOpenButton}
                       buttonColor={buttonColor}
                       rsvpButtonColor={coverRsvpColor}
-                      quickRsvp={
-                        card.rsvpEnabled
-                          ? {
-                              yesLabel: previewPublic.coverAttendYes,
-                              noLabel: previewPublic.coverAttendNo,
-                              savedYesLabel: previewPublic.coverRsvpSavedYes,
-                              savedNoLabel: previewPublic.coverRsvpSavedNo,
-                              choice: coverRsvpPreview,
-                              partyCount: coverRsvpPreview === 'yes' ? 1 : undefined,
-                              onYes: () => setCoverRsvpPreview((choice) => (choice === 'yes' ? null : 'yes')),
-                              onNo: () => setCoverRsvpPreview((choice) => (choice === 'no' ? null : 'no')),
-                            }
-                          : undefined
-                      }
+                      quickRsvp={{
+                        yesLabel: previewPublic.coverAttendYes,
+                        noLabel: previewPublic.coverAttendNo,
+                        savedYesLabel: previewPublic.coverRsvpSavedYes,
+                        savedNoLabel: previewPublic.coverRsvpSavedNo,
+                        choice: coverRsvpPreview,
+                        partyCount: coverRsvpPreview === 'yes' ? 1 : undefined,
+                        onYes: () => setCoverRsvpPreview((choice) => (choice === 'yes' ? null : 'yes')),
+                        onNo: () => setCoverRsvpPreview((choice) => (choice === 'no' ? null : 'no')),
+                      }}
                       dateFallback={previewPublic.dateFallback}
                       photoAlt={coverPhotoCopy.alt}
                       pairLeftUrl={groomPortraitPreviewUrl}
@@ -3255,8 +3315,8 @@ export default function WeddingCardAiClientPage() {
                 </div>
                 {heroStack ? null : (
                 <div className={cardStructure.nameLayout === 'pair' ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3'}>
-                  <Field label={occasionCopy.primaryName} value={card.groomName} onChange={(v) => update('groomName', v)} />
-                  <Field label={occasionCopy.secondaryName} value={card.brideName} onChange={(v) => update('brideName', v)} />
+                  <Field label={occasionCopy.primaryName} value={card.groomName} onChange={(v) => update('groomName', v)} onBlur={() => { const next = capitalizeInvitationPersonName(card.groomName); if (next !== card.groomName) update('groomName', next) }} labelClassName="font-semibold text-blue-700" inputClassName="border-blue-400" />
+                  <Field label={occasionCopy.secondaryName} value={card.brideName} onChange={(v) => update('brideName', v)} onBlur={() => { const next = capitalizeInvitationPersonName(card.brideName); if (next !== card.brideName) update('brideName', next) }} labelClassName="font-semibold text-pink-700" inputClassName="border-pink-400" />
                 </div>
                 )}
                 {heroStack ? null : (
@@ -3328,17 +3388,18 @@ export default function WeddingCardAiClientPage() {
                 )}
                 {heroStack ? null : <p className="text-xs text-muted-foreground">{occasionCopy.portraitHint}</p>}
                 <p className="text-xs text-muted-foreground">{occasionCopy.sharedHint}</p>
-                <div className="space-y-2">
+                <div className="min-w-0 space-y-4">
+                <div className="min-w-0 space-y-2">
                   <Label>Lời mời tiếng Anh (tùy chọn)</Label>
                   <Textarea
                     value={card.invitationTextEn}
                     onChange={(e) => update('invitationTextEn', e.target.value)}
                     placeholder="Cordially invites you to celebrate with our family..."
-                    className="min-h-24"
+                    className="min-h-24 w-full min-w-0"
                   />
-                  <p className="text-xs text-muted-foreground">Để trống thì thiệp không hiện câu tiếng Anh.</p>
+                  <p className="text-xs leading-5 text-muted-foreground">Để trống thì thiệp không hiện câu tiếng Anh.</p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-4">
                   <WeddingAiPolishTextarea
                     label={occasionCopy.introLabel}
                     field="coupleIntro"
@@ -3396,13 +3457,14 @@ export default function WeddingCardAiClientPage() {
                   hint={WEDDING_CARD_TEXT_TOKEN_HINT}
                   className="min-h-24"
                 />
+                </div>
                 <div className="space-y-3 border-t pt-4">
                   <div className="space-y-1">
                     <Label>{occasionCopy.venueTitle}</Label>
                     <p className="text-xs text-muted-foreground">{occasionCopy.venueNote}</p>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-sky-800">{occasionCopy.primaryFamily}</p>
+                    <p className="text-sm font-semibold text-blue-700">{occasionCopy.primaryFamily}</p>
                     <WeddingSideInviteSettingsPanel
                       side="groom"
                       card={card}
@@ -3418,7 +3480,7 @@ export default function WeddingCardAiClientPage() {
                   </div>
                   {cardStructure.venueLayout === 'one' ? null : (
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-rose-700">{occasionCopy.secondaryFamily}</p>
+                    <p className="text-sm font-semibold text-pink-700">{occasionCopy.secondaryFamily}</p>
                     <WeddingSideInviteSettingsPanel
                       side="bride"
                       card={card}
@@ -3737,7 +3799,6 @@ export default function WeddingCardAiClientPage() {
                     ) : null}
                   </div>
                 </div>
-                <Toggle label="Bật RSVP" checked={card.rsvpEnabled} onChange={(v) => update('rsvpEnabled', v)} />
                 <div className="space-y-4 border-t pt-4">
                   <Toggle
                     label={occasionKey === 'wedding' ? 'Bật hộp / QR mừng cưới (VietQR)' : `Bật ${previewGift.boxTitle} (VietQR)`}
@@ -3890,30 +3951,7 @@ export default function WeddingCardAiClientPage() {
                           {occasionCopy.previewEyebrow}
                         </p>
                         )}
-                        {envelopeCover || !heroStack ? null : (
-                          <WeddingStackedCouplePhotos
-                            firstUrl={groomPortraitPreviewUrl}
-                            secondUrl={bridePortraitPreviewUrl}
-                            firstAlt={occasionCopy.primaryPhoto}
-                            secondAlt={occasionCopy.secondaryPhoto}
-                            firstFrame={groomPortraitFrame}
-                            secondFrame={bridePortraitFrame}
-                            firstName={card.groomName}
-                            secondName={card.brideName}
-                            firstCaption={occasionCopy.primaryRole}
-                            secondCaption={occasionCopy.secondaryRole}
-                            frameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
-                            frameShell={stackFrameShell}
-                            firstShell={groomPortraitShell}
-                            secondShell={bridePortraitShell}
-                            place={stackPlace}
-                            firstRotate={stackRotate.firstRotate}
-                            secondRotate={stackRotate.secondRotate}
-                            nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
-                            compact
-                          />
-                        )}
-                        {envelopeCover || heroStack ? null : (
+                        {envelopeCover ? null : (
                         <div className="w-full min-w-0">
                           <h2 className={cn('w-full text-balance font-serif text-[clamp(1.35rem,8cqi,1.85rem)] font-semibold italic leading-tight', selectedTheme.textGlowHeading)}>
                             {card.groomName || occasionCopy.primaryRole || occasionCopy.label}
@@ -4053,6 +4091,8 @@ export default function WeddingCardAiClientPage() {
                           onChoosePhoto={() => undefined}
                           groomFrameScale={pairPortraitFrameScale}
                           brideFrameScale={pairPortraitFrameScale}
+                          groomPhotoEdit={stackPhotoEdit('groom').crop}
+                          bridePhotoEdit={stackPhotoEdit('bride').crop}
                           pairFrameScaleEdit={stackPairFrameScale()}
                           theme={selectedTheme}
                           compact
@@ -4187,7 +4227,6 @@ export default function WeddingCardAiClientPage() {
                           </div>
                         ) : null}
                         <div className="flex w-full flex-wrap justify-center gap-1.5 text-[10px]">
-                          {card.rsvpEnabled ? <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>RSVP bật</span> : null}
                           {card.giftQrEnabled && (isInvitationGiftReady(card) || card.giftQrImageUrl.trim()) ? (
                             <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>{previewGift.boxTitle}</span>
                           ) : null}
@@ -4221,14 +4260,14 @@ export default function WeddingCardAiClientPage() {
                 {card.id ? (
                   <>
                   <div className={cardStructure.venueLayout === 'one' ? 'grid gap-2' : 'grid gap-2 sm:grid-cols-2'}>
-                    <Button asChild variant="outline" className="w-full border-sky-600 bg-sky-200 font-semibold text-sky-950 hover:bg-sky-300">
+                    <Button asChild variant="outline" className="w-full border-blue-700 bg-blue-100 font-semibold text-blue-950 hover:bg-blue-200">
                       <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(card.id)}&side=groom`}>
                         <Users className="mr-2 h-4 w-4" />
                         {occasionCopy.guestPrimary}
                       </Link>
                     </Button>
                     {cardStructure.venueLayout === 'one' ? null : (
-                    <Button asChild variant="outline" className="w-full border-rose-600 bg-rose-200 font-semibold text-rose-950 hover:bg-rose-300">
+                    <Button asChild variant="outline" className="w-full border-pink-600 bg-pink-100 font-semibold text-pink-950 hover:bg-pink-200">
                       <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(card.id)}&side=bride`}>
                         <Users className="mr-2 h-4 w-4" />
                         {occasionCopy.guestSecondary}
@@ -4375,7 +4414,7 @@ export default function WeddingCardAiClientPage() {
             <Button
               type="button"
               variant="outline"
-              className="border-sky-600 bg-sky-200 font-semibold text-sky-950 hover:bg-sky-300"
+              className="border-blue-700 bg-blue-100 font-semibold text-blue-950 hover:bg-blue-200"
               onClick={() => {
                 if (!quickViewAsk) return
                 window.open(weddingQuickViewHref(quickViewAsk.slug, 'groom'), '_blank', 'noopener,noreferrer')
@@ -4387,7 +4426,7 @@ export default function WeddingCardAiClientPage() {
             <Button
               type="button"
               variant="outline"
-              className="border-rose-600 bg-rose-200 font-semibold text-rose-950 hover:bg-rose-300"
+              className="border-pink-600 bg-pink-100 font-semibold text-pink-950 hover:bg-pink-200"
               onClick={() => {
                 if (!quickViewAsk) return
                 window.open(weddingQuickViewHref(quickViewAsk.slug, 'bride'), '_blank', 'noopener,noreferrer')
@@ -4410,10 +4449,10 @@ export default function WeddingCardAiClientPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
-            <Button type="button" variant="outline" className="border-sky-600 bg-sky-200 font-semibold text-sky-950 hover:bg-sky-300" onClick={() => openLetterView('groom')}>
+            <Button type="button" variant="outline" className="border-blue-700 bg-blue-100 font-semibold text-blue-950 hover:bg-blue-200" onClick={() => openLetterView('groom')}>
               {occasionCopy.letterPrimary}
             </Button>
-            <Button type="button" variant="outline" className="border-rose-600 bg-rose-200 font-semibold text-rose-950 hover:bg-rose-300" onClick={() => openLetterView('bride')}>
+            <Button type="button" variant="outline" className="border-pink-600 bg-pink-100 font-semibold text-pink-950 hover:bg-pink-200" onClick={() => openLetterView('bride')}>
               {occasionCopy.letterSecondary}
             </Button>
           </div>
@@ -4463,13 +4502,16 @@ function Field(props: {
   label: string
   value: string
   onChange: (value: string) => void
+  onBlur?: () => void
   placeholder?: string
   type?: string
+  labelClassName?: string
+  inputClassName?: string
 }) {
   return (
     <div className="space-y-2">
-      <Label>{props.label}</Label>
-      <Input type={props.type ?? 'text'} value={props.value} onChange={(e) => props.onChange(e.target.value)} placeholder={props.placeholder} />
+      <Label className={props.labelClassName}>{props.label}</Label>
+      <Input type={props.type ?? 'text'} className={props.inputClassName} value={props.value} onChange={(e) => props.onChange(e.target.value)} onBlur={props.onBlur} placeholder={props.placeholder} />
     </div>
   )
 }

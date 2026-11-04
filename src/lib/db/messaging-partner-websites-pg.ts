@@ -443,6 +443,11 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       customEmbedHeadHtml: extras.custom_embed_head_html,
       customEmbedBodyOpenHtml: extras.custom_embed_body_open_html,
       customEmbedBodyCloseHtml: extras.custom_embed_body_close_html,
+      facebookChatPageId: extras.facebook_chat_page_id,
+      zaloOaId: extras.zalo_oa_id,
+      zaloPersonalUrl: extras.zalo_personal_url,
+      zaloOpen: extras.zalo_open,
+      zaloCustomHtml: extras.zalo_custom_html,
     })
 
     if (filesLoad.mode !== 'full') {

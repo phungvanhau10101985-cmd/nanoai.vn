@@ -306,7 +306,7 @@ function mapCard(row: Record<string, unknown>): WeddingCard {
     selectedStyleId: String(row.selected_style_id ?? 'luxury'),
     colorPalette: String(row.color_palette ?? ''),
     masterImageId: row.master_image_id ? String(row.master_image_id) : null,
-    rsvpEnabled: Boolean(row.rsvp_enabled),
+    rsvpEnabled: true,
     giftQrEnabled: Boolean(row.gift_qr_enabled),
     giftQrImageUrl: String(row.gift_qr_image_url ?? ''),
     groomGiftBankId: String(row.groom_gift_bank_id ?? ''),

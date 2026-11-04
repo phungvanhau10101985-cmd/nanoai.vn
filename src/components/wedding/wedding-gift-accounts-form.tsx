@@ -7,6 +7,8 @@ import type { VietQrBankItem } from '@/hooks/use-vietqr-banks'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import Image from 'next/image'
 import { buildVietQrCompactImageUrl, isInvitationGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
+import { WEDDING_EDIT_SIDE } from '@/lib/wedding/wedding-side-edit-color'
+import { cn } from '@/lib/utils'
 
 type Tx = Dictionary['weddingGiftBox']
 
@@ -33,15 +35,15 @@ export function WeddingGiftAccountsForm({ card, banks, tx, update, hideSecondary
   const brideTitle = secondaryTitle || tx.brideSection
 
   return (
-    <div className="space-y-6 rounded-2xl border border-dashed border-rose-200 bg-rose-50/40 p-4">
+    <div className="space-y-6 rounded-2xl border border-dashed border-stone-200 bg-white/70 p-4">
       <p className="text-sm text-muted-foreground">{hint || tx.editorHint}</p>
       <div className={hideSecondary ? 'grid gap-6' : 'grid gap-6 md:grid-cols-2'}>
-        <div className="space-y-3">
-          <p className="font-semibold text-rose-900">{groomTitle}</p>
+        <div className={cn('space-y-3 rounded-xl border border-dashed p-3', WEDDING_EDIT_SIDE.groom.panelBorder, WEDDING_EDIT_SIDE.groom.wash)}>
+          <p className={cn('font-semibold', WEDDING_EDIT_SIDE.groom.label)}>{groomTitle}</p>
           <div className="space-y-1">
-            <Label className="text-xs">{tx.bankSelectPlaceholder}</Label>
+            <Label className={cn('text-xs', WEDDING_EDIT_SIDE.groom.label)}>{tx.bankSelectPlaceholder}</Label>
             <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn('flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2', WEDDING_EDIT_SIDE.groom.fieldBorder)}
               value={card.groomGiftBankId}
               onChange={(e) => update('groomGiftBankId', e.target.value)}
             >
@@ -57,20 +59,22 @@ export function WeddingGiftAccountsForm({ card, banks, tx, update, hideSecondary
             label={tx.accountNumber}
             value={card.groomGiftAccountNo}
             onChange={(v) => update('groomGiftAccountNo', v)}
+            side="groom"
           />
           <Field
             label={tx.accountHolder}
             value={card.groomGiftAccountName}
             onChange={(v) => update('groomGiftAccountName', v)}
+            side="groom"
           />
         </div>
         {hideSecondary ? null : (
-        <div className="space-y-3">
-          <p className="font-semibold text-rose-900">{brideTitle}</p>
+        <div className={cn('space-y-3 rounded-xl border border-dashed p-3', WEDDING_EDIT_SIDE.bride.panelBorder, WEDDING_EDIT_SIDE.bride.wash)}>
+          <p className={cn('font-semibold', WEDDING_EDIT_SIDE.bride.label)}>{brideTitle}</p>
           <div className="space-y-1">
-            <Label className="text-xs">{tx.bankSelectPlaceholder}</Label>
+            <Label className={cn('text-xs', WEDDING_EDIT_SIDE.bride.label)}>{tx.bankSelectPlaceholder}</Label>
             <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={cn('flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2', WEDDING_EDIT_SIDE.bride.fieldBorder)}
               value={card.brideGiftBankId}
               onChange={(e) => update('brideGiftBankId', e.target.value)}
             >
@@ -86,11 +90,13 @@ export function WeddingGiftAccountsForm({ card, banks, tx, update, hideSecondary
             label={tx.accountNumber}
             value={card.brideGiftAccountNo}
             onChange={(v) => update('brideGiftAccountNo', v)}
+            side="bride"
           />
           <Field
             label={tx.accountHolder}
             value={card.brideGiftAccountName}
             onChange={(v) => update('brideGiftAccountName', v)}
+            side="bride"
           />
         </div>
         )}
@@ -98,15 +104,15 @@ export function WeddingGiftAccountsForm({ card, banks, tx, update, hideSecondary
       {previewOk && groomQr && (hideSecondary || brideQr) ? (
         hideSecondary ? (
           <div className="border-t border-rose-100 pt-4 text-center">
-            <div className="text-xs text-muted-foreground">{groomTitle}</div>
+            <div className={cn('text-xs font-semibold', WEDDING_EDIT_SIDE.groom.label)}>{groomTitle}</div>
             <div className="relative mx-auto mt-2 flex w-fit justify-center rounded-lg bg-white p-2 shadow-inner">
               <Image src={groomQr} alt="" width={120} height={120} className="h-28 w-28 object-contain" unoptimized />
             </div>
           </div>
         ) : (
         <div className="grid grid-cols-2 gap-3 border-t border-rose-100 pt-4">
-          <div className="text-center text-xs text-muted-foreground">{groomTitle}</div>
-          <div className="text-center text-xs text-muted-foreground">{brideTitle}</div>
+          <div className={cn('text-center text-xs font-semibold', WEDDING_EDIT_SIDE.groom.label)}>{groomTitle}</div>
+          <div className={cn('text-center text-xs font-semibold', WEDDING_EDIT_SIDE.bride.label)}>{brideTitle}</div>
           <div className="relative flex justify-center rounded-lg bg-white p-2 shadow-inner">
             <Image src={groomQr} alt="" width={120} height={120} className="h-28 w-28 object-contain" unoptimized />
           </div>
@@ -120,11 +126,12 @@ export function WeddingGiftAccountsForm({ card, banks, tx, update, hideSecondary
   )
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function Field({ label, value, onChange, side }: { label: string; value: string; onChange: (v: string) => void; side: 'groom' | 'bride' }) {
+  const tone = WEDDING_EDIT_SIDE[side]
   return (
     <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
-      <Input className="text-sm" value={value} onChange={(e) => onChange(e.target.value)} />
+      <Label className={cn('text-xs', tone.label)}>{label}</Label>
+      <Input className={cn('border-dashed text-sm', tone.fieldBorder)} value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   )
 }
