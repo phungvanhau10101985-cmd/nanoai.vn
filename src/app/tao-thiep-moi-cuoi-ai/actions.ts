@@ -279,7 +279,7 @@ export async function loadWeddingCardWorkspace(cardId?: string) {
   let card = requested ? await getWeddingCardForUser(requested, ownerUserId) : null
   if (requested && !card) return { error: 'Không tìm thấy thiệp.' }
   if (!card) card = await getLatestWeddingCardForUser(ownerUserId)
-  if (!card) card = await createWeddingCardDraft(ownerUserId)
+  if (!card) return { empty: true as const, cards: [] as Awaited<ReturnType<typeof listWeddingCardSummariesForUser>> }
   if (card && !card.isPublished && (card.groomName.trim() || card.brideName.trim())) {
     card = (await publishWeddingCard(card.id, ownerUserId)) ?? card
     if (card.slug) revalidatePath(`/thiep-moi-cuoi/${card.slug}`)

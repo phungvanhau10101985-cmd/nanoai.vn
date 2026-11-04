@@ -398,6 +398,14 @@ function rememberCardInUrl(cardId: string) {
   window.history.replaceState(null, '', `${url.pathname}${url.search}`)
 }
 
+function forgetCardInUrl() {
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  if (!url.searchParams.has('cardId')) return
+  url.searchParams.delete('cardId')
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
 /** Giữ thiệp vừa tạo qua lần Next làm mới trang sau server action. Không sống qua F5. */
 const LIVE_WORKSPACE_MS = 20000
 type LiveWorkspace = {
@@ -416,6 +424,31 @@ type LiveWorkspace = {
 }
 let liveWorkspace: LiveWorkspace | null = null
 const liveWorkspaceListeners = new Set<(snapshot: LiveWorkspace) => void>()
+/** Id vừa xóa. Sống qua lần Next làm mới trang sau server action, để thiệp đã xóa không hiện lại. */
+const tombstoneCardIds = new Set<string>()
+
+function markWeddingCardDeleted(cardId: string) {
+  if (!cardId) return
+  tombstoneCardIds.add(cardId)
+  if (!liveWorkspace) return
+  if (liveWorkspace.card.id === cardId) {
+    liveWorkspace = null
+    return
+  }
+  liveWorkspace = {
+    ...liveWorkspace,
+    at: Date.now(),
+    cards: liveWorkspace.cards.filter((item) => item.id !== cardId),
+  }
+}
+
+function unmarkWeddingCardDeleted(cardId: string) {
+  tombstoneCardIds.delete(cardId)
+}
+
+function visibleSavedCards(cards: WeddingCardSummary[]) {
+  return cards.filter((item) => item.id && !tombstoneCardIds.has(item.id))
+}
 let savedCardListEpoch = 0
 type SavedCardListSnap = { cards: WeddingCardSummary[]; epoch: number; seq: number }
 const SAVED_CARD_LIST_SERVER: SavedCardListSnap = { cards: [], epoch: 0, seq: 0 }
@@ -425,6 +458,9 @@ const savedCardListListeners = new Set<() => void>()
 function freshLiveWorkspace() {
   if (typeof window === 'undefined' || !liveWorkspace) return null
   if (Date.now() - liveWorkspace.at > LIVE_WORKSPACE_MS) return null
+  if (tombstoneCardIds.has(liveWorkspace.card.id)) return null
+  const cards = visibleSavedCards(liveWorkspace.cards)
+  if (cards.length !== liveWorkspace.cards.length) liveWorkspace = { ...liveWorkspace, cards }
   return liveWorkspace
 }
 
@@ -457,8 +493,8 @@ function getSavedCardListServerSnap() {
 /** Thiệp vừa tạo chưa có trong payload cũ thì giữ ở đầu danh sách. */
 function mergeLocalCardsFirst(current: WeddingCardSummary[], incoming: WeddingCardSummary[]) {
   const incomingIds = new Set(incoming.map((item) => item.id))
-  const onlyLocal = current.filter((item) => item.id && !incomingIds.has(item.id))
-  return [...onlyLocal, ...incoming]
+  const onlyLocal = current.filter((item) => item.id && !incomingIds.has(item.id) && !tombstoneCardIds.has(item.id))
+  return [...onlyLocal, ...incoming.filter((item) => !tombstoneCardIds.has(item.id))]
 }
 
 function publishLiveWorkspace(snapshot: Omit<LiveWorkspace, 'at' | 'epoch'>) {
@@ -753,8 +789,10 @@ export default function WeddingCardAiClientPage() {
   }, [bridePortraitFile])
 
   const applyLiveWorkspaceRef = useRef<(snapshot: LiveWorkspace) => void>(() => {})
+  const showEmptyWorkspaceRef = useRef<(cards?: WeddingCardSummary[]) => void>(() => {})
   applyLiveWorkspaceRef.current = (snapshot) => {
     if (snapshot.epoch < savedCardListEpoch) return
+    if (tombstoneCardIds.has(snapshot.card.id)) return
     setCard(snapshot.card)
     setImages(snapshot.images)
     setLibrary(snapshot.library)
@@ -764,7 +802,7 @@ export default function WeddingCardAiClientPage() {
     setOrnamentAdmin(snapshot.ornamentAdmin)
     setMusicLibrary(snapshot.musicLibrary)
     setRsvps(snapshot.rsvps)
-    setSavedCards(snapshot.cards, snapshot.epoch)
+    setSavedCards(visibleSavedCards(snapshot.cards), snapshot.epoch)
     setLoading(false)
     rememberCardInUrl(snapshot.card.id)
   }
@@ -800,7 +838,7 @@ export default function WeddingCardAiClientPage() {
       return
     }
     let mounted = true
-    const showLoadedWorkspace = (result: Exclude<Awaited<ReturnType<typeof loadWeddingCardWorkspace>>, { error: string }>) => {
+    const showLoadedWorkspace = (result: Exclude<Awaited<ReturnType<typeof loadWeddingCardWorkspace>>, { error: string } | { empty: true }>) => {
       if (epochAtLoad < savedCardListEpoch) return
       lastSavedPersistRef.current = buildSavedSnapshotForCard(result.card)
       baselineHydratedRef.current = true
@@ -835,28 +873,49 @@ export default function WeddingCardAiClientPage() {
     }
     void (async () => {
       try {
-        let result = await loadWeddingCardWorkspace(requestedId)
+        const openId = requestedId && !tombstoneCardIds.has(requestedId) ? requestedId : ''
+        let result = await loadWeddingCardWorkspace(openId)
         if (!mounted) return
         if ('error' in result && requestedId && result.error.includes('Không tìm thấy thiệp')) {
           clearWeddingLocalDraft(requestedId)
-          const url = new URL(window.location.href)
-          url.searchParams.delete('cardId')
-          window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+          forgetCardInUrl()
           result = await loadWeddingCardWorkspace('')
           if (!mounted) return
-          if (!('error' in result)) {
+          if ('empty' in result) {
+            toast({
+              title: 'Thiệp trong link không còn',
+              description: 'Chưa có thiệp nào. Bấm Tạo thiệp mới khi muốn làm thiệp.',
+            })
+          } else if (!('error' in result)) {
             const named = result.cards.some((item) => item.groomName.trim() || item.brideName.trim())
             toast({
               title: named ? 'Thiệp trong link không còn' : 'Đã mở trang tạo thiệp',
               description: named
                 ? 'Đã mở thiệp gần nhất trong danh sách.'
-                : 'Thiệp cũ đã xóa. Soạn thiệp mới tại đây.',
+                : 'Thiệp cũ đã xóa. Bấm Tạo thiệp mới khi muốn làm thiệp.',
             })
           }
         }
+        if (!('error' in result) && !('empty' in result) && tombstoneCardIds.has(result.card.id)) {
+          const rest = visibleSavedCards(result.cards)
+          result = rest[0] ? await loadWeddingCardWorkspace(rest[0].id) : { empty: true as const, cards: [] }
+          if (!mounted) return
+        }
         const live = freshLiveWorkspace()
-        if (live && ('error' in result || result.card.id !== live.card.id)) {
+        if (live && ('error' in result || 'empty' in result || result.card.id !== live.card.id)) {
           applyLiveWorkspaceRef.current(live)
+          return
+        }
+        if ('empty' in result) {
+          if (pendingSampleUseRef.current) {
+            const created = await createNewWeddingCard()
+            if (!mounted) return
+            if (!('error' in created)) {
+              showLoadedWorkspace(created)
+              return
+            }
+          }
+          showEmptyWorkspaceRef.current(result.cards)
           return
         }
         if ('error' in result) {
@@ -1469,7 +1528,7 @@ export default function WeddingCardAiClientPage() {
       pulling = true
       void loadWeddingCardWorkspace(local.card.id).then((result) => {
         pulling = false
-        if ('error' in result || persistInFlightRef.current) return
+        if ('error' in result || 'empty' in result || persistInFlightRef.current) return
         const current = persistInputsRef.current
         const currentSide = JSON.stringify(weddingSideInviteSettingsFromCard(current.card))
         if (currentSide !== savedSide) return
@@ -1598,7 +1657,7 @@ export default function WeddingCardAiClientPage() {
     options?: { hideSuccess?: boolean; ignoreNotFound?: boolean; snapshot?: typeof persistInputsRef.current },
   ): Promise<boolean> => {
     const p = options?.snapshot ?? persistInputsRef.current
-    if (!p.card.id || deletedCardIdsRef.current.has(p.card.id)) return false
+    if (!p.card.id || deletedCardIdsRef.current.has(p.card.id) || tombstoneCardIds.has(p.card.id)) return false
     const startedEpoch = persistEpochRef.current
 
     if (!silent) {
@@ -1694,7 +1753,7 @@ export default function WeddingCardAiClientPage() {
         }),
       ])
       if ('error' in result) {
-        if (deletedCardIdsRef.current.has(c.id) || startedEpoch !== persistEpochRef.current) return false
+        if (deletedCardIdsRef.current.has(c.id) || tombstoneCardIds.has(c.id) || startedEpoch !== persistEpochRef.current) return false
         const missing = result.error.includes('Không tìm thấy thiệp')
         if (missing && (silent || options?.ignoreNotFound)) return false
         if (!silent) {
@@ -1704,7 +1763,7 @@ export default function WeddingCardAiClientPage() {
         }
         return false
       }
-      if (deletedCardIdsRef.current.has(c.id) || deletedCardIdsRef.current.has(result.card.id)) {
+      if (deletedCardIdsRef.current.has(c.id) || tombstoneCardIds.has(c.id) || deletedCardIdsRef.current.has(result.card.id) || tombstoneCardIds.has(result.card.id)) {
         return false
       }
       const stillEditing = persistInputsRef.current.card.id === result.card.id
@@ -1761,7 +1820,7 @@ export default function WeddingCardAiClientPage() {
       }
       return true
     } catch (e) {
-      if (deletedCardIdsRef.current.has(p.card.id) || startedEpoch !== persistEpochRef.current) return false
+      if (deletedCardIdsRef.current.has(p.card.id) || tombstoneCardIds.has(p.card.id) || startedEpoch !== persistEpochRef.current) return false
       const msg = e instanceof Error ? e.message : String(e)
       const missing = msg.includes('Không tìm thấy thiệp')
       if (missing && options?.ignoreNotFound) return false
@@ -1785,14 +1844,14 @@ export default function WeddingCardAiClientPage() {
         persistQueuedRef.current = false
         window.setTimeout(() => {
           if (queued) {
-            if (deletedCardIdsRef.current.has(queued.card.id)) return
+            if (deletedCardIdsRef.current.has(queued.card.id) || tombstoneCardIds.has(queued.card.id)) return
             void commitSaveBrief(true, { snapshot: queued, hideSuccess: true, ignoreNotFound: true })
             return
           }
           const latestInputs = persistInputsRef.current
           const switchedCard = latestInputs.card.id !== p.card.id
           if (!switchedCard && startedEpoch !== persistEpochRef.current) return
-          if (!latestInputs.card.id || deletedCardIdsRef.current.has(latestInputs.card.id)) return
+          if (!latestInputs.card.id || deletedCardIdsRef.current.has(latestInputs.card.id) || tombstoneCardIds.has(latestInputs.card.id)) return
           const latest = buildPersistSnapshot(latestInputs)
           if (latest !== lastSavedPersistRef.current) void commitSaveBrief(true)
         }, AUTO_SAVE_DEBOUNCE_MS)
@@ -1808,7 +1867,7 @@ export default function WeddingCardAiClientPage() {
     autosaveTimerRef.current = window.setTimeout(async () => {
       autosaveTimerRef.current = null
       const p = persistInputsRef.current
-      if (!p.card.id || deletedCardIdsRef.current.has(p.card.id)) return
+      if (!p.card.id || deletedCardIdsRef.current.has(p.card.id) || tombstoneCardIds.has(p.card.id)) return
       const latest = buildPersistSnapshot(p)
       if (latest === lastSavedPersistRef.current) return
 
@@ -1827,7 +1886,7 @@ export default function WeddingCardAiClientPage() {
     if (loading || !card.id) return
     const flushPendingSave = () => {
       const p = persistInputsRef.current
-      if (!p.card.id || deletedCardIdsRef.current.has(p.card.id)) return
+      if (!p.card.id || deletedCardIdsRef.current.has(p.card.id) || tombstoneCardIds.has(p.card.id)) return
       const latest = buildPersistSnapshot(p)
       if (latest === lastSavedPersistRef.current) return
       if (persistInFlightRef.current) {
@@ -2019,7 +2078,7 @@ export default function WeddingCardAiClientPage() {
         return null
       }
       const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
-      if ('error' in fresh || epochAtLoad < savedCardListEpoch) return null
+      if ('error' in fresh || 'empty' in fresh || epochAtLoad < savedCardListEpoch) return null
       const next = cardWithAiBackgroundKit(fresh.card, fresh.images, fresh.library, fresh.frameLibrary)
       const produced = !kitStyleId
         ? { ...next, weddingDate: source.weddingDate }
@@ -2535,6 +2594,56 @@ export default function WeddingCardAiClientPage() {
     })
   }
 
+  const showEmptyWorkspace = (cards: WeddingCardSummary[] = []) => {
+    const listEpoch = beginSavedCardListWrite()
+    persistEpochRef.current += 1
+    persistQueuedRef.current = false
+    queuedSnapshotRef.current = null
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    const blank = emptyBrief()
+    baselineHydratedRef.current = true
+    lastSavedPersistRef.current = buildSavedSnapshotForCard(blank)
+    setMusicFile(null)
+    setMusicClearOnSave(false)
+    setAlbumImageFiles([])
+    setCoverImageFile(null)
+    setCoverClearOnSave(false)
+    setGroomPortraitFile(null)
+    setBridePortraitFile(null)
+    setGroomPortraitClear(false)
+    setBridePortraitClear(false)
+    setPreviewLetterView('groom')
+    setLetterAskOpen(false)
+    persistInputsRef.current = {
+      ...persistInputsRef.current,
+      card: blank,
+      musicStartInput: '',
+      musicEndInput: '',
+      musicFile: null,
+      musicClearOnSave: false,
+      albumImageFiles: [],
+      coverImageFile: null,
+      coverClearOnSave: false,
+      groomPortraitFile: null,
+      bridePortraitFile: null,
+      groomPortraitClear: false,
+      bridePortraitClear: false,
+    }
+    setMusicStartInput('')
+    setMusicEndInput('')
+    setCard(blank)
+    setImages([])
+    setRsvps([])
+    setSavedCards(visibleSavedCards(cards), listEpoch)
+    setLoading(false)
+    liveWorkspace = null
+    forgetCardInUrl()
+  }
+  showEmptyWorkspaceRef.current = showEmptyWorkspace
+
   const openSavedCard = async (cardId: string) => {
     if (!cardId) return
     if (cardId === persistInputsRef.current.card.id) {
@@ -2650,13 +2759,30 @@ export default function WeddingCardAiClientPage() {
       autosaveTimerRef.current = null
     }
     deletedCardIdsRef.current.add(cardId)
+    markWeddingCardDeleted(cardId)
     persistQueuedRef.current = false
     const wasCurrent = cardId === persistInputsRef.current.card.id
+    if (wasCurrent) forgetCardInUrl()
     setSavedCards((prev) => prev.filter((item) => item.id !== cardId))
     const restoreDeletedRow = () => {
+      unmarkWeddingCardDeleted(cardId)
       deletedCardIdsRef.current.delete(cardId)
       if (!row) return
       setSavedCards((prev) => (prev.some((item) => item.id === cardId) ? prev : [row, ...prev]))
+    }
+    const openRemainingOrEmpty = async (cards: WeddingCardSummary[]) => {
+      const rest = visibleSavedCards(cards).filter((item) => item.id !== cardId)
+      if (!wasCurrent) return
+      if (!rest[0]) {
+        showEmptyWorkspace([])
+        return
+      }
+      const loaded = await loadWeddingCardWorkspace(rest[0].id)
+      if ('error' in loaded || 'empty' in loaded) {
+        showEmptyWorkspace(rest)
+        return
+      }
+      showWorkspace(loaded)
     }
     const dropMissingCard = async () => {
       clearWeddingLocalDraft(cardId)
@@ -2666,10 +2792,11 @@ export default function WeddingCardAiClientPage() {
       }
       const loaded = await loadWeddingCardWorkspace('')
       if ('error' in loaded) {
+        showEmptyWorkspace([])
         toast({ title: 'Đã xóa thiệp', description: loaded.error, variant: 'destructive' })
         return
       }
-      showWorkspace(loaded)
+      await openRemainingOrEmpty(loaded.cards)
       toast({ title: 'Đã xóa thiệp' })
     }
     setSwitchingCard(true)
@@ -2690,22 +2817,7 @@ export default function WeddingCardAiClientPage() {
         toast({ title: 'Đã xóa thiệp' })
         return
       }
-      const next = result.cards[0]
-      if (!next) {
-        const created = await createNewWeddingCard()
-        if ('error' in created) {
-          toast({ title: 'Đã xóa thiệp', description: created.error, variant: 'destructive' })
-          return
-        }
-        showWorkspace(created)
-      } else {
-        const loaded = await loadWeddingCardWorkspace(next.id)
-        if ('error' in loaded) {
-          toast({ title: 'Đã xóa thiệp', description: loaded.error, variant: 'destructive' })
-          return
-        }
-        showWorkspace(loaded)
-      }
+      await openRemainingOrEmpty(result.cards)
       toast({ title: 'Đã xóa thiệp' })
     } catch (error) {
       const message = error instanceof Error ? error.message.trim() : ''
@@ -2839,7 +2951,7 @@ export default function WeddingCardAiClientPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             {savedCardList.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Chưa có thiệp nào.</p>
+              <p className="text-sm text-muted-foreground">Chưa có thiệp nào. Bấm Tạo thiệp mới khi muốn làm thiệp.</p>
             ) : (
               savedCardList.map((item) => {
                 const active = item.id === card.id
@@ -3056,6 +3168,7 @@ export default function WeddingCardAiClientPage() {
           onSkip={skipComposeAndCreate}
           onConfirm={() => void confirmSampleCompose()}
         />
+        {card.id ? (
         <div id="wedding-card-editor" className="grid w-full min-w-0 max-w-full gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
           <div className="w-full min-w-0 max-w-full space-y-6">
             <Card>
@@ -4298,6 +4411,7 @@ export default function WeddingCardAiClientPage() {
               </CardContent>
             </Card>
         </div>
+        ) : null}
       </div>
       <Dialog
         open={occasionPickerOpen}
@@ -4453,7 +4567,7 @@ export default function WeddingCardAiClientPage() {
           </div>
         </DialogContent>
       </Dialog>
-      {previewFab}
+      {card.id ? previewFab : null}
     </>
     </WeddingCreditTopUpProvider>
   )
