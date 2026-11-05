@@ -2559,10 +2559,10 @@ export default function WeddingPublicClient({
       ) : null}
       {hostEditor && !frameLines ? (
         <WeddingDraggableChrome storageKey="wedding-host-browse-chrome" defaultCorner="top-right" hidden={!chromeHold}>
-          <div className="w-56">
+          <div className="w-56 rounded-2xl bg-white/95 p-1.5 shadow-lg ring-1 ring-black/10">
             <button
               type="button"
-              className="h-10 w-full rounded-full bg-rose-600 px-4 text-sm font-semibold text-white shadow-lg"
+              className="h-10 w-full rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white"
               onClick={enterEditMode}
             >
               {tImage.previewEditMode}
@@ -2580,6 +2580,16 @@ export default function WeddingPublicClient({
               onAdd={placeOrnament}
               onReset={() => void resetOrnaments()}
             />
+            <button
+              type="button"
+              className="mt-1 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-900"
+              onClick={() => {
+                window.location.assign(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)
+              }}
+            >
+              <X className="h-4 w-4" />
+              {tx.exitPreviewFab}
+            </button>
           </div>
         </WeddingDraggableChrome>
       ) : null}
@@ -2719,6 +2729,16 @@ export default function WeddingPublicClient({
               onClick={enterBrowseMode}
             >
               {tImage.previewBrowseMode}
+            </button>
+            <button
+              type="button"
+              className="mt-1 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white text-xs font-semibold text-rose-900"
+              onClick={() => {
+                window.location.assign(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)
+              }}
+            >
+              <X className="h-3.5 w-3.5" />
+              {tx.exitPreviewFab}
             </button>
           </div>
         </WeddingDraggableChrome>
@@ -3214,11 +3234,11 @@ export default function WeddingPublicClient({
         >
           <div className={PUBLIC_COLUMN}>
             {(visualEdit || groomFamilyLine.trim() || groomHometownLine.trim() || (cardStructure.venueLayout !== 'one' && (brideFamilyLine.trim() || brideHometownLine.trim()))) ? (
-            <WeddingReadableGlass className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
+            <WeddingReadableGlass className="rounded-[1.75rem] p-4 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.familiesIntro}</p>
-              <div className={cn('mt-6 grid gap-4', cardStructure.venueLayout !== 'one' && (visualEdit || brideFamilyLine.trim() || brideHometownLine.trim()) && (visualEdit || groomFamilyLine.trim() || groomHometownLine.trim()) && 'sm:grid-cols-2')}>
+              <div className={cn('mt-4 grid gap-2 sm:mt-6 sm:gap-4', cardStructure.venueLayout !== 'one' && (visualEdit || brideFamilyLine.trim() || brideHometownLine.trim()) && (visualEdit || groomFamilyLine.trim() || groomHometownLine.trim()) && 'grid-cols-2')}>
                 {(visualEdit || groomFamilyLine.trim() || groomHometownLine.trim()) ? (
-                  <div className={cn('rounded-3xl p-4', theme.panelStrong, visualEdit && 'text-left')}>
+                  <div className={cn('min-w-0 rounded-2xl p-2.5 sm:rounded-3xl sm:p-4', theme.panelStrong, visualEdit && 'text-left')}>
                     {visualEdit ? (
                       <div className="space-y-2">
                         <p data-wedding-field-name="" style={weddingEditSideLabelStyle('groom', true)}>{tx.groomFamily}</p>
@@ -3244,10 +3264,10 @@ export default function WeddingPublicClient({
                           {tx.groomFamily}
                         </p>
                         {groomFamilyLine.trim() ? (
-                          <p className={cn('mt-1 whitespace-pre-line break-words font-serif text-lg sm:text-xl', theme.text, theme.textGlow)}>{groomFamilyLine}</p>
+                          <p className={cn('mt-1 whitespace-pre-line break-words font-serif text-base leading-snug sm:text-xl', theme.text, theme.textGlow)}>{groomFamilyLine}</p>
                         ) : null}
                         {groomHometownLine.trim() ? (
-                          <p className={cn('mt-2 whitespace-pre-line break-words text-sm leading-6 sm:text-base', theme.mutedText, theme.textGlow)}>
+                          <p className={cn('mt-1.5 whitespace-pre-line break-words text-xs leading-5 sm:mt-2 sm:text-base sm:leading-6', theme.mutedText, theme.textGlow)}>
                             {tx.hometownLabel}: {groomHometownLine.trim()}
                           </p>
                         ) : null}
@@ -3256,7 +3276,7 @@ export default function WeddingPublicClient({
                   </div>
                 ) : null}
                 {(cardStructure.venueLayout !== 'one' && (visualEdit || brideFamilyLine.trim() || brideHometownLine.trim())) ? (
-                  <div className={cn('rounded-3xl p-4', theme.panelStrong, visualEdit && 'text-left')}>
+                  <div className={cn('min-w-0 rounded-2xl p-2.5 sm:rounded-3xl sm:p-4', theme.panelStrong, visualEdit && 'text-left')}>
                     {visualEdit ? (
                       <div className="space-y-2">
                         <p data-wedding-field-name="" style={weddingEditSideLabelStyle('bride', true)}>{tx.brideFamily}</p>
@@ -3282,10 +3302,10 @@ export default function WeddingPublicClient({
                           {tx.brideFamily}
                         </p>
                         {brideFamilyLine.trim() ? (
-                          <p className={cn('mt-1 whitespace-pre-line break-words font-serif text-lg sm:text-xl', theme.text, theme.textGlow)}>{brideFamilyLine}</p>
+                          <p className={cn('mt-1 whitespace-pre-line break-words font-serif text-base leading-snug sm:text-xl', theme.text, theme.textGlow)}>{brideFamilyLine}</p>
                         ) : null}
                         {brideHometownLine.trim() ? (
-                          <p className={cn('mt-2 whitespace-pre-line break-words text-sm leading-6 sm:text-base', theme.mutedText, theme.textGlow)}>
+                          <p className={cn('mt-1.5 whitespace-pre-line break-words text-xs leading-5 sm:mt-2 sm:text-base sm:leading-6', theme.mutedText, theme.textGlow)}>
                             {tx.hometownLabel}: {brideHometownLine.trim()}
                           </p>
                         ) : null}
@@ -4155,7 +4175,7 @@ export default function WeddingPublicClient({
           label={tx.exitPreviewFab}
           storageKey="wedding-exit-preview-fab"
           defaultCorner="top-left"
-          hidden={hostEditor && !frameLines && !chromeHold}
+          hidden={hostEditor}
           icon={<X className="h-4 w-4" />}
           onClick={() => {
             window.location.assign(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)

@@ -4160,13 +4160,13 @@ export default function WeddingCardAiClientPage() {
                             <p className={cn('text-[10px] uppercase tracking-[0.18em]', selectedTheme.accentText, selectedTheme.textGlow)}>
                               {previewPublic.familiesIntro}
                             </p>
-                            <div className="mt-2 grid gap-1.5">
+                            <div className={cn('mt-2 grid gap-1.5', (previewFamilies.groomParents || previewFamilies.groomHometown) && (previewFamilies.brideParents || previewFamilies.brideHometown) && 'grid-cols-2')}>
                               {([
                                 { label: previewPublic.groomFamily, parents: previewFamilies.groomParents, hometown: previewFamilies.groomHometown },
                                 { label: previewPublic.brideFamily, parents: previewFamilies.brideParents, hometown: previewFamilies.brideHometown },
                               ] as const).map((side) =>
                                 side.parents || side.hometown ? (
-                                  <div key={side.label} className={cn('rounded-lg px-2 py-1.5', selectedTheme.panelGlass)}>
+                                  <div key={side.label} className={cn('min-w-0 rounded-lg px-2 py-1.5', selectedTheme.panelGlass)}>
                                     <p className={cn('text-[10px]', selectedTheme.mutedText, selectedTheme.textGlow)}>{side.label}</p>
                                     {side.parents ? (
                                       <p className={cn('mt-0.5 whitespace-pre-line break-words font-serif text-sm leading-5', selectedTheme.text, selectedTheme.textGlow)}>
