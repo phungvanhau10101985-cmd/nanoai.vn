@@ -45,7 +45,9 @@ import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-s
 import {
   partnerSiteOrderDetailPath,
   partnerSiteOrdersPath,
+  partnerSiteWhyDepositPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { getWhyDepositCopy } from '@/lib/partner-website/shop/why-deposit-copy'
 import { PartnerSiteStorefrontProductHits } from '@/components/partner-website/shop/partner-site-product-hit-link'
 import { trackPartnerSiteDepositPage, trackPartnerSitePurchase } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import type { PartnerSiteShopTrackingLine } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
@@ -176,6 +178,7 @@ export function PartnerSiteShopDepositClient({
   initialCatalogItems = [],
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
+  const whyCopy = getWhyDepositCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { tracking } = usePartnerSiteShop()
@@ -554,6 +557,13 @@ export function PartnerSiteShopDepositClient({
 
   const ordersHref = partnerSiteOrdersPath(siteSlug, { customDomain })
   const detailHref = partnerSiteOrderDetailPath(siteSlug, orderId, { customDomain })
+  const whyHref = partnerSiteWhyDepositPath(siteSlug, {
+    customDomain,
+    orderId,
+    orderCode: order
+      ? displayShopOrderCode((order.payment_reference || '').trim()) || order.id.trim()
+      : '',
+  })
 
   if (loading) {
     return (
@@ -852,6 +862,16 @@ export function PartnerSiteShopDepositClient({
               {t.depositPollingHint}
               {inAppKind ? ` ${t.depositQrInAppHoldHint.replace('{app}', getInAppBrowserShortName(inAppKind))}` : ''}
             </p>
+            <a
+              className="pw-shop-deposit-why"
+              href={whyHref}
+              onClick={() => {
+                const gtag = (window as Window & { gtag?: (...args: unknown[]) => void }).gtag
+                gtag?.('event', 'deposit_why_open', { order_id: orderId })
+              }}
+            >
+              {whyCopy.askButton}
+            </a>
           </div>
         </div>
         <div className="pw-shop-deposit-info">

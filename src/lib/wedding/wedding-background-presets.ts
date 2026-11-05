@@ -115,6 +115,22 @@ function ornamentSide(item: WeddingBackgroundOrnament): 'left' | 'right' {
   return item.x + item.w / 2 < 50 ? 'left' : 'right'
 }
 
+/** Phần hoa được tràn ra ngoài mép, phần trăm bề ngang tờ. Phần còn lại nằm trên tờ. */
+function ornamentEdgeBleed(width: number) {
+  return Math.round(Math.min(12, Math.max(4, width * 0.32)) * 10) / 10
+}
+
+/** Hoa bám mép: một phần ra ngoài tờ, không chìm hết để chỉ còn một mảnh. */
+export function seatWeddingOrnamentOnEdge(item: WeddingBackgroundOrnament): WeddingBackgroundOrnament {
+  const bleed = ornamentEdgeBleed(item.w)
+  let x = item.x
+  if (x < -bleed) x = -bleed
+  const maxX = Math.round((100 + bleed - item.w) * 10) / 10
+  if (x > maxX) x = maxX
+  if (x === item.x) return item
+  return { ...item, x }
+}
+
 /**
  * Hoa mẫu đang dồn một bên thì chia hai mép, lệch nhau cho khỏi đè.
  * Hoa đã tự đặt giữ nguyên chỗ.
@@ -176,7 +192,7 @@ export function repeatWeddingOrnamentsDown(items: readonly WeddingBackgroundOrna
   let count = Math.max(1, Math.min(12, Math.round(pages) || 1))
   const arranged = arrangeWeddingOrnamentsOnEdges(items)
   while (count > 1 && count * arranged.length > WEDDING_ORNAMENT_LIST_MAX) count -= 1
-  if (count <= 1) return arranged.map((item, seed) => ({ ...item, seed, page: 0 }))
+  if (count <= 1) return arranged.map((item, seed) => ({ ...seatWeddingOrnamentOnEdge(item), seed, page: 0 }))
   const span = 100 / count
   const placed: WeddingOrnamentPlacement[] = []
   for (let page = 0; page < count; page++) {
@@ -189,7 +205,7 @@ export function repeatWeddingOrnamentsDown(items: readonly WeddingBackgroundOrna
       const local = item.anchor === 'bottom' ? 100 - item.y : item.y
       const y = Math.round((page * span + (local / 100) * span) * 10) / 10
       if (page === 0) {
-        placed.push({ ...item, anchor: 'top', y, seed, page })
+        placed.push({ ...seatWeddingOrnamentOnEdge({ ...item, anchor: 'top', y }), seed, page })
         return
       }
       const sideLeft = item.x + item.w / 2 < 50
@@ -198,12 +214,13 @@ export function repeatWeddingOrnamentsDown(items: readonly WeddingBackgroundOrna
       else seen.right += 1
       const drift = page % 2 === 0 ? 0 : Math.round(span * 0.06 * 10) / 10
       const w = Math.min(item.w, 18)
+      const bleed = ornamentEdgeBleed(w)
       const yShift = Math.round(order * Math.min(12, span * 0.18) * 10) / 10
       const pageBottom = Math.round(((page + 1) * span - 2) * 10) / 10
       placed.push({
         ...item,
         anchor: 'top',
-        x: sideLeft ? Math.min(item.x, Math.round((12 - w - order * 3) * 10) / 10) : Math.max(item.x, 88),
+        x: sideLeft ? -bleed : Math.round((100 - w + bleed) * 10) / 10,
         y: Math.min(pageBottom, Math.round((y + drift + yShift) * 10) / 10),
         w,
         opacity: Math.min(item.opacity ?? 1, 0.82),
@@ -270,6 +287,18 @@ export function weddingOrnamentEdgeSpot(index: number, width = 22): { x: number;
     y: Math.round((6 + row * 14) * 10) / 10,
     w,
   }
+}
+
+/** Giữa màn hình đang nằm trong nội dung thiệp thì hoa mới thuộc nội dung, không phải vỏ. */
+export function weddingOrnamentSurfaceInView(input: {
+  letterTop: number
+  letterBottom: number
+  letterHeight: number
+  viewCenterY: number
+}): 'cover' | 'letter' {
+  if (!(input.letterHeight > 40)) return 'cover'
+  if (input.letterTop <= input.viewCenterY && input.letterBottom >= input.viewCenterY) return 'letter'
+  return 'cover'
 }
 
 export function weddingOrnamentSpotInView(input: {
@@ -472,13 +501,13 @@ const VAN_MIEU_DA = '/wedding/backgrounds/ornaments/van-mieu-da.png'
 const SOFT_FONT = 'Palatino Linotype, Palatino, Georgia, serif'
 const FORMAL_FONT = 'Georgia, Times New Roman, serif'
 
-/** Bốn hoa bám hai mép. Giữa trang để trống cho chữ. */
+/** Bốn hoa bám hai mép mobile. Một phần tràn ra ngoài tờ, phần lớn vẫn nằm trên tờ. */
 function themeEdgeOrnaments(a: string, b: string, c: string, d: string): readonly WeddingBackgroundOrnament[] {
   return [
-    { src: a, x: -16, y: -3, w: 22, rotate: -8, opacity: 0.94 },
-    { src: b, x: 88, y: 2, w: 14, rotate: 10, opacity: 0.86 },
-    { src: c, x: -14, y: 16, w: 20, rotate: 6, opacity: 0.8 },
-    { src: d, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.86 },
+    { src: a, x: -8, y: 2, w: 28, rotate: -8, opacity: 0.94 },
+    { src: b, x: 78, y: 4, w: 26, rotate: 10, opacity: 0.86 },
+    { src: c, x: -6, y: 20, w: 24, rotate: 6, opacity: 0.8 },
+    { src: d, x: 76, y: 2, w: 26, rotate: 12, anchor: 'bottom', opacity: 0.86 },
   ]
 }
 

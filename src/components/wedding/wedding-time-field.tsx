@@ -1,141 +1,188 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { pad2, parseWeddingTimeClockAndWeekday } from '@/lib/wedding/wedding-calendar-utils'
 import { cn } from '@/lib/utils'
 
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour)
+const MINUTE_STEPS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+
 type ClockParts = {
-  hour12: number
+  hour: number
   minute: number
-  pm: boolean
 }
 
-const HOURS = Array.from({ length: 12 }, (_, index) => index + 1)
-const MINUTES = Array.from({ length: 60 }, (_, index) => index)
-
-function pad2(value: number) {
-  return value < 10 ? `0${value}` : String(value)
+function parseHourMinute(value: string): ClockParts | null {
+  const clock = parseWeddingTimeClockAndWeekday(value).time
+  if (!clock) return null
+  const [hourText, minuteText] = clock.split(':')
+  const hour = Number(hourText)
+  const minute = Number(minuteText)
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour > 23 || minute > 59) return null
+  return { hour, minute }
 }
 
-function parseClock(value: string): ClockParts | null {
-  const match = /^(\d{1,2}):([0-5]\d)$/.exec(value.trim())
-  if (!match) return null
-  const hour = Number(match[1])
-  const minute = Number(match[2])
-  if (hour > 23) return null
-  return {
-    hour12: hour % 12 === 0 ? 12 : hour % 12,
-    minute,
-    pm: hour >= 12,
-  }
+function formatClock(parts: ClockParts) {
+  return `${pad2(parts.hour)}:${pad2(parts.minute)}`
 }
 
-function to24Hour(parts: ClockParts) {
-  const hour = (parts.hour12 % 12) + (parts.pm ? 12 : 0)
-  return `${pad2(hour)}:${pad2(parts.minute)}`
+function minuteChoices(minute: number | null) {
+  const choices = new Set(MINUTE_STEPS)
+  if (minute != null && !choices.has(minute)) choices.add(minute)
+  return Array.from(choices).sort((left, right) => left - right)
 }
 
-function formatClockLabel(value: string) {
-  const parts = parseClock(value)
-  if (!parts) return ''
-  return `${pad2(parts.hour12)}:${pad2(parts.minute)} ${parts.pm ? 'CH' : 'SA'}`
-}
-
-const selectClass =
-  'h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
-
-/** Ô giờ có nút OK. Bản nháp chỉ ghi khi bấm OK. */
+/** Ô giờ: bấm mở bảng giờ và phút. Chỉ ghi khi bấm OK. */
 export function WeddingTimeField(props: {
   value: string
   onChange: (value: string) => void
   ariaLabel?: string
   className?: string
+  onOpen?: () => void
+  textMarker?: string
 }) {
+  const copy = getDictionary(readWebLocaleFromDocumentCookie()).weddingCardAiImage
   const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<ClockParts>({ hour12: 4, minute: 30, pm: true })
-  const label = formatClockLabel(props.value)
+  const [hour, setHour] = useState<number | null>(null)
+  const [minute, setMinute] = useState<number | null>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const centeredRef = useRef(false)
+  const shown = parseHourMinute(props.value)
+  const label = shown ? formatClock(shown) : ''
 
   const openPicker = (next: boolean) => {
-    if (next) setDraft(parseClock(props.value) ?? { hour12: 4, minute: 30, pm: true })
+    if (next) {
+      const parsed = parseHourMinute(props.value)
+      setHour(parsed?.hour ?? null)
+      setMinute(parsed?.minute ?? null)
+      props.onOpen?.()
+    }
     setOpen(next)
   }
 
   const confirm = () => {
-    props.onChange(to24Hour(draft))
+    if (hour == null || minute == null) return
+    props.onChange(formatClock({ hour, minute }))
     setOpen(false)
   }
 
+  const pickHour = (nextHour: number) => {
+    setHour(nextHour)
+    setMinute((current) => current ?? 0)
+  }
+
+  useEffect(() => {
+    if (!open) {
+      centeredRef.current = false
+      return
+    }
+    if (centeredRef.current) return
+    let inner = 0
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        const scroller = scrollerRef.current
+        const target = scroller?.querySelector(`[data-hour="${hour ?? 16}"]`)
+        if (!(scroller instanceof HTMLElement) || !(target instanceof HTMLElement)) return
+        centeredRef.current = true
+        const delta = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+        scroller.scrollTop += delta - scroller.clientHeight / 2 + target.clientHeight / 2
+      })
+    })
+    return () => {
+      cancelAnimationFrame(outer)
+      cancelAnimationFrame(inner)
+    }
+  }, [open, hour])
+
   return (
-    <Popover open={open} onOpenChange={openPicker}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={props.ariaLabel}
-          className={cn(
-            'flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 text-left text-sm shadow-sm',
-            'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-            !label && 'text-muted-foreground',
-            props.className,
-          )}
-        >
-          <span className="tabular-nums">{label || '--:--'}</span>
-          <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 space-y-3 p-3">
-        <div className="grid grid-cols-3 gap-2">
-          <label className="space-y-1 text-xs text-muted-foreground">
-            Giờ
-            <select
-              aria-label="Giờ"
-              className={selectClass}
-              value={draft.hour12}
-              onChange={(event) => setDraft((prev) => ({ ...prev, hour12: Number(event.target.value) }))}
-            >
-              {HOURS.map((hour) => (
-                <option key={hour} value={hour}>
-                  {pad2(hour)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1 text-xs text-muted-foreground">
-            Phút
-            <select
-              aria-label="Phút"
-              className={selectClass}
-              value={draft.minute}
-              onChange={(event) => setDraft((prev) => ({ ...prev, minute: Number(event.target.value) }))}
-            >
-              {MINUTES.map((minute) => (
-                <option key={minute} value={minute}>
-                  {pad2(minute)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1 text-xs text-muted-foreground">
-            Buổi
-            <select
-              aria-label="Buổi"
-              className={selectClass}
-              value={draft.pm ? 'pm' : 'am'}
-              onChange={(event) => setDraft((prev) => ({ ...prev, pm: event.target.value === 'pm' }))}
-            >
-              <option value="am">SA</option>
-              <option value="pm">CH</option>
-            </select>
-          </label>
-        </div>
-        <p className="text-center text-sm font-medium tabular-nums">
-          {pad2(draft.hour12)}:{pad2(draft.minute)} {draft.pm ? 'CH' : 'SA'}
+    <Dialog open={open} onOpenChange={openPicker}>
+      <button
+        type="button"
+        aria-label={props.ariaLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        data-wedding-text={props.textMarker}
+        onClick={() => openPicker(true)}
+        className={cn(
+          'flex h-12 w-full items-center justify-between gap-2 rounded-xl border border-stone-300 bg-white px-3 text-left text-lg font-semibold text-stone-950 shadow-sm',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400',
+          !label && 'font-medium text-stone-400',
+          props.className,
+        )}
+      >
+        <span className="min-w-0 truncate tabular-nums">{label || '--:--'}</span>
+        <Clock className="h-5 w-5 shrink-0 text-stone-500" aria-hidden />
+      </button>
+      <DialogContent
+        overlayClassName="z-[240] bg-black/45"
+        className="z-[241] flex max-h-[min(40rem,calc(100dvh-1rem))] w-[min(24rem,calc(100vw-1.5rem))] flex-col gap-3 overflow-hidden bg-white p-4 text-stone-950"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <DialogHeader className="shrink-0 pr-8 text-left">
+          <DialogTitle className="text-stone-950">{props.ariaLabel || copy.previewTimeHour}</DialogTitle>
+          <DialogDescription className="text-stone-600">{copy.previewTimeHint}</DialogDescription>
+        </DialogHeader>
+        <p className="shrink-0 text-center text-4xl font-semibold tabular-nums text-stone-950" aria-live="polite">
+          {`${hour == null ? '--' : pad2(hour)}:${minute == null ? '--' : pad2(minute)}`}
         </p>
-        <Button type="button" className="w-full" onClick={confirm}>
-          OK
+        <div ref={scrollerRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">{copy.previewTimeHour}</p>
+            <div className="grid grid-cols-6 gap-1.5">
+              {HOURS.map((item) => {
+                const selected = hour === item
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    data-hour={item}
+                    aria-label={`${copy.previewTimeHour} ${pad2(item)}`}
+                    aria-pressed={selected}
+                    onClick={() => pickHour(item)}
+                    className={cn(
+                      'h-12 rounded-xl text-base font-semibold tabular-nums active:scale-95',
+                      selected ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-900',
+                    )}
+                  >
+                    {pad2(item)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">{copy.previewTimeMinute}</p>
+            <div className="grid grid-cols-6 gap-1.5">
+              {minuteChoices(minute).map((item) => {
+                const selected = minute === item
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    aria-label={`${copy.previewTimeMinute} ${pad2(item)}`}
+                    aria-pressed={selected}
+                    onClick={() => setMinute(item)}
+                    className={cn(
+                      'h-12 rounded-xl text-base font-semibold tabular-nums active:scale-95',
+                      selected ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-900',
+                    )}
+                  >
+                    {pad2(item)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+        <Button type="button" className="h-12 w-full shrink-0 text-base" disabled={hour == null || minute == null} onClick={confirm}>
+          {copy.previewTimeOk}
         </Button>
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   )
 }

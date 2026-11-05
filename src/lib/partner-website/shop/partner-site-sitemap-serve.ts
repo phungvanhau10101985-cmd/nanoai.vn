@@ -51,6 +51,7 @@ export function partnerShopSitemapInfoPaths(): string[] {
     '/terms',
     '/payment',
     '/how-to-buy',
+    '/tai-sao-dat-coc',
     '/brand-origin',
     '/reviews-policy',
     '/trust',

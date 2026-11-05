@@ -183,7 +183,7 @@ export function WeddingTimelineEditor({ label, value, onChange, hint, className 
               <WeddingTimeField
                 value={row.time}
                 onChange={(time) => updateRow(index, { time })}
-                className="w-[7.25rem] shrink-0"
+                className="h-12 w-[7.75rem] shrink-0 text-sm"
                 ariaLabel={`Giờ mốc ${index + 1}`}
               />
               <Button

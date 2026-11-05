@@ -10,11 +10,11 @@ import { GOOGLE_MERCHANT_TSV_HEADERS } from '@/lib/messaging/google-merchant-cat
 import { TIKTOK_CATALOG_CSV_HEADERS } from '@/lib/messaging/tiktok-catalog-feed'
 import {
   NANOAI_GOOGLE_MERCHANT_HEADERS,
-  NANOAI_GOOGLE_PRODUCT_CATEGORY,
-  NANOAI_GOOGLE_SHIPPING,
   NANOAI_TIKTOK_CATALOG_HEADERS,
   buildNanoAiGoogleMerchantFeedTsv,
   buildNanoAiTikTokCatalogFeedCsv,
+  isNanoAiGoogleShoppingEligible,
+  listNanoAiGoogleShoppingCatalogItems,
 } from '@/lib/catalog/nanoai-platform-catalog-feeds'
 import { toNanoAiFeatureCatalogIdFromHref } from '@/lib/catalog/nanoai-feature-catalog-id'
 import { AI_TOOLS } from '@/lib/nav-config'
@@ -39,41 +39,21 @@ function parseCsv(buf: Buffer): string[][] {
 }
 
 describe('nanoai platform catalog feeds', () => {
-  it('google merchant feed has shopping columns and the same ids as facebook', () => {
+  it('google merchant feed keeps shopping headers and lists no services', () => {
     const items = listNanoAiFacebookCatalogItems()
+    assert.ok(items.length > 0)
+    for (const item of items) {
+      assert.equal(isNanoAiGoogleShoppingEligible(item), false, item.id)
+    }
+    assert.deepEqual(listNanoAiGoogleShoppingCatalogItems(), [])
+
     const rows = parseTsv(buildNanoAiGoogleMerchantFeedTsv(ORIGIN))
     assert.deepEqual(rows[0], [...NANOAI_GOOGLE_MERCHANT_HEADERS])
-    assert.equal(rows.length, items.length + 1)
-
-    const idIdx = rows[0].indexOf('id')
-    const facebook = parseCsv(buildNanoAiFacebookCatalogFeedCsv(ORIGIN))
-    const facebookIds = facebook.slice(1).map((row) => row[0])
-    const googleIds = rows.slice(1).map((row) => row[idIdx])
-    assert.deepEqual(googleIds, facebookIds)
-
-    for (const row of rows.slice(1)) {
-      const cell = (name: string) => row[rows[0].indexOf(name)]
-      assert.ok(cell('id').length > 0 && cell('id').length <= 50)
-      assert.match(cell('id'), /^[A-Za-z0-9_-]+$/)
-      assert.ok(cell('title').length > 0 && cell('title').length <= 150)
-      assert.ok(cell('description').length > 0)
-      assert.match(cell('link'), /^https:\/\/nanoai\.vn\//)
-      assert.match(cell('image_link'), /^https:\/\//)
-      assert.equal(cell('availability'), 'in_stock')
-      assert.match(cell('price'), /^\d+\.00 VND$/)
-      assert.notEqual(cell('price'), '0.00 VND')
-      assert.equal(cell('brand'), 'NanoAI')
-      assert.equal(cell('condition'), 'new')
-      assert.equal(cell('identifier_exists'), 'no')
-      assert.equal(cell('google_product_category'), NANOAI_GOOGLE_PRODUCT_CATEGORY)
-      assert.ok(cell('product_type').startsWith('NanoAI'))
-      assert.equal(cell('shipping'), NANOAI_GOOGLE_SHIPPING)
-      assert.equal(cell('adult'), 'no')
-      assert.equal(cell('link'), cell('mobile_link'))
-    }
+    assert.equal(rows.length, 1)
+    assert.deepEqual([...NANOAI_GOOGLE_MERCHANT_HEADERS], [...GOOGLE_MERCHANT_TSV_HEADERS, 'shipping', 'adult'])
   })
 
-  it('wedding, student plan, and wallet share one id across facebook, tiktok, and google', () => {
+  it('wedding, student plan, and wallet share one id on facebook and tiktok, not google shopping', () => {
     const google = parseTsv(buildNanoAiGoogleMerchantFeedTsv(ORIGIN))
     const tiktok = parseCsv(buildNanoAiTikTokCatalogFeedCsv(ORIGIN))
     const facebook = parseCsv(buildNanoAiFacebookCatalogFeedCsv(ORIGIN))
@@ -84,49 +64,38 @@ describe('nanoai platform catalog feeds', () => {
     const googleIds = ids(google, 0)
     const tiktokIds = ids(tiktok, 0)
     assert.deepEqual(tiktokIds, facebookIds)
-    assert.deepEqual(googleIds, facebookIds)
+    assert.deepEqual(googleIds, [])
     assert.ok(facebookIds.includes(WEDDING_COMMERCE_CONTENT_ID))
     assert.ok(facebookIds.includes('feature_goi_hoc_sinh'))
     assert.ok(facebookIds.includes('feature_wallet_topup'))
 
-    const wedding = google.find((row) => row[0] === WEDDING_COMMERCE_CONTENT_ID)
-    assert.ok(wedding)
-    assert.equal(wedding[google[0].indexOf('price')], '149000.00 VND')
-    assert.equal(wedding[google[0].indexOf('link')], 'https://nanoai.vn/tao-thiep-moi-cuoi-ai')
-
-    assert.deepEqual([...NANOAI_FACEBOOK_CATALOG_HEADERS], [...FACEBOOK_CATALOG_CSV_HEADERS])
-    assert.deepEqual([...NANOAI_TIKTOK_CATALOG_HEADERS], [...TIKTOK_CATALOG_CSV_HEADERS])
-    assert.deepEqual([...NANOAI_GOOGLE_MERCHANT_HEADERS], [...GOOGLE_MERCHANT_TSV_HEADERS, 'shipping', 'adult'])
     const facebookHeader = buildNanoAiFacebookCatalogFeedCsv(ORIGIN).toString('utf8').replace(/^\uFEFF/, '').split(/\r\n/)[0]
     assert.equal(facebookHeader, NANOAI_FACEBOOK_CATALOG_HEADERS.join(','))
+    assert.deepEqual([...NANOAI_FACEBOOK_CATALOG_HEADERS], [...FACEBOOK_CATALOG_CSV_HEADERS])
+    assert.deepEqual([...NANOAI_TIKTOK_CATALOG_HEADERS], [...TIKTOK_CATALOG_CSV_HEADERS])
 
-    const curriculum = google.find((row) => row[0] === 'feature_tao_giao_trinh')
+    const curriculum = listNanoAiFacebookCatalogItems().find((item) => item.id === 'feature_tao_giao_trinh')
     assert.ok(curriculum)
-    assert.equal(curriculum.length, google[0].length)
-    const g = (name: string) => curriculum[google[0].indexOf(name)]
-    assert.equal(g('price'), '6000.00 VND')
-    assert.equal(g('availability'), 'in_stock')
-    assert.equal(g('identifier_exists'), 'no')
-    assert.equal(g('gtin'), '')
-    assert.equal(g('mpn'), '')
-    assert.equal(g('google_product_category'), NANOAI_GOOGLE_PRODUCT_CATEGORY)
-    assert.equal(g('shipping'), NANOAI_GOOGLE_SHIPPING)
-    assert.equal(g('adult'), 'no')
-    assert.equal(g('custom_label_0'), 'under_50k')
-    assert.equal(g('custom_label_2'), 'software')
-    assert.match(g('description'), /YouTube/)
-    assert.match(g('description'), /PhET/)
-    assert.match(g('image_link'), /^https:\/\//)
+    assert.equal(curriculum.priceVnd, 6000)
+    assert.match(curriculum.description, /YouTube/)
+    assert.match(curriculum.description, /PhET/)
+    assert.equal(isNanoAiGoogleShoppingEligible(curriculum), false)
   })
 
-  it('every AI_TOOLS href is already in the three feeds', () => {
+  it('every AI_TOOLS href is in the facebook and tiktok catalogs, not google shopping', () => {
     const ids = new Set(listNanoAiFacebookCatalogItems().map((item) => item.id))
     const hrefs = AI_TOOLS.map((tool) => tool.href).filter(Boolean)
     assert.ok(hrefs.length > 0)
+    const googleIds = new Set(
+      parseTsv(buildNanoAiGoogleMerchantFeedTsv(ORIGIN))
+        .slice(1)
+        .map((row) => row[0]),
+    )
     for (const href of hrefs) {
       const id = toNanoAiFeatureCatalogIdFromHref(href)
       assert.ok(ids.has(id), href)
       assert.ok(id.length <= 50, id)
+      assert.equal(googleIds.has(id), false, href)
     }
   })
 })

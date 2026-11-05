@@ -102,7 +102,7 @@ export function WeddingBackgroundOrnamentLayer(props: {
       ref={rootRef}
       data-wedding-ornaments=""
       className={cn('pointer-events-none absolute inset-0 overflow-visible', props.className)}
-      style={{ zIndex: 36 }}
+      style={{ zIndex: 1 }}
       aria-hidden
     >
       {shown.map((item) => (

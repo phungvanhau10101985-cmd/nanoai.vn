@@ -24,6 +24,7 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'terms',
   'payment',
   'how-to-buy',
+  'tai-sao-dat-coc',
   'brand-origin',
   'reviews-policy',
   'trust',

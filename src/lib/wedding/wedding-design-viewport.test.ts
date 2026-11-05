@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { editWeddingOrnamentAt, nudgeWeddingOrnament, ornamentRevealNeedsScroll, repeatWeddingOrnamentsDown, weddingIframeVisibleView, weddingOrnamentEditSheet, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPageCount, weddingOrnamentPlain, weddingOrnamentSpotInView, weddingOrnamentsAreOneSheet } from './wedding-background-presets'
+import { editWeddingOrnamentAt, nudgeWeddingOrnament, ornamentRevealNeedsScroll, repeatWeddingOrnamentsDown, seatWeddingOrnamentOnEdge, weddingIframeVisibleView, weddingOrnamentEditSheet, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPageCount, weddingOrnamentPlain, weddingOrnamentSpotInView, weddingOrnamentSurfaceInView, weddingOrnamentsAreOneSheet } from './wedding-background-presets'
 import { readFileSync } from 'node:fs'
 import {
   WEDDING_DESKTOP_HEIGHT,
@@ -55,12 +55,21 @@ test('letter ornaments repeat down the content and a short letter stays one shee
   assert.equal(two[0].anchor, 'top')
   assert.equal(two[2].page, 1)
   assert.ok(two[2].w <= 18)
-  assert.ok(two[2].x + two[2].w <= 12)
-  assert.ok(two[3].x >= 88)
+  assert.ok(two[2].x >= -12, String(two[2].x))
+  assert.ok(two[2].x + two[2].w > 10)
+  assert.ok(two[3].x < 100)
+  assert.ok(two[3].x + two[3].w > 100)
+  assert.ok(two[3].x + two[3].w - 100 <= 12)
   assert.ok(two[2].y > two[0].y)
   assert.ok(two[3].y > 50)
   assert.equal(weddingOrnamentsAreOneSheet(items), true)
   assert.equal(weddingOrnamentsAreOneSheet(two.map((item) => weddingOrnamentPlain(item))), false)
+  const buried = seatWeddingOrnamentOnEdge({ src: '/rose.png', x: -16, y: 2, w: 22 })
+  assert.ok(buried.x >= -12, String(buried.x))
+  assert.ok(buried.x + buried.w > 12)
+  const offRight = seatWeddingOrnamentOnEdge({ src: '/leaf.png', x: 96, y: 2, w: 22 })
+  assert.ok(offRight.x + offRight.w <= 112)
+  assert.ok(offRight.x < 96)
 })
 
 test('added ornaments use one box in edit and on the live card', () => {
@@ -78,6 +87,12 @@ test('added ornaments use one box in edit and on the live card', () => {
   assert.match(css, new RegExp(`100cqi \\* ${WEDDING_DESKTOP_HEIGHT} / ${WEDDING_DESKTOP_WIDTH}`))
   assert.match(css, /\[data-wedding-ornament-frame='flow'\][\s\S]*bottom:\s*0/)
   assert.match(css, /\[data-wedding-ornament-frame='flow'\][\s\S]*height:\s*auto/)
+})
+
+test('a new ornament follows the sheet currently on screen', () => {
+  assert.equal(weddingOrnamentSurfaceInView({ letterTop: 900, letterBottom: 3200, letterHeight: 2300, viewCenterY: 400 }), 'cover')
+  assert.equal(weddingOrnamentSurfaceInView({ letterTop: -200, letterBottom: 1800, letterHeight: 2000, viewCenterY: 400 }), 'letter')
+  assert.equal(weddingOrnamentSurfaceInView({ letterTop: 0, letterBottom: 0, letterHeight: 0, viewCenterY: 400 }), 'cover')
 })
 
 test('a new ornament lands in the screen frame currently on display', () => {

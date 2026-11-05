@@ -263,11 +263,11 @@ export default function AdminIntegrationsPage() {
           'Google Merchant Center 피드 URL(TSV)'
         )}
         googleMerchantFeedHint={tr(
-          'Dán vào Merchant Center → Nguồn cấp dữ liệu. Quốc gia Việt Nam, ngôn ngữ Tiếng Việt. Đủ cột quảng cáo mua sắm: id, title, description, link, image_link, availability, price, brand, condition, identifier_exists, google_product_category (313 Software), shipping. Cột id trùng content id.',
-          'Paste into Merchant Center → Data sources. Country Vietnam, language Vietnamese. Includes Shopping columns: id, title, description, link, image_link, availability, price, brand, condition, identifier_exists, google_product_category (313 Software), shipping. The id column matches the content id.',
-          '粘贴到 Merchant Center → 数据源。国家：越南，语言：越南语。包含购物广告必填列：id、title、description、link、image_link、availability、price、brand、condition、identifier_exists、google_product_category（313 Software）、shipping。id 列与内容 ID 一致。',
-          'Merchant Center → データソースに貼り付けます。対象国ベトナム、言語ベトナム語。ショッピング広告の列（id、title、description、link、image_link、availability、price、brand、condition、identifier_exists、google_product_category（313 Software）、shipping）を含みます。id 列はコンテンツ ID と一致します。',
-          'Merchant Center → 데이터 소스에 붙여 넣으세요. 국가 베트남, 언어 베트남어. 쇼핑 광고 열(id, title, description, link, image_link, availability, price, brand, condition, identifier_exists, google_product_category(313 Software), shipping)이 포함됩니다. id 열은 콘텐츠 ID와 같습니다.'
+          'Giữ URL này trong Merchant Center để lần fetch sau gỡ mục dịch vụ. Shopping không nhận công cụ AI, gói học sinh hay nạp credit. Chỉ thêm hàng hóa hữu hình khi trang đích có nút Mua hoàn tất được. Sau khi fetch trống, bấm Yêu cầu xem xét.',
+          'Keep this URL in Merchant Center so the next fetch removes service items. Shopping does not accept AI tools, student plans, or credit top-ups. Add only tangible goods whose landing page has a working Buy button. After the empty fetch, request a review.',
+          '请在 Merchant Center 保留此 URL，以便下次抓取移除服务类商品。购物广告不接受 AI 工具、学生套餐或充值积分。仅添加落地页有可用购买按钮的实物。抓取为空后请申请审核。',
+          'Merchant Center にこの URL を残し、次回取得でサービス項目を外します。ショッピングは AI ツール、学生プラン、クレジットチャージを受け付けません。購入ボタンが使える実物だけ追加します。空の取得後に再審査を依頼してください。',
+          'Merchant Center에 이 URL을 남겨 다음 가져오기에서 서비스 항목을 제거하세요. 쇼핑은 AI 도구, 학생 플랜, 크레딧 충전을 받지 않습니다. 구매 버튼이 동작하는 실물만 추가하세요. 빈 가져오기 후 검토를 요청하세요.'
         )}
         googleMerchantFeedUrl={googleMerchantFeedUrl}
         webConsoleVerificationLabel={tr(

@@ -5,7 +5,7 @@ import { buildNanoAiGoogleMerchantFeedTsv } from '@/lib/catalog/nanoai-platform-
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-/** Scheduled fetch URL for Google Merchant Center (Shopping ads). */
+/** Scheduled fetch cho Merchant Center. File chỉ còn tiêu đề: Shopping không nhận dịch vụ AI. */
 export async function GET(request: NextRequest) {
   const origin = getPublicAppUrlForServer(request)
   const buf = buildNanoAiGoogleMerchantFeedTsv(origin)

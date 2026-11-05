@@ -2,7 +2,18 @@
 
 import type React from 'react'
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { Pause, Play } from 'lucide-react'
 import { nextWeddingMusicMix, shuffleWeddingMusicUrls, weddingMusicQueue } from '@/lib/wedding/wedding-music-library'
+
+function formatWeddingMusicClock(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
+  const total = Math.floor(seconds)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const secs = total % 60
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+  return `${minutes}:${String(secs).padStart(2, '0')}`
+}
 
 function clampSegment(duration: number, startRaw: number | null, endRaw: number | null) {
   const start = startRaw != null && Number.isFinite(startRaw) ? Math.max(0, startRaw) : 0
@@ -76,6 +87,8 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
     const mixSkipsRef = useRef(0)
     const handoffRef = useRef(false)
     const startedRef = useRef(false)
+    const seekingRef = useRef(false)
+    const [clock, setClock] = useState({ elapsed: 0, span: 0, playing: false })
     mixOrderRef.current = mixOrder
     mixIndexRef.current = mixIndex
     const queueMode = mixOrder.length > 0
@@ -206,6 +219,70 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
     useEffect(() => {
       const el = audioRef.current
       if (!el) return
+      let frame = 0
+      const paint = () => {
+        if (seekingRef.current) return
+        const { start, end } = segmentRef.current
+        const duration = Number.isFinite(el.duration) ? el.duration : 0
+        const spanEnd = end ?? (duration > 0 ? duration : start)
+        const span = Math.max(0, spanEnd - start)
+        const elapsed = Math.min(span, Math.max(0, el.currentTime - start))
+        const playing = !el.paused && !el.ended
+        setClock((prev) => {
+          if (prev.playing === playing && Math.abs(prev.elapsed - elapsed) < 0.2 && Math.abs(prev.span - span) < 0.2) return prev
+          return { elapsed, span, playing }
+        })
+      }
+      const loop = () => {
+        paint()
+        if (!el.paused && !el.ended) frame = window.requestAnimationFrame(loop)
+      }
+      const startLoop = () => {
+        if (frame) window.cancelAnimationFrame(frame)
+        frame = window.requestAnimationFrame(loop)
+      }
+      const stopLoop = () => {
+        if (frame) window.cancelAnimationFrame(frame)
+        frame = 0
+        paint()
+      }
+      el.addEventListener('loadedmetadata', paint)
+      el.addEventListener('durationchange', paint)
+      el.addEventListener('timeupdate', paint)
+      el.addEventListener('play', startLoop)
+      el.addEventListener('pause', stopLoop)
+      el.addEventListener('ended', stopLoop)
+      paint()
+      return () => {
+        if (frame) window.cancelAnimationFrame(frame)
+        el.removeEventListener('loadedmetadata', paint)
+        el.removeEventListener('durationchange', paint)
+        el.removeEventListener('timeupdate', paint)
+        el.removeEventListener('play', startLoop)
+        el.removeEventListener('pause', stopLoop)
+        el.removeEventListener('ended', stopLoop)
+      }
+    }, [activeSrc])
+
+    const seekElapsed = (elapsed: number) => {
+      const el = audioRef.current
+      if (!el) return
+      const { start, end } = segmentRef.current
+      const duration = Number.isFinite(el.duration) ? el.duration : start + elapsed
+      const spanEnd = end ?? duration
+      const next = Math.min(Math.max(start, start + elapsed), spanEnd)
+      try {
+        el.currentTime = next
+      } catch {
+        /* metadata chưa sẵn */
+      }
+      const span = Math.max(0, spanEnd - start)
+      setClock((prev) => ({ ...prev, elapsed: Math.min(span, Math.max(0, next - start)), span }))
+    }
+
+    useEffect(() => {
+      const el = audioRef.current
+      if (!el) return
       const cb = playingChangeRef.current
       if (!cb) return
       const emit = () => cb(!el.paused)
@@ -287,14 +364,14 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
     )
 
     return (
+      <div className={`relative ${className}`}>
       <audio
         ref={audioRef}
-        controls
         playsInline
         preload={preload}
         src={activeSrc}
-        className={className}
-        aria-label={ariaLabel}
+        className="pointer-events-none absolute h-px w-full opacity-0"
+        aria-hidden
         onError={(event) => {
           const el = event.currentTarget
           if (el.error?.code === MediaError.MEDIA_ERR_ABORTED) return
@@ -313,6 +390,45 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
           goNext(autoplay)
         }}
       />
+      <div className="flex items-center gap-2 text-current">
+        <button
+          type="button"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-current/30"
+          aria-label={ariaLabel}
+          aria-pressed={clock.playing}
+          onClick={() => {
+            const el = audioRef.current
+            if (!el?.src?.trim()) return
+            if (el.paused) void el.play().catch(() => {})
+            else el.pause()
+          }}
+        >
+          {clock.playing ? <Pause className="h-4 w-4" aria-hidden /> : <Play className="h-4 w-4" aria-hidden />}
+        </button>
+        <span className="w-11 shrink-0 text-xs tabular-nums">{formatWeddingMusicClock(clock.elapsed)}</span>
+        <input
+          type="range"
+          min={0}
+          max={clock.span > 0 ? clock.span : 0}
+          step={0.1}
+          value={clock.span > 0 ? Math.min(clock.elapsed, clock.span) : 0}
+          disabled={clock.span <= 0}
+          aria-label={ariaLabel}
+          className="h-2 min-w-0 flex-1 cursor-pointer accent-current disabled:cursor-default"
+          onPointerDown={() => {
+            seekingRef.current = true
+          }}
+          onPointerUp={() => {
+            seekingRef.current = false
+          }}
+          onPointerCancel={() => {
+            seekingRef.current = false
+          }}
+          onChange={(event) => seekElapsed(Number(event.target.value))}
+        />
+        <span className="w-11 shrink-0 text-right text-xs tabular-nums">{formatWeddingMusicClock(clock.span)}</span>
+      </div>
+      </div>
     )
   },
 )

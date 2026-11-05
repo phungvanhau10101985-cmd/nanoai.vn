@@ -175,6 +175,7 @@ function Portrait(props: {
       style={centeredFrameBoxStyle(Math.round(frameScale * 1000) / 10)}
     >
       <div className="relative">
+      <div data-wedding-portrait-photo="" className="relative">
       {props.shell ? (
           <WeddingFramedPhoto
             frameSrc={props.shell.src}
@@ -201,22 +202,23 @@ function Portrait(props: {
               style={frameStyle}
             />
           ) : (
-            <div className={cn('flex h-full w-full items-center justify-center font-serif', props.theme.accentText, props.theme.textGlow)}>
+            <div className={cn('flex h-full w-full items-center justify-center border border-dashed border-[#e8c87a]/80 font-serif', props.theme.accentText, props.theme.textGlow)}>
               <span className={props.compact ? 'text-2xl' : 'text-5xl sm:text-6xl'}>{initialOf(nameText)}</span>
             </div>
           )}
         </div>
       )}
-      {props.photoEdit && props.imageUrl ? (
-        <>
-          <PortraitPhotoPan edit={props.photoEdit} />
-          <PortraitZoomBar edit={props.photoEdit} />
-        </>
-      ) : null}
+      {props.photoEdit && props.imageUrl ? <PortraitPhotoPan edit={props.photoEdit} /> : null}
+      </div>
+      {props.photoEdit && props.imageUrl ? <PortraitZoomBar edit={props.photoEdit} /> : null}
       {photoButton}
       {props.frameScaleEdit ? <FrameEdgeGrips edit={props.frameScaleEdit} /> : null}
+      {props.frameScaleEdit ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-1 z-[6] flex justify-center">
+          <FrameScaleDragBar edit={props.frameScaleEdit} className="pointer-events-auto mt-0" />
+        </div>
+      ) : null}
       </div>
-      {props.frameScaleEdit ? <FrameScaleDragBar edit={props.frameScaleEdit} /> : null}
       <figcaption
         className={cn('mt-2 text-center', props.editSide ? undefined : props.theme.text, props.editSide ? undefined : props.theme.textGlow)}
         style={props.editSide ? { color: WEDDING_EDIT_SIDE[props.editSide].ink } : undefined}
@@ -253,6 +255,8 @@ export function WeddingCouplePortraits(props: {
   compact?: boolean
   className?: string
   choosePhotoLabel?: string
+  groomChoosePhotoLabel?: string
+  brideChoosePhotoLabel?: string
   chooseFrameLabel?: string
   onChoosePhoto?: (side: 'groom' | 'bride') => void
   onPhotoFile?: (side: 'groom' | 'bride', file: File) => void
@@ -268,6 +272,8 @@ export function WeddingCouplePortraits(props: {
 }) {
   const groomImageUrl = props.groomImageUrl.trim()
   const brideImageUrl = props.brideImageUrl.trim()
+  const groomChoose = props.groomChoosePhotoLabel || props.choosePhotoLabel
+  const brideChoose = props.brideChoosePhotoLabel || props.choosePhotoLabel
   if (!groomImageUrl && !brideImageUrl && !props.showEmpty) return null
   const showSecondary = props.layout === 'primary'
     ? Boolean(brideImageUrl || props.showEmpty)
@@ -285,7 +291,7 @@ export function WeddingCouplePortraits(props: {
           frameScale={props.groomFrameScale}
           theme={props.theme}
           compact={props.compact}
-          choosePhotoLabel={props.choosePhotoLabel}
+          choosePhotoLabel={groomChoose}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('groom', file) : undefined}
@@ -310,7 +316,7 @@ export function WeddingCouplePortraits(props: {
           frameScale={props.groomFrameScale}
           theme={props.theme}
           compact={props.compact}
-          choosePhotoLabel={props.choosePhotoLabel}
+          choosePhotoLabel={groomChoose}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('groom', file) : undefined}
@@ -328,7 +334,7 @@ export function WeddingCouplePortraits(props: {
           frameScale={props.brideFrameScale}
           theme={props.theme}
           compact={props.compact}
-          choosePhotoLabel={props.choosePhotoLabel}
+          choosePhotoLabel={brideChoose}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('bride', file) : undefined}
@@ -341,7 +347,7 @@ export function WeddingCouplePortraits(props: {
   }
 
   return (
-    <div className={cn('mx-auto w-full max-w-md', props.className)}>
+    <div className={cn('relative mx-auto w-full max-w-md', props.className)}>
       <div className={cn('grid grid-cols-[1fr_auto_1fr] items-start', props.compact ? 'gap-1.5' : 'gap-2 sm:gap-4')}>
         <Portrait
           imageUrl={groomImageUrl}
@@ -353,7 +359,7 @@ export function WeddingCouplePortraits(props: {
           frameScale={props.groomFrameScale}
           theme={props.theme}
           compact={props.compact}
-          choosePhotoLabel={props.choosePhotoLabel}
+          choosePhotoLabel={groomChoose}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('groom', file) : undefined}
@@ -381,7 +387,7 @@ export function WeddingCouplePortraits(props: {
           frameScale={props.pairFrameScaleEdit ? props.groomFrameScale : props.brideFrameScale}
           theme={props.theme}
           compact={props.compact}
-          choosePhotoLabel={props.choosePhotoLabel}
+          choosePhotoLabel={brideChoose}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('bride', file) : undefined}
@@ -391,8 +397,8 @@ export function WeddingCouplePortraits(props: {
         />
       </div>
       {props.pairFrameScaleEdit ? (
-        <div className="mt-2 flex justify-center">
-          <FrameScaleDragBar edit={props.pairFrameScaleEdit} />
+        <div className="pointer-events-none absolute inset-x-0 bottom-1 z-[6] flex justify-center">
+          <FrameScaleDragBar edit={props.pairFrameScaleEdit} className="pointer-events-auto mt-0" />
         </div>
       ) : null}
     </div>

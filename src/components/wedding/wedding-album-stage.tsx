@@ -69,19 +69,39 @@ function clampScale(value: number) {
 }
 
 const ALBUM_EDIT_COPY = {
-  vi: { zoomOut: 'Thu nhỏ', zoomIn: 'Phóng to', zoom: 'Zoom ảnh album', remove: 'Xóa ảnh', drag: 'Kéo ảnh để căn góc. Lăn chuột hoặc thanh zoom để phóng. Nút mũi tên vẫn chuyển ảnh.' },
-  en: { zoomOut: 'Zoom out', zoomIn: 'Zoom in', zoom: 'Album photo zoom', remove: 'Remove photo', drag: 'Drag to reframe. Scroll or use the zoom bar to enlarge. Arrow buttons still change photos.' },
-  zh: { zoomOut: '缩小', zoomIn: '放大', zoom: '相册照片缩放', remove: '删除照片', drag: '拖动调整取景。滚轮或缩放条可放大。箭头按钮仍可切换照片。' },
-  ja: { zoomOut: '縮小', zoomIn: '拡大', zoom: 'アルバム写真のズーム', remove: '写真を削除', drag: 'ドラッグで位置を調整。ホイールかズームバーで拡大。矢印ボタンで写真は切り替わります。' },
-  ko: { zoomOut: '축소', zoomIn: '확대', zoom: '앨범 사진 확대', remove: '사진 삭제', drag: '끌어 구도를 맞추세요. 휠이나 확대 막대로 키웁니다. 화살표 버튼은 그대로 사진을 바꿉니다.' },
+  vi: { zoomOut: 'Thu nhỏ', zoomIn: 'Phóng to', zoom: 'Zoom ảnh album', remove: 'Xóa ảnh', drag: 'Giữ và kéo để di chuyển ảnh trong khung. Phóng ảnh bằng nút trên thanh zoom. Lăn chuột để cuộn trang. Nút mũi tên vẫn chuyển ảnh.' },
+  en: { zoomOut: 'Zoom out', zoomIn: 'Zoom in', zoom: 'Album photo zoom', remove: 'Remove photo', drag: 'Hold and drag to move the photo inside the frame. Use the zoom buttons to resize. The scroll wheel moves the page. Arrow buttons still change photos.' },
+  zh: { zoomOut: '缩小', zoomIn: '放大', zoom: '相册照片缩放', remove: '删除照片', drag: '按住拖动可在框内移动照片。用缩放按钮调整大小。滚轮滚动页面。箭头按钮仍可切换照片。' },
+  ja: { zoomOut: '縮小', zoomIn: '拡大', zoom: 'アルバム写真のズーム', remove: '写真を削除', drag: '押したままドラッグすると枠の中で写真が動きます。拡大はズームボタンで。ホイールはページをスクロールします。矢印ボタンで写真は切り替わります。' },
+  ko: { zoomOut: '축소', zoomIn: '확대', zoom: '앨범 사진 확대', remove: '사진 삭제', drag: '누른 채 끌면 프레임 안에서 사진이 움직입니다. 확대는 확대 버튼으로 합니다. 휠은 페이지를 스크롤합니다. 화살표 버튼은 그대로 사진을 바꿉니다.' },
 } as const
 
 /** Lớp chỉnh trên khung đang xem: kéo căn góc, zoom, xóa. Không gắn vào thiệp khách mời. */
+function albumZoomBarStyle(layout: WeddingAlbumLayoutId, coverFrame: boolean): CSSProperties {
+  if (coverFrame && layout === 'stack') {
+    return {
+      top: '0.55rem',
+      bottom: 'auto',
+      left: 'calc(50% - min(41%, 13rem) + 0.4rem)',
+      right: 'calc(50% - min(41%, 13rem) + 2.5rem)',
+    }
+  }
+  return {
+    top: '0.55rem',
+    bottom: 'auto',
+    left: '0.5rem',
+    right: '3.25rem',
+  }
+}
+
 function AlbumStageEditor(props: {
   index: number
   frame: WeddingAlbumPhotoFrame
   locale?: WebLocale
   edit: WeddingAlbumStageEdit
+  layout: WeddingAlbumLayoutId
+  /** Lớp chỉnh phủ cả khung album, không chỉ một thẻ ảnh. */
+  coverFrame?: boolean
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
@@ -92,7 +112,6 @@ function AlbumStageEditor(props: {
     positionX: number
     positionY: number
   } | null>(null)
-  const pinchRef = useRef<{ dist: number; scale: number } | null>(null)
   const live = useRef({
     x: props.frame.x,
     y: props.frame.y,
@@ -109,30 +128,9 @@ function AlbumStageEditor(props: {
   }
   const copy = ALBUM_EDIT_COPY[props.locale || 'vi']
 
-  useEffect(() => {
-    const el = frameRef.current
-    if (!el) return
-    const onWheel = (event: WheelEvent) => {
-      event.preventDefault()
-      event.stopPropagation()
-      live.current.onChange(live.current.index, {
-        scale: clampScale(live.current.scale + (event.deltaY > 0 ? -0.08 : 0.08)),
-      })
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [])
-
-  const pointerDistance = () => {
-    const pts = [...pointers.current.values()]
-    if (pts.length < 2) return 0
-    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
-  }
-
   const endPointer = (target: HTMLDivElement, pointerId: number) => {
     pointers.current.delete(pointerId)
     if (dragRef.current?.pointerId === pointerId) dragRef.current = null
-    if (pointers.current.size < 2) pinchRef.current = null
     if (pointers.current.size === 1) {
       const [id, point] = [...pointers.current.entries()][0]
       dragRef.current = {
@@ -158,7 +156,7 @@ function AlbumStageEditor(props: {
     <div
       ref={frameRef}
       data-album-edit=""
-      className="absolute inset-0 z-10 cursor-grab touch-none active:cursor-grabbing"
+      className="pointer-events-auto absolute inset-0 z-40 cursor-grab touch-none active:cursor-grabbing"
       style={{ touchAction: 'none' }}
       role="application"
       aria-label={copy.drag}
@@ -173,10 +171,8 @@ function AlbumStageEditor(props: {
         pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
         if (pointers.current.size >= 2) {
           dragRef.current = null
-          pinchRef.current = { dist: Math.max(1, pointerDistance()), scale: live.current.scale }
           return
         }
-        pinchRef.current = null
         dragRef.current = {
           pointerId: event.pointerId,
           startX: event.clientX,
@@ -189,13 +185,7 @@ function AlbumStageEditor(props: {
         if (!pointers.current.has(event.pointerId)) return
         event.stopPropagation()
         pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
-        if (pinchRef.current && pointers.current.size >= 2) {
-          const dist = Math.max(1, pointerDistance())
-          live.current.onChange(live.current.index, {
-            scale: clampScale(pinchRef.current.scale * (dist / pinchRef.current.dist)),
-          })
-          return
-        }
+        if (pointers.current.size >= 2) return
         const drag = dragRef.current
         const frame = frameRef.current
         if (!drag || drag.pointerId !== event.pointerId || !frame) return
@@ -212,9 +202,6 @@ function AlbumStageEditor(props: {
       onPointerCancel={(event) => endPointer(event.currentTarget, event.pointerId)}
       onDoubleClick={() => props.edit.onChange(props.index, { positionX: 50, positionY: 0, scale: 1 })}
     >
-      <span className="pointer-events-none absolute bottom-10 left-2 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
-        {Math.round(props.frame.scale * 100)}%
-      </span>
       <button
         type="button"
         data-album-chrome=""
@@ -230,17 +217,22 @@ function AlbumStageEditor(props: {
       </button>
       <div
         data-album-chrome=""
-        className="absolute bottom-2 left-10 right-10 z-20 flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-1"
+        data-album-zoom=""
+        className="absolute z-20 flex items-center gap-1 rounded-full border border-white/80 bg-white/95 px-1.5 py-1 text-stone-800 shadow"
+        style={albumZoomBarStyle(props.layout, Boolean(props.coverFrame))}
         onPointerDown={(event) => event.stopPropagation()}
       >
         <button
           type="button"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm leading-none text-white"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm leading-none text-stone-800"
           aria-label={copy.zoomOut}
           onClick={() => setScale(props.frame.scale - 0.1)}
         >
           −
         </button>
+        <span className="pointer-events-none min-w-[2.25rem] text-center text-[10px] font-medium tabular-nums text-stone-800">
+          {Math.round(props.frame.scale * 100)}%
+        </span>
         <input
           type="range"
           min={1}
@@ -250,11 +242,11 @@ function AlbumStageEditor(props: {
           aria-valuetext={`${Math.round(props.frame.scale * 100)}%`}
           value={props.frame.scale}
           onChange={(event) => setScale(Number(event.target.value))}
-          className="h-7 min-w-0 flex-1 accent-white"
+          className="h-7 min-w-0 flex-1 accent-stone-700"
         />
         <button
           type="button"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm leading-none text-white"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm leading-none text-stone-800"
           aria-label={copy.zoomIn}
           onClick={() => setScale(props.frame.scale + 0.1)}
         >
@@ -284,7 +276,7 @@ function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; classNa
       data-album-chrome=""
       style={props.style}
       className={cn(
-        'absolute top-1/2 z-30 flex -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
+        'absolute top-1/2 z-50 flex -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
         props.compact ? 'h-7 w-7' : 'h-9 w-9 sm:h-10 sm:w-10',
         edge,
         props.className,
@@ -529,7 +521,7 @@ export function WeddingAlbumStage(props: {
   const isGrid = layout === 'grid'
 
   return (
-    <div className={cn('relative w-full min-w-0 max-w-full overflow-hidden', props.className)}>
+    <div data-wedding-album="" className={cn('relative w-full min-w-0 max-w-full overflow-hidden', props.className)}>
       <div
         ref={swipeRootRef}
         className="relative w-full min-w-0 max-w-full select-none overflow-hidden"
@@ -616,6 +608,8 @@ export function WeddingAlbumStage(props: {
             frame={resolveAlbumPhotoFrame(props.crops, safeIndex)}
             locale={props.locale}
             edit={props.edit}
+            layout={layout}
+            coverFrame
           />
         ) : null}
       </div>
@@ -952,7 +946,7 @@ function AlbumFrame(props: {
               <div key={`${url}-${i}`} className="relative overflow-hidden rounded-2xl shadow-sm ring-1 ring-black/10">
                 <div className="relative aspect-[3/4] overflow-hidden">
                   <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} className="absolute inset-0" />
-                  <AlbumStageEditor index={i} frame={props.frameOf(i)} locale={props.locale} edit={props.edit} />
+                  <AlbumStageEditor index={i} frame={props.frameOf(i)} locale={props.locale} edit={props.edit} layout={props.layout} />
                 </div>
                 {showExtra ? (
                   <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 font-semibold text-white">

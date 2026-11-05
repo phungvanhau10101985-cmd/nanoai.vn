@@ -40,15 +40,20 @@
     font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
   }
   /* Song hỷ: tấm kem trên giấy đỏ. Viền kép nằm trong tấm, không trồi ra khỏi khổ. */
-  /* Mặt đọc khi thiệp bật nền chữ. Kho AI không bật, hoa văn hiện suốt. */
-  [data-wedding-reading] [data-wedding-glass],
-  [data-wedding-reading] .wedding-invite-body-join > div {
+  /* Nền chữ nằm dưới hoa văn. Chữ ở lớp trên nên nét không bị cánh cắt. */
+  [data-wedding-reading] [data-wedding-glass]::before,
+  [data-wedding-reading] .wedding-invite-body-join > div::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    border-radius: inherit;
+    pointer-events: none;
     background: var(--wedding-reading-plate) !important;
   }
-  /* Tấm kem nằm trên hoa nổi (z-index 36) để nét chữ không bị cánh lá cắt. */
-  [data-wedding-text-veil] [data-wedding-glass] {
+  [data-wedding-reading] .wedding-invite-body-join > div {
     position: relative;
-    z-index: 38;
+    background: transparent !important;
   }
   /* Vườn hồng trời: lịch và đếm ngược mặc định ô-liu, chìm trên trời xanh. */
   .wedding-kit-sky .wedding-cal-ink {
@@ -59,10 +64,19 @@
   }
   .wedding-song-hy-card,
   [data-wedding-paper='scallop'] [data-wedding-glass] {
-    background: #fff6ea !important;
     color: #4a1218;
-    border: 1px solid rgba(184, 138, 74, 0.55);
     border-radius: 1.75rem;
+  }
+  [data-wedding-paper='scallop'] [data-wedding-glass]::before,
+  .wedding-song-hy-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    border-radius: inherit;
+    pointer-events: none;
+    background: #fff6ea;
+    border: 1px solid rgba(184, 138, 74, 0.55);
     box-shadow:
       inset 0 0 0 5px #fff6ea,
       inset 0 0 0 6px rgba(184, 138, 74, 0.45),

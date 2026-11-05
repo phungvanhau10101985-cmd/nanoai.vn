@@ -116,9 +116,16 @@ export function primeWeddingPageScroll() {
   html.style.scrollBehavior = prevBehavior
 }
 
-/** Bắt đầu cuộn tự động từ đầu trang; gọi sau khi đóng overlay «Mở thiệp». */
-export function startWeddingInvitationAutoScroll() {
+/** Vị trí bắt đầu một phiên lướt. Thêm hoa thì giữ màn hình đang xem, không kéo về đầu trang. */
+export function weddingAutoScrollStartY(fromCurrent: boolean, currentY: number) {
+  if (!fromCurrent) return 0
+  return Math.max(0, currentY)
+}
+
+/** Bắt đầu cuộn tự động. Mặc định từ đầu trang. `fromCurrent` tiếp tục từ màn hình đang xem. */
+export function startWeddingInvitationAutoScroll(options?: { fromCurrent?: boolean }) {
   activeSession?.stop()
+  const fromCurrent = options?.fromCurrent === true
 
   const sessionId = ++sessionCounter
   let stopped = false
@@ -161,7 +168,7 @@ export function startWeddingInvitationAutoScroll() {
   activeSession = { id: sessionId, stop }
 
   releaseWeddingPageScrollLock()
-  writeScrollTop(0)
+  if (!fromCurrent) writeScrollTop(0)
 
   graceTimer = window.setTimeout(() => {
     acceptUserControl = true
@@ -271,8 +278,9 @@ export function startWeddingInvitationAutoScroll() {
     if (stopped) return
     releaseWeddingPageScrollLock()
     void document.body.offsetHeight
-    y = 0
-    writeScrollTop(0)
+    y = weddingAutoScrollStartY(fromCurrent, readScrollTop())
+    painted = y
+    writeScrollTop(y)
     arm()
     watchTimer = window.setTimeout(() => {
       if (stopped || paused || usingInterval) return
@@ -284,7 +292,8 @@ export function startWeddingInvitationAutoScroll() {
     }, STUCK_WATCH_MS)
   }
 
-  startTimer = window.setTimeout(begin, START_DELAY_MS)
+  if (fromCurrent) begin()
+  else startTimer = window.setTimeout(begin, START_DELAY_MS)
 
   return stop
 }

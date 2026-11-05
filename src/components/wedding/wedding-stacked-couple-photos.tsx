@@ -345,8 +345,8 @@ function PhotoCard(props: {
   )
 
   return (
-    <div data-wedding-frame={props.frameId} className={cn(props.className)} style={{ ...centeredFrameBoxStyle(props.widthPercent), transform: `rotate(${props.tilt}deg) scale(${props.visualScale ?? 1})`, transformOrigin: props.transformOrigin }} onPointerDown={props.onPointerDown}>
-      {props.controlsEdge === 'top' && toolbar ? <div className="relative z-[6] mb-1">{toolbar}</div> : null}
+    <div data-wedding-frame={props.frameId} className={cn('relative', props.className)} style={{ ...centeredFrameBoxStyle(props.widthPercent), transform: `rotate(${props.tilt}deg) scale(${props.visualScale ?? 1})`, transformOrigin: props.transformOrigin }} onPointerDown={props.onPointerDown}>
+      {props.controlsEdge === 'top' && toolbar ? <div className="absolute inset-x-0 bottom-full z-[6] mb-1">{toolbar}</div> : null}
       <div className={cn('relative', props.shell ? 'bg-transparent' : 'overflow-hidden rounded-2xl shadow-[0_16px_36px_rgba(20,4,8,0.32)]')}>
         <div
           ref={boxRef}
@@ -422,7 +422,7 @@ function PhotoCard(props: {
           </div>
         ) : null}
       </div>
-      {props.controlsEdge === 'bottom' && toolbar ? <div className="relative z-[6] mt-1">{toolbar}</div> : null}
+      {props.controlsEdge === 'bottom' && toolbar ? <div className="absolute inset-x-0 top-full z-[6] mt-1">{toolbar}</div> : null}
     </div>
   )
 }

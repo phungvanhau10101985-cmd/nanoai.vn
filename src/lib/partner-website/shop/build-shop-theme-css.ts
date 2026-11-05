@@ -318,7 +318,7 @@ const PW_SHOP_DEPOSIT_COMPACT_LAYOUT_CSS = `.pw-shop-account-content:has(.pw-sho
 .pw-shop-deposit-pay,.pw-shop-deposit-info,.pw-shop-deposit-col{padding:10px 12px}
 .pw-shop-deposit-qr{padding:10px 8px}
 .pw-shop-deposit-qr img{width:min(86vw,300px)}
-.pw-shop-deposit-qr-dl{max-width:none}
+.pw-shop-deposit-qr-dl,.pw-shop-deposit-why{max-width:none}
 .pw-shop-deposit-copy .pw-shop-btn{width:100%}
 .pw-shop-deposit-memo-row{flex-direction:column;align-items:stretch}
 .pw-shop-deposit-extra{padding:8px 12px 12px}
@@ -724,7 +724,32 @@ html[data-pw-listing-category="1"] .pw-shop-category-hub,
 .pw-shop-deposit-qr{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px}
 .pw-shop-deposit-qr img{width:min(280px,100%);height:auto;border-radius:8px;background:#fff}
 .pw-shop-deposit-qr-need{margin:0;font-size:15px;font-weight:800;color:var(--pw-buy);font-variant-numeric:tabular-nums}
-.pw-shop-deposit-qr-dl{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;max-width:240px}
+.pw-shop-deposit-qr-dl{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;max-width:280px}
+.pw-shop-deposit-why{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;max-width:280px;border-radius:12px;border:1px solid #d1d5db;background:#fff;color:#1f2937;font-weight:700;font-size:14px;line-height:1.35;padding:10px 16px;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.05);text-align:center}
+.pw-shop-deposit-why:hover{background:#f9fafb}
+.pw-shop-deposit-why:focus-visible{outline:2px solid #9ca3af;outline-offset:2px}
+.pw-shop-why-deposit{max-width:42rem;margin:0 auto;padding:16px 12px 32px}
+@media(min-width:640px){.pw-shop-why-deposit{padding:32px 16px}}
+.pw-shop-why-card{overflow:hidden;border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.pw-shop-why-head{background:linear-gradient(90deg,var(--pw-primary),var(--pw-accent));color:#fff;padding:16px}
+@media(min-width:768px){.pw-shop-why-head{padding:16px 24px}}
+.pw-shop-why-head h1{margin:0;font-size:18px;font-weight:800;line-height:1.25}
+@media(min-width:768px){.pw-shop-why-head h1{font-size:20px}}
+.pw-shop-why-head p{margin:4px 0 0;font-size:14px;line-height:1.45}
+.pw-shop-why-body{padding:16px;display:grid;gap:16px;font-size:14px;line-height:1.65;color:#374151}
+@media(min-width:768px){.pw-shop-why-body{padding:20px 24px}}
+.pw-shop-why-body h2{margin:0;font-size:14px;font-weight:700;color:#111827}
+.pw-shop-why-body p{margin:4px 0 0}
+.pw-shop-why-note{border:1px solid #fde68a;background:#fffbeb;border-radius:8px;padding:12px}
+.pw-shop-why-foot{border-top:1px solid var(--pw-border,#f3f4f6);background:var(--pw-surface,#f9fafb);padding:16px;display:grid;gap:8px}
+@media(min-width:768px){.pw-shop-why-foot{padding:16px 24px}}
+.pw-shop-why-foot .pw-shop-btn{width:100%;padding:12px 16px;border-radius:12px}
+.pw-shop-why-zalo{background:#0068FF;color:#fff;border:none}
+.pw-shop-why-zalo:hover{background:#0057d6}
+.pw-shop-why-hours,.pw-shop-why-guide{margin:0;text-align:center;font-size:12px;line-height:1.45;color:#6b7280}
+.pw-shop-why-guide a{font-weight:600;color:var(--pw-primary);text-decoration:underline}
+.pw-shop-why-toast{display:grid;gap:2px;margin:0;padding:12px 14px;border-radius:10px;background:#ecfdf5;border:1px solid #a7f3d0;font-size:14px;color:#111827;text-align:left}
+.pw-shop-why-toast strong{font-weight:700}
 .pw-shop-deposit-spin{display:inline-block;width:14px;height:14px;border:2px solid var(--pw-border,#d1d5db);border-top-color:var(--pw-primary);border-radius:999px;animation:pw-shop-spin .7s linear infinite}
 @keyframes pw-shop-spin{to{transform:rotate(360deg)}}
 .pw-shop-deposit-qr-modal{position:fixed;inset:0;z-index:120;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.6);padding:16px}

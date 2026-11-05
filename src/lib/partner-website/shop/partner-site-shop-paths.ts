@@ -193,6 +193,21 @@ export function partnerSiteOrderDepositPath(siteSlug: string, orderId: string, o
   return partnerSiteHref(siteSlug, `/orders/${encodeURIComponent(id)}/deposit`, opts?.customDomain)
 }
 
+/** Giải thích cọc — giống 188 `/info/tai-sao-dat-coc?order=&code=`. */
+export function partnerSiteWhyDepositPath(
+  siteSlug: string,
+  opts?: PathOpts & { orderId?: string | null; orderCode?: string | null }
+): string {
+  const base = partnerSiteHref(siteSlug, '/tai-sao-dat-coc', opts?.customDomain)
+  const q = new URLSearchParams()
+  const orderId = String(opts?.orderId ?? '').trim()
+  const orderCode = String(opts?.orderCode ?? '').trim()
+  if (orderId) q.set('order', orderId)
+  if (orderCode) q.set('code', orderCode)
+  const search = q.toString()
+  return search ? `${base}?${search}` : base
+}
+
 export function partnerSiteAccountPath(siteSlug: string, opts?: PathOpts): string {
   return partnerSiteHref(siteSlug, '/account', opts?.customDomain)
 }

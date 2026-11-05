@@ -50,22 +50,26 @@ function CoupleNameField(props: {
   if (props.edit) {
     const side = props.side ?? (props.from === 'right' ? 'bride' : 'groom')
     const tone = WEDDING_EDIT_SIDE[side]
+    const shown = props.edit.value.trim() || props.edit.label
     return (
-      <input
-        aria-label={props.edit.label}
-        data-wedding-text={side === 'bride' ? 'brideName' : 'groomName'}
-        data-wedding-side={side}
-        value={props.edit.value}
-        onChange={(event) => props.edit?.onChange(event.target.value)}
-        onBlur={(event) => {
-          const raw = event.target.value
-          const next = capitalizeInvitationPersonName(raw)
-          if (next !== raw) props.edit?.onChange(next)
-        }}
-        onFocus={props.edit.onFocus}
-        style={{ color: tone.ink }}
-        className={cn('min-w-[3rem] max-w-[46%] truncate bg-transparent text-center outline-none ring-1 ring-dashed [font:inherit]', tone.ring)}
-      />
+      <span className="relative inline-block max-w-[46%] min-w-[3rem] text-center">
+        <span className="invisible inline-block max-w-full whitespace-nowrap">{shown}</span>
+        <input
+          aria-label={props.edit.label}
+          data-wedding-text={side === 'bride' ? 'brideName' : 'groomName'}
+          data-wedding-side={side}
+          value={props.edit.value}
+          onChange={(event) => props.edit?.onChange(event.target.value)}
+          onBlur={(event) => {
+            const raw = event.target.value
+            const next = capitalizeInvitationPersonName(raw)
+            if (next !== raw) props.edit?.onChange(next)
+          }}
+          onFocus={props.edit.onFocus}
+          style={{ color: tone.ink }}
+          className={cn('absolute inset-0 m-0 w-full truncate border-0 bg-transparent p-0 text-center outline-none ring-1 ring-dashed [font:inherit]', tone.ring)}
+        />
+      </span>
     )
   }
   return (

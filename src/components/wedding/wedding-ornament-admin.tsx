@@ -7,7 +7,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { useToast } from '@/hooks/use-toast'
 import { uploadWeddingOrnamentImage } from '@/app/tao-thiep-moi-cuoi-ai/actions'
-import { editWeddingOrnamentAt, nudgeWeddingOrnament, ornamentRevealNeedsScroll, weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentEditSheet, weddingOrnamentEdgeSpot, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { editWeddingOrnamentAt, nudgeWeddingOrnament, ornamentRevealNeedsScroll, weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentEditSheet, weddingOrnamentEdgeSpot, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, weddingOrnamentSurfaceInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { isWeddingOrnamentImageSrc, WEDDING_ORNAMENT_CATALOG } from '@/lib/wedding/wedding-background-ornament-store'
 import { decideOrnamentPickerTap, ornamentPickerConfirmSrc } from '@/lib/wedding/wedding-ornament-picker'
 import { bindWeddingOrnamentRise, useWeddingOrnamentRun, WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
@@ -80,29 +80,44 @@ function isOrnamentView(value: unknown): value is OrnamentView {
   return [box.x, box.y, box.w, box.h].every((part) => typeof part === 'number' && Number.isFinite(part) && part >= 0)
 }
 
-/** Hoa mới bám mép trái hoặc phải, trong khung đang nằm trên màn hình. */
-export function weddingOrnamentSpotOnPage(index = 0): { x: number; y: number; w: number } {
-  if (typeof document === 'undefined') return weddingOrnamentEdgeSpot(index)
+function ornamentFrameSurface(frame: HTMLElement): 'cover' | 'letter' {
+  const raw = frame.getAttribute('data-wedding-ornament-surface')
+  if (raw === 'letter' || raw === 'cover') return raw
+  return frame.getAttribute('data-wedding-ornament-frame') === 'flow' ? 'letter' : 'cover'
+}
+
+/** Mặt thiệp đang chiếm giữa màn hình. Vỏ chỉ khi nội dung chưa vào tầm nhìn. */
+export function weddingOrnamentVisibleSurface(): 'cover' | 'letter' {
+  if (typeof document === 'undefined') return 'cover'
+  const letter = document.getElementById('wedding-letter-edit')
+  const box = letter?.getBoundingClientRect()
+  if (!box) return 'cover'
+  return weddingOrnamentSurfaceInView({
+    letterTop: box.top,
+    letterBottom: box.bottom,
+    letterHeight: box.height,
+    viewCenterY: window.innerHeight / 2,
+  })
+}
+
+/** Hoa mới bám mép trái hoặc phải, trong khung của mặt đang hiện. */
+export function weddingOrnamentSpotOnPage(index = 0, surface?: 'cover' | 'letter'): { x: number; y: number; w: number; surface: 'cover' | 'letter' } {
+  const face = surface ?? weddingOrnamentVisibleSurface()
+  if (typeof document === 'undefined') return { ...weddingOrnamentEdgeSpot(index), surface: face }
   const view = { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight }
   const frames = [...document.querySelectorAll<HTMLElement>('[data-wedding-ornament-frame]')]
-  let best: DOMRect | null = null
-  let bestArea = 0
-  for (const frame of frames) {
-    const box = frame.getBoundingClientRect()
-    const width = Math.max(0, Math.min(box.right, view.width) - Math.max(box.left, view.left))
-    const height = Math.max(0, Math.min(box.bottom, view.height) - Math.max(box.top, view.top))
-    const area = width * height
-    if (area > bestArea) {
-      best = box
-      bestArea = area
-    }
+  const frame = frames.find((item) => ornamentFrameSurface(item) === face && item.getBoundingClientRect().height > 8)
+    ?? frames.find((item) => item.getBoundingClientRect().height > 8)
+  if (!frame) return { ...weddingOrnamentEdgeSpot(index), surface: face }
+  const box = frame.getBoundingClientRect()
+  return {
+    ...weddingOrnamentSpotInView({
+      frame: { top: box.top, left: box.left, width: box.width, height: box.height },
+      view,
+      index,
+    }),
+    surface: ornamentFrameSurface(frame),
   }
-  if (!best) return weddingOrnamentEdgeSpot(index)
-  return weddingOrnamentSpotInView({
-    frame: { top: best.top, left: best.left, width: best.width, height: best.height },
-    view,
-    index,
-  })
 }
 
 function OrnamentResetControl(props: {
@@ -157,6 +172,13 @@ export function WeddingOrnamentAdminLayer(props: {
   riseLabel?: string
   deleteLabel?: string
   frameLines?: boolean
+  /** Hiện thanh phóng, xoay, mờ khi bấm một hoa. Bỏ trống thì theo `frameLines`. */
+  showTools?: boolean
+  /** Sau bấy nhiêu mili giây không chạm hoa thì bỏ chọn và giấu thanh chỉnh. */
+  toolIdleMs?: number
+  onSelectionChange?: (index: number | null) => void
+  /** Hết giờ không chạm hoa. Trang lướt dùng để giấu nút thêm hoa. */
+  onToolsIdle?: () => void
   surface?: WeddingOrnamentSurface
   onChange?: (next: WeddingBackgroundOrnament[]) => void
 }) {
@@ -180,8 +202,17 @@ export function WeddingOrnamentAdminLayer(props: {
   const selectedRef = useRef<number | null>(null)
   const keyOwnerRef = useRef(0)
   const pendingRef = useRef<WeddingBackgroundOrnament[] | null>(null)
-  const frameLinesRef = useRef(props.frameLines)
-  frameLinesRef.current = props.frameLines
+  const toolsOnRef = useRef(true)
+  toolsOnRef.current = props.showTools ?? props.frameLines !== false
+  const toolIdleMsRef = useRef(props.toolIdleMs)
+  toolIdleMsRef.current = props.toolIdleMs
+  const onSelectionChangeRef = useRef(props.onSelectionChange)
+  onSelectionChangeRef.current = props.onSelectionChange
+  const onToolsIdleRef = useRef(props.onToolsIdle)
+  onToolsIdleRef.current = props.onToolsIdle
+  const idleTimerRef = useRef<number | null>(null)
+  const clearToolIdleRef = useRef<() => void>(() => {})
+  const armToolIdleRef = useRef<() => void>(() => {})
   onChangeRef.current = props.onChange
   const editRef = useRef<{
     read: () => WeddingBackgroundOrnament[]
@@ -199,16 +230,49 @@ export function WeddingOrnamentAdminLayer(props: {
   const choose = (index: number | null) => {
     selectedRef.current = index
     setSelected(index)
-    if (index == null) return
+    onSelectionChangeRef.current?.(index)
+    if (index == null) {
+      clearToolIdleRef.current()
+      return
+    }
     ornamentKeySerial += 1
     activeOrnamentKeyOwner = ornamentKeySerial
     keyOwnerRef.current = ornamentKeySerial
     const node = layerRef.current?.querySelector<HTMLElement>(`[data-ornament-hit][data-ornament-index="${index}"]`)
     node?.focus({ preventScroll: true })
+    armToolIdleRef.current()
   }
   const chooseRef = useRef(choose)
   chooseRef.current = choose
   const draggingRef = useRef(false)
+  const clearToolIdle = () => {
+    if (idleTimerRef.current == null) return
+    window.clearTimeout(idleTimerRef.current)
+    idleTimerRef.current = null
+  }
+  const armToolIdle = () => {
+    clearToolIdle()
+    const ms = toolIdleMsRef.current
+    if (!ms || selectedRef.current == null) return
+    idleTimerRef.current = window.setTimeout(() => {
+      idleTimerRef.current = null
+      if (draggingRef.current) {
+        armToolIdle()
+        return
+      }
+      onToolsIdleRef.current?.()
+      chooseRef.current(null)
+    }, ms)
+  }
+  clearToolIdleRef.current = clearToolIdle
+  armToolIdleRef.current = armToolIdle
+
+  useEffect(() => {
+    return () => {
+      clearToolIdleRef.current()
+      onSelectionChangeRef.current?.(null)
+    }
+  }, [])
 
   useLayoutEffect(() => {
     const drag = liveDragRef.current
@@ -449,6 +513,7 @@ export function WeddingOrnamentAdminLayer(props: {
             anchor: drag.bottom ? 'bottom' : null,
           }),
         )
+        armToolIdleRef.current()
       }
       document.addEventListener('pointermove', move, { passive: false })
       document.addEventListener('pointerup', up)
@@ -556,7 +621,7 @@ export function WeddingOrnamentAdminLayer(props: {
   useEffect(() => {
     if (!props.editable) return
     const onKey = (event: KeyboardEvent) => {
-      if (frameLinesRef.current === false) return
+      if (!toolsOnRef.current) return
       const index = selectedRef.current
       if (index == null || keyOwnerRef.current !== activeOrnamentKeyOwner) return
       if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return
@@ -585,6 +650,7 @@ export function WeddingOrnamentAdminLayer(props: {
       event.preventDefault()
       const moved = nudgeWeddingOrnament(sheet[index], dx, dy, bounds.width, bounds.height)
       editRef.current.write(editWeddingOrnamentAt(items, pages, index, { x: moved.x, y: moved.y, anchor: moved.anchor ?? null }))
+      armToolIdleRef.current()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
@@ -597,6 +663,7 @@ export function WeddingOrnamentAdminLayer(props: {
     return bindWeddingOrnamentRise(root, false)
   }, [props.editable, motionKey])
 
+  const toolsOn = props.showTools ?? props.frameLines !== false
   if (!props.editable) {
     return <WeddingBackgroundOrnamentLayer ornaments={props.ornaments} className={props.className} />
   }
@@ -605,6 +672,7 @@ export function WeddingOrnamentAdminLayer(props: {
     const cleaned = { ...patch }
     if ('motion' in cleaned && cleaned.motion !== 'rise') cleaned.motion = undefined
     editRef.current.write(editWeddingOrnamentAt(editRef.current.read(), pages, index, cleaned))
+    armToolIdleRef.current()
   }
   const previewRise = (index: number) => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
@@ -620,7 +688,7 @@ export function WeddingOrnamentAdminLayer(props: {
   const controlScale = Math.min(6, Math.max(0.4, target / 44 / Math.max(uiScale, 0.05)))
   return (
     <>
-    <div ref={layerRef} className={cn('pointer-events-none absolute inset-0 overflow-visible', props.className)} style={{ zIndex: 36 }}>
+    <div ref={layerRef} className={cn('pointer-events-none absolute inset-0 overflow-visible', props.className)} style={{ zIndex: 1 }}>
       {shown.map((item, index) => {
         const active = selected === index
         return (
@@ -650,15 +718,15 @@ export function WeddingOrnamentAdminLayer(props: {
               className={cn('pointer-events-none block w-full max-w-none select-none', active && 'cursor-grabbing')}
               style={{
                 ...weddingOrnamentImageStyle(item),
-                outline: props.frameLines === false || !active ? 'none' : '3px solid #e11d48',
-                outlineOffset: props.frameLines === false || !active ? 0 : 3,
+                outline: !toolsOn || !active ? 'none' : '3px solid #e11d48',
+                outlineOffset: !toolsOn || !active ? 0 : 3,
               }}
             />
           </div>
         )
       })}
     </div>
-    {picked && selected != null && props.frameLines !== false ? (
+    {picked && selected != null && toolsOn ? (
       <div className="pointer-events-none absolute inset-0" style={{ zIndex: 80 }}>
         <div
           className="pointer-events-none absolute"
@@ -669,7 +737,10 @@ export function WeddingOrnamentAdminLayer(props: {
             data-ornament-tools=""
             className="pointer-events-auto absolute left-1/2 top-full mt-1 flex w-max flex-col gap-1 rounded-xl border border-rose-200 bg-white/95 p-1 shadow-lg"
             style={{ transform: `translateX(-50%) scale(${controlScale})`, transformOrigin: 'top center' }}
-            onPointerDown={(event) => event.stopPropagation()}
+            onPointerDown={(event) => {
+              event.stopPropagation()
+              armToolIdleRef.current()
+            }}
           >
             <div className="flex gap-1">
               <button type="button" aria-label={props.zoomInLabel} className="flex h-11 w-11 items-center justify-center rounded-lg bg-rose-700 text-white" onClick={() => update(selected, { w: Math.min(90, Math.round((picked.w + 6) * 10) / 10) })}>

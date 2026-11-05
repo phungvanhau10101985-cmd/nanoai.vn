@@ -1,5 +1,82 @@
-/* Chữ trên hoa văn. Nút trên cùng để bấm được. Hoa văn trên khung ảnh. Khung ảnh trên nền. */
-[data-wedding-stage] :is(p, h1, h2, h3, h4, li, figcaption, blockquote, label) {
+/* Từ trên xuống: chữ và nút, hoa văn, nền chữ, khung, ảnh cô dâu chú rể.
+   Nền chữ là một lớp riêng, không gói chữ. Nếu không, hoa văn không chui vào giữa chữ và nền. */
+[data-wedding-stage] [data-wedding-glass] {
+  position: relative;
+  z-index: auto;
+  background: transparent !important;
+  box-shadow: none;
+}
+[data-wedding-stage] [data-wedding-glass]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  border-radius: inherit;
+  pointer-events: none;
+}
+/* Ô trong tấm không được thành một lớp. Nếu không, nền chữ và chữ dính vào nhau, hoa văn không chui vào giữa. */
+[data-wedding-stage] [data-wedding-glass] > div {
+  position: relative;
+  z-index: auto;
+}
+/* Tấm kem (lời mời, nhạc, khối song hỷ) chỉ là nền. Không nâng cả tấm, không chạy biến đổi — biến đổi sẽ gói chữ vào cùng lớp với nền. */
+[data-wedding-stage] .wedding-song-hy-card {
+  position: relative;
+  z-index: auto;
+  animation: none;
+  transform: none;
+}
+[data-wedding-stage] .wedding-song-hy-card:is(.wedding-open-line, .wedding-open-after, .wedding-open-map, .wedding-invite-body-join) {
+  z-index: auto;
+  animation: none;
+  transform: none;
+}
+[data-wedding-stage] .wedding-song-hy-card::before {
+  z-index: 15;
+}
+/* Ảnh chân dung và album nằm trên nền kem, dưới hoa văn. Nút zoom đứng ngoài lớp ảnh. */
+[data-wedding-stage] [data-wedding-portrait-photo],
+[data-wedding-stage] [data-wedding-album] {
+  position: relative;
+  z-index: 12;
+}
+/* Lớp sửa album nhận kéo ảnh. Lăn chuột để trang tự cuộn. */
+[data-wedding-stage] [data-album-edit] {
+  z-index: 45;
+  pointer-events: auto;
+}
+/* Thanh zoom album dính mép trên của ảnh. */
+[data-wedding-stage] [data-album-zoom] {
+  position: absolute;
+  top: 0.65rem;
+  right: 3.25rem;
+  bottom: auto;
+  left: 0.5rem;
+  z-index: 30;
+}
+[data-wedding-stage] [data-album-zoom] input {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: auto;
+  height: 1.75rem;
+}
+
+[data-wedding-letter-copy] {
+  position: relative;
+  background: transparent;
+}
+
+[data-wedding-stage] :is(p, h1, h2, h3, h4, li, figcaption, blockquote, label, .wedding-couple-ornament) {
+  position: relative;
+  z-index: 40;
+}
+
+/* Lịch tháng là div và span, không phải p. Không nâng thì tấm kem (z-index 10) đè hết số ngày. */
+[data-wedding-stage] .wedding-cal-sheet {
+  position: relative;
   z-index: 40;
 }
 
@@ -8,14 +85,19 @@
   pointer-events: auto;
 }
 
-/* Đang sửa hoa: ô chữ không chặn cú chọn mảnh ảnh. Nút và ô nhập vẫn bấm được. */
-[data-wedding-stage][data-ornament-editing] :is(p, h1, h2, h3, h4, li, figcaption, blockquote) {
+/* Đang sửa hoa: tờ chữ trong suốt không chặn cú chọn mảnh ảnh. Nút và ô nhập vẫn bấm được. */
+[data-wedding-stage][data-ornament-editing] :is([data-wedding-letter-copy], [data-wedding-sheet-content], p, h1, h2, h3, h4, li, figcaption, blockquote) {
   pointer-events: none;
 }
 
 /* Iframe sửa đã đúng bề ngang khổ giấy. Thanh cuộn không được làm khổ giấy hẹp lại. */
 html[data-wedding-layout-preview] {
   overflow: hidden !important;
+}
+
+/* Hoa tràn mép tờ mobile. Cửa sổ cắt phần ra ngoài màn hình, không kéo trang ngang. */
+html:has([data-wedding-public]) {
+  overflow-x: clip;
 }
 
 /* Vỏ thiệp: hoa văn bám một khổ giấy. Nội dung thiệp (`flow`) phủ hết chiều chữ. */
@@ -27,6 +109,7 @@ html[data-wedding-layout-preview] {
   position: absolute;
   left: 0;
   top: 0;
+  z-index: 20;
   width: 100%;
   height: calc(100cqi * 844 / 390);
   pointer-events: none;
@@ -34,6 +117,7 @@ html[data-wedding-layout-preview] {
 
 [data-wedding-sheet-content] {
   position: relative;
+  background: transparent;
   min-height: calc(100cqi * 844 / 390);
 }
 
@@ -146,6 +230,19 @@ html[data-wedding-layout-preview] {
 [data-wedding-ornament-frame='flow'] {
   bottom: 0;
   height: auto;
+}
+
+/* Khối chữ có hiệu ứng mở tự thành một lớp. Không nâng thì hoa văn (z-index 20) đè câu mời.
+   Riêng khung ảnh (div.wedding-open-invite / shell) giữ dưới hoa văn. */
+[data-wedding-stage] .wedding-open-line:not(.wedding-open-invite):not(.wedding-open-shell):not(.wedding-open-after):not(.wedding-open-map):not(.wedding-song-hy-card) {
+  position: relative;
+  z-index: 40;
+}
+
+[data-wedding-stage] div.wedding-open-invite,
+[data-wedding-stage] div.wedding-open-shell {
+  position: relative;
+  z-index: 12;
 }
 
 /* Khối đang chạy hiệu ứng vẫn tạo lớp riêng. Đưa cả khối nút lên trên hoa văn. */

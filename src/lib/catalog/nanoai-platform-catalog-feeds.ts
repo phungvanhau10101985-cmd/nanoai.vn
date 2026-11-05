@@ -2,11 +2,13 @@
  * Nguồn cấp dữ liệu tính năng NanoAI cho TikTok Catalog và Google Merchant Center.
  * Cùng `id` với Facebook CSV và content_id remarketing (`feature_*`).
  *
- * Google Shopping (product data spec):
- * id, title, description, link, image_link, availability, price, brand,
- * condition, identifier_exists, google_product_category, shipping.
- * Phần mềm không có GTIN → identifier_exists = no, không gửi gtin/mpn.
- * Danh mục Google 313 = Software.
+ * Google Shopping không nhận dịch vụ: sức lao động, thời gian, chuyên môn,
+ * credit, hay gói thuê bao không dẫn tới quyền sở hữu hàng hóa hữu hình.
+ * Catalog hiện tại là lượt dùng AI, gói học sinh và nạp credit — feed Google
+ * chỉ còn hàng tiêu đề để lần fetch sau gỡ các mục đã nộp.
+ * Facebook và TikTok vẫn nhận đủ tính năng.
+ *
+ * @see https://support.google.com/merchants/answer/6150006
  * @see https://support.google.com/merchants/answer/7052112
  */
 
@@ -20,8 +22,20 @@ import {
 import { GOOGLE_MERCHANT_TSV_HEADERS } from '@/lib/messaging/google-merchant-catalog-feed'
 import { TIKTOK_CATALOG_CSV_HEADERS } from '@/lib/messaging/tiktok-catalog-feed'
 
-/** Google product taxonomy: Software. */
+/** Google product taxonomy: Software. Giữ cho test và cột feed; Shopping không nhận dịch vụ. */
 export const NANOAI_GOOGLE_PRODUCT_CATEGORY = '313'
+
+/**
+ * Shopping chỉ nhận hàng hóa hữu hình có trang đích và nút Mua hoàn tất được.
+ * Mọi mục catalog NanoAI hiện tại là dịch vụ hoặc credit, nên không một mục nào đủ.
+ */
+export function isNanoAiGoogleShoppingEligible(_item: NanoAiFacebookCatalogItem): boolean {
+  return false
+}
+
+export function listNanoAiGoogleShoppingCatalogItems(): NanoAiFacebookCatalogItem[] {
+  return listNanoAiFacebookCatalogItems().filter(isNanoAiGoogleShoppingEligible)
+}
 
 /** Digital goods: no parcel. Country Vietnam, price 0. */
 export const NANOAI_GOOGLE_SHIPPING = 'VN:::0.00 VND'
@@ -165,7 +179,7 @@ function tiktokCells(origin: string, item: NanoAiFacebookCatalogItem): Record<st
 
 export function buildNanoAiGoogleMerchantFeedTsv(origin: string): Buffer {
   const lines = [NANOAI_GOOGLE_MERCHANT_HEADERS.join('\t')]
-  for (const item of listNanoAiFacebookCatalogItems()) {
+  for (const item of listNanoAiGoogleShoppingCatalogItems()) {
     const cells = googleCells(origin, item)
     lines.push(NANOAI_GOOGLE_MERCHANT_HEADERS.map((name) => tsvCell(cells[name] ?? '')).join('\t'))
   }

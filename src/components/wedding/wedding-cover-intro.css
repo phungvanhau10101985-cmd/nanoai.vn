@@ -588,6 +588,26 @@
   transform-origin: center 72%;
 }
 
+/* Hoa văn vỏ cùng nhịp ảnh: hiện dần, không phóng cả tấm kẻo hoa trôi khỏi chỗ đã đặt. */
+@keyframes wedding-ornament-open {
+  0% { opacity: 0; }
+  42% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+.wedding-cover-ornament-open {
+  animation-name: wedding-ornament-open;
+  animation-duration: var(--cover-photo-dur, 2.15s);
+  animation-timing-function: var(--cover-name-ease, cubic-bezier(0.16, 1, 0.3, 1));
+  animation-delay: 0.36s;
+  animation-fill-mode: both;
+}
+
+[data-wedding-stage]:has(.wedding-cover-hold) .wedding-cover-ornament-open {
+  animation: none;
+  opacity: 0;
+}
+
 /* Rẻ quạt khép giữa rồi xòe miệng ra hai bên, chốt dưới giữ nguyên. */
 @keyframes wedding-fan-spread {
   from {
@@ -682,7 +702,8 @@
 .wedding-cover-hold .wedding-cover-frame-fade,
 .wedding-cover-hold .wedding-cover-frame-settle,
 .wedding-cover-hold .wedding-cover-frame-bloom,
-.wedding-cover-hold .wedding-cover-frame-assemble {
+.wedding-cover-hold .wedding-cover-frame-assemble,
+.wedding-cover-hold .wedding-cover-ornament-open {
   animation: none;
   opacity: 0;
   transform: var(--cover-motion-transform, none);
@@ -707,6 +728,7 @@
   .wedding-cover-frame-settle,
   .wedding-cover-frame-bloom,
   .wedding-cover-frame-assemble,
+  .wedding-cover-ornament-open,
   .wedding-open-line,
   .wedding-open-guest-name,
   .wedding-cover-leave,
@@ -737,8 +759,10 @@
   .wedding-cover-hold .wedding-cover-frame-settle,
   .wedding-cover-hold .wedding-cover-frame-bloom,
   .wedding-cover-hold .wedding-cover-frame-assemble,
+  .wedding-cover-hold .wedding-cover-ornament-open,
   .wedding-cover-hold .wedding-open-line,
-  .wedding-cover-hold .wedding-open-guest-name {
+  .wedding-cover-hold .wedding-open-guest-name,
+  [data-wedding-stage]:has(.wedding-cover-hold) .wedding-cover-ornament-open {
     opacity: 1;
     transform: none;
   }

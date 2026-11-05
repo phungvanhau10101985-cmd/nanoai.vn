@@ -4004,6 +4004,10 @@ export type Dictionary = {
     previewFieldVenue: string
     previewFieldMap: string
     previewFieldContact: string
+    previewTimeHour: string
+    previewTimeMinute: string
+    previewTimeOk: string
+    previewTimeHint: string
     previewAlbumLayout: string
     previewGiftEnable: string
     previewRsvpEnable: string
@@ -4071,6 +4075,9 @@ export type Dictionary = {
     previewOpenButton: string
     uploadLabel: string
     choosePhoto: string
+    chooseWeddingAlbum: string
+    chooseGroomPhoto: string
+    chooseBridePhoto: string
     chooseFrame: string
     frameFollowBackground: string
     composedLayouts: string
@@ -8583,6 +8590,10 @@ export const VI_DICTIONARY: Dictionary = {
     previewFieldVenue: 'Địa điểm tổ chức',
     previewFieldMap: 'Link Google Maps',
     previewFieldContact: 'Số điện thoại liên hệ',
+    previewTimeHour: 'Giờ',
+    previewTimeMinute: 'Phút',
+    previewTimeOk: 'OK',
+    previewTimeHint: 'Bấm một giờ, rồi bấm phút. Bấm OK để ghi vào thiệp.',
     previewAlbumLayout: 'Kiểu album',
     previewGiftEnable: 'Bật hộp mừng cưới',
     previewRsvpEnable: 'Bật xác nhận tham dự',
@@ -8655,6 +8666,9 @@ export const VI_DICTIONARY: Dictionary = {
     previewOpenButton: 'Mở thiệp',
     uploadLabel: 'Ảnh cặp đôi trên vỏ thiệp',
     choosePhoto: 'Chọn ảnh',
+    chooseWeddingAlbum: 'Chọn album ảnh cưới',
+    chooseGroomPhoto: 'Chọn ảnh chú rể',
+    chooseBridePhoto: 'Chọn ảnh cô dâu',
     chooseFrame: 'Chọn khung',
     frameFollowBackground: 'Theo nền',
     composedLayouts: 'Bố cục khung và hoa văn',

@@ -24,7 +24,7 @@ export function WeddingReadableGlass({ className, children, id, reveal, themeId 
       className={cn('relative shadow-none', className)}
       style={{ background: 'transparent', backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
     >
-      <div className="relative w-full min-w-0 [container-type:inline-size]">{children}</div>
+      <div className="relative w-full min-w-0">{children}</div>
     </div>
   )
 }

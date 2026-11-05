@@ -37,21 +37,38 @@ const MOTION_CSS = `
 }
 `
 
-/** Chữ và khối dưới màn hình trượt lên một lần khi vào tầm mắt. */
-export function WeddingInvitationMotion(props: { enabled: boolean; children: ReactNode }) {
+/**
+ * Chữ và khối dưới màn hình trượt lên một lần khi vào tầm mắt.
+ * Đo lại khi mở thư hoặc đổi chế độ sửa/lướt — lần đo đầu thường rơi lúc thư còn cao 0,
+ * observer không báo lại, khối gia đình nhà trai/nhà gái giữ opacity 0.
+ */
+export function WeddingInvitationMotion(props: { enabled: boolean; instant?: boolean; open?: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
     const root = ref.current
-    if (!root || !props.enabled) return
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const nodes = [...root.querySelectorAll<HTMLElement>('[data-wedding-reveal]')]
-    const limit = window.innerHeight * 0.9
-    for (const node of nodes) {
-      if (reduce || node.getBoundingClientRect().top < limit) node.dataset.weddingShown = '1'
+    if (!root) return
+    if (!props.enabled) {
+      delete root.dataset.weddingMotionReady
+      return
     }
+    const revealAll = props.instant || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const markInView = () => {
+      const nodes = root.querySelectorAll<HTMLElement>('[data-wedding-reveal]:not([data-wedding-shown])')
+      const limit = window.innerHeight * 0.92
+      for (const node of nodes) {
+        if (revealAll) {
+          node.dataset.weddingShown = '1'
+          continue
+        }
+        const box = node.getBoundingClientRect()
+        if (box.width < 1 || box.height < 1) continue
+        if (box.top < limit && box.bottom > 0) node.dataset.weddingShown = '1'
+      }
+    }
+    markInView()
     root.dataset.weddingMotionReady = '1'
-    if (reduce) return
+    if (revealAll) return
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -62,11 +79,34 @@ export function WeddingInvitationMotion(props: { enabled: boolean; children: Rea
       },
       { threshold: 0, rootMargin: '0px 0px 12% 0px' },
     )
-    for (const node of nodes) {
-      if (node.dataset.weddingShown !== '1') io.observe(node)
+    const watch = () => {
+      const nodes = root.querySelectorAll<HTMLElement>('[data-wedding-reveal]:not([data-wedding-shown])')
+      for (const node of nodes) io.observe(node)
     }
-    return () => io.disconnect()
-  }, [props.enabled])
+    watch()
+    const mo = new MutationObserver(() => {
+      markInView()
+      watch()
+    })
+    mo.observe(root, { childList: true, subtree: true })
+    let scrollFrame = 0
+    const onScroll = () => {
+      if (scrollFrame) return
+      scrollFrame = window.requestAnimationFrame(() => {
+        scrollFrame = 0
+        markInView()
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      io.disconnect()
+      mo.disconnect()
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onScroll)
+      if (scrollFrame) window.cancelAnimationFrame(scrollFrame)
+    }
+  }, [props.enabled, props.instant, props.open])
 
   return (
     <div ref={ref} className="contents">

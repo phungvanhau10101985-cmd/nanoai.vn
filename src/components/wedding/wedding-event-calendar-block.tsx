@@ -157,7 +157,7 @@ export function WeddingEventCalendarBlock({
   return (
     <div
       className={cn(
-        'rounded-2xl px-2 py-4 sm:px-4 sm:py-5',
+        'wedding-cal-sheet rounded-2xl px-2 py-4 sm:px-4 sm:py-5',
         ink,
         compact ? 'py-3' : 'py-5',
         onCreamPaper ? undefined : textGlow,

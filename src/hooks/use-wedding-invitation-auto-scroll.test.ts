@@ -4,6 +4,7 @@ import {
   advanceWeddingAutoScrollY,
   paintWeddingAutoScrollTop,
   weddingAutoScrollShouldYield,
+  weddingAutoScrollStartY,
 } from './use-wedding-invitation-auto-scroll'
 
 test('fractional steps accumulate instead of sticking at 0', () => {
@@ -27,6 +28,12 @@ test('yields when the guest scrolls up and ignores an unpainted iOS page', () =>
   assert.equal(weddingAutoScrollShouldYield(4, 0), false)
   assert.equal(weddingAutoScrollShouldYield(80, 79), false)
   assert.equal(weddingAutoScrollShouldYield(80, 40), true)
+})
+
+test('adding a flower resumes from the screen in view', () => {
+  assert.equal(weddingAutoScrollStartY(false, 1800), 0)
+  assert.equal(weddingAutoScrollStartY(true, 1800), 1800)
+  assert.equal(weddingAutoScrollStartY(true, -4), 0)
 })
 
 test('stops at the bottom', () => {

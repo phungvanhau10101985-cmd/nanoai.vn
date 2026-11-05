@@ -20,33 +20,45 @@ export function weddingTimelineItemContent(item: WeddingTimelineItem): string {
   return item.title
 }
 
+/** Bỏ đúng một dấu cách ngăn cách sau dấu |, giữ dấu cách người dùng đang gõ. */
+function timelineContentAfterPipe(line: string, pipeIndex: number): string {
+  const rest = line.slice(pipeIndex + 1)
+  return rest.startsWith(' ') ? rest.slice(1) : rest
+}
+
+function splitTimelineContent(content: string): { title: string; note: string } {
+  const parts = content.split(' - ')
+  return {
+    title: parts[0] ?? '',
+    note: parts.slice(1).join(' - '),
+  }
+}
+
 export function parseWeddingEventTimeline(value: string): WeddingTimelineItem[] {
   const rows = value
     .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
+    .filter((line) => line.length > 0)
     .map((line) => {
       const pipeIndex = line.indexOf('|')
       if (pipeIndex >= 0) {
         const timePart = line.slice(0, pipeIndex).trim()
-        const rest = line.slice(pipeIndex + 1).trim()
-        const [titlePart, ...noteParts] = rest ? rest.split(' - ').map((part) => part.trim()) : ['']
+        const { title, note } = splitTimelineContent(timelineContentAfterPipe(line, pipeIndex))
         return {
           time: normalizeWeddingTimelineClock(timePart),
-          title: titlePart || '',
-          note: noteParts.join(' - '),
+          title,
+          note,
         }
       }
 
-      if (isWeddingTimelineClock(line)) {
+      if (isWeddingTimelineClock(line.trim())) {
         return { time: normalizeWeddingTimelineClock(line), title: '', note: '' }
       }
 
-      const [titlePart, ...noteParts] = line.split(' - ').map((part) => part.trim())
+      const { title, note } = splitTimelineContent(line)
       return {
         time: '',
-        title: titlePart || '',
-        note: noteParts.join(' - '),
+        title,
+        note,
       }
     })
 
@@ -57,13 +69,12 @@ export function serializeWeddingEventTimeline(rows: WeddingTimelineItem[]): stri
   return rows
     .map((row) => {
       const time = normalizeWeddingTimelineClock(row.time.trim())
-      const title = row.title.trim()
-      const note = row.note.trim()
-      const content = note ? (title ? `${title} - ${note}` : note) : title
-      if (time) return content ? `${time} | ${content}` : `${time} |`
-      return content
+      const content = row.note ? (row.title ? `${row.title} - ${row.note}` : row.note) : row.title
+      if (!time && !content) return ''
+      if (!time) return content
+      return content ? `${time} | ${content}` : `${time} |`
     })
-    .filter(Boolean)
+    .filter((line) => line.length > 0)
     .join('\n')
 }
 

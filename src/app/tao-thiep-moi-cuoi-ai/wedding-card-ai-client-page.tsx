@@ -1157,7 +1157,7 @@ export default function WeddingCardAiClientPage() {
   const kitFrameId = pairedAiFrame ? undefined : readyBackground?.coverPresetId
   const activeSharedFrame = pairedAiFrame ? null : sharedFrames[ornamentKey] ?? null
   const shownCover = resolveShownCoverFrame(sectionConfig, kitFrameId, activeSharedFrame)
-  const coverPresetId = pairedAiFrame ? sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID : shownCover.presetId || DEFAULT_WEDDING_COVER_PRESET_ID
+  const coverPresetId = pairedAiFrame ? sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID : shownCover.presetId || styleColors.coverPresetId
   const envelopeCover = getWeddingCoverPreset(coverPresetId).layout === 'envelope'
   const coverAiFrame = pairedAiFrame ?? shownCover.library ?? null
   const coverFrameMode = pairedAiFrame
@@ -3225,12 +3225,13 @@ export default function WeddingCardAiClientPage() {
                   <WeddingDesignScale device="mobile">
                   <div
                     data-wedding-stage=""
+                    data-cover-theme={selectedTheme.id}
                     data-wedding-reading={readingPlate ? '' : undefined}
                     data-wedding-text-veil={textVeil ? '' : undefined}
-                    className={cn('relative w-full overflow-x-clip bg-cover bg-center', kitSurface.className)}
+                    className={cn('relative w-full overflow-visible bg-cover bg-center', kitSurface.className)}
                     style={{ ...weddingBackgroundStyle(coverBackgroundUrl, selectedTheme, WEDDING_BG_OVERLAY.cover), ...kitSurface.style, ...readingStyle }}
                   >
-                    <div data-wedding-ornament-frame="">
+                    <div data-wedding-ornament-frame="" className={ornamentAdmin ? undefined : 'wedding-cover-ornament-open'}>
                       {ornamentAdmin ? (
                         <WeddingOrnamentAdminLayer
                           ornaments={coverOrnaments}
@@ -3604,7 +3605,7 @@ export default function WeddingCardAiClientPage() {
                 <div className="w-full min-w-0 max-w-full space-y-3 overflow-hidden rounded-2xl border p-3">
                   <Label>{occasionCopy.albumLabel}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Trên khung xem album: kéo ảnh để căn góc, lăn chuột hoặc thanh zoom để phóng, nút X để xóa. Nút mũi tên vẫn chuyển ảnh. Nhấp đúp để về vị trí ban đầu. Ảnh mới tự lưu.
+                    Trên khung xem album: kéo ảnh để căn góc, thanh zoom để phóng, nút X để xóa. Nút mũi tên vẫn chuyển ảnh. Nhấp đúp để về vị trí ban đầu. Ảnh mới tự lưu.
                   </p>
                   <DeviceImagePicker
                     multiple
@@ -4045,7 +4046,7 @@ export default function WeddingCardAiClientPage() {
                   </div>
                     <div
                     className={cn(
-                      'relative z-[1] px-3 py-3 text-center',
+                      'relative z-40 px-3 py-3 text-center',
                       selectedTheme.text,
                       'pointer-events-none',
                     )}
@@ -4548,7 +4549,7 @@ export default function WeddingCardAiClientPage() {
         </DialogContent>
       </Dialog>
       <Dialog open={letterAskOpen} onOpenChange={setLetterAskOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent overlayClassName="z-[270]" className="z-[270] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Xem thử</DialogTitle>
             <DialogDescription>
