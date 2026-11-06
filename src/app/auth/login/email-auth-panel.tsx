@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
@@ -46,6 +46,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
   const [step, setStep] = useState<'email' | 'otp'>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
+  const otpRef = useRef<HTMLInputElement>(null)
   const [rememberDevice, setRememberDevice] = useState(() => readGuestAuthRememberDevicePreference())
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -169,9 +170,30 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
     setLoading(false)
   }
 
+  function otpDigitsFrom(value: string) {
+    return value.replace(/\D/g, '').slice(0, 6)
+  }
+
+  function readOtpDigits() {
+    return otpDigitsFrom(otpRef.current?.value || otp)
+  }
+
   async function verifyOtp(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
+    const code = readOtpDigits()
+    if (code.length !== 6) {
+      setErr(
+        tr(
+          'Nhập đủ 6 số.',
+          'Enter all 6 digits.',
+          '请输入全部 6 位数字。',
+          '6桁すべて入力してください。',
+          '6자리를 모두 입력하세요.'
+        )
+      )
+      return
+    }
     setLoading(true)
     try {
       const res = await fetch('/api/auth/email/verify-otp', {
@@ -179,7 +201,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
-          otp: otp.replace(/\D/g, ''),
+          otp: code,
           rememberDevice,
           browserId: getStableEmailTrustedBrowserId(),
           next: safeNext,
@@ -302,13 +324,20 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         </div>
       </div>
       <Input
+        ref={otpRef}
+        key={`${email}-otp`}
         type="text"
         inputMode="numeric"
         pattern="[0-9]*"
         maxLength={6}
+        name="otp"
         placeholder="000000"
-        value={otp}
-        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+        defaultValue={otp}
+        onInput={(e) => {
+          const next = otpDigitsFrom(e.currentTarget.value)
+          if (e.currentTarget.value !== next) e.currentTarget.value = next
+          setOtp(next)
+        }}
         className="h-11 text-center text-lg tracking-widest"
         autoComplete="one-time-code"
       />
@@ -343,7 +372,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         >
           {tr('Quay lại', 'Back', '返回', '戻る', '뒤로')}
         </Button>
-        <Button type="submit" disabled={loading || otp.length !== 6} className="flex-1">
+        <Button type="submit" disabled={loading} className="flex-1">
           {loading ? '…' : tr('Đăng nhập', 'Sign in', '登录', 'ログイン', '로그인')}
         </Button>
       </div>
