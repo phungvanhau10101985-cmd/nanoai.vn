@@ -21,11 +21,24 @@ import {
   type WeddingOrnamentDevice,
   type WeddingOrnamentSurface,
 } from '@/lib/wedding/wedding-background-ornament-store'
-import { findWeddingBackgroundPreset } from '@/lib/wedding/wedding-background-presets'
-import { findWeddingSampleCard, weddingSampleLookOnCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
+import { findWeddingBackgroundPreset, resolveWeddingChromeKit } from '@/lib/wedding/wedding-background-presets'
+import { findWeddingSampleCard, isWeddingSamplePhotoUrl, weddingSampleLookOnCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
+import {
+  WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT,
+  WEDDING_COUPLE_PHOTO_RESTYLE_QUALITY,
+  buildWeddingCouplePhotoRestylePrompt,
+  parseWeddingCouplePhotoRestyleSlot,
+  safeWeddingBackgroundPublicPath,
+  weddingCouplePhotoSourceUrl,
+  weddingThemePlatePublicPath,
+  type WeddingCouplePhotoRestyleSlot,
+} from '@/lib/wedding/restyle-wedding-couple-photo'
+import { weddingSavedCardQueryId } from '@/lib/wedding/wedding-sample-use-target'
 import { isWeddingSharedFrameKey, parseWeddingSharedFrame, weddingSharedFrameKey, type WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
-import { runImageContent, type GeminiShaped } from '@/lib/ai/gpt-image'
+import { generateGptImage, runImageContent, type GeminiShaped, type GptImageInput } from '@/lib/ai/gpt-image'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
@@ -275,7 +288,7 @@ export async function loadWeddingCardWorkspace(cardId?: string) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
-  const requested = String(cardId || '').trim()
+  const requested = weddingSavedCardQueryId(cardId)
   let card = requested ? await getWeddingCardForUser(requested, ownerUserId) : null
   if (requested && !card) return { error: 'Không tìm thấy thiệp.' }
   if (!card) card = await getLatestWeddingCardForUser(ownerUserId)
@@ -769,6 +782,177 @@ export async function saveWeddingPreviewMedia(formData: FormData) {
     albumImageUrls,
     musicUrl,
   }
+}
+
+const WEDDING_RESTYLE_MAX_BYTES = 12 * 1024 * 1024
+
+async function readRemoteWeddingImage(url: string): Promise<{ bytes: Buffer; mimeType: string } | null> {
+  if (!/^https?:\/\//i.test(url)) return null
+  const res = await fetch(url)
+  if (!res.ok) return null
+  const mimeType = (res.headers.get('content-type') || 'image/jpeg').split(';')[0]?.trim() || 'image/jpeg'
+  if (!mimeType.startsWith('image/')) return null
+  const bytes = Buffer.from(await res.arrayBuffer())
+  if (!bytes.length || bytes.length > WEDDING_RESTYLE_MAX_BYTES) return null
+  return { bytes, mimeType }
+}
+
+async function readPublicWeddingPlate(plate: string | null): Promise<GptImageInput | null> {
+  const safe = safeWeddingBackgroundPublicPath(plate)
+  if (!safe) return null
+  const root = path.resolve(process.cwd(), 'public', 'wedding', 'backgrounds')
+  const abs = path.resolve(process.cwd(), 'public', safe.slice(1))
+  const rel = path.relative(root, abs)
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null
+  try {
+    const bytes = await readFile(abs)
+    if (!bytes.length || bytes.length > WEDDING_RESTYLE_MAX_BYTES) return null
+    const mimeType = safe.endsWith('.png') ? 'image/png' : safe.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
+    return { bytes, mimeType, filename: 'theme-plate.jpg' }
+  } catch {
+    return null
+  }
+}
+
+async function loadWeddingThemeReference(sectionConfig: string, masterImageUrl: string | null, sourceUrl: string): Promise<GptImageInput | null> {
+  const section = parseWeddingSectionConfig(sectionConfig)
+  const local = await readPublicWeddingPlate(weddingThemePlatePublicPath(section.backgroundPresetId))
+  if (local) return local
+  const master = (masterImageUrl || '').trim()
+  if (!master || master === sourceUrl.trim()) return null
+  const publicPlate = await readPublicWeddingPlate(master)
+  if (publicPlate) return publicPlate
+  const remote = await readRemoteWeddingImage(master)
+  return remote ? { bytes: remote.bytes, mimeType: remote.mimeType, filename: 'theme.jpg' } : null
+}
+
+/** Dựng lại một ảnh cô dâu / chú rể cho hợp chủ đề, giữ mặt. GPT Image 2 medium. */
+export async function restyleWeddingCouplePhoto(formData: FormData) {
+  const cardId = clean(formData.get('cardId'), 80)
+  const access = await assertWeddingCardOrnamentEditor(cardId)
+  if ('error' in access) return { error: 'denied' as const }
+  const slot = parseWeddingCouplePhotoRestyleSlot(clean(formData.get('slot'), 40))
+  if (!slot) return { error: 'invalid' as const }
+  const existing = await getWeddingCardForUser(cardId, access.ownerUserId)
+  if (!existing) return { error: 'denied' as const }
+  const sourceUrl = weddingCouplePhotoSourceUrl(existing, slot)
+  if (!sourceUrl || isWeddingSamplePhotoUrl(sourceUrl)) return { error: 'empty' as const }
+
+  const credit = WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT
+  const balance = await getCreditBalanceByUserId(access.userId)
+  if (balance < credit) return { error: 'need_credit' as const }
+
+  const section = parseWeddingSectionConfig(existing.sectionConfig)
+  const kit = resolveWeddingChromeKit(section)
+  const style = getWeddingStylePreset(kit?.look.styleId || existing.selectedStyleId)
+  const themePreset = findWeddingBackgroundPreset(section.backgroundPresetId)
+  const themeLabel = themePreset?.label.en || style.label.en
+  const palette = existing.colorPalette.trim() || style.palette
+
+  let charged = 0
+  let uploadedUrl = ''
+  try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) return { error: 'failed' as const }
+    const source = await readRemoteWeddingImage(sourceUrl)
+    if (!source) return { error: 'failed' as const }
+    const theme = await loadWeddingThemeReference(existing.sectionConfig, existing.masterImageUrl, sourceUrl)
+    const prompt = buildWeddingCouplePhotoRestylePrompt({
+      slot: slot.kind,
+      styleLabel: style.label.en,
+      palette,
+      themeLabel,
+      venue: existing.venue,
+      hasThemePlate: Boolean(theme),
+    })
+    const generated = await generateGptImage({
+      prompt,
+      quality: WEDDING_COUPLE_PHOTO_RESTYLE_QUALITY,
+      size: 'auto',
+      images: [
+        { bytes: source.bytes, mimeType: source.mimeType, filename: 'couple.jpg' },
+        ...(theme ? [theme] : []),
+      ],
+    })
+    const resultPath = `results/${access.ownerUserId}/wedding_${cardId}_restyle_${slot.kind}_${Date.now()}.png`
+    const uploaded = await uploadTryOnImagePublic(resultPath, generated.buffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
+    uploadedUrl = uploaded.publicUrl || ''
+    if (!uploadedUrl) throw new Error('upload_failed')
+    const fresh = await getWeddingCardForUser(cardId, access.ownerUserId)
+    if (!fresh || weddingCouplePhotoSourceUrl(fresh, slot) !== sourceUrl) {
+      await removeTryOnStorageFromPublicUrls([uploadedUrl]).catch(() => undefined)
+      uploadedUrl = ''
+      return { error: 'failed' as const }
+    }
+    const charge = await deductUserCredits(access.userId, credit, 'wedding-couple-photo-restyle')
+    if (!charge.ok) {
+      await removeTryOnStorageFromPublicUrls([uploadedUrl]).catch(() => undefined)
+      uploadedUrl = ''
+      return { error: charge.code === 'INSUFFICIENT_CREDITS' ? ('need_credit' as const) : ('failed' as const) }
+    }
+    charged = charge.charged
+    const saved = await saveRestyledWeddingCouplePhoto(cardId, access.ownerUserId, fresh, slot, uploadedUrl)
+    if (!saved) throw new Error('save_failed')
+    await trackFromUsageMetadata(
+      generated.usage,
+      generated.usage.logModel,
+      'wedding-couple-photo-restyle',
+      access.userId,
+      generated.usage.logImageSize,
+    ).catch(() => undefined)
+    if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+    return {
+      ok: true as const,
+      credit: charged,
+      coverPhotoUrl: saved.coverPhotoUrl,
+      groomImageUrl: saved.groomImageUrl,
+      brideImageUrl: saved.brideImageUrl,
+      albumImageUrls: saved.albumImageUrls,
+    }
+  } catch {
+    if (charged > 0) await refundUserCredits(access.userId, charged, 'wedding-couple-photo-restyle').catch(() => undefined)
+    if (uploadedUrl) await removeTryOnStorageFromPublicUrls([uploadedUrl]).catch(() => undefined)
+    return { error: 'failed' as const }
+  }
+}
+
+async function saveRestyledWeddingCouplePhoto(
+  cardId: string,
+  ownerUserId: string,
+  existing: WeddingCard,
+  slot: WeddingCouplePhotoRestyleSlot,
+  imageUrl: string,
+) {
+  const patch: {
+    sectionConfig?: string
+    groomImageUrl?: string
+    brideImageUrl?: string
+    albumImageUrls?: string[]
+  } = {}
+  let coverPhotoUrl = resolveCoverPhotoUrl(parseWeddingSectionConfig(existing.sectionConfig))
+  let groomImageUrl = existing.groomImageUrl
+  let brideImageUrl = existing.brideImageUrl
+  let albumImageUrls = existing.albumImageUrls
+  if (slot.kind === 'cover') {
+    patch.sectionConfig = mergeWeddingSectionConfig(existing.sectionConfig, { coverPhotoUrl: imageUrl })
+    coverPhotoUrl = imageUrl
+  } else if (slot.kind === 'groom') {
+    patch.groomImageUrl = imageUrl
+    groomImageUrl = imageUrl
+  } else if (slot.kind === 'bride') {
+    patch.brideImageUrl = imageUrl
+    brideImageUrl = imageUrl
+  } else {
+    if (slot.index >= albumImageUrls.length) return null
+    albumImageUrls = albumImageUrls.map((url, index) => (index === slot.index ? imageUrl : url))
+    patch.albumImageUrls = albumImageUrls
+  }
+  const saved = await patchWeddingCardPreview(cardId, ownerUserId, patch)
+  if (!saved) return null
+  return { coverPhotoUrl, groomImageUrl, brideImageUrl, albumImageUrls }
 }
 
 /** Thiệp đang sửa nhận nền, khung, hoa và màu của mẫu. Chữ và ảnh thật giữ nguyên. */

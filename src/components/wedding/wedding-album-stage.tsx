@@ -17,6 +17,7 @@ import {
   type WeddingAlbumPhotoCrop,
   type WeddingAlbumPhotoFrame,
 } from '@/lib/wedding/wedding-section-config'
+import { WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
 
 const MOTION_MS = 880
 const MOTION_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
@@ -162,6 +163,7 @@ function AlbumStageEditor(props: {
       aria-label={copy.drag}
       onPointerDown={(event) => {
         if (event.button !== 0) return
+        if (event.target instanceof Element && event.target.closest('button, input, label, a')) return
         event.stopPropagation()
         try {
           event.currentTarget.setPointerCapture(event.pointerId)
@@ -252,6 +254,9 @@ function AlbumStageEditor(props: {
         >
           +
         </button>
+      </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center" data-album-chrome="">
+        <WeddingRestylePhotoButton slot={`album:${props.index}`} hasPhoto />
       </div>
     </div>
   )

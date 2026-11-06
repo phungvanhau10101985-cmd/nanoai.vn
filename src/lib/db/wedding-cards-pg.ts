@@ -556,6 +556,7 @@ export async function getWeddingCardOwner(cardId: string): Promise<{ userId: str
 }
 
 export async function getWeddingCardForUser(cardId: string, userId: string): Promise<WeddingCard | null> {
+  if (!UUID_RE.test(cardId) || !UUID_RE.test(userId)) return null
   requirePg()
   const res = await getPgPool().query(
     `select c.*, i.image_url as master_image_url

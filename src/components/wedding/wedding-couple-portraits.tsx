@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { albumPhotoFrameStyle, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame } from '@/lib/wedding/wedding-section-config'
 import { FrameEdgeGrips, FrameScaleDragBar, WeddingFramedPhoto, type FrameScaleEdit } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
+import { WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
 import { centeredFrameBoxStyle } from '@/lib/wedding/wedding-section-config'
 import { weddingOrnamentGestureActive } from '@/lib/wedding/wedding-ornament-gesture'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
@@ -37,6 +38,8 @@ function PortraitPhotoPan(props: { edit: PortraitPhotoEdit }) {
     const current = editRef.current
     if (weddingOrnamentGestureActive()) return
     if ((event.target as HTMLElement).closest('button, label, input, a, [data-wedding-file-anchor]')) return
+    event.preventDefault()
+    event.stopPropagation()
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -73,7 +76,7 @@ function PortraitPhotoPan(props: { edit: PortraitPhotoEdit }) {
   }
   return (
     <div
-      className="absolute inset-0 z-[4] cursor-grab touch-none active:cursor-grabbing"
+      className="absolute inset-0 z-[13] cursor-grab touch-none active:cursor-grabbing"
       style={{ touchAction: 'none' }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -133,6 +136,7 @@ function Portrait(props: {
   compact?: boolean
   choosePhotoLabel?: string
   chooseFrameLabel?: string
+  restyleSlot?: 'groom' | 'bride'
   onChoosePhoto?: () => void
   onPhotoFile?: (file: File) => void
   onChooseFrame?: () => void
@@ -143,8 +147,11 @@ function Portrait(props: {
   const nameText = props.name.trim() || props.label
   const frameStyle = albumPhotoFrameStyle(props.frame)
   const frameScale = props.frameScale && props.frameScale > 0 ? props.frameScale : 1
-  const photoButton = props.onPhotoFile || props.onChoosePhoto ? (
-    <div className="pointer-events-none absolute inset-x-2 bottom-[18%] z-20 flex justify-center">
+  const restyleButton = props.imageUrl && props.restyleSlot ? (
+    <WeddingRestylePhotoButton slot={props.restyleSlot} hasPhoto />
+  ) : null
+  const photoButton = props.onPhotoFile || props.onChoosePhoto || restyleButton ? (
+    <div className="pointer-events-none absolute inset-x-1 bottom-[14%] z-20 flex flex-col items-center gap-1">
       {props.onPhotoFile ? (
         <WeddingDeviceFileInput
           className="pointer-events-auto rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow sm:text-[11px]"
@@ -154,7 +161,7 @@ function Portrait(props: {
             if (file) props.onPhotoFile?.(file)
           }}
         />
-      ) : (
+      ) : props.onChoosePhoto ? (
         <button
           type="button"
           className="pointer-events-auto rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow sm:text-[11px]"
@@ -165,7 +172,8 @@ function Portrait(props: {
         >
           {props.choosePhotoLabel}
         </button>
-      )}
+      ) : null}
+      {restyleButton}
     </div>
   ) : null
   return (
@@ -292,6 +300,7 @@ export function WeddingCouplePortraits(props: {
           theme={props.theme}
           compact={props.compact}
           choosePhotoLabel={groomChoose}
+          restyleSlot="groom"
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('groom', file) : undefined}
@@ -317,6 +326,7 @@ export function WeddingCouplePortraits(props: {
           theme={props.theme}
           compact={props.compact}
           choosePhotoLabel={groomChoose}
+          restyleSlot="groom"
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('groom', file) : undefined}
@@ -335,6 +345,7 @@ export function WeddingCouplePortraits(props: {
           theme={props.theme}
           compact={props.compact}
           choosePhotoLabel={brideChoose}
+          restyleSlot="bride"
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('bride', file) : undefined}
@@ -360,6 +371,7 @@ export function WeddingCouplePortraits(props: {
           theme={props.theme}
           compact={props.compact}
           choosePhotoLabel={groomChoose}
+          restyleSlot="groom"
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('groom', file) : undefined}
@@ -388,6 +400,7 @@ export function WeddingCouplePortraits(props: {
           theme={props.theme}
           compact={props.compact}
           choosePhotoLabel={brideChoose}
+          restyleSlot="bride"
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
           onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('bride', file) : undefined}

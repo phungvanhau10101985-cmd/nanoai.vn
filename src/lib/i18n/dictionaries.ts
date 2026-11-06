@@ -4094,6 +4094,14 @@ export type Dictionary = {
     stackFrameRotateRight: string
     frameSizeLabel: string
     changePhoto: string
+    restylePhoto: string
+    restylePhotoCredit: string
+    restylePhotoBusy: string
+    restylePhotoHint: string
+    restylePhotoDone: string
+    restylePhotoNeedCredit: string
+    restylePhotoFailed: string
+    restylePhotoEmpty: string
     coverPhotoZoomOut: string
     coverPhotoZoomIn: string
     uploadHint: string
@@ -8690,6 +8698,14 @@ export const VI_DICTIONARY: Dictionary = {
     stackFrameRotateRight: 'Xoay phải',
     frameSizeLabel: 'Cỡ khung',
     changePhoto: 'Đổi ảnh',
+    restylePhoto: 'Dựng lại ảnh',
+    restylePhotoCredit: '{n} credit',
+    restylePhotoBusy: 'Đang dựng…',
+    restylePhotoHint: 'Giữ khuôn mặt, làm mịn da, chỉnh kiểu tóc cho hợp ảnh cưới. Tốn {n} credit.',
+    restylePhotoDone: 'Đã dựng lại ảnh. Đã trừ {n} credit.',
+    restylePhotoNeedCredit: 'Không đủ credit. Cần {n} credit.',
+    restylePhotoFailed: 'Không dựng lại được ảnh.',
+    restylePhotoEmpty: 'Chưa có ảnh để dựng lại.',
     coverPhotoZoomOut: 'Thu nhỏ',
     coverPhotoZoomIn: 'Phóng to',
     uploadHint: 'Ảnh trong khung là ảnh khách tải từ máy, không phải ảnh nền. Bấm Chọn ảnh hoặc Đổi ảnh để tải. Kéo trong khung để đổi vị trí, nút zoom để phóng hoặc thu nhỏ.',

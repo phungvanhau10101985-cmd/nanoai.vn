@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
+import { WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
 import { weddingOrnamentGestureActive } from '@/lib/wedding/wedding-ornament-gesture'
 import { cn } from '@/lib/utils'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox, type CoverFrameHoleMask } from '@/lib/wedding/cover-frame-hole-mask'
@@ -12,7 +13,7 @@ import './wedding-cover-intro.css'
 import { getOrnamentComposition, type OrnamentComposition } from '@/lib/wedding/wedding-ornament-layouts'
 import { WeddingOrnamentStage } from '@/components/wedding/wedding-ornament-stage'
 import type { WeddingCoverFrameAsset } from '@/lib/wedding/wedding-cover-frame-assets'
-import { WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, centeredFrameBoxStyle, clampWeddingFrameScale, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingCoverFrameOpen, type WeddingCoverPhotoOpen, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
+import { WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, albumPhotoFrameStyle, centeredFrameBoxStyle, clampWeddingFrameScale, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingCoverFrameOpen, type WeddingCoverPhotoOpen, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
 import { type WeddingStackedFrameScaleEdit, type WeddingStackedNameEdit, type WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingCoupleNames, type WeddingCoupleNameEdit } from '@/components/wedding/wedding-couple-names'
@@ -753,6 +754,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
                 onChooseFrame={props.onChooseFrame}
                 changePhotoLabel={props.changePhotoLabel}
                 chooseFrameLabel={props.chooseFrameLabel}
+                restyleSlot="cover"
                 className="bottom-1.5 left-1/2"
               />
             ) : null}
@@ -882,6 +884,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
                   onChooseFrame={props.onChooseFrame}
                   changePhotoLabel={props.changePhotoLabel}
                   chooseFrameLabel={props.chooseFrameLabel}
+                  restyleSlot="cover"
                   className="bottom-1.5 left-1/2"
                 />
               ) : null}
@@ -1145,14 +1148,15 @@ function CoverFrameActions(props: {
   choosePhotoLabel?: string
   changePhotoLabel?: string
   chooseFrameLabel?: string
+  restyleSlot?: 'cover' | 'groom' | 'bride'
   className?: string
   style?: CSSProperties
 }) {
-  if (!props.onChoosePhoto && !props.onPhotoFile && !props.onChooseFrame) return null
+  if (!props.onChoosePhoto && !props.onPhotoFile && !props.onChooseFrame && !props.restyleSlot) return null
   const photoLabel = (props.hasPhoto ? props.changePhotoLabel : props.choosePhotoLabel) || ''
   return (
     <div
-      className={cn('pointer-events-auto absolute z-[8] flex -translate-x-1/2 items-center justify-center gap-1', props.className)}
+      className={cn('pointer-events-auto absolute z-[8] flex -translate-x-1/2 flex-col items-center justify-center gap-1', props.className)}
       style={props.style}
       onPointerDown={(event) => event.stopPropagation()}
     >
@@ -1175,8 +1179,21 @@ function CoverFrameActions(props: {
           {photoLabel}
         </button>
       ) : null}
+      {props.restyleSlot ? <WeddingRestylePhotoButton slot={props.restyleSlot} hasPhoto={props.hasPhoto} /> : null}
     </div>
   )
+}
+
+/** Kéo ảnh trong lỗ khung bằng vị trí và cỡ, không scale quanh object-position vì cách đó nuốt cú kéo. */
+function framedPortraitShift(objectPosition: string, scale: number): CSSProperties {
+  const parts = objectPosition.trim().split(/\s+/)
+  const x = Number.parseFloat(parts[0] ?? '')
+  const y = Number.parseFloat(parts[1] ?? '')
+  return albumPhotoFrameStyle({
+    x: Number.isFinite(x) ? x : 50,
+    y: Number.isFinite(y) ? y : 18,
+    scale,
+  })
 }
 
 /** Ảnh lồng trong khung có sẵn hoặc khung AI. Dùng cho chân dung cô dâu / chú rể. */
@@ -1229,8 +1246,8 @@ export function WeddingFramedPhoto(props: {
               src={props.photoUrl}
               alt={props.alt}
               draggable={false}
-              className="absolute inset-0 h-full w-full select-none object-cover"
-              style={{ objectPosition, transform: `scale(${scale})`, transformOrigin: objectPosition }}
+              className="absolute select-none object-cover"
+              style={framedPortraitShift(objectPosition, scale)}
             />
           ) : null}
         </div>
@@ -1342,6 +1359,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
         choosePhotoLabel={props.choosePhotoLabel}
         changePhotoLabel={props.changePhotoLabel}
         chooseFrameLabel={props.chooseFrameLabel}
+        restyleSlot="cover"
         className={props.coverPhotoUrl ? undefined : '-translate-y-1/2'}
         style={{
           left: `${hole.x + hole.w / 2}%`,
@@ -1473,6 +1491,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
                 choosePhotoLabel={props.choosePhotoLabel}
                 changePhotoLabel={props.changePhotoLabel}
                 chooseFrameLabel={props.chooseFrameLabel}
+                restyleSlot="cover"
                 className={props.coverPhotoUrl ? 'bottom-2 left-1/2' : 'left-1/2 top-1/2 -translate-y-1/2'}
               />
             </div>
@@ -1588,6 +1607,7 @@ function PolaroidPhotoStack(props: {
         onPhotoFile={props.onPhotoFile}
         choosePhotoLabel={props.choosePhotoLabel}
         changePhotoLabel={props.changePhotoLabel}
+        restyleSlot="cover"
         className={cn('z-[12]', hasPhoto ? undefined : '-translate-y-1/2')}
         style={{
           left: `${slot.x + slot.w / 2}%`,
@@ -2006,6 +2026,7 @@ function SongHyCoverPhoto(props: WeddingCoverShellCardProps) {
               choosePhotoLabel={props.choosePhotoLabel}
               changePhotoLabel={props.changePhotoLabel}
               chooseFrameLabel={props.chooseFrameLabel}
+              restyleSlot="cover"
               className={props.coverPhotoUrl ? 'bottom-2 left-1/2' : 'left-1/2 top-1/2 -translate-y-1/2'}
             />
           ) : null}
@@ -2390,6 +2411,7 @@ function PairShot(props: {
         onPhotoFile={props.edit.onFile}
         choosePhotoLabel={props.edit.chooseLabel}
         changePhotoLabel={props.edit.changeLabel}
+        restyleSlot={props.edit.restyleSlot}
         className="bottom-1 left-1/2"
       />
     </CoverPhotoPan>

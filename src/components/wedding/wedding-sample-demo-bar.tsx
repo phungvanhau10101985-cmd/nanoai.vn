@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
-import { weddingSampleUseTarget } from '@/lib/wedding/wedding-sample-use-target'
+import { weddingEditorReturnPath, weddingSampleUseTarget, weddingSavedCardQueryId } from '@/lib/wedding/wedding-sample-use-target'
 
 /** Gắn src sau khi khung đã vào trang. Iframe trong hộp thoại có transform dễ kẹt about:blank nếu src có từ lúc tạo. */
 export function WeddingSampleDemoFrame(props: { sampleId: string; title: string }) {
@@ -26,12 +26,9 @@ export function WeddingSampleDemoFrame(props: { sampleId: string; title: string 
 }
 
 function editorHref(extra: Record<string, string>) {
-  const params = new URLSearchParams()
-  const cardId = new URLSearchParams(window.location.search).get('cardId')?.trim() || ''
-  if (cardId) params.set('cardId', cardId)
-  for (const [key, value] of Object.entries(extra)) params.set(key, value)
-  const query = params.toString()
-  return query ? `/tao-thiep-moi-cuoi-ai?${query}` : '/tao-thiep-moi-cuoi-ai'
+  const url = new URL(weddingEditorReturnPath('', window.location.search), window.location.origin)
+  for (const [key, value] of Object.entries(extra)) url.searchParams.set(key, value)
+  return `${url.pathname}${url.search}`
 }
 
 export function WeddingSampleDemoBar(props: { sampleId: string; embed: boolean; signedIn: boolean }) {
@@ -48,7 +45,7 @@ export function WeddingSampleDemoBar(props: { sampleId: string; embed: boolean; 
       window.parent.postMessage({ type: 'wedding-sample-use', id: props.sampleId }, window.location.origin)
       return
     }
-    const cardId = new URLSearchParams(window.location.search).get('cardId')?.trim() || ''
+    const cardId = weddingSavedCardQueryId(new URLSearchParams(window.location.search).get('cardId'))
     const target = weddingSampleUseTarget({
       sampleId: props.sampleId,
       signedIn: props.signedIn,

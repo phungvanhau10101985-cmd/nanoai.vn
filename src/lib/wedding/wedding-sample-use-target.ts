@@ -9,12 +9,29 @@ export type WeddingSampleUseStorage = {
   removeItem(key: string): void
 }
 
+/** Id thiệp đã lưu. `sample:…` là thiệp mẫu, không có dòng trong database. */
+export function weddingSavedCardQueryId(cardId?: string | null): string {
+  const card = cardId?.trim() || ''
+  if (!card || card.startsWith('sample:')) return ''
+  return card
+}
+
+/** Đường về trang tạo thiệp. Id mẫu thì lấy thiệp thật trên query, không gửi `sample:` làm cardId. */
+export function weddingEditorReturnPath(cardId?: string | null, search?: string): string {
+  const direct = weddingSavedCardQueryId(cardId)
+  if (direct) return `/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(direct)}`
+  const query = search?.startsWith('?') ? search.slice(1) : (search ?? '')
+  const fromSearch = weddingSavedCardQueryId(new URLSearchParams(query).get('cardId'))
+  if (fromSearch) return `/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(fromSearch)}`
+  return '/tao-thiep-moi-cuoi-ai'
+}
+
 /** Đường về trang tạo thiệp với đúng mẫu. Null khi id không phải mẫu. */
 export function weddingSampleEditorPath(sampleId: string | null | undefined, cardId?: string | null): string | null {
   const sample = findWeddingSampleCard(sampleId)
   if (!sample) return null
   const params = new URLSearchParams()
-  const card = cardId?.trim() || ''
+  const card = weddingSavedCardQueryId(cardId)
   if (card) params.set('cardId', card)
   params.set('useSample', sample.id)
   return `/tao-thiep-moi-cuoi-ai?${params.toString()}`

@@ -49,7 +49,7 @@ import { WeddingSampleDemoFrame } from '@/components/wedding/wedding-sample-demo
 import { weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey, weddingOrnamentSurfaceKey } from '@/lib/wedding/wedding-background-ornament-store'
 import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/lib/wedding/wedding-ornament-sync'
 import { findWeddingSampleCard, findWeddingSampleInUse, isWeddingSamplePhotoUrl, stripWeddingSamplePhotos, weddingLibrarySampleSectionPatch, weddingOccasionDemos, weddingSamplesWithActiveFirst, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
-import { clearPendingWeddingSampleUse, readPendingWeddingSampleUse } from '@/lib/wedding/wedding-sample-use-target'
+import { clearPendingWeddingSampleUse, readPendingWeddingSampleUse, weddingSavedCardQueryId } from '@/lib/wedding/wedding-sample-use-target'
 import { WeddingSampleComposeModal } from '@/components/wedding/wedding-sample-compose-modal'
 import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
 import {
@@ -637,11 +637,13 @@ export default function WeddingCardAiClientPage() {
 
   useEffect(() => {
     const search = new URLSearchParams(window.location.search)
-    const requestedId = search.get('cardId')?.trim() || ''
+    const rawCardId = search.get('cardId')?.trim() || ''
+    const requestedId = weddingSavedCardQueryId(rawCardId)
+    const sampleCardLink = rawCardId.startsWith('sample:')
     const pendingSample = readPendingWeddingSampleUse(window.location.search, window.sessionStorage)
     const useSample = pendingSample.id
     const openSamples = search.get('openSamples') === '1'
-    if (useSample || openSamples) {
+    if (useSample || openSamples || sampleCardLink) {
       if (useSample) pendingSampleUseRef.current = useSample
       if (pendingSample.askNames) forceAskNamesRef.current = true
       if (openSamples) setBackgroundPageOpen(true)
@@ -649,6 +651,7 @@ export default function WeddingCardAiClientPage() {
       url.searchParams.delete('useSample')
       url.searchParams.delete('askNames')
       url.searchParams.delete('openSamples')
+      if (sampleCardLink) url.searchParams.delete('cardId')
       window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
     }
     const epochAtLoad = savedCardListEpoch

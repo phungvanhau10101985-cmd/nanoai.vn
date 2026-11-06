@@ -48,14 +48,17 @@ import { bindWeddingButtonFill, resolveWeddingButtonColor } from '@/lib/wedding/
 import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, weddingThemeIsDark, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer, weddingOrnamentSpotOnPage, weddingOrnamentVisibleSurface } from '@/components/wedding/wedding-ornament-admin'
-import { applyWeddingSampleLook, loadWeddingPreviewTools, resetWeddingCardOrnaments, resetWeddingPresetOrnaments, saveWeddingCardOrnaments, saveWeddingPresetFrame, saveWeddingPresetOrnaments, saveWeddingPresetShell, saveWeddingPreviewEdit, saveWeddingPreviewMedia, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
+import { applyWeddingSampleLook, loadWeddingPreviewTools, resetWeddingCardOrnaments, resetWeddingPresetOrnaments, restyleWeddingCouplePhoto, saveWeddingCardOrnaments, saveWeddingPresetFrame, saveWeddingPresetOrnaments, saveWeddingPresetShell, saveWeddingPreviewEdit, saveWeddingPreviewMedia, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
 import { WeddingSampleGallery } from '@/components/wedding/wedding-sample-card-picker'
 import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
+import { weddingEditorReturnPath } from '@/lib/wedding/wedding-sample-use-target'
 import { WeddingScrollingBackground } from '@/components/wedding/wedding-scrolling-background'
 import { applyWeddingKitTheme, resolveWeddingChromeKit, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingReadingPlate, weddingTextUsesVeil, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { WeddingMusicLibraryPicker } from '@/components/wedding/wedding-music-library-picker'
 import { WeddingFrameChoiceGrid, weddingSharedFrameFromChoice, type WeddingFrameChoice } from '@/components/wedding/wedding-frame-choice-grid'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
+import { WeddingRestylePhotoProvider } from '@/components/wedding/wedding-restyle-photo-button'
+import { WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT, type WeddingCouplePhotoRestyleId } from '@/lib/wedding/restyle-wedding-couple-photo'
 import type { WeddingCoverFrameLibraryItem, WeddingMusicLibraryRow } from '@/lib/db/wedding-cards-pg'
 import type { WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
 import { resolveWeddingShownOrnaments, weddingOrnamentLayoutKey, weddingOrnamentListsEqual } from '@/lib/wedding/wedding-background-ornament-store'
@@ -754,6 +757,8 @@ export default function WeddingPublicClient({
   const [frameLibrary, setFrameLibrary] = useState<WeddingCoverFrameLibraryItem[]>([])
   const [musicDraftUrl, setMusicDraftUrl] = useState(card.musicUrl)
   const [mediaLocal, setMediaLocal] = useState<{ cover?: string; groom?: string; bride?: string; album?: string[] }>({})
+  const [restyleBusy, setRestyleBusy] = useState<string | null>(null)
+  const restyleLock = useRef(false)
   const [framePick, setFramePick] = useState<'cover' | 'groom' | 'bride' | 'pair' | null>(null)
   const mediaLocalRef = useRef(mediaLocal)
   mediaLocalRef.current = mediaLocal
@@ -969,6 +974,41 @@ export default function WeddingPublicClient({
       setSectionRaw((current) => mergeWeddingSectionConfig(current, { coverPhotoUrl: result.coverPhotoUrl }))
     }
   }, [card.id, rememberLocalPhoto, tImage.ornamentAdminFailed, toast])
+  const restyleCouplePhoto = useCallback(async (slot: WeddingCouplePhotoRestyleId) => {
+    if (restyleLock.current) return
+    restyleLock.current = true
+    setRestyleBusy(slot)
+    const creditLabel = String(WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT)
+    try {
+      const body = new FormData()
+      body.set('cardId', card.id)
+      body.set('slot', slot)
+      const result = await restyleWeddingCouplePhoto(body)
+      if (!result || !('ok' in result)) {
+        const code = result && 'error' in result ? result.error : 'failed'
+        const title = code === 'need_credit'
+          ? tCover.restylePhotoNeedCredit.replace('{n}', creditLabel)
+          : code === 'empty'
+            ? tCover.restylePhotoEmpty
+            : tCover.restylePhotoFailed
+        toast({ title, variant: 'destructive' })
+        return
+      }
+      setMediaLocal((current) => {
+        if (slot === 'cover') return { ...current, cover: result.coverPhotoUrl }
+        if (slot === 'groom') return { ...current, groom: result.groomImageUrl }
+        if (slot === 'bride') return { ...current, bride: result.brideImageUrl }
+        return { ...current, album: result.albumImageUrls }
+      })
+      if (slot === 'cover') {
+        setSectionRaw((current) => mergeWeddingSectionConfig(current, { coverPhotoUrl: result.coverPhotoUrl }))
+      }
+      toast({ title: tCover.restylePhotoDone.replace('{n}', String(result.credit)) })
+    } finally {
+      restyleLock.current = false
+      setRestyleBusy(null)
+    }
+  }, [card.id, tCover.restylePhotoDone, tCover.restylePhotoEmpty, tCover.restylePhotoFailed, tCover.restylePhotoNeedCredit, toast])
   const choosePreviewMusic = useCallback(async (audioUrl: string) => {
     setMusicDraftUrl(audioUrl)
     const body = new FormData()
@@ -1280,6 +1320,7 @@ export default function WeddingPublicClient({
     return {
       chooseLabel: tCover.choosePhoto,
       changeLabel: tCover.changePhoto,
+      restyleSlot: side,
       onFile: (file) => {
         void uploadPreviewPhoto(side, file)
       },
@@ -2444,6 +2485,15 @@ export default function WeddingPublicClient({
   }
 
   return (
+    <WeddingRestylePhotoProvider
+      enabled={visualEdit}
+      label={tCover.restylePhoto}
+      creditLabel={tCover.restylePhotoCredit.replace('{n}', String(WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT))}
+      busyLabel={tCover.restylePhotoBusy}
+      hint={tCover.restylePhotoHint.replace('{n}', String(WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT))}
+      busySlot={restyleBusy}
+      onRestyle={(slot) => { void restyleCouplePhoto(slot) }}
+    >
     <>
       <style>{`html:has([data-wedding-public]) [data-nanoai-chrome]{display:none !important}html:has([data-wedding-public]) [data-nanoai-shell]{padding-bottom:0 !important}`}</style>
       <div data-wedding-public="" hidden />
@@ -2605,7 +2655,7 @@ export default function WeddingPublicClient({
               type="button"
               className="mt-1 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-900"
               onClick={() => {
-                window.location.assign(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)
+                window.location.assign(weddingEditorReturnPath(card.id, window.location.search))
               }}
             >
               <X className="h-4 w-4" />
@@ -2755,7 +2805,7 @@ export default function WeddingPublicClient({
               type="button"
               className="mt-1 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white text-xs font-semibold text-rose-900"
               onClick={() => {
-                window.location.assign(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)
+                window.location.assign(weddingEditorReturnPath(card.id, window.location.search))
               }}
             >
               <X className="h-3.5 w-3.5" />
@@ -4201,11 +4251,12 @@ export default function WeddingPublicClient({
           hidden={hostEditor}
           icon={<X className="h-4 w-4" />}
           onClick={() => {
-            window.location.assign(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)
+            window.location.assign(weddingEditorReturnPath(card.id, window.location.search))
           }}
         />
       ) : null}
     </>
+    </WeddingRestylePhotoProvider>
   )
 }
 

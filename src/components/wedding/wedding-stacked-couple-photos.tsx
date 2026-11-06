@@ -9,6 +9,7 @@ import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import { WEDDING_GUEST_NAME_CLASS, WeddingGuestNameFontLink } from '@/components/wedding/wedding-guest-name-font'
 import { albumPhotoFrameStyle, centeredFrameBoxStyle, STACK_BRIDE_FRAME_ROTATE, STACK_FRAME_ROTATE_MAX, STACK_FRAME_ROTATE_MIN, STACK_GROOM_FRAME_ROTATE, WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
+import { WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
 import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
 import { WEDDING_EDIT_SIDE, type WeddingEditSide } from '@/lib/wedding/wedding-side-edit-color'
 
@@ -137,6 +138,7 @@ export type WeddingStackedNameEdit = {
 export type WeddingStackedPhotoEdit = {
   chooseLabel: string
   changeLabel: string
+  restyleSlot?: 'groom' | 'bride'
   onFile: (file: File) => void
   crop: {
     x: number
@@ -262,9 +264,11 @@ function PhotoCard(props: {
         height: `${10000 / tight.h}%`,
       }
     : { inset: 0 }
-  const photo = crop
-    ? { objectPosition: `${crop.x}% ${crop.y}%`, transform: `scale(${clampPhotoScale(crop.scale)})`, transformOrigin: `${crop.x}% ${crop.y}%` }
-    : albumPhotoFrameStyle(props.frame)
+  const photo = albumPhotoFrameStyle(
+    crop
+      ? { x: crop.x, y: crop.y, scale: clampPhotoScale(crop.scale) }
+      : props.frame,
+  )
 
   const onPhotoPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!crop) return
@@ -341,6 +345,7 @@ function PhotoCard(props: {
           if (file) props.edit?.onFile(file)
         }}
       />
+      {props.url && props.edit.restyleSlot ? <WeddingRestylePhotoButton slot={props.edit.restyleSlot} hasPhoto /> : null}
     </div>
   )
 
@@ -378,7 +383,7 @@ function PhotoCard(props: {
                 }
               >
                 {props.url ? (
-                  <img src={props.url} alt={props.alt} draggable={false} className="absolute inset-0 h-full w-full select-none object-cover" style={photo} />
+                  <img src={props.url} alt={props.alt} draggable={false} className="absolute select-none object-cover" style={photo} />
                 ) : (
                   <div className="h-full w-full border border-dashed border-white/40" />
                 )}
@@ -879,6 +884,11 @@ export function WeddingStackedCouplePhotos(props: {
                 if (file) edit.onFile(file)
               }}
             />
+          </span>
+        ) : null}
+        {edit?.restyleSlot && hasPhoto ? (
+          <span onPointerDown={hold}>
+            <WeddingRestylePhotoButton slot={edit.restyleSlot} hasPhoto className="flex h-7 items-center" />
           </span>
         ) : null}
       </div>
