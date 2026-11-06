@@ -378,7 +378,7 @@ function PhotoCard(props: {
                 }
               >
                 {props.url ? (
-                  <img src={props.url} alt={props.alt} draggable={false} className="h-full w-full select-none object-cover" style={photo} />
+                  <img src={props.url} alt={props.alt} draggable={false} className="absolute inset-0 h-full w-full select-none object-cover" style={photo} />
                 ) : (
                   <div className="h-full w-full border border-dashed border-white/40" />
                 )}

@@ -118,7 +118,7 @@ export function WeddingAlbumPhotoCropThumb(props: {
             src={props.imageUrl}
             alt=""
             draggable={false}
-            className="pointer-events-none h-full w-full select-none object-cover"
+            className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
             style={albumPhotoFrameStyle({ x: props.positionX, y: props.positionY, scale: props.scale })}
           />
           <div

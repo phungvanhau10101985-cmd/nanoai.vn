@@ -671,7 +671,7 @@ function CoverPhoto(props: {
           src={props.url}
           alt={props.alt}
           draggable={false}
-          className="h-full w-full select-none object-cover"
+          className="absolute inset-0 h-full w-full select-none object-cover"
           style={{
             objectPosition,
             transform: `scale(${scale})`,
@@ -1229,7 +1229,7 @@ export function WeddingFramedPhoto(props: {
               src={props.photoUrl}
               alt={props.alt}
               draggable={false}
-              className="h-full w-full select-none object-cover"
+              className="absolute inset-0 h-full w-full select-none object-cover"
               style={{ objectPosition, transform: `scale(${scale})`, transformOrigin: objectPosition }}
             />
           ) : null}
@@ -1260,9 +1260,6 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
       : light
         ? 'text-amber-200'
         : 'text-rose-800'
-  const plainPhotoClass = props.plainShape === 'portrait'
-    ? 'relative aspect-[3/4] w-full overflow-hidden rounded-2xl shadow-[0_18px_40px_rgba(20,4,8,0.38)]'
-    : 'relative aspect-square w-full overflow-hidden rounded-full'
   const photoFrame = holeMask?.box ?? hole
   const photoBox = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
   const frameScale = frameScaleOf(props.frameScale)
@@ -1301,12 +1298,12 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
           style={{ left: `${photoFrame.x}%`, top: `${photoFrame.y}%`, width: `${photoFrame.w}%`, height: `${photoFrame.h}%`, backgroundColor: panel }}
         >
           {props.coverPhotoUrl && holeMask !== undefined ? (
-            <div className={cn('h-full w-full', photoMotion, props.breathe && !compact && 'wedding-cover-breathe')}>
+            <div className={cn('absolute inset-0', photoMotion, props.breathe && !compact && 'wedding-cover-breathe')}>
               <img
                 src={props.coverPhotoUrl}
                 alt={props.photoAlt}
                 draggable={false}
-                className="h-full w-full select-none object-cover"
+                className="absolute inset-0 h-full w-full select-none object-cover"
                 style={{
                   objectPosition: photoBox.position,
                   transform: `scale(${photoBox.zoom})`,
@@ -1361,10 +1358,10 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
         style={{ width: `${plain ? frameWidthPercent(86, frameScale) : frameWidth}%` }}
       >
         {plain ? (
-          <div key={props.motionKey} className={cn('relative', photoMotion || 'wedding-cover-frame-settle')}>
+          <div key={props.motionKey} className={cn('relative w-full', photoMotion || 'wedding-cover-frame-settle')} style={{ aspectRatio: props.plainShape === 'portrait' ? '3 / 4' : '1 / 1' }}>
             <CoverPhotoPan
               edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
-              className={cn(plainPhotoClass, props.plainShape === 'portrait' && !props.coverPhotoUrl && 'border border-dashed border-[#e8c87a]/70')}
+              className={cn('absolute inset-0 overflow-hidden', props.plainShape === 'portrait' ? 'rounded-2xl shadow-[0_18px_40px_rgba(20,4,8,0.38)]' : 'rounded-full', props.plainShape === 'portrait' && !props.coverPhotoUrl && 'border border-dashed border-[#e8c87a]/70')}
               style={{ backgroundColor: panel }}
             >
               {props.coverPhotoUrl ? (
@@ -1372,7 +1369,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
                   src={props.coverPhotoUrl}
                   alt={props.photoAlt}
                   draggable={false}
-                  className="h-full w-full select-none object-cover"
+                  className="absolute inset-0 h-full w-full select-none object-cover"
                   style={{
                     objectPosition: photoBox.position,
                     transform: `scale(${photoBox.zoom})`,
@@ -1452,14 +1449,14 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
             <div key={props.motionKey} className={cn('relative w-full', photoMotion || 'wedding-cover-frame-settle')} style={{ aspectRatio: props.plainShape === 'portrait' ? '3 / 4' : '1 / 1' }}>
               <CoverPhotoPan
                 edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
-                className={cn('h-full w-full overflow-hidden', props.plainShape === 'portrait' ? 'rounded-2xl' : 'rounded-full', props.plainShape === 'portrait' && !props.coverPhotoUrl && 'border border-dashed border-[#e8c87a]/70')}
+                className={cn('absolute inset-0 overflow-hidden', props.plainShape === 'portrait' ? 'rounded-2xl' : 'rounded-full', props.plainShape === 'portrait' && !props.coverPhotoUrl && 'border border-dashed border-[#e8c87a]/70')}
               >
                 {props.coverPhotoUrl ? (
                   <img
                     src={props.coverPhotoUrl}
                     alt={props.photoAlt}
                     draggable={false}
-                    className="h-full w-full select-none object-cover"
+                    className="absolute inset-0 h-full w-full select-none object-cover"
                     style={{
                       objectPosition: photoBox.position,
                       transform: `scale(${photoBox.zoom})`,
@@ -1621,7 +1618,7 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
       src={props.coverPhotoUrl}
       alt={props.photoAlt}
       draggable={false}
-      className="h-full w-full select-none object-cover"
+      className="absolute inset-0 h-full w-full select-none object-cover"
       style={{ objectPosition: photoBox.position, transform: `scale(${photoBox.zoom})`, transformOrigin: photoBox.position }}
     />
   ) : null
@@ -2250,11 +2247,11 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
       src={props.coverPhotoUrl}
       alt={props.photoAlt}
       draggable={false}
-      className="h-full w-full select-none object-cover"
+      className="absolute inset-0 h-full w-full select-none object-cover"
       style={{ objectPosition: props.coverPhotoEdit ? photoBox.position : restAnchor, transform: `scale(${photoBox.zoom})`, transformOrigin: restAnchor }}
     />
   ) : (
-    <div className="h-full w-full" style={{ backgroundColor: tone.plate }} />
+    <div className="absolute inset-0" style={{ backgroundColor: tone.plate }} />
   )
   const stage = (
     <div className="relative mx-auto w-full">
@@ -2262,7 +2259,7 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
         className="absolute z-[1] bg-white p-[4px] shadow-[0_14px_28px_rgba(70,20,32,0.28)]"
         style={{ left: '11%', top: '-40%', width: '78%', height: '74%' }}
       >
-        <CoverPhotoPan edit={props.coverPhotoEdit} hideZoom className="h-full overflow-hidden">
+        <CoverPhotoPan edit={props.coverPhotoEdit} hideZoom className="relative h-full overflow-hidden">
           {photo}
         </CoverPhotoPan>
       </div>
