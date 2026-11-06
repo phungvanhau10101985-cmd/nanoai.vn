@@ -4015,6 +4015,11 @@ export type Dictionary = {
     previewDeviceHint: string
     previewColumnNote: string
     previewRefresh: string
+    workspaceDemoTitle: string
+    workspaceDemoHint: string
+    workspaceDemoEmpty: string
+    workspaceExtrasTitle: string
+    workspaceExtrasHint: string
     readyBackgroundOne: string
     readyBackgroundSet: string
     readyBackgroundLayered: string
@@ -8544,8 +8549,8 @@ export const VI_DICTIONARY: Dictionary = {
     ornamentCardHint: 'Sửa này chỉ lưu trên thiệp của bạn. Thiệp của khách khác không đổi.',
     ornamentFrameLinesHide: 'Ẩn nét khung',
     ornamentFrameLinesShow: 'Hiện nét khung',
-    previewBrowseMode: 'Chế độ lướt',
-    previewEditMode: 'Chế độ sửa',
+    previewBrowseMode: 'Xem thử',
+    previewEditMode: 'Sửa nội dung',
     previewChangeLook: 'Đổi giao diện',
     previewChangeLookHint: 'Bấm một giao diện. Popup có OK và Đóng. OK đổi thiệp đang sửa ngay.',
     previewChangeLookClose: 'Đóng',
@@ -8601,6 +8606,11 @@ export const VI_DICTIONARY: Dictionary = {
     previewDeviceHint: 'Preview là bản điện thoại. Chọn nền hoặc giao diện bên trái thì cột này đổi theo ngay. Sửa hoa văn tới đâu tự lưu tới đó.',
     previewColumnNote: 'Chọn nền hoặc giao diện bên trái thì cột này đổi theo ngay. Sửa hoa văn tới đâu tự lưu vào thiệp này tới đó.',
     previewRefresh: 'Cập nhật preview',
+    workspaceDemoTitle: 'Demo thiệp',
+    workspaceDemoHint: 'Đây là thiệp đang chọn, cỡ điện thoại. Sửa chữ, ảnh, khung và thêm hoa khi bấm Sửa thiệp.',
+    workspaceDemoEmpty: 'Thiệp chưa có link xem. Bấm Sửa thiệp để mở.',
+    workspaceExtrasTitle: 'Nhạc, QR, album và hiệu ứng',
+    workspaceExtrasHint: 'Những phần này chưa sửa trên mặt thiệp. Lời tiếng Anh và Tối ưu AI cũng nằm ở đây.',
     readyBackgroundOne: 'Một ảnh nền',
     readyBackgroundSet: 'Bộ {n} ảnh nền',
     readyBackgroundLayered: 'Nền và hoa nổi',
@@ -8765,8 +8775,8 @@ export const VI_DICTIONARY: Dictionary = {
     brideRole: 'Cô dâu',
     letterViewAsk: 'Xem thiệp nhà nào?',
     letterViewBoth: 'Gộp 2 nhà',
-    previewTryFab: 'Xem thử',
-    exitPreviewFab: 'Thoát chế độ xem thử',
+    previewTryFab: 'Sửa thiệp',
+    exitPreviewFab: 'Thoát chế độ sửa',
     hometownLabel: 'Quê quán',
     coupleIntroTitle: 'Câu chuyện của chúng tôi',
     timelineTitle: 'Lịch trình buổi tiệc',

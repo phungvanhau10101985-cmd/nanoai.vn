@@ -2812,8 +2812,8 @@ export default function WeddingPublicClient({
                   )}
                 >
                   {visualEdit ? (
-                    <div className="pointer-events-auto absolute inset-x-0 top-2 z-30 flex flex-wrap items-center justify-center gap-1">
-                      <label className="flex h-8 items-center gap-1.5 rounded-full border border-neutral-200 bg-white/95 px-3 text-[11px] font-semibold text-neutral-800 shadow-sm">
+                    <div className="pointer-events-auto relative z-50 mb-3 flex flex-wrap items-center justify-center gap-1.5">
+                      <label className="flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-neutral-200 bg-white/95 px-3 text-[11px] font-semibold text-neutral-800 shadow-sm">
                         <input
                           type="checkbox"
                           className="h-3.5 w-3.5 accent-rose-600"
@@ -2824,7 +2824,7 @@ export default function WeddingPublicClient({
                       </label>
                       <button
                         type="button"
-                        className="h-8 rounded-full border border-neutral-200 bg-white/95 px-3 text-[11px] font-semibold text-neutral-800 shadow-sm"
+                        className="h-8 shrink-0 whitespace-nowrap rounded-full border border-neutral-200 bg-white/95 px-3 text-[11px] font-semibold text-neutral-800 shadow-sm"
                         onClick={revealEditLetter}
                       >
                         {tImage.previewLetter}

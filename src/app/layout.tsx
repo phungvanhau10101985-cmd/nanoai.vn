@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import nextDynamic from "next/dynamic";
 
 /** Layout dùng headers() + children dùng cookies() — bắt buộc dynamic để tránh lỗi Suspense boundary (Next 14.2). */
 export const dynamic = "force-dynamic";
@@ -62,39 +61,16 @@ import { partnerSitePwaManifestPath } from '@/lib/partner-website/shop/partner-s
 import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { partnerShopDocumentVerification } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 import { weddingDesignViewportBootScript } from '@/lib/wedding/wedding-design-viewport'
-
-const AnalyticsTracker = nextDynamic(
-  () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
-  { ssr: false }
-);
-const MobileBottomBar = nextDynamic(
-  () => import("@/components/layout/mobile-bottom-bar").then((m) => m.MobileBottomBar),
-  { ssr: false }
-);
-const InstallPrompt = nextDynamic(
-  () => import("@/components/pwa/install-prompt").then((m) => m.InstallPrompt),
-  { ssr: false }
-);
-const PushNotificationPrompt = nextDynamic(
-  () => import("@/components/pwa/push-notification-prompt").then((m) => m.PushNotificationPrompt),
-  { ssr: false }
-);
-const SwUpdateReload = nextDynamic(
-  () => import("@/components/pwa/sw-update-reload").then((m) => m.SwUpdateReload),
-  { ssr: false }
-);
-const ReferralCapture = nextDynamic(
-  () => import("@/components/referral/referral-capture").then((m) => m.ReferralCapture),
-  { ssr: false }
-);
-const ReferralClaimRunner = nextDynamic(
-  () => import("@/components/referral/referral-claim-runner").then((m) => m.ReferralClaimRunner),
-  { ssr: false }
-);
-const CreditFeatureAccessGuard = nextDynamic(
-  () => import("@/components/auth/credit-feature-access-guard").then((m) => m.CreditFeatureAccessGuard),
-  { ssr: false }
-);
+import {
+  AnalyticsTracker,
+  CreditFeatureAccessGuard,
+  InstallPrompt,
+  MobileBottomBar,
+  PushNotificationPrompt,
+  ReferralCapture,
+  ReferralClaimRunner,
+  SwUpdateReload,
+} from '@/components/layout/deferred-shell-widgets'
 const GA_MEASUREMENT_ID = "G-1KZ2PKX887";
 const INTEGRATIONS_KEY = "admin_integrations_config";
 

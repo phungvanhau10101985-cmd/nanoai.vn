@@ -110,7 +110,7 @@ export function WeddingInvitationMotion(props: { enabled: boolean; instant?: boo
 
   return (
     <div ref={ref} className="contents">
-      <style>{MOTION_CSS}</style>
+      <style dangerouslySetInnerHTML={{ __html: MOTION_CSS }} />
       {props.children}
     </div>
   )

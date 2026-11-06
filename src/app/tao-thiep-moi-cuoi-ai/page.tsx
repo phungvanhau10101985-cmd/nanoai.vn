@@ -64,7 +64,7 @@ export default async function TaoThiepMoiCuoiAiPage({
       <JsonLd data={productJsonLd} />
       <JsonLd data={faqJsonLd} />
       {user ? (
-        <CreationToolPageShell currentHref={seo.path}>
+        <CreationToolPageShell currentHref={seo.path} hideAside>
           <WeddingCardAiClientPage />
         </CreationToolPageShell>
       ) : (

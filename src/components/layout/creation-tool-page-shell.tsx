@@ -19,6 +19,8 @@ type Props = {
   relatedLinks?: CreationRelatedItem[] | null
   /** Bảng/dữ liệu rộng — bỏ giới hạn max-w-7xl mặc định. */
   wide?: boolean
+  /** Ẩn cột Liên quan. Chỉ trang cần một cột nội dung. */
+  hideAside?: boolean
 }
 
 export function CreationToolPageShell({
@@ -26,6 +28,7 @@ export function CreationToolPageShell({
   currentHref,
   relatedLinks: relatedOverride,
   wide = false,
+  hideAside = false,
 }: Props) {
   const { t } = getServerDictionary()
   const path = currentHref.replace(/\/$/, '') || '/'
@@ -36,7 +39,8 @@ export function CreationToolPageShell({
     <CreationToolBackOverrideProvider>
       <div
         className={cn(
-          'mx-auto flex w-full flex-col gap-6 lg:flex-row lg:items-start lg:gap-6 xl:gap-8',
+          'mx-auto flex w-full flex-col gap-6',
+          hideAside ? '' : 'lg:flex-row lg:items-start lg:gap-6 xl:gap-8',
           wide
             ? 'max-w-[100rem] px-0 sm:px-1 lg:px-2'
             : 'max-w-7xl px-3 sm:px-6 lg:gap-8 lg:px-8 xl:gap-10',
@@ -44,11 +48,11 @@ export function CreationToolPageShell({
       >
         <CreationToolShellBackButton label={t.creationSidebar.back} />
         {/* DOM: nội dung trước — mobile hiển thị công cụ trước menu; lg:order-2 để desktop vẫn sidebar trái */}
-        <div className="min-w-0 flex-1 lg:order-2 lg:min-h-0 lg:pl-0.5 xl:pl-1">
+        <div className={cn('min-w-0 flex-1', hideAside ? '' : 'lg:order-2 lg:min-h-0 lg:pl-0.5 xl:pl-1')}>
           {children}
         </div>
 
-        <aside
+        {hideAside ? null : <aside
           data-creation-sidebar=""
           className={cn(
             /* Mobile: menu dưới nội dung; desktop: cột trái */
@@ -108,7 +112,7 @@ export function CreationToolPageShell({
             </Link>
           ))}
         </nav>
-      </aside>
+      </aside>}
       </div>
     </CreationToolBackOverrideProvider>
   )
