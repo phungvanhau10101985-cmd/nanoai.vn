@@ -124,31 +124,36 @@ export function WeddingSampleLookStrip(props: {
   locale: WebLocale
   samples: readonly WeddingSampleCard[]
   activeId?: string
+  /** Mẫu demo đang hiện. Không truyền thì vòng chọn trùng mẫu đang dùng. */
+  previewId?: string
   inUseLabel: string
   disabled?: boolean
   onOpen: (sample: WeddingSampleCard) => void
 }) {
-  const shown = weddingSamplesWithActiveFirst(props.samples, props.activeId)
+  const shown = weddingSamplesWithActiveFirst(props.samples, props.previewId || props.activeId)
+  const matches = (sample: WeddingSampleCard, id?: string) =>
+    Boolean(id) && (id === sample.id || id === sample.backgroundPresetId)
   return (
     <div className="flex w-full min-w-0 gap-2 overflow-x-auto pb-1">
       {shown.map((sample) => {
         const label = sampleLabel(props.locale, sample)
-        const active = Boolean(props.activeId) && (props.activeId === sample.id || props.activeId === sample.backgroundPresetId)
+        const inUse = matches(sample, props.activeId)
+        const preview = props.previewId ? matches(sample, props.previewId) : inUse
         return (
           <button
             key={sample.id}
             type="button"
             disabled={props.disabled}
-            aria-current={active ? 'true' : undefined}
+            aria-current={preview ? 'true' : undefined}
             onClick={() => props.onOpen(sample)}
             className={cn(
               'w-[calc((100%-0.5rem)/2)] shrink-0 overflow-hidden rounded-xl border bg-[#fffaf2] text-left disabled:cursor-not-allowed sm:w-[calc((100%-1.5rem)/4)]',
-              active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
+              preview ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
             )}
           >
             <span className="relative block">
               <SampleFace sample={sample} />
-              {active ? (
+              {inUse ? (
                 <span className="absolute bottom-1 left-1 rounded-full bg-rose-600 px-1.5 py-0.5 text-[9px] font-semibold text-white">
                   {props.inUseLabel}
                 </span>

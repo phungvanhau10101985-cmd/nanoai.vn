@@ -650,7 +650,7 @@ function CoverPhoto(props: {
     <div
       data-cover-photo={photoBox}
       className={cn(
-        'overflow-hidden',
+        'relative overflow-hidden',
         fill || fluid ? 'h-full' : 'shrink-0 shadow-md ring-1 ring-black/5',
         !fill && (props.compact ? 'rounded-lg' : 'rounded-2xl'),
         props.openSlowly && 'wedding-cover-photo-open',
@@ -666,7 +666,7 @@ function CoverPhoto(props: {
         ...props.frameStyle,
       }}
     >
-      <div className={cn('h-full w-full', props.breathe && !props.compact && 'wedding-cover-breathe')}>
+      <div className={cn('absolute inset-0', props.breathe && !props.compact && 'wedding-cover-breathe')}>
         <img
           src={props.url}
           alt={props.alt}
@@ -1566,11 +1566,11 @@ function PolaroidPhotoStack(props: {
           className={cn('absolute z-[1] overflow-hidden bg-[#f3ebe1]', props.photoMotion)}
           style={holeStyle}
         >
-          <div className={cn('h-full w-full', props.breathe && 'wedding-cover-breathe')}>{props.photo}</div>
+          <div className={cn('absolute inset-0', props.breathe && 'wedding-cover-breathe')}>{props.photo}</div>
         </CoverPhotoPan>
       ) : (
         <div className={cn('absolute z-[1] overflow-hidden bg-[#f3ebe1]', props.photoMotion)} style={holeStyle}>
-          <div className={cn('h-full w-full', props.breathe && 'wedding-cover-breathe')}>{props.photo}</div>
+          <div className={cn('absolute inset-0', props.breathe && 'wedding-cover-breathe')}>{props.photo}</div>
         </div>
       )}
       <WeddingOrnamentStage kit={props.composition.kit} layout={props.composition.layout} />
@@ -1740,7 +1740,7 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
                 boxShadow: mat ? WOOD_MAT_SHADOW : undefined,
               }}
             >
-              <div className={cn('h-full w-full', photoMotion)}>{photo}</div>
+              <div className={cn('absolute inset-0', photoMotion)}>{photo}</div>
             </CoverPhotoPan>
           ) : null}
           <WeddingOrnamentStage kit={kit} layout={layout} />
@@ -1792,7 +1792,7 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
               className={cn('relative mx-auto mt-2 w-full overflow-hidden', !mat && 'shadow-md')}
               style={{ borderRadius: Math.min(layout.photo.radius, 22), aspectRatio: '3 / 4', boxShadow: mat ? WOOD_MAT_SHADOW : undefined }}
             >
-              <div className={cn('h-full w-full', photoMotion)}>{photo}</div>
+              <div className={cn('absolute inset-0', photoMotion)}>{photo}</div>
             </CoverPhotoPan>
             ) : (
             <CoverPhotoSlot className="my-1">
@@ -1801,7 +1801,7 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
               className={cn('relative mx-auto w-full overflow-hidden', !mat && 'shadow-md')}
               style={{ borderRadius: Math.min(layout.photo.radius, 22), aspectRatio: '3 / 4', height: 'auto', boxShadow: mat ? WOOD_MAT_SHADOW : undefined }}
             >
-              <div className={cn('h-full w-full', photoMotion, props.breathe && 'wedding-cover-breathe')}>{photo}</div>
+              <div className={cn('absolute inset-0', photoMotion, props.breathe && 'wedding-cover-breathe')}>{photo}</div>
             </CoverPhotoPan>
             </CoverPhotoSlot>
             )
@@ -2380,11 +2380,11 @@ function PairShot(props: {
 }) {
   const crop = props.edit?.crop ?? props.crop
   const photo = props.url ? (
-    <img src={props.url} alt="" draggable={false} className="h-full w-full select-none object-cover" style={pairPhotoStyle(crop)} />
+    <img src={props.url} alt="" draggable={false} className="absolute inset-0 h-full w-full select-none object-cover" style={pairPhotoStyle(crop)} />
   ) : (
-    <span className="block h-full min-h-[4rem] w-full bg-black/10" />
+    <span className="absolute inset-0 block min-h-[4rem] bg-black/10" />
   )
-  if (!props.edit) return <div className={cn('overflow-hidden', props.className)}>{photo}</div>
+  if (!props.edit) return <div className={cn('relative overflow-hidden', props.className)}>{photo}</div>
   return (
     <CoverPhotoPan edit={props.edit.crop} className={cn('pointer-events-auto relative overflow-hidden', props.className)}>
       {photo}

@@ -133,7 +133,7 @@ import {
   startWeddingInvitationAutoScroll,
   stopWeddingInvitationAutoScroll,
 } from '@/hooks/use-wedding-invitation-auto-scroll'
-import { applyWeddingDesignViewport, WEDDING_DESKTOP_HEIGHT, WEDDING_DESKTOP_MIN_PX, WEDDING_DESKTOP_WIDTH, WEDDING_MOBILE_HEIGHT, WEDDING_MOBILE_WIDTH } from '@/lib/wedding/wedding-design-viewport'
+import { applyWeddingDesignViewport, isIosWeddingWebKit, WEDDING_DESKTOP_HEIGHT, WEDDING_DESKTOP_MIN_PX, WEDDING_DESKTOP_WIDTH, WEDDING_MOBILE_HEIGHT, WEDDING_MOBILE_WIDTH, weddingIosCoverFitScale } from '@/lib/wedding/wedding-design-viewport'
 import { WEDDING_EDIT_SIDE, weddingEditSideLabelStyle } from '@/lib/wedding/wedding-side-edit-color'
 
 const PUBLIC_COLUMN = 'mx-auto flex w-full max-w-3xl flex-col gap-5 sm:gap-7'
@@ -394,24 +394,45 @@ function WeddingTimelineDraftEditor(props: {
   )
 }
 
-function FittedCoverFrame(props: { active: boolean; designWidth: number; backgroundColor: string; flow?: boolean; contain?: boolean; fitHeight?: boolean; maxScale?: number; children: ReactNode }) {
+function FittedCoverFrame(props: { active: boolean; designWidth: number; backgroundColor: string; flow?: boolean; contain?: boolean; fitHeight?: boolean; fitFrame?: boolean; maxScale?: number; children: ReactNode }) {
   const outerRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [contentHeight, setContentHeight] = useState(0)
+  const [iosFrame, setIosFrame] = useState<{ top: number; height: number } | null>(null)
 
   useLayoutEffect(() => {
     if (!props.active) return
     const outer = outerRef.current
     const inner = innerRef.current
     if (!outer || !inner) return
+    const ios = isIosWeddingWebKit()
+    const pinIosFrame = ios && !props.flow && !props.contain && !props.fitHeight && !props.fitFrame
+    const fitBoth = Boolean(props.fitHeight || props.fitFrame)
     const fit = () => {
       const height = inner.offsetHeight
       if (height < 1 || outer.clientWidth < 1) return
-      const widthScale = outer.clientWidth / props.designWidth
-      const heightScale = outer.clientHeight > 0 ? outer.clientHeight / height : widthScale
-      const raw = props.fitHeight ? Math.min(widthScale, heightScale) : widthScale
-      const next = Math.min(raw, props.maxScale ?? Number.POSITIVE_INFINITY)
+      const view = window.visualViewport
+      if (pinIosFrame) {
+        const nextFrame = {
+          top: Math.round(view?.offsetTop ?? 0),
+          height: Math.round(view?.height ?? window.innerHeight),
+        }
+        setIosFrame((current) => (current && current.top === nextFrame.top && current.height === nextFrame.height ? current : nextFrame))
+      }
+      const computed = ios && !props.flow ? getComputedStyle(outer) : null
+      const padTop = computed ? Number.parseFloat(computed.paddingTop) || 0 : 0
+      const padBottom = computed ? Number.parseFloat(computed.paddingBottom) || 0 : 0
+      const safeHeight = Math.max(0, outer.clientHeight - padTop - padBottom)
+      const next = weddingIosCoverFitScale({
+        fitSafeHeight: pinIosFrame,
+        fitHeight: fitBoth,
+        viewWidth: outer.clientWidth,
+        safeHeight: fitBoth ? outer.clientHeight : safeHeight,
+        contentHeight: height,
+        designWidth: props.designWidth,
+        maxScale: props.maxScale,
+      })
       setScale((current) => (Math.abs(current - next) < 0.004 ? current : next))
       setContentHeight((current) => (Math.abs(current - height) < 1 ? current : height))
     }
@@ -419,8 +440,15 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
     const observer = new ResizeObserver(fit)
     observer.observe(outer)
     observer.observe(inner)
-    return () => observer.disconnect()
-  }, [props.active, props.designWidth, props.fitHeight, props.maxScale])
+    const view = window.visualViewport
+    view?.addEventListener('resize', fit)
+    view?.addEventListener('scroll', fit)
+    return () => {
+      observer.disconnect()
+      view?.removeEventListener('resize', fit)
+      view?.removeEventListener('scroll', fit)
+    }
+  }, [props.active, props.contain, props.designWidth, props.fitFrame, props.fitHeight, props.flow, props.maxScale, iosFrame])
 
   if (!props.active) return <div className="relative" data-wedding-stage="">{props.children}</div>
 
@@ -456,18 +484,35 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
   )
   if (props.fitHeight) {
     return (
-      <div className="fixed inset-x-0 z-50 overflow-x-clip overflow-y-hidden" style={{ backgroundColor: props.backgroundColor, top: 0, bottom: '4.75rem' }}>
+      <div className="fixed inset-x-0 z-50 overflow-x-clip overflow-y-hidden" style={{ backgroundColor: props.backgroundColor, top: 'env(safe-area-inset-top, 0px)', bottom: 'calc(4.75rem + env(safe-area-inset-bottom, 0px))' }}>
         <div ref={outerRef} className="relative mx-auto h-full overflow-visible" style={{ width: props.designWidth, maxWidth: '100%' }}>
           {sheet}
         </div>
       </div>
     )
   }
+  if (props.fitFrame) {
+    return (
+      <div ref={outerRef} className="fixed inset-0 z-50 overflow-hidden" style={{ backgroundColor: props.backgroundColor }}>
+        {sheet}
+      </div>
+    )
+  }
   return (
     <div
       ref={outerRef}
-      className={props.contain ? 'relative mx-auto min-h-screen w-full overflow-visible' : 'fixed inset-0 z-50 overflow-x-clip overflow-y-auto'}
-      style={{ backgroundColor: props.backgroundColor }}
+      className={props.contain ? 'relative mx-auto min-h-screen w-full overflow-visible' : iosFrame ? 'fixed inset-x-0 z-50 overflow-x-clip overflow-y-auto' : 'fixed inset-0 z-50 overflow-x-clip overflow-y-auto'}
+      style={{
+        backgroundColor: props.backgroundColor,
+        ...(iosFrame
+          ? {
+              top: iosFrame.top,
+              height: iosFrame.height,
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            }
+          : null),
+      }}
     >
       {sheet}
     </div>
@@ -594,6 +639,8 @@ export default function WeddingPublicClient({
   sampleDemo = false,
   demoMusicUrls = [],
   captureStill = false,
+  quietFrame = false,
+  editorContent = false,
 }: {
   card: WeddingCard
   sideWishes: WeddingSideWishGroups
@@ -627,7 +674,12 @@ export default function WeddingPublicClient({
   demoMusicUrls?: string[]
   /** Ảnh lưới chủ đề: thiệp đã mở, đứng yên, không nhạc và không hiệu ứng. */
   captureStill?: boolean
+  /** Khung demo điện thoại: chỉ mặt thiệp, không nút máy và không thanh dùng mẫu. */
+  quietFrame?: boolean
+  /** Demo mẫu: chữ, ảnh, ngày giờ lấy đúng bản Sửa thiệp, không bật nút sửa. */
+  editorContent?: boolean
 }) {
+  const asEditor = hostEditor || editorContent
   const router = useRouter()
   const { toast } = useToast()
   const compiledWishes = sideWishes.groom.length + sideWishes.bride.length + sideWishes.other.length
@@ -1163,6 +1215,7 @@ export default function WeddingPublicClient({
   useLayoutEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const view = params.get('device') === 'desktop' ? 'desktop' : 'mobile'
+    if (isIosWeddingWebKit()) document.documentElement.setAttribute('data-wedding-ios', '')
     if (layoutPreview) {
       setViewDevice(view)
       setCoverDesignWidth(view === 'desktop' ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH)
@@ -1712,7 +1765,19 @@ export default function WeddingPublicClient({
   }
 
   useLayoutEffect(() => {
-    if (opened || hostPreview || (hostEditor && frameLines)) return
+    if (!editorContent) return
+    const html = document.documentElement
+    const body = document.body
+    html.style.overflow = opened ? '' : 'hidden'
+    body.style.overflow = opened ? '' : 'hidden'
+    return () => {
+      html.style.overflow = ''
+      body.style.overflow = ''
+    }
+  }, [editorContent, opened])
+
+  useLayoutEffect(() => {
+    if (opened || hostPreview || editorContent || (hostEditor && frameLines)) return
     stopWeddingInvitationAutoScroll()
     const pin = () => {
       const y = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
@@ -1729,7 +1794,7 @@ export default function WeddingPublicClient({
       window.removeEventListener('scroll', pin)
       window.removeEventListener('pageshow', onShow)
     }
-  }, [frameLines, hostEditor, hostPreview, opened])
+  }, [editorContent, frameLines, hostEditor, hostPreview, opened])
 
   const chooseLetterHouse = (view: 'groom' | 'bride' | 'both') => {
     setLetterView(view)
@@ -2022,8 +2087,8 @@ export default function WeddingPublicClient({
 
   const textTokens = useMemo(
     () => ({
-      groomName: hostEditor ? groomDraft : card.groomName,
-      brideName: hostEditor ? brideDraft : card.brideName,
+      groomName: asEditor ? groomDraft : card.groomName,
+      brideName: asEditor ? brideDraft : card.brideName,
       guestName: guestDisplayName,
     }),
     [brideDraft, card.brideName, card.groomName, groomDraft, guestDisplayName, hostEditor],
@@ -2044,7 +2109,7 @@ export default function WeddingPublicClient({
   )
 
   const viewCard = useMemo(() => {
-    if (!hostEditor) return card
+    if (!asEditor) return card
     return {
       ...card,
       groomName: groomDraft,
@@ -2121,11 +2186,11 @@ export default function WeddingPublicClient({
     timelineDraft,
   ])
   const guestInviteLocation = useMemo(
-    () => resolveGuestInviteLocation(hostEditor ? viewCard : card, guestDisplayVenue),
+    () => resolveGuestInviteLocation(asEditor ? viewCard : card, guestDisplayVenue),
     [card, guestDisplayVenue, hostEditor, viewCard],
   )
   const guestBlockLocation = useMemo(
-    () => resolveGuestInviteLocation(hostEditor ? viewCard : card, guestBlockVenue),
+    () => resolveGuestInviteLocation(asEditor ? viewCard : card, guestBlockVenue),
     [card, guestBlockVenue, hostEditor, viewCard],
   )
 
@@ -2162,11 +2227,11 @@ export default function WeddingPublicClient({
   const displayPersonalInvite = initialPersonalInvite.trim()
   const displayCoverPhotoUrl =
     coverPhotoUrlUnlessBackground(guestInviteLocation.coverImageUrl, pageBackground) || coverPhotoUrl
-  const displayInvitationText = withoutPartyAddress(hostEditor ? inviteDraft : guestInviteLocation.invitationText || card.invitationText)
-  const displayInvitationTextEn = withoutPartyAddress(hostEditor ? inviteEnDraft : guestInviteLocation.invitationTextEn || card.invitationTextEn)
+  const displayInvitationText = withoutPartyAddress(asEditor ? inviteDraft : guestInviteLocation.invitationText || card.invitationText)
+  const displayInvitationTextEn = withoutPartyAddress(asEditor ? inviteEnDraft : guestInviteLocation.invitationTextEn || card.invitationTextEn)
   const shownInviteBody = useMemo(() => {
     const side = letterView === 'bride' ? 'bride' : letterView === 'groom' ? 'groom' : null
-    if (hostEditor && side) {
+    if (asEditor && side) {
       const built = buildWeddingDemoPersonalInvite({
         side,
         groomName: groomDraft,
@@ -2203,18 +2268,18 @@ export default function WeddingPublicClient({
     uiLocale,
   ])
   const displayTimeline = useMemo(
-    () => parseWeddingEventTimeline(hostEditor ? timelineDraft : guestInviteLocation.eventTimeline || card.eventTimeline),
+    () => parseWeddingEventTimeline(asEditor ? timelineDraft : guestInviteLocation.eventTimeline || card.eventTimeline),
     [card.eventTimeline, guestInviteLocation.eventTimeline, hostEditor, timelineDraft],
   )
-  const displayDressCode = withoutPartyAddress(hostEditor ? dressDraft : guestInviteLocation.dressCode || card.dressCode)
-  const displayThankYou = withoutPartyAddress(hostEditor ? thanksDraft : guestInviteLocation.thankYouText || card.thankYouText)
-  const displayVenue = hostEditor ? addressDraft : guestInviteLocation.address || card.venue
-  const displayMapUrl = hostEditor ? mapDraft : guestInviteLocation.mapUrl || card.mapUrl
-  const displayQuote = withoutPartyAddress(hostEditor ? quoteDraft : card.loveQuote)
-  const groomFamilyLine = hostEditor ? groomParentsDraft : card.groomParents || card.groomName
-  const brideFamilyLine = hostEditor ? brideParentsDraft : card.brideParents || card.brideName
-  const groomHometownLine = hostEditor ? groomHometownDraft : card.groomInviteAddress.trim() || card.groomHometown
-  const brideHometownLine = hostEditor ? brideHometownDraft : card.brideInviteAddress.trim() || card.brideHometown
+  const displayDressCode = withoutPartyAddress(asEditor ? dressDraft : guestInviteLocation.dressCode || card.dressCode)
+  const displayThankYou = withoutPartyAddress(asEditor ? thanksDraft : guestInviteLocation.thankYouText || card.thankYouText)
+  const displayVenue = asEditor ? addressDraft : guestInviteLocation.address || card.venue
+  const displayMapUrl = asEditor ? mapDraft : guestInviteLocation.mapUrl || card.mapUrl
+  const displayQuote = withoutPartyAddress(asEditor ? quoteDraft : card.loveQuote)
+  const groomFamilyLine = asEditor ? groomParentsDraft : card.groomParents || card.groomName
+  const brideFamilyLine = asEditor ? brideParentsDraft : card.brideParents || card.brideName
+  const groomHometownLine = asEditor ? groomHometownDraft : card.groomInviteAddress.trim() || card.groomHometown
+  const brideHometownLine = asEditor ? brideHometownDraft : card.brideInviteAddress.trim() || card.brideHometown
   const showBothHouses = letterView === 'both' && cardStructure.venueLayout !== 'one' && (cardStructure.venueLayout === 'two' || secondVenueOpen)
   const calendarExportInput = useMemo(
     () => ({
@@ -2222,8 +2287,8 @@ export default function WeddingPublicClient({
       description: personalize(displayInvitationText || tx.calendarEventDescription),
       location: displayVenue,
       weddingDateIso: (displayWeddingDateIso ?? weddingDateIso) ?? '',
-      weddingTimeText: hostEditor ? timeDraft : guestInviteLocation.receptionTime || card.weddingTime,
-      partyStartTime: hostEditor ? partyTimeDraft : guestInviteLocation.partyStartTime || card.partyStartTime,
+      weddingTimeText: asEditor ? timeDraft : guestInviteLocation.receptionTime || card.weddingTime,
+      partyStartTime: asEditor ? partyTimeDraft : guestInviteLocation.partyStartTime || card.partyStartTime,
       url: sharePageUrl || undefined,
     }),
     [
@@ -2486,7 +2551,7 @@ export default function WeddingPublicClient({
       {opened && effectsEnabled && !layoutPreview && !captureStill ? (
         <WeddingOpenEffects play burst={openBurstEffect} fall={openFallEffect} fallSeconds={openFallSeconds} themeId={theme.id} lookId={readyBackground?.id} />
       ) : null}
-      {sampleDemo && !hostEditor && !captureStill ? (
+      {sampleDemo && !hostEditor && !captureStill && !quietFrame ? (
         <div className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex justify-center px-3">
           <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-white/95 p-1 shadow" role="group" aria-label={tImage.previewDesktop}>
             {(['desktop', 'mobile'] as const).map((id) => {
@@ -2713,6 +2778,7 @@ export default function WeddingPublicClient({
                 active={!coverPreview}
                 contain={hostPreview}
                 fitHeight={sampleDemo}
+                fitFrame={editorContent}
                 designWidth={coverDesignWidth}
                 backgroundColor={stageColor}
                 maxScale={hostPreview || sampleDemo ? undefined : 1}
@@ -2734,7 +2800,7 @@ export default function WeddingPublicClient({
               >
               <div data-wedding-ornament-frame="" data-wedding-ornament-surface="cover" className={effectsEnabled ? 'wedding-cover-ornament-open' : undefined}>
               {(ornamentEditor && coverPreview) || browseFlowers ? null : (
-                <WeddingBackgroundOrnamentLayer ornaments={coverShown} animateRise={!hostEditor} className="absolute inset-0 z-20" />
+                <WeddingBackgroundOrnamentLayer ornaments={coverShown} animateRise={!hostEditor && !editorContent} className="absolute inset-0 z-20" />
               )}
               {(ornamentEditor && coverPreview) || browseFlowers ? (
                 <WeddingOrnamentAdminLayer
@@ -2802,17 +2868,17 @@ export default function WeddingPublicClient({
                     coverPhotoScale={coverPhotoScale}
                     frameScale={resolveCoverFrameScale(sectionConfig)}
                     {...coverEditProps}
-                    groomName={hostEditor ? groomDraft : card.groomName}
-                    brideName={hostEditor ? brideDraft : card.brideName}
+                    groomName={asEditor ? groomDraft : card.groomName}
+                    brideName={asEditor ? brideDraft : card.brideName}
                     nameLayout={cardStructure.nameLayout}
                     weddingDate={displayWeddingDateLabel}
-                    weddingTimeText={hostEditor ? timeDraft || guestInviteLocation.displayTime || weddingDisplayTime : guestInviteLocation.displayTime || weddingDisplayTime}
+                    weddingTimeText={asEditor ? timeDraft || guestInviteLocation.displayTime || weddingDisplayTime : guestInviteLocation.displayTime || weddingDisplayTime}
                     guestName={guestDisplayName || undefined}
                     guestInviteVenue={guestBlockVenue}
                     guestInviteVenueLabel={guestBlockVenueDisplay || undefined}
                     editSide={visualEdit && (letterView === 'groom' || letterView === 'bride') ? letterView : undefined}
-                    addressText={(hostEditor ? addressDraft : guestBlockLocation.address) || undefined}
-                    mapUrl={(hostEditor ? mapDraft : guestBlockLocation.mapUrl) || undefined}
+                    addressText={(asEditor ? addressDraft : guestBlockLocation.address) || undefined}
+                    mapUrl={(asEditor ? mapDraft : guestBlockLocation.mapUrl) || undefined}
                     viewMapLabel={tx.guestInviteViewMap}
                     theme={theme}
                     invitationLabel={tx.invitation}
@@ -2881,6 +2947,7 @@ export default function WeddingPublicClient({
         {/* Vỏ: tên bay từ hai bên một lần lúc hiện. Bấm mở thì gỡ vỏ và chạy chữ bên trong, không phát lại vỏ. */}
         {contentVisible && !coverPreview && !visualEdit ? (
           <nav
+            data-wedding-letter-nav=""
             className={cn(
               'fixed top-0 z-[80] max-w-full -translate-x-1/2 border-b px-2 py-2 text-sm sm:px-3 sm:py-2.5',
               'left-1/2',
@@ -2923,7 +2990,7 @@ export default function WeddingPublicClient({
         <div aria-hidden data-wedding-paper-wash="" className="pointer-events-none absolute inset-0" style={{ ...contentSurface, zIndex: 0 }} />
         <div data-wedding-letter-copy="" className={cn('relative', ornamentEditor && editorStack && 'pointer-events-none')} style={{ opacity: contentVisible ? 1 : 0 }}>
         <WeddingInvitationMotion enabled={effectsEnabled && !layoutPreview} instant={visualEdit} open={contentVisible}>
-        {ornamentEditor && !editorStack && !hostEditor ? (
+        {ornamentEditor && !editorStack && !asEditor ? (
           <div className="pointer-events-none absolute inset-x-0 top-0 z-40">
             <div className="pointer-events-auto bg-white/95 px-3 py-2 shadow-sm">
             <WeddingOrnamentAdminBar
@@ -2959,8 +3026,8 @@ export default function WeddingPublicClient({
             {envelopeCover ? null : (
             <>
             <WeddingCoupleNames
-              groomName={hostEditor ? groomDraft : card.groomName}
-              brideName={hostEditor ? brideDraft : card.brideName}
+              groomName={asEditor ? groomDraft : card.groomName}
+              brideName={asEditor ? brideDraft : card.brideName}
               layout={cardStructure.nameLayout}
               flyIn={contentVisible && effectsEnabled}
               pace="opened"
@@ -2999,8 +3066,8 @@ export default function WeddingPublicClient({
                   coverPhotoScale={coverPhotoScale}
                   frameScale={resolveCoverFrameScale(sectionConfig)}
                   {...coverEditProps}
-                  groomName={hostEditor ? groomDraft : card.groomName}
-                  brideName={hostEditor ? brideDraft : card.brideName}
+                  groomName={asEditor ? groomDraft : card.groomName}
+                  brideName={asEditor ? brideDraft : card.brideName}
                   nameLayout={cardStructure.nameLayout}
                   theme={theme}
                   invitationLabel={tx.invitation}
@@ -3041,8 +3108,8 @@ export default function WeddingPublicClient({
                   coverPhotoScale={coverPhotoScale}
                   frameScale={resolveCoverFrameScale(sectionConfig)}
                   {...coverEditProps}
-                  groomName={hostEditor ? groomDraft : card.groomName}
-                  brideName={hostEditor ? brideDraft : card.brideName}
+                  groomName={asEditor ? groomDraft : card.groomName}
+                  brideName={asEditor ? brideDraft : card.brideName}
                   nameLayout={cardStructure.nameLayout}
                   theme={theme}
                   invitationLabel={tx.invitation}
@@ -3275,8 +3342,8 @@ export default function WeddingPublicClient({
             {!heroStack && (visualEdit || groomPhotoUrl.trim() || bridePhotoUrl.trim()) ? (
               <WeddingReadableGlass reveal className="rounded-[1.75rem] px-4 py-5 text-center sm:rounded-[2rem] sm:px-6 sm:py-7">
                 <WeddingCouplePortraits
-                  groomName={hostEditor ? groomDraft : card.groomName}
-                  brideName={hostEditor ? brideDraft : card.brideName}
+                  groomName={asEditor ? groomDraft : card.groomName}
+                  brideName={asEditor ? brideDraft : card.brideName}
                   groomImageUrl={groomPhotoUrl}
                   brideImageUrl={bridePhotoUrl}
                   layout={cardStructure.portraitLayout}
@@ -3333,7 +3400,7 @@ export default function WeddingPublicClient({
                 className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}
               >
                 {renderWeddingHighlightedText(
-                  withoutPartyAddress(hostEditor ? introDraft : card.coupleIntro) || withoutPartyAddress(hostEditor ? storyDraft : card.storyText) || tx.defaultCoupleIntro,
+                  withoutPartyAddress(asEditor ? introDraft : card.coupleIntro) || withoutPartyAddress(asEditor ? storyDraft : card.storyText) || tx.defaultCoupleIntro,
                   textTokens,
                   uiLocale,
                   nameHighlightClass,
@@ -3483,7 +3550,7 @@ export default function WeddingPublicClient({
             {showBothHouses ? (
               <div className="space-y-4">
                 {(['groom', 'bride'] as const).map((side) => {
-                  const loc = resolveGuestInviteLocation(hostEditor ? viewCard : card, side === 'groom' ? 'groom_home' : 'bride_home')
+                  const loc = resolveGuestInviteLocation(asEditor ? viewCard : card, side === 'groom' ? 'groom_home' : 'bride_home')
                   const draft = side === 'bride' ? bridePlaceDraft : groomPlaceDraft
                   const iso = resolveWeddingDateIso(loc.weddingDate)
                   const label = side === 'groom' ? tx.groomFamily : tx.brideFamily
@@ -3651,11 +3718,11 @@ export default function WeddingPublicClient({
                   <span>{displayVenue}</span>
                 </p>
               </div>
-              {(hostEditor ? contactDraft : guestInviteLocation.contact) ? (
+              {(asEditor ? contactDraft : guestInviteLocation.contact) ? (
                 <p
                   className={cn('mt-3 text-sm', theme.mutedText, theme.textGlow)}
                 >
-                  {tx.contactLabel}: {hostEditor ? contactDraft : guestInviteLocation.contact}
+                  {tx.contactLabel}: {asEditor ? contactDraft : guestInviteLocation.contact}
                 </p>
               ) : null}
               <WeddingInvitationShareActions
@@ -3818,7 +3885,7 @@ export default function WeddingPublicClient({
           className="px-3 py-3 sm:px-4"
         >
           <div className={PUBLIC_COLUMN}>
-          {(withoutPartyAddress(hostEditor ? storyDraft : card.storyText).trim() !== '' && withoutPartyAddress(hostEditor ? storyDraft : card.storyText).trim() !== withoutPartyAddress(hostEditor ? introDraft : card.coupleIntro).trim()) ? (
+          {(withoutPartyAddress(asEditor ? storyDraft : card.storyText).trim() !== '' && withoutPartyAddress(asEditor ? storyDraft : card.storyText).trim() !== withoutPartyAddress(asEditor ? introDraft : card.coupleIntro).trim()) ? (
             <WeddingSectionCard theme={theme} title={tx.storyTitle}>
               <WeddingGuestTextSlot
                 editing={Boolean(hostEditor && frameLines)}
@@ -3831,7 +3898,7 @@ export default function WeddingPublicClient({
                 style={textCss('story')}
                 className={cn('whitespace-pre-line text-center leading-8', theme.mutedText, theme.textGlow)}
               >
-                {renderWeddingHighlightedText(withoutPartyAddress(hostEditor ? storyDraft : card.storyText), textTokens, uiLocale, nameHighlightClass, guestNameScriptClass)}
+                {renderWeddingHighlightedText(withoutPartyAddress(asEditor ? storyDraft : card.storyText), textTokens, uiLocale, nameHighlightClass, guestNameScriptClass)}
               </WeddingGuestTextSlot>
             </WeddingSectionCard>
           ) : null}

@@ -558,6 +558,7 @@ export default function WeddingCardAiClientPage() {
   const [backgroundConfirmOpen, setBackgroundConfirmOpen] = useState(false)
   const [backgroundPreviewLarge, setBackgroundPreviewLarge] = useState(false)
   const [samplePreviewId, setSamplePreviewId] = useState<string | null>(null)
+  const [pickedSampleId, setPickedSampleId] = useState<string | null>(null)
   const pendingSampleUseRef = useRef('')
   const forceAskNamesRef = useRef(false)
   const sampleApplyLockRef = useRef(false)
@@ -771,6 +772,10 @@ export default function WeddingCardAiClientPage() {
     () => weddingSamplesWithActiveFirst(weddingOccasionDemos(card.occasionKey), activeSample?.id),
     [activeSample?.id, card.occasionKey],
   )
+  useEffect(() => {
+    setPickedSampleId(null)
+  }, [activeSample?.id])
+  const demoSampleId = pickedSampleId || activeSample?.id || ''
   const readyBackground = resolveWeddingChromeKit(sectionConfig)
   const ornamentKey = weddingOrnamentLayoutKey({
     backgroundPresetId: sectionConfig.backgroundPresetId,
@@ -2587,14 +2592,10 @@ export default function WeddingCardAiClientPage() {
                   locale={uiLocale}
                   samples={sampleChoices}
                   activeId={activeSample?.id}
+                  previewId={demoSampleId}
                   inUseLabel={tImage.sampleLookInUse}
                   disabled={Boolean(applyingLibraryId) || !card.id}
-                  onOpen={(sample) => {
-                    const params = new URLSearchParams()
-                    if (card.id) params.set('cardId', card.id)
-                    params.set('occasion', normalizeInvitationOccasion(card.occasionKey))
-                    window.location.assign(`/thiep-mau/${encodeURIComponent(sample.id)}?${params}`)
-                  }}
+                  onOpen={(sample) => setPickedSampleId(sample.id)}
                 />
                 <Button type="button" className="w-full sm:w-auto" onClick={openBackgroundPicker}>
                   {coverBackgroundUrl ? tImage.chooseBackgroundAgain : tImage.chooseBackground}
@@ -2620,9 +2621,10 @@ export default function WeddingCardAiClientPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {card.slug ? (
+                {demoSampleId || card.slug ? (
                   <WeddingCardPhoneDemo
                     slug={card.slug}
+                    sampleId={demoSampleId}
                     view={oneVenue ? 'groom' : previewLetterView}
                     guestName={previewDemo.guestDisplayName}
                     title={tImage.workspaceDemoTitle}
@@ -2802,6 +2804,7 @@ export default function WeddingCardAiClientPage() {
 
 function WeddingCardPhoneDemo(props: {
   slug: string
+  sampleId?: string
   view: 'groom' | 'bride'
   guestName: string
   title: string
@@ -2826,7 +2829,10 @@ function WeddingCardPhoneDemo(props: {
     guest: props.guestName,
     device: 'mobile',
   })
-  const src = `/thiep-moi-cuoi/${encodeURIComponent(props.slug)}?${query.toString()}`
+  if (props.sampleId && props.slug) query.set('look', props.sampleId)
+  const src = props.slug
+    ? `/thiep-moi-cuoi/${encodeURIComponent(props.slug)}?${query.toString()}`
+    : `/thiep-mau/${encodeURIComponent(props.sampleId || '')}?quiet=1&device=mobile`
   return (
     <div
       ref={boxRef}
@@ -2834,6 +2840,7 @@ function WeddingCardPhoneDemo(props: {
       style={{ height: Math.max(240, Math.round(height * scale)) }}
     >
       <iframe
+        key={src}
         title={props.title}
         src={src}
         scrolling="no"

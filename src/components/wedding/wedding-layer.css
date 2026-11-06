@@ -283,3 +283,31 @@ html:has([data-wedding-public]) {
     transform: none;
   }
 }
+
+/* iOS: Safari không cắt ảnh đang scale trong overflow:hidden, và phóng chữ nhỏ làm khối trôi.
+   Android không có data-wedding-ios nên các rule này không đụng layout. */
+html[data-wedding-ios]:has([data-wedding-public]) {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html[data-wedding-ios]:has([data-wedding-public]) body {
+  padding-bottom: 0 !important;
+}
+
+html[data-wedding-ios]:has([data-wedding-public]) [data-wedding-letter-nav] {
+  top: env(safe-area-inset-top, 0px);
+}
+
+html[data-wedding-ios]:has([data-wedding-public]) #wedding-letter-edit:not(.absolute) {
+  padding-top: calc(3rem + env(safe-area-inset-top, 0px));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+html[data-wedding-ios]:has([data-wedding-public]) [data-wedding-stage] .overflow-hidden {
+  overflow: clip;
+}
+
+html[data-wedding-ios]:has([data-wedding-public]) [data-wedding-stage] :is(.font-serif, .wedding-guest-name).leading-none {
+  line-height: 1.2;
+}

@@ -942,7 +942,7 @@ export function weddingSampleLookOnCard<T extends {
   groomImageUrl: string
   brideImageUrl: string
   albumImageUrls: string[]
-}>(card: T, sample: WeddingSampleCard): (T & {
+}>(card: T, sample: WeddingSampleCard, options?: { keepPhotos?: boolean }): (T & {
   selectedStyleId: string
   colorPalette: string
   plateUrls: string[]
@@ -964,10 +964,11 @@ export function weddingSampleLookOnCard<T extends {
     : sample.aiStyleId
       ? weddingAiKitSectionPatch(sample.aiStyleId)
       : weddingReadyBackgroundSectionPatch(preset!)
-  const visual = stripWeddingSamplePhotos({
+  const withLook = {
     ...card,
     sectionConfig: mergeWeddingSectionConfig(cleared, patch),
-  })
+  }
+  const visual = options?.keepPhotos ? withLook : stripWeddingSamplePhotos(withLook)
   const opened = withoutPrivateShell(parseWeddingSectionConfig(visual.sectionConfig))
   return {
     ...visual,

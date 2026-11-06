@@ -18,7 +18,7 @@ import WeddingPublicClient from '@/app/thiep-moi-cuoi/[slug]/wedding-public-clie
 
 type Props = {
   params: { id: string }
-  searchParams?: { embed?: string; still?: string; occasion?: string }
+  searchParams?: { embed?: string; still?: string; occasion?: string; quiet?: string }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -33,6 +33,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function WeddingSampleDemoPage({ params, searchParams }: Props) {
   const still = searchParams?.still === '1'
+  const quiet = searchParams?.quiet === '1'
+  const bare = still || quiet
   const found = findWeddingSampleCard(params.id)
   const sample = found && searchParams?.occasion && !/^(day-thang|thoi-noi|sinh-nhat|mung-tho|khai-truong|tan-gia|lien-hoan|tot-nghiep|su-kien)-/.test(found.id)
     ? { ...found, occasionKey: normalizeInvitationOccasion(searchParams.occasion) }
@@ -84,17 +86,18 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
         ornamentSharedMobile={sharedCoverMobile ?? sharedMobile ?? sharedOrnaments}
         ornamentLetterSharedMobile={sharedLetterMobile}
         ornamentLayoutKey={ornamentKey}
-        ornamentEditor={still ? false : admin}
-        hostEditor={still ? false : admin}
-        templateEditor={still ? false : admin}
+        ornamentEditor={bare ? false : admin}
+        hostEditor={bare ? false : admin}
+        templateEditor={bare ? false : admin}
         sharedShell={{ desktop: sharedShellDesktop, mobile: sharedShellMobile }}
         initialSharedFrame={sharedFrame}
-        samplePresetId={still ? '' : admin ? sample.id : ''}
+        samplePresetId={bare ? '' : admin ? sample.id : ''}
         sampleDemo
-        demoMusicUrls={demoMusicUrls}
+        demoMusicUrls={quiet ? [] : demoMusicUrls}
         captureStill={still}
+        quietFrame={quiet}
       />
-      {still ? null : (
+      {bare ? null : (
         <WeddingSampleDemoBar sampleId={sample.id} embed={searchParams?.embed === '1'} signedIn={Boolean(viewer)} />
       )}
     </>

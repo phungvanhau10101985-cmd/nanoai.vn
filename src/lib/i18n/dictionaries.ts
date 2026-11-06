@@ -8607,7 +8607,7 @@ export const VI_DICTIONARY: Dictionary = {
     previewColumnNote: 'Chọn nền hoặc giao diện bên trái thì cột này đổi theo ngay. Sửa hoa văn tới đâu tự lưu vào thiệp này tới đó.',
     previewRefresh: 'Cập nhật preview',
     workspaceDemoTitle: 'Demo thiệp',
-    workspaceDemoHint: 'Đây là thiệp đang chọn, cỡ điện thoại. Sửa chữ, ảnh, khung và thêm hoa khi bấm Sửa thiệp.',
+    workspaceDemoHint: 'Đây là mẫu đang chọn, cỡ điện thoại, với tên và lời bạn đã điền. Đổi mẫu thì giao diện đổi theo ngay.',
     workspaceDemoEmpty: 'Thiệp chưa có link xem. Bấm Sửa thiệp để mở.',
     workspaceExtrasTitle: 'Nhạc, QR, album và hiệu ứng',
     workspaceExtrasHint: 'Những phần này chưa sửa trên mặt thiệp. Lời tiếng Anh và Tối ưu AI cũng nằm ở đây.',

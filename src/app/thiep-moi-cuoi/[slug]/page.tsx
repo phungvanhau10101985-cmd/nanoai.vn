@@ -25,11 +25,12 @@ import { invitationCardStructure, invitationSeoCopy, invitationShowsSecondVenue,
 import { buildWeddingPublicDescription, buildWeddingPublicJsonLd, buildWeddingPublicTitle } from '@/lib/wedding/wedding-public-seo'
 import { weddingPublicShareImageUrl } from '@/lib/wedding/wedding-share-preview'
 import { weddingDesignViewportBootScript } from '@/lib/wedding/wedding-design-viewport'
+import { findWeddingSampleCard, weddingSampleLookOnCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
 import WeddingPublicClient from './wedding-public-client'
 
 type Props = {
   params: { slug: string }
-  searchParams?: { guest?: string; venue?: string; view?: string; demo?: string; layout?: string; ornamentEdit?: string; stack?: string; sheet?: string }
+  searchParams?: { guest?: string; venue?: string; view?: string; demo?: string; layout?: string; ornamentEdit?: string; stack?: string; sheet?: string; look?: string }
 }
 
 function letterViewFromSearch(viewRaw: string | undefined, venue: ReturnType<typeof normalizeGuestInviteVenue>) {
@@ -62,13 +63,27 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       : [invitationSeoCopy(card.occasionKey).title, card.groomName, card.brideName]
     ).filter(Boolean),
     ogImage: weddingPublicShareImageUrl(SITE_URL, card, searchParams?.guest),
-    noIndex: personalized || !(card.groomName.trim() || card.brideName.trim()),
+    noIndex: personalized || Boolean(String(searchParams?.look ?? '').trim()) || !(card.groomName.trim() || card.brideName.trim()),
   })
 }
 
 export default async function WeddingPublicPage({ params, searchParams }: Props) {
-  const card = await getPublishedWeddingCardBySlug(params.slug).catch(() => null)
-  if (!card) notFound()
+  const published = await getPublishedWeddingCardBySlug(params.slug).catch(() => null)
+  if (!published) notFound()
+  const lookSample = findWeddingSampleCard(String(searchParams?.look ?? '').trim())
+  const sampleLook = lookSample ? weddingSampleLookOnCard(published, lookSample, { keepPhotos: true }) : null
+  const card = sampleLook
+    ? {
+        ...published,
+        sectionConfig: sampleLook.sectionConfig,
+        selectedStyleId: sampleLook.selectedStyleId,
+        colorPalette: sampleLook.colorPalette,
+        groomImageUrl: sampleLook.groomImageUrl,
+        brideImageUrl: sampleLook.brideImageUrl,
+        albumImageUrls: sampleLook.albumImageUrls,
+        masterImageUrl: sampleLook.masterImageUrl,
+      }
+    : published
   const demoPreview = String(searchParams?.demo ?? '') === '1'
   const letterView = letterViewFromSearch(searchParams?.view, normalizeGuestInviteVenue(searchParams?.venue))
   const cardStructure = invitationCardStructure(card.occasionKey)
@@ -144,19 +159,23 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
       }).catch(() => null)
     : null
   const sideWishes = await listPublishedSideGuestWishes(card.id)
-  const backgroundImages = await listPublishedWeddingImages(card.id).catch(() => [])
+  const backgroundImages = sampleLook ? [] : await listPublishedWeddingImages(card.id).catch(() => [])
   const section = parseWeddingSectionConfig(card.sectionConfig)
-  const backgroundPlateUrls = weddingBackgroundPlateUrls(
-    card.masterImageUrl,
-    backgroundImages,
-    section.backgroundPresetId,
-  )
-  const ornamentKey = weddingOrnamentLayoutKey({
-    backgroundPresetId: section.backgroundPresetId,
-    backgroundKitStyleId: section.backgroundKitStyleId,
-    masterImageUrl: card.masterImageUrl,
-  })
-  const cardOrnamentKey = weddingCardOrnamentLayoutKey(card.id)
+  const backgroundPlateUrls = sampleLook
+    ? sampleLook.plateUrls
+    : weddingBackgroundPlateUrls(
+        card.masterImageUrl,
+        backgroundImages,
+        section.backgroundPresetId,
+      )
+  const ornamentKey = sampleLook && lookSample
+    ? weddingSampleSharedLayoutKey(lookSample)
+    : weddingOrnamentLayoutKey({
+        backgroundPresetId: section.backgroundPresetId,
+        backgroundKitStyleId: section.backgroundKitStyleId,
+        masterImageUrl: card.masterImageUrl,
+      })
+  const cardOrnamentKey = sampleLook ? '' : weddingCardOrnamentLayoutKey(card.id)
   const layoutPreview = String(searchParams?.layout ?? '') === 'full'
   const [sharedOrnaments, sharedDesktop, sharedMobile, cardDesktop, cardMobile, sharedCoverMobile, sharedLetterMobile, cardCoverMobile, cardLetterMobile, sharedShellDesktop, sharedShellMobile, sharedFrame] = await Promise.all([
     ornamentKey ? loadWeddingOrnamentLayout(ornamentKey) : null,
@@ -200,7 +219,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
       <script
         dangerouslySetInnerHTML={{
           __html:
-            "try{if(new URLSearchParams(location.search).get('demo')==='1'){window.__pwWeddingScrollFree=true}else{history.scrollRestoration='manual';var pin=function(){if(window.__pwWeddingScrollFree)return;var y=window.scrollY||document.documentElement.scrollTop||0;if(y)window.scrollTo(0,0)};pin();window.addEventListener('scroll',pin,{passive:true});window.addEventListener('pageshow',pin)}}catch(e){}",
+            "try{var q=new URLSearchParams(location.search);if(q.get('demo')==='1'){window.__pwWeddingScrollFree=true}else if(q.get('look')){window.__pwWeddingScrollFree=true;document.documentElement.style.overflow='hidden';if(document.body)document.body.style.overflow='hidden'}else{history.scrollRestoration='manual';var pin=function(){if(window.__pwWeddingScrollFree)return;var y=window.scrollY||document.documentElement.scrollTop||0;if(y)window.scrollTo(0,0)};pin();window.addEventListener('scroll',pin,{passive:true});window.addEventListener('pageshow',pin)}}catch(e){}",
         }}
       />
       <WeddingPublicClient
@@ -233,6 +252,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
             : undefined
         }
         hostPreview={demoPreview && !layoutPreview && !phoneSheet}
+        editorContent={Boolean(sampleLook)}
       />
     </>
   )

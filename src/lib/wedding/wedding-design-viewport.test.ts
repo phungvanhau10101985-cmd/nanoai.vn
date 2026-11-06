@@ -11,6 +11,7 @@ import {
   weddingDesignDeviceFromSearch,
   weddingDesignViewportBootScript,
   weddingDesignViewportContent,
+  weddingIosCoverFitScale,
 } from './wedding-design-viewport'
 
 test('guest and host editor lock the viewport to the design sheet', () => {
@@ -33,6 +34,57 @@ test('guest and host editor lock the viewport to the design sheet', () => {
   assert.match(script, /1440/)
   assert.match(script, /390/)
   assert.doesNotMatch(script, /innerWidth/)
+})
+
+test('iOS cover fits the safe viewport and Android keeps the width scale', () => {
+  assert.equal(
+    weddingIosCoverFitScale({
+      fitSafeHeight: false,
+      fitHeight: false,
+      viewWidth: 390,
+      safeHeight: 760,
+      contentHeight: 844,
+      designWidth: 390,
+      maxScale: 1,
+    }),
+    1,
+  )
+  assert.equal(
+    weddingIosCoverFitScale({
+      fitSafeHeight: true,
+      fitHeight: false,
+      viewWidth: 390,
+      safeHeight: 760,
+      contentHeight: 844,
+      designWidth: 390,
+      maxScale: 1,
+    }),
+    760 / 844,
+  )
+  assert.equal(
+    weddingIosCoverFitScale({
+      fitSafeHeight: false,
+      fitHeight: false,
+      viewWidth: 390,
+      safeHeight: 760,
+      contentHeight: 1600,
+      designWidth: 390,
+      maxScale: 1,
+    }),
+    1,
+  )
+  assert.equal(
+    weddingIosCoverFitScale({
+      fitSafeHeight: true,
+      fitHeight: false,
+      viewWidth: 390,
+      safeHeight: 760,
+      contentHeight: 400,
+      designWidth: 390,
+      maxScale: 1,
+    }),
+    1,
+  )
 })
 
 test('letter ornaments repeat down the content and a short letter stays one sheet', () => {
