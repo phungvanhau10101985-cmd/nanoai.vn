@@ -1815,21 +1815,22 @@ export default function WeddingPublicClient({
     let shown = false
     let overChrome = false
     let pressingChrome = false
-    let blockMove = false
-    let holdTimer: number | null = null
-    let gesture: { id: number; x: number; y: number; moved: boolean; held: boolean; up: boolean } | null = null
-    const clearHoldTimer = () => {
-      if (!holdTimer) return
-      window.clearTimeout(holdTimer)
-      holdTimer = null
+    let gesture: { id: number; x: number; y: number; moved: boolean } | null = null
+    const clearTimer = () => {
+      if (!timer) return
+      window.clearTimeout(timer)
+      timer = null
     }
     const onChrome = (target: EventTarget | null) =>
       target instanceof Element && Boolean(target.closest('[data-wedding-host-chrome]'))
     const onFlower = (target: EventTarget | null) =>
       target instanceof Element && Boolean(target.closest('[data-ornament-hit], [data-ornament-tools], [role="dialog"]'))
+    /** Nút trên thiệp (bản đồ, Mở thiệp, Có đi, Không đi, …) giữ cú bấm của chính nó. */
+    const onCardControl = (target: EventTarget | null) =>
+      target instanceof Element &&
+      Boolean(target.closest('a, button, input, textarea, select, label, summary, [role="button"], [role="link"]'))
     const conceal = () => {
-      if (timer) window.clearTimeout(timer)
-      timer = null
+      clearTimer()
       if (!shown) return
       shown = false
       setChromeHold(false)
@@ -1837,10 +1838,10 @@ export default function WeddingPublicClient({
     const onFlowerIdle = () => conceal()
     window.addEventListener('wedding-browse-flower-idle', onFlowerIdle)
     const armHide = () => {
-      if (timer) window.clearTimeout(timer)
+      clearTimer()
       timer = window.setTimeout(() => {
         timer = null
-        if (overChrome || pressingChrome || gesture?.up) return
+        if (overChrome || pressingChrome) return
         conceal()
       }, 3200)
     }
@@ -1857,10 +1858,8 @@ export default function WeddingPublicClient({
       if (onChrome(event.target)) {
         overChrome = true
         pressingChrome = true
-        blockMove = false
         gesture = null
-        if (timer) window.clearTimeout(timer)
-        timer = null
+        clearTimer()
         if (!shown) {
           shown = true
           setChromeHold(true)
@@ -1868,57 +1867,22 @@ export default function WeddingPublicClient({
         return
       }
       overChrome = false
-      if (event.pointerType === 'mouse') {
-        blockMove = true
-        conceal()
-        return
-      }
-      clearHoldTimer()
-      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, held: false, up: false }
-      holdTimer = window.setTimeout(() => {
-        holdTimer = null
-        if (gesture && !gesture.moved) gesture.held = true
-      }, 350)
+      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false }
     }
     const onMove = (event: PointerEvent) => {
       if (pressingChrome) return
-      if (event.pointerType === 'mouse') {
-        if (blockMove) return
-        if (onChrome(event.target)) {
-          overChrome = true
-          if (timer) window.clearTimeout(timer)
-          timer = null
-          if (!shown) {
-            shown = true
-            setChromeHold(true)
-          }
-          return
-        }
-        overChrome = false
-        reveal()
+      if (onChrome(event.target)) {
+        overChrome = true
+        clearTimer()
         return
+      }
+      if (overChrome) {
+        overChrome = false
+        if (shown) armHide()
       }
       if (!gesture || gesture.id !== event.pointerId) return
-      const dx = event.clientX - gesture.x
-      const dy = event.clientY - gesture.y
-      const dist = Math.hypot(dx, dy)
-      if (!gesture.held && dist > 12) {
-        gesture.moved = true
-        clearHoldTimer()
-        conceal()
-        return
-      }
-      if (!gesture.held) return
-      if (dy <= -36 && Math.abs(dy) >= Math.abs(dx)) {
-        gesture.up = true
-        gesture.moved = true
-        reveal()
-        return
-      }
-      if (dy > 16) {
-        gesture.moved = true
-        conceal()
-      }
+      const dist = Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y)
+      if (dist > 12) gesture.moved = true
     }
     const onUp = (event: PointerEvent) => {
       if (pressingChrome) {
@@ -1927,22 +1891,15 @@ export default function WeddingPublicClient({
         if (overChrome) return
         armHide()
       }
-      if (event.pointerType === 'mouse') {
-        blockMove = false
-        return
-      }
-      clearHoldTimer()
       if (!gesture || gesture.id !== event.pointerId) return
-      const swipeUp = gesture.up
       const tap = !gesture.moved
       gesture = null
-      if (swipeUp) {
-        reveal()
+      if (!tap || onChrome(event.target) || onFlower(event.target)) return
+      if (onCardControl(event.target)) {
+        conceal()
         return
       }
-      if (!tap || onChrome(event.target) || onFlower(event.target)) return
-      if (shown) conceal()
-      else reveal()
+      reveal()
     }
     const onLeaveChrome = (event: PointerEvent) => {
       if (!onChrome(event.target)) return
@@ -1969,8 +1926,7 @@ export default function WeddingPublicClient({
       window.removeEventListener('pointerout', onLeaveChrome, true)
       window.removeEventListener('wheel', onWheel, true)
       window.removeEventListener('wedding-browse-flower-idle', onFlowerIdle)
-      if (timer) window.clearTimeout(timer)
-      clearHoldTimer()
+      clearTimer()
     }
   }, [hostEditor, frameLines])
 
