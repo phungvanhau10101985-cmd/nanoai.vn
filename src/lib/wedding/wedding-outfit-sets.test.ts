@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { WEDDING_BACKGROUND_PRESETS } from './wedding-background-presets'
+import { WEDDING_SAMPLE_CARDS } from './wedding-sample-cards'
 import {
   WEDDING_OUTFIT_SET_COUNT,
   WEDDING_SHARED_OUTFIT_COUNT,
   parseWeddingOutfitIndex,
   weddingOutfitChoices,
+  weddingOutfitFamilyForCard,
   weddingOutfitFamilyId,
   weddingOutfitFamilyIds,
   weddingOutfitImagePaths,
@@ -24,7 +26,38 @@ test('each background preset has six outfit photographs', () => {
     assert.equal(paths[5], `/wedding/outfits/${family}/6.webp`)
     used.add(family)
   }
-  assert.deepEqual(new Set(weddingOutfitFamilyIds()), used)
+  const extras = [
+    'kho-hong-buom',
+    'kho-sen-hong',
+    'kho-hac-sen',
+    'kho-hac-do',
+    'kho-phung-do',
+    'kho-mau-don',
+    'kho-do-phap',
+    'kho-hong-baby',
+    'ai-luxury',
+    'ai-minimal',
+    'ai-truyen-thong',
+    'ai-floral',
+    'ai-ethereal',
+    'ai-vintage',
+    'ai-modern',
+  ]
+  assert.deepEqual(new Set(weddingOutfitFamilyIds()), new Set([...used, ...extras]))
+})
+
+test('library papers and ai styles have their own outfit sets', () => {
+  for (const sample of WEDDING_SAMPLE_CARDS) {
+    const family = weddingOutfitFamilyForCard({
+      backgroundPresetId: sample.backgroundPresetId,
+      backgroundKitStyleId: sample.libraryImageUrl ? '' : sample.aiStyleId,
+      masterImageUrl: sample.libraryImageUrl || '',
+    })
+    assert.ok(family, sample.id)
+    assert.equal(weddingOutfitImagePaths(family).length, WEDDING_OUTFIT_SET_COUNT)
+  }
+  assert.equal(weddingOutfitFamilyForCard({ backgroundKitStyleId: 'traditional_vietnamese' }), 'ai-truyen-thong')
+  assert.equal(weddingOutfitFamilyForCard({ backgroundPresetId: 'sen-vang', backgroundKitStyleId: 'floral' }), 'sen-vang')
 })
 
 test('layout variants of one paper share the outfit set', () => {

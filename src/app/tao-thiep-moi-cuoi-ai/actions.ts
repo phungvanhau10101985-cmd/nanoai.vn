@@ -33,7 +33,7 @@ import {
 } from '@/lib/wedding/restyle-wedding-couple-photo'
 import {
   parseWeddingOutfitIndex,
-  weddingOutfitFamilyId,
+  weddingOutfitFamilyForCard,
   weddingOutfitPublicPath,
 } from '@/lib/wedding/wedding-outfit-sets'
 import { findWeddingRestylePlace } from '@/lib/wedding/wedding-restyle-places'
@@ -859,7 +859,11 @@ export async function restyleWeddingCouplePhoto(formData: FormData) {
   const sourceUrl = weddingCouplePhotoSourceUrl(existing, slot)
   if (!sourceUrl || isWeddingSamplePhotoUrl(sourceUrl)) return { error: 'empty' as const }
   const sectionForOutfit = parseWeddingSectionConfig(existing.sectionConfig)
-  const outfitFamily = weddingOutfitFamilyId(sectionForOutfit.backgroundPresetId)
+  const outfitFamily = weddingOutfitFamilyForCard({
+    backgroundPresetId: sectionForOutfit.backgroundPresetId,
+    backgroundKitStyleId: sectionForOutfit.backgroundKitStyleId,
+    masterImageUrl: existing.masterImageUrl,
+  })
   let outfitPath: string | null = null
   if (!uploadedOutfit) {
     if (!outfitIndex) return { error: 'invalid' as const }

@@ -104,6 +104,22 @@ async function callImageRetry(args) {
   throw new Error('retry_exhausted')
 }
 
+async function loadPlate(plate) {
+  const raw = String(plate || '').trim()
+  if (!raw) return null
+  let input
+  if (/^https?:\/\//i.test(raw)) {
+    const res = await fetch(raw)
+    if (!res.ok) throw new Error(`plate HTTP ${res.status}`)
+    input = Buffer.from(await res.arrayBuffer())
+  } else {
+    const file = join('public', raw.replace(/^\//, ''))
+    if (!existsSync(file)) return null
+    input = readFileSync(file)
+  }
+  return sharp(input).rotate().resize({ width: 1280, withoutEnlargement: true }).jpeg({ quality: 84 }).toBuffer()
+}
+
 const asked = process.argv.slice(2).filter((arg) => !arg.startsWith('--'))
 const ids = asked.length ? asked : Object.keys(briefs)
 for (const id of ids) {
@@ -124,14 +140,21 @@ for (const id of ids) {
   }
 }
 
+const plateCache = new Map()
+async function plateFor(id) {
+  if (plateCache.has(id)) return plateCache.get(id)
+  const image = await loadPlate(briefs[id].plate)
+  plateCache.set(id, image)
+  return image
+}
+
 let cursor = 0
 async function worker() {
   while (cursor < jobs.length) {
     const job = jobs[cursor]
     cursor += 1
     const brief = briefs[job.id]
-    const plate = brief.plate ? join('public', brief.plate.replace(/^\//, '')) : ''
-    const image = plate && existsSync(plate) ? readFileSync(plate) : null
+    const image = await plateFor(job.id)
     console.log(`start ${job.id} ${job.index + 1}`)
     try {
       const raw = await callImageRetry({ prompt: promptFor(brief, job.index), image })

@@ -126,5 +126,65 @@
   "duong-lam-paper": {
     "plate": "/wedding/backgrounds/duong-lam-paper.jpg",
     "dress": "Laterite brown and cream. The gown is ivory or warm sand silk. The groom wears a laterite-brown or cream linen suit."
+  },
+  "kho-hong-buom": {
+    "plate": "https://cdn.nanoai.vn/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/wedding_417213ca-b2e3-4e2c-a642-d7bac605fad0_master_1792295417507.png",
+    "dress": "Blush roses, cream, and pale gold butterflies on ivory. The gown is ivory or blush silk with a small rose and one tiny gold butterfly. The groom wears a champagne or blush suit. The gown is not red and not scarlet."
+  },
+  "kho-sen-hong": {
+    "plate": "https://cdn.nanoai.vn/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/wedding_417213ca-b2e3-4e2c-a642-d7bac605fad0_master_1792294270595.png",
+    "dress": "Pink lotus, gold leaves, and a small red heart on cream. The gown is blush or ivory silk with one small lotus bud in gold thread. The groom wears a champagne or soft-pink suit. The gown is not scarlet."
+  },
+  "kho-hac-sen": {
+    "plate": "https://cdn.nanoai.vn/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/wedding_417213ca-b2e3-4e2c-a642-d7bac605fad0_master_1792245305419.png",
+    "dress": "Cranes, pink and red lotus, and gold clouds on cream. The gown is ivory or blush silk with a small crane or lotus in gold thread. The groom wears a gold or cream ao dai. The gown is not a solid red field."
+  },
+  "kho-hac-do": {
+    "plate": "https://cdn.nanoai.vn/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/wedding_417213ca-b2e3-4e2c-a642-d7bac605fad0_master_1792245273399.png",
+    "dress": "White cranes, deep red lotus, and gold clouds on cream. The gown is ivory or lacquer-red silk with a small crane. The groom wears a red or gold ao dai. The gown is red or ivory."
+  },
+  "kho-phung-do": {
+    "plate": "https://cdn.nanoai.vn/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/wedding_417213ca-b2e3-4e2c-a642-d7bac605fad0_master_1792244248569.png",
+    "dress": "A gold phoenix and red lotus on warm red-cream paper. The gown is lacquer red or ivory silk with one small gold feather motif. The groom wears a red or gold ao dai."
+  },
+  "kho-mau-don": {
+    "plate": "https://cdn.nanoai.vn/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/wedding_417213ca-b2e3-4e2c-a642-d7bac605fad0_master_1792244045885.png",
+    "dress": "Burgundy peony borders, pink lotus, and gold clouds on cream. The gown is ivory, blush, or wine silk with one peony. The groom wears a burgundy or champagne suit."
+  },
+  "kho-do-phap": {
+    "plate": "https://cdn.nanoai.vn/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/wedding_417213ca-b2e3-4e2c-a642-d7bac605fad0_master_1792243323419.png",
+    "dress": "A scarlet field, red roses, and gold fireworks. The gown is scarlet or ivory silk with a small rose and one tiny gold spark. The groom wears a scarlet ao dai or a gold-trimmed ivory jacket. The gown is scarlet or ivory."
+  },
+  "kho-hong-baby": {
+    "plate": "https://cdn.nanoai.vn/results/5b798db2-a4a7-41dd-a03b-aebb709a4d11/wedding_77f0b5ba-14c7-4bca-a50a-f38562b4bc84_master_1793034395126.png",
+    "dress": "Watercolor blush roses and baby's breath on cream. The gown is ivory or pale blush silk with one small rose and a sprig of tiny white flowers. The groom wears a cream or blush linen suit. No red lacquer."
+  },
+  "ai-luxury": {
+    "plate": "",
+    "dress": "Champagne gold, ivory, and a little blush. The gown is ivory silk with a fine gold motif. The groom wears a champagne suit. No scarlet."
+  },
+  "ai-minimal": {
+    "plate": "",
+    "dress": "Warm white and sage, almost plain. The gown is warm-white silk with one sage thread at the hem. The groom wears a sage or warm-white suit. No gold brocade and no red."
+  },
+  "ai-truyen-thong": {
+    "plate": "",
+    "dress": "Scarlet, gold, and lotus pink, a Vietnamese wedding. The gown is scarlet or ivory silk with a small lotus. The groom wears a red or gold ao dai. No readable letters."
+  },
+  "ai-floral": {
+    "plate": "",
+    "dress": "Ivory, blush peony, and a little eucalyptus. The gown is ivory or blush silk with one small peony. The groom wears a blush or ivory suit. No scarlet field."
+  },
+  "ai-ethereal": {
+    "plate": "",
+    "dress": "Ivory cloth and one pale ink-brown branch, with lots of empty fabric. The gown is ivory silk with a single small stem. The groom wears an ivory suit. No dense pattern and no red."
+  },
+  "ai-vintage": {
+    "plate": "",
+    "dress": "Sepia, dusty rose, and antique gold. The gown is dusty-rose or ivory silk with a small antique-gold motif. The groom wears a sepia or dusty-rose suit."
+  },
+  "ai-modern": {
+    "plate": "",
+    "dress": "Black, white, and a thin metallic gold line. The gown is white silk with one gold line. The groom wears a black suit. The gown stays white, not black."
   }
 }

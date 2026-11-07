@@ -11,6 +11,17 @@ export const WEDDING_SHARED_OUTFIT_ID = 'shared'
 const FAMILY_ID = /^[a-z0-9-]{1,80}$/
 const BRIEFS: Record<string, { plate?: string }> = weddingOutfitBriefs
 
+/** Chủ đề phong cách AI không có giấy riêng. Mỗi mã một bộ trang phục. */
+const AI_STYLE_FAMILY: Record<string, string> = {
+  luxury: 'ai-luxury',
+  minimal: 'ai-minimal',
+  traditional_vietnamese: 'ai-truyen-thong',
+  floral: 'ai-floral',
+  ethereal: 'ai-ethereal',
+  vintage: 'ai-vintage',
+  modern: 'ai-modern',
+}
+
 export function weddingOutfitFamilyIds(): string[] {
   return Object.keys(BRIEFS)
 }
@@ -27,6 +38,32 @@ export function weddingOutfitFamilyId(presetId: string | null | undefined): stri
     if (FAMILY_ID.test(id) && BRIEFS[id]) return id
   }
   if (preset.plates.some((plate) => plate.endsWith('/song-hy-do.svg')) && BRIEFS['song-hy-do']) return 'song-hy-do'
+  return null
+}
+
+function familyFromPlateUrl(raw: string | null | undefined): string | null {
+  const url = raw?.trim().split('?')[0] || ''
+  if (!url) return null
+  for (const [id, brief] of Object.entries(BRIEFS)) {
+    const plate = brief.plate?.trim() || ''
+    if (!plate) continue
+    if (url === plate || (plate.startsWith('/') && url.endsWith(plate))) return id
+  }
+  return null
+}
+
+/** Giấy có sẵn, rồi ảnh kho, rồi phong cách AI. */
+export function weddingOutfitFamilyForCard(input: {
+  backgroundPresetId?: string | null
+  backgroundKitStyleId?: string | null
+  masterImageUrl?: string | null
+}): string | null {
+  const fromPreset = weddingOutfitFamilyId(input.backgroundPresetId)
+  if (fromPreset) return fromPreset
+  const fromPlate = familyFromPlateUrl(input.masterImageUrl)
+  if (fromPlate) return fromPlate
+  const ai = AI_STYLE_FAMILY[input.backgroundKitStyleId?.trim() || '']
+  if (ai && BRIEFS[ai]) return ai
   return null
 }
 

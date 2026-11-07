@@ -61,7 +61,7 @@ import { WeddingRestylePhotoProvider } from '@/components/wedding/wedding-restyl
 import { WeddingRestylePhotoDialog, type WeddingRestylePhotoReport } from '@/components/wedding/wedding-restyle-photo-dialog'
 import { WeddingRunningProgress } from '@/components/wedding/wedding-running-progress'
 import { listWeddingRestylePhotoChoices, WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT, weddingRestyledSlotUrl, type WeddingCouplePhotoRestyleId } from '@/lib/wedding/restyle-wedding-couple-photo'
-import { weddingOutfitChoices, weddingOutfitFamilyId } from '@/lib/wedding/wedding-outfit-sets'
+import { weddingOutfitChoices, weddingOutfitFamilyForCard } from '@/lib/wedding/wedding-outfit-sets'
 import { WEDDING_RESTYLE_PLACES, weddingRestylePlaceLabel } from '@/lib/wedding/wedding-restyle-places'
 import type { WeddingCoverFrameLibraryItem, WeddingMusicLibraryRow } from '@/lib/db/wedding-cards-pg'
 import type { WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
@@ -950,8 +950,12 @@ export default function WeddingPublicClient({
   const tImage = getDictionary(uiLocale).weddingCardAiImage
   const tCover = getDictionary(uiLocale).weddingCardAiCover
   const restyleOutfits = useMemo(
-    () => weddingOutfitChoices(weddingOutfitFamilyId(sectionConfig.backgroundPresetId)),
-    [sectionConfig.backgroundPresetId],
+    () => weddingOutfitChoices(weddingOutfitFamilyForCard({
+      backgroundPresetId: sectionConfig.backgroundPresetId,
+      backgroundKitStyleId: sectionConfig.backgroundKitStyleId,
+      masterImageUrl: pageBackground,
+    })),
+    [pageBackground, sectionConfig.backgroundKitStyleId, sectionConfig.backgroundPresetId],
   )
   const restylePlaces = useMemo(
     () => WEDDING_RESTYLE_PLACES.map((place) => ({
