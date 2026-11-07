@@ -4095,6 +4095,7 @@ export type Dictionary = {
     frameSizeLabel: string
     changePhoto: string
     restylePhoto: string
+    restylePhotoDownload: string
     restylePhotoCredit: string
     restylePhotoBusy: string
     restylePhotoHint: string
@@ -4102,6 +4103,35 @@ export type Dictionary = {
     restylePhotoNeedCredit: string
     restylePhotoFailed: string
     restylePhotoEmpty: string
+    restylePhotoTitle: string
+    restylePhotoOutfit: string
+    restylePhotoOutfitHint: string
+    restylePhotoShared: string
+    restylePhotoSharedHint: string
+    restylePhotoUpload: string
+    restylePhotoUploadHint: string
+    restylePhotoUploadBusy: string
+    restylePhotoUploadFailed: string
+    restylePhotoOutfitConfirm: string
+    restylePhotoBackground: string
+    restylePhotoPlace: string
+    restylePhotoPlaceHint: string
+    restylePhotoVietnam: string
+    restylePhotoWorld: string
+    restylePhotoPhotos: string
+    restylePhotoStart: string
+    restylePhotoProgress: string
+    restylePhotoPartial: string
+    restylePhotoDoneMany: string
+    restylePhotoNeedOutfit: string
+    restylePhotoReportTitle: string
+    restylePhotoReportClose: string
+    restylePhotoReportFailed: string
+    restylePhotoReportSkipped: string
+    restyleSlotCover: string
+    restyleSlotGroom: string
+    restyleSlotBride: string
+    restyleSlotAlbum: string
     coverPhotoZoomOut: string
     coverPhotoZoomIn: string
     uploadHint: string
@@ -8699,13 +8729,43 @@ export const VI_DICTIONARY: Dictionary = {
     frameSizeLabel: 'Cỡ khung',
     changePhoto: 'Đổi ảnh',
     restylePhoto: 'Dựng lại ảnh',
+    restylePhotoDownload: 'Tải ảnh',
     restylePhotoCredit: '{n} credit',
     restylePhotoBusy: 'Đang dựng…',
-    restylePhotoHint: 'Giữ khuôn mặt, làm mịn da, chỉnh kiểu tóc cho hợp ảnh cưới. Tốn {n} credit.',
+    restylePhotoHint: 'Chọn trang phục, nền và những ảnh cần dựng. Giữ khuôn mặt. Mỗi ảnh tốn {n} credit.',
     restylePhotoDone: 'Đã dựng lại ảnh. Đã trừ {n} credit.',
     restylePhotoNeedCredit: 'Không đủ credit. Cần {n} credit.',
     restylePhotoFailed: 'Không dựng lại được ảnh.',
     restylePhotoEmpty: 'Chưa có ảnh để dựng lại.',
+    restylePhotoTitle: 'Dựng lại ảnh',
+    restylePhotoOutfit: 'Trang phục cô dâu chú rể',
+    restylePhotoOutfitHint: 'Mỗi ảnh là một bộ váy và trang phục chú rể, hợp màu với nền. Chọn một bộ để dựng theo.',
+    restylePhotoShared: 'Bộ dùng chung',
+    restylePhotoSharedHint: 'Váy dài trắng, hoa văn đám cưới gắn kim sa cườm. Vest đen hoặc xám. Mọi chủ đề đều chọn được.',
+    restylePhotoUpload: 'Tải ảnh muốn mặc',
+    restylePhotoUploadHint: 'Tải ảnh cô dâu chú rể đang mặc bộ muốn dựng. Ảnh có mặt sẽ được cắt từ cổ xuống, chỉ giữ trang phục rồi mới đưa vào dựng.',
+    restylePhotoUploadBusy: 'Đang cắt mặt…',
+    restylePhotoUploadFailed: 'Không cắt được mặt trên ảnh này. Chọn ảnh JPG hoặc PNG dưới 12 MB.',
+    restylePhotoOutfitConfirm: 'Xác nhận',
+    restylePhotoBackground: 'Ảnh nền',
+    restylePhotoPlace: 'Vị trí',
+    restylePhotoPlaceHint: 'Chọn địa danh để đặt ảnh. Màu cảnh vẫn cùng tông với chủ đề.',
+    restylePhotoVietnam: 'Việt Nam',
+    restylePhotoWorld: 'Thế giới',
+    restylePhotoPhotos: 'Ảnh cần dựng lại',
+    restylePhotoStart: 'Dựng {count} ảnh',
+    restylePhotoProgress: 'Đang dựng {done}/{total}',
+    restylePhotoPartial: 'Đã dựng {done} ảnh. Ảnh tiếp theo không dựng được.',
+    restylePhotoDoneMany: 'Đã dựng {count} ảnh. Đã trừ {n} credit.',
+    restylePhotoNeedOutfit: 'Chủ đề này chưa có bộ trang phục.',
+    restylePhotoReportTitle: 'Ảnh vừa dựng',
+    restylePhotoReportClose: 'Xong',
+    restylePhotoReportFailed: 'Không dựng được',
+    restylePhotoReportSkipped: 'Chưa dựng',
+    restyleSlotCover: 'Ảnh bìa',
+    restyleSlotGroom: 'Chú rể',
+    restyleSlotBride: 'Cô dâu',
+    restyleSlotAlbum: 'Album {n}',
     coverPhotoZoomOut: 'Thu nhỏ',
     coverPhotoZoomIn: 'Phóng to',
     uploadHint: 'Ảnh trong khung là ảnh khách tải từ máy, không phải ảnh nền. Bấm Chọn ảnh hoặc Đổi ảnh để tải. Kéo trong khung để đổi vị trí, nút zoom để phóng hoặc thu nhỏ.',

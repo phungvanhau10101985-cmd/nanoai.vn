@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
-import { WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
+import { WeddingPhotoDownloadButton, WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
 import { weddingOrnamentGestureActive } from '@/lib/wedding/wedding-ornament-gesture'
 import { cn } from '@/lib/utils'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox, type CoverFrameHoleMask } from '@/lib/wedding/cover-frame-hole-mask'
@@ -755,6 +755,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
                 changePhotoLabel={props.changePhotoLabel}
                 chooseFrameLabel={props.chooseFrameLabel}
                 restyleSlot="cover"
+                photoUrl={props.coverPhotoUrl}
                 className="bottom-1.5 left-1/2"
               />
             ) : null}
@@ -885,6 +886,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
                   changePhotoLabel={props.changePhotoLabel}
                   chooseFrameLabel={props.chooseFrameLabel}
                   restyleSlot="cover"
+                  photoUrl={props.coverPhotoUrl}
                   className="bottom-1.5 left-1/2"
                 />
               ) : null}
@@ -1149,12 +1151,15 @@ function CoverFrameActions(props: {
   changePhotoLabel?: string
   chooseFrameLabel?: string
   restyleSlot?: 'cover' | 'groom' | 'bride'
+  photoUrl?: string
   className?: string
   style?: CSSProperties
 }) {
-  if (!props.onChoosePhoto && !props.onPhotoFile && !props.onChooseFrame && !props.restyleSlot) return null
+  if (!props.onChoosePhoto && !props.onPhotoFile && !props.onChooseFrame && !props.restyleSlot && !props.photoUrl) return null
   const photoLabel = (props.hasPhoto ? props.changePhotoLabel : props.choosePhotoLabel) || ''
   return (
+    <>
+    {props.photoUrl ? <WeddingPhotoDownloadButton url={props.photoUrl} className="absolute right-1.5 top-10 z-30" /> : null}
     <div
       className={cn('pointer-events-auto absolute z-[8] flex -translate-x-1/2 flex-col items-center justify-center gap-1', props.className)}
       style={props.style}
@@ -1181,6 +1186,7 @@ function CoverFrameActions(props: {
       ) : null}
       {props.restyleSlot ? <WeddingRestylePhotoButton slot={props.restyleSlot} hasPhoto={props.hasPhoto} /> : null}
     </div>
+    </>
   )
 }
 
@@ -1360,6 +1366,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
         changePhotoLabel={props.changePhotoLabel}
         chooseFrameLabel={props.chooseFrameLabel}
         restyleSlot="cover"
+        photoUrl={props.coverPhotoUrl}
         className={props.coverPhotoUrl ? undefined : '-translate-y-1/2'}
         style={{
           left: `${hole.x + hole.w / 2}%`,
@@ -1492,6 +1499,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
                 changePhotoLabel={props.changePhotoLabel}
                 chooseFrameLabel={props.chooseFrameLabel}
                 restyleSlot="cover"
+                photoUrl={props.coverPhotoUrl}
                 className={props.coverPhotoUrl ? 'bottom-2 left-1/2' : 'left-1/2 top-1/2 -translate-y-1/2'}
               />
             </div>
@@ -1569,6 +1577,7 @@ function PolaroidPhotoStack(props: {
   onPhotoFile?: (file: File) => void
   choosePhotoLabel?: string
   changePhotoLabel?: string
+  photoUrl?: string
 }) {
   const slot = props.composition.layout.photo
   const holeStyle = { left: `${slot.x}%`, top: `${slot.y}%`, width: `${slot.w}%`, height: `${slot.h}%` }
@@ -1608,6 +1617,7 @@ function PolaroidPhotoStack(props: {
         choosePhotoLabel={props.choosePhotoLabel}
         changePhotoLabel={props.changePhotoLabel}
         restyleSlot="cover"
+        photoUrl={props.photoUrl}
         className={cn('z-[12]', hasPhoto ? undefined : '-translate-y-1/2')}
         style={{
           left: `${slot.x + slot.w / 2}%`,
@@ -1656,6 +1666,7 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
         onPhotoFile={props.frameOnly ? undefined : props.onPhotoFile}
         choosePhotoLabel={props.choosePhotoLabel}
         changePhotoLabel={props.changePhotoLabel}
+        photoUrl={props.coverPhotoUrl}
       />
     )
     if (props.frameOnly) {
@@ -2027,6 +2038,7 @@ function SongHyCoverPhoto(props: WeddingCoverShellCardProps) {
               changePhotoLabel={props.changePhotoLabel}
               chooseFrameLabel={props.chooseFrameLabel}
               restyleSlot="cover"
+              photoUrl={props.coverPhotoUrl}
               className={props.coverPhotoUrl ? 'bottom-2 left-1/2' : 'left-1/2 top-1/2 -translate-y-1/2'}
             />
           ) : null}
@@ -2412,6 +2424,7 @@ function PairShot(props: {
         choosePhotoLabel={props.edit.chooseLabel}
         changePhotoLabel={props.edit.changeLabel}
         restyleSlot={props.edit.restyleSlot}
+        photoUrl={props.url}
         className="bottom-1 left-1/2"
       />
     </CoverPhotoPan>

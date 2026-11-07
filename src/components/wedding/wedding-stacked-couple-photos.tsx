@@ -9,7 +9,7 @@ import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import { WEDDING_GUEST_NAME_CLASS, WeddingGuestNameFontLink } from '@/components/wedding/wedding-guest-name-font'
 import { albumPhotoFrameStyle, centeredFrameBoxStyle, STACK_BRIDE_FRAME_ROTATE, STACK_FRAME_ROTATE_MAX, STACK_FRAME_ROTATE_MIN, STACK_GROOM_FRAME_ROTATE, WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
-import { WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
+import { WeddingPhotoDownloadButton, WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
 import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
 import { WEDDING_EDIT_SIDE, type WeddingEditSide } from '@/lib/wedding/wedding-side-edit-color'
 
@@ -351,6 +351,7 @@ function PhotoCard(props: {
 
   return (
     <div data-wedding-frame={props.frameId} className={cn('relative', props.className)} style={{ ...centeredFrameBoxStyle(props.widthPercent), transform: `rotate(${props.tilt}deg) scale(${props.visualScale ?? 1})`, transformOrigin: props.transformOrigin }} onPointerDown={props.onPointerDown}>
+      {props.url ? <WeddingPhotoDownloadButton url={props.url} className="absolute right-1.5 top-10 z-30" /> : null}
       {props.controlsEdge === 'top' && toolbar ? <div className="absolute inset-x-0 bottom-full z-[6] mb-1">{toolbar}</div> : null}
       <div className={cn('relative', props.shell ? 'bg-transparent' : 'overflow-hidden rounded-2xl shadow-[0_16px_36px_rgba(20,4,8,0.32)]')}>
         <div
@@ -886,7 +887,7 @@ export function WeddingStackedCouplePhotos(props: {
             />
           </span>
         ) : null}
-        {edit?.restyleSlot && hasPhoto ? (
+        {hasPhoto && edit?.restyleSlot ? (
           <span onPointerDown={hold}>
             <WeddingRestylePhotoButton slot={edit.restyleSlot} hasPhoto className="flex h-7 items-center" />
           </span>

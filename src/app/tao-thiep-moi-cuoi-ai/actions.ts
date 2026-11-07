@@ -28,17 +28,22 @@ import {
   WEDDING_COUPLE_PHOTO_RESTYLE_QUALITY,
   buildWeddingCouplePhotoRestylePrompt,
   parseWeddingCouplePhotoRestyleSlot,
-  safeWeddingBackgroundPublicPath,
   weddingCouplePhotoSourceUrl,
-  weddingThemePlatePublicPath,
   type WeddingCouplePhotoRestyleSlot,
 } from '@/lib/wedding/restyle-wedding-couple-photo'
+import {
+  parseWeddingOutfitIndex,
+  weddingOutfitFamilyId,
+  weddingOutfitPublicPath,
+} from '@/lib/wedding/wedding-outfit-sets'
+import { findWeddingRestylePlace } from '@/lib/wedding/wedding-restyle-places'
 import { weddingSavedCardQueryId } from '@/lib/wedding/wedding-sample-use-target'
 import { isWeddingSharedFrameKey, parseWeddingSharedFrame, weddingSharedFrameKey, type WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
 import { generateGptImage, runImageContent, type GeminiShaped, type GptImageInput } from '@/lib/ai/gpt-image'
+import { removeFaceFromGarmentImages } from '@/lib/remove-face-garment-server'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
@@ -797,46 +802,70 @@ async function readRemoteWeddingImage(url: string): Promise<{ bytes: Buffer; mim
   return { bytes, mimeType }
 }
 
-async function readPublicWeddingPlate(plate: string | null): Promise<GptImageInput | null> {
-  const safe = safeWeddingBackgroundPublicPath(plate)
-  if (!safe) return null
-  const root = path.resolve(process.cwd(), 'public', 'wedding', 'backgrounds')
-  const abs = path.resolve(process.cwd(), 'public', safe.slice(1))
+async function readPublicWeddingAsset(publicPath: string, rootDir: string, filename: string): Promise<GptImageInput | null> {
+  const root = path.resolve(process.cwd(), 'public', rootDir)
+  const abs = path.resolve(process.cwd(), 'public', publicPath.replace(/^\//, ''))
   const rel = path.relative(root, abs)
   if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null
   try {
     const bytes = await readFile(abs)
     if (!bytes.length || bytes.length > WEDDING_RESTYLE_MAX_BYTES) return null
-    const mimeType = safe.endsWith('.png') ? 'image/png' : safe.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
-    return { bytes, mimeType, filename: 'theme-plate.jpg' }
+    const mimeType = publicPath.endsWith('.png') ? 'image/png' : publicPath.endsWith('.webp') ? 'image/webp' : 'image/jpeg'
+    return { bytes, mimeType, filename }
   } catch {
     return null
   }
 }
+const WEDDING_OUTFIT_UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
-async function loadWeddingThemeReference(sectionConfig: string, masterImageUrl: string | null, sourceUrl: string): Promise<GptImageInput | null> {
-  const section = parseWeddingSectionConfig(sectionConfig)
-  const local = await readPublicWeddingPlate(weddingThemePlatePublicPath(section.backgroundPresetId))
-  if (local) return local
-  const master = (masterImageUrl || '').trim()
-  if (!master || master === sourceUrl.trim()) return null
-  const publicPlate = await readPublicWeddingPlate(master)
-  if (publicPlate) return publicPlate
-  const remote = await readRemoteWeddingImage(master)
-  return remote ? { bytes: remote.bytes, mimeType: remote.mimeType, filename: 'theme.jpg' } : null
+function weddingOutfitUpload(value: FormDataEntryValue | null): File | null {
+  if (!value || typeof value === 'string') return null
+  if (value.size <= 0 || value.size > WEDDING_RESTYLE_MAX_BYTES) return null
+  const name = 'name' in value && typeof value.name === 'string' ? value.name : ''
+  const typeOk = WEDDING_OUTFIT_UPLOAD_TYPES.has(value.type) || /\.(jpe?g|png|webp|gif)$/i.test(name)
+  if (!typeOk) return null
+  return value instanceof File ? value : new File([value], name || 'outfit.jpg', { type: value.type || 'image/jpeg' })
 }
 
-/** Dựng lại một ảnh cô dâu / chú rể cho hợp chủ đề, giữ mặt. GPT Image 2 medium. */
+/** Cắt mặt bằng đúng hàm thử đồ, trả ảnh trang phục để khách xem trước. */
+export async function previewWeddingOutfitUpload(formData: FormData) {
+  const cardId = clean(formData.get('cardId'), 80)
+  const access = await assertWeddingCardOrnamentEditor(cardId)
+  if ('error' in access) return { error: 'denied' as const }
+  const uploaded = weddingOutfitUpload(formData.get('outfitFile'))
+  if (!uploaded) return { error: 'invalid' as const }
+  try {
+    const [cut] = await removeFaceFromGarmentImages([uploaded])
+    const bytes = Buffer.from(await cut.arrayBuffer())
+    if (!bytes.length || bytes.length > WEDDING_RESTYLE_MAX_BYTES) return { error: 'failed' as const }
+    return { ok: true as const, image: `data:image/png;base64,${bytes.toString('base64')}` }
+  } catch {
+    return { error: 'failed' as const }
+  }
+}
+
 export async function restyleWeddingCouplePhoto(formData: FormData) {
   const cardId = clean(formData.get('cardId'), 80)
   const access = await assertWeddingCardOrnamentEditor(cardId)
   if ('error' in access) return { error: 'denied' as const }
   const slot = parseWeddingCouplePhotoRestyleSlot(clean(formData.get('slot'), 40))
-  if (!slot) return { error: 'invalid' as const }
+  const uploadedOutfit = weddingOutfitUpload(formData.get('outfitFile'))
+  const outfitIndex = parseWeddingOutfitIndex(clean(formData.get('outfit'), 4))
+  if (!slot || (!uploadedOutfit && !outfitIndex)) return { error: 'invalid' as const }
   const existing = await getWeddingCardForUser(cardId, access.ownerUserId)
   if (!existing) return { error: 'denied' as const }
   const sourceUrl = weddingCouplePhotoSourceUrl(existing, slot)
   if (!sourceUrl || isWeddingSamplePhotoUrl(sourceUrl)) return { error: 'empty' as const }
+  const sectionForOutfit = parseWeddingSectionConfig(existing.sectionConfig)
+  const outfitFamily = weddingOutfitFamilyId(sectionForOutfit.backgroundPresetId)
+  let outfitPath: string | null = null
+  if (!uploadedOutfit) {
+    if (!outfitIndex) return { error: 'invalid' as const }
+    outfitPath = weddingOutfitPublicPath(outfitFamily, outfitIndex)
+    if (!outfitPath) return { error: 'invalid' as const }
+  }
+  const place = findWeddingRestylePlace(clean(formData.get('place'), 40))
+  if (!place) return { error: 'invalid' as const }
 
   const credit = WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT
   const balance = await getCreditBalanceByUserId(access.userId)
@@ -856,14 +885,26 @@ export async function restyleWeddingCouplePhoto(formData: FormData) {
     if (!bunnyReady.ok) return { error: 'failed' as const }
     const source = await readRemoteWeddingImage(sourceUrl)
     if (!source) return { error: 'failed' as const }
-    const theme = await loadWeddingThemeReference(existing.sectionConfig, existing.masterImageUrl, sourceUrl)
+    let outfit: GptImageInput | null = null
+    if (uploadedOutfit) {
+      const [cut] = await removeFaceFromGarmentImages([uploadedOutfit])
+      const bytes = Buffer.from(await cut.arrayBuffer())
+      if (bytes.length > 0 && bytes.length <= WEDDING_RESTYLE_MAX_BYTES) {
+        outfit = { bytes, mimeType: 'image/png', filename: 'outfit.png' }
+      }
+    } else if (outfitPath) {
+      outfit = await readPublicWeddingAsset(outfitPath, 'wedding/outfits', 'outfit.webp')
+    }
+    if (!outfit) return { error: 'failed' as const }
     const prompt = buildWeddingCouplePhotoRestylePrompt({
       slot: slot.kind,
       styleLabel: style.label.en,
       palette,
       themeLabel,
-      venue: existing.venue,
-      hasThemePlate: Boolean(theme),
+      placeScene: place.scene,
+      hasOutfit: true,
+      uploadedOutfit: Boolean(uploadedOutfit),
+      hasThemePlate: false,
     })
     const generated = await generateGptImage({
       prompt,
@@ -871,7 +912,7 @@ export async function restyleWeddingCouplePhoto(formData: FormData) {
       size: 'auto',
       images: [
         { bytes: source.bytes, mimeType: source.mimeType, filename: 'couple.jpg' },
-        ...(theme ? [theme] : []),
+        outfit,
       ],
     })
     const resultPath = `results/${access.ownerUserId}/wedding_${cardId}_restyle_${slot.kind}_${Date.now()}.png`

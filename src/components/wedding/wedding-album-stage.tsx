@@ -17,7 +17,7 @@ import {
   type WeddingAlbumPhotoCrop,
   type WeddingAlbumPhotoFrame,
 } from '@/lib/wedding/wedding-section-config'
-import { WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
+import { WeddingPhotoDownloadButton, WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
 
 const MOTION_MS = 880
 const MOTION_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
@@ -103,6 +103,7 @@ function AlbumStageEditor(props: {
   layout: WeddingAlbumLayoutId
   /** Lớp chỉnh phủ cả khung album, không chỉ một thẻ ảnh. */
   coverFrame?: boolean
+  url?: string
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
   const pointers = useRef(new Map<number, { x: number; y: number }>())
@@ -224,6 +225,7 @@ function AlbumStageEditor(props: {
         style={albumZoomBarStyle(props.layout, Boolean(props.coverFrame))}
         onPointerDown={(event) => event.stopPropagation()}
       >
+        {props.url ? <WeddingPhotoDownloadButton url={props.url} className="shrink-0" /> : null}
         <button
           type="button"
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm leading-none text-stone-800"
@@ -255,7 +257,7 @@ function AlbumStageEditor(props: {
           +
         </button>
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center" data-album-chrome="">
+      <div className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex justify-center gap-1" data-album-chrome="">
         <WeddingRestylePhotoButton slot={`album:${props.index}`} hasPhoto />
       </div>
     </div>
@@ -615,6 +617,7 @@ export function WeddingAlbumStage(props: {
             edit={props.edit}
             layout={layout}
             coverFrame
+            url={props.urls[safeIndex] || ''}
           />
         ) : null}
       </div>
@@ -951,7 +954,7 @@ function AlbumFrame(props: {
               <div key={`${url}-${i}`} className="relative overflow-hidden rounded-2xl shadow-sm ring-1 ring-black/10">
                 <div className="relative aspect-[3/4] overflow-hidden">
                   <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} className="absolute inset-0" />
-                  <AlbumStageEditor index={i} frame={props.frameOf(i)} locale={props.locale} edit={props.edit} layout={props.layout} />
+                  <AlbumStageEditor index={i} frame={props.frameOf(i)} locale={props.locale} edit={props.edit} layout={props.layout} url={url} />
                 </div>
                 {showExtra ? (
                   <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 font-semibold text-white">

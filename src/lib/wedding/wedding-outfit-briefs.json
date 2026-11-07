@@ -1,0 +1,130 @@
+{
+  "toi-gian-nau": {
+    "plate": "/wedding/backgrounds/toi-gian-nau.jpg",
+    "dress": "Warm sand and ivory linen. The gown is ivory or warm sand silk with a faint dried-grass weave. The groom wears a sand linen suit. No red lacquer."
+  },
+  "vuon-kinh-hong-wash": {
+    "plate": "/wedding/backgrounds/vuon-kinh-hong-wash.jpg",
+    "dress": "Blush garden and cream roses. The gown is blush or ivory silk with small rose embroidery. The groom wears a cream or dusty-rose suit."
+  },
+  "long-phung-do-1": {
+    "plate": "/wedding/backgrounds/long-phung-do-1.jpg",
+    "dress": "Vietnamese red and gold ceremonial wedding. The gown is lacquer red or cream silk with a small gold motif. The groom wears a red or gold ao dai. The gown is red or cream."
+  },
+  "do-son": {
+    "plate": "/wedding/backgrounds/do-son.jpg",
+    "dress": "Scarlet lacquer and gold knotwork. The gown is scarlet or ivory silk with a fine gold geometric weave. The groom wears a scarlet ao dai or a gold-trimmed ivory jacket."
+  },
+  "song-hy-do": {
+    "plate": "",
+    "dress": "Red lacquer and gold clouds on a cream card. The gown is red silk or ivory silk with a tiny gold cloud motif. The groom wears a red ao dai. No readable letters and no double-happiness character on the clothes."
+  },
+  "sen-vang": {
+    "plate": "/wedding/backgrounds/sen-vang.jpg",
+    "dress": "Ivory and soft gold lotus. The gown is ivory silk with a small lotus-bud embroidery in gold. The groom wears a champagne ao dai or suit."
+  },
+  "hong-ngoc-trai-1": {
+    "plate": "/wedding/backgrounds/hong-ngoc-trai-1.jpg",
+    "dress": "Blush pearls and pale pink roses. The gown is ivory silk with a few small pearls and blush floral embroidery. The groom wears a blush or ivory suit."
+  },
+  "vuon-hong-troi": {
+    "plate": "/wedding/backgrounds/vuon-hong-troi.jpg",
+    "dress": "Pale blue sky and white-pink garden roses. The gown is ivory or powder-blue silk with small rose embroidery. The groom wears a powder-blue or ivory suit."
+  },
+  "hoa-moc-xanh-paper": {
+    "plate": "/wedding/backgrounds/hoa-moc-xanh-paper.jpg",
+    "dress": "Sage green and cream wood flowers. The gown is ivory or sage silk with a small green floral weave. The groom wears a sage linen suit."
+  },
+  "to-duyen-xanh-paper": {
+    "plate": "/wedding/backgrounds/to-duyen-xanh-paper.jpg",
+    "dress": "Sage calla lilies and olive. The gown is ivory or sage silk with one small calla motif. The groom wears an olive or sage suit."
+  },
+  "phong-bi-paper": {
+    "plate": "/wedding/backgrounds/phong-bi-paper.jpg",
+    "dress": "Burgundy envelope and wine peonies. The gown is wine, burgundy, or blush silk. The groom wears a burgundy or champagne suit."
+  },
+  "phong-bi-hong-paper": {
+    "plate": "/wedding/backgrounds/phong-bi-hong-paper.jpg",
+    "dress": "Blush envelope and peach-pink flowers. The gown is blush or ivory silk with a small peach-blossom weave. The groom wears a blush or cream suit."
+  },
+  "phong-bi-reu-paper": {
+    "plate": "/wedding/backgrounds/phong-bi-reu-paper.jpg",
+    "dress": "Sage envelope. The gown is ivory or sage silk. The groom wears a sage suit."
+  },
+  "phong-bi-dem-paper": {
+    "plate": "/wedding/backgrounds/phong-bi-dem-paper.jpg",
+    "dress": "Navy night envelope with gold. The gown is ivory or champagne silk with a little gold. The groom may wear a navy suit. The gown is not navy."
+  },
+  "phong-bi-nga-paper": {
+    "plate": "/wedding/backgrounds/phong-bi-nga-paper.jpg",
+    "dress": "Ivory envelope and bronze silk. The gown is ivory silk. The groom wears a bronze or ivory jacket."
+  },
+  "hoa-dao-paper": {
+    "plate": "/wedding/backgrounds/hoa-dao-paper.jpg",
+    "dress": "Peach blossom on cream. The gown is blush or ivory silk with small peach blossoms. The groom wears a blush or cream ao dai or suit."
+  },
+  "bien-paper": {
+    "plate": "/wedding/backgrounds/bien-paper.jpg",
+    "dress": "Sea teal and sand. The gown is ivory or pale aqua silk with a tiny wave weave. The groom wears a sand or teal linen suit."
+  },
+  "dem-vang-paper": {
+    "plate": "/wedding/backgrounds/dem-vang-paper.jpg",
+    "dress": "Gold night on deep navy paper. The gown is ivory or champagne silk with a little gold. The groom may wear a navy suit. The gown is not navy."
+  },
+  "lua-ao-dai-paper": {
+    "plate": "/wedding/backgrounds/lua-ao-dai-paper.jpg",
+    "dress": "Warm ivory silk and bronze, Vietnamese ao dai. The gown is an ivory or champagne silk ao dai. The groom wears a bronze or ivory ao dai."
+  },
+  "hoa-dao-van-paper": {
+    "plate": "/wedding/backgrounds/hoa-dao-van-paper.jpg",
+    "dress": "Patterned peach-blossom paper. The gown is blush or ivory silk with a denser peach-blossom weave than a plain gown. The groom wears a blush or cream suit."
+  },
+  "bien-van-paper": {
+    "plate": "/wedding/backgrounds/bien-van-paper.jpg",
+    "dress": "Patterned seaside paper. The gown is ivory or pale aqua silk with a clear wave weave. The groom wears a sand or teal linen suit."
+  },
+  "dem-vang-van-paper": {
+    "plate": "/wedding/backgrounds/dem-vang-van-paper.jpg",
+    "dress": "Patterned gold-on-navy paper. The gown is ivory or champagne silk with a fine gold motif. The groom may wear a navy suit. The gown is not navy."
+  },
+  "lua-van-paper": {
+    "plate": "/wedding/backgrounds/lua-van-paper.jpg",
+    "dress": "Patterned ivory silk. The pair wears matching ao dai in ivory or champagne silk with a woven motif. The gown is not dark."
+  },
+  "tre-viet-paper": {
+    "plate": "/wedding/backgrounds/tre-viet-paper.jpg",
+    "dress": "Bamboo green and cream. The gown is ivory or pale green silk with a fine bamboo-leaf weave. The groom wears a forest-green or cream ao dai or linen suit."
+  },
+  "do-dam-paper": {
+    "plate": "/wedding/backgrounds/do-dam-paper.jpg",
+    "dress": "Deep burgundy and wine peonies. The gown is burgundy, wine, or blush silk. The groom wears a burgundy or ivory suit."
+  },
+  "chua-mot-cot-paper": {
+    "plate": "/wedding/backgrounds/chua-mot-cot-paper.jpg",
+    "dress": "Lotus, gold, and warm roof-tile cream. The gown is ivory silk with a small lotus. The groom wears a gold or cream ao dai."
+  },
+  "van-mieu-paper": {
+    "plate": "/wedding/backgrounds/van-mieu-paper.jpg",
+    "dress": "Apricot blossom and warm brick. The gown is ivory or apricot silk with small blossoms. The groom wears a bronze or cream suit."
+  },
+  "cho-ben-thanh-paper": {
+    "plate": "/wedding/backgrounds/cho-ben-thanh-paper.jpg",
+    "dress": "Terracotta, white plumeria, and bougainvillea pink. The gown is ivory or warm pink silk with a small plumeria. The groom wears a terracotta or cream linen suit."
+  },
+  "vinh-ha-long-paper": {
+    "plate": "/wedding/backgrounds/vinh-ha-long-paper.jpg",
+    "dress": "Mist blue-green and limestone. The gown is ivory or pale mist-blue silk. The groom wears a mist-blue or sand suit."
+  },
+  "lang-bac-paper": {
+    "plate": "/wedding/backgrounds/lang-bac-paper.jpg",
+    "dress": "White chrysanthemum and quiet stone. The gown is ivory silk with a small white chrysanthemum. The groom may wear a stone-gray or ivory suit. The gown stays ivory."
+  },
+  "que-nghe-an-paper": {
+    "plate": "/wedding/backgrounds/que-nghe-an-paper.jpg",
+    "dress": "Rice gold and areca green on cream. The gown is ivory or pale gold silk with a tiny rice-ear weave. The groom wears an olive or cream linen suit."
+  },
+  "duong-lam-paper": {
+    "plate": "/wedding/backgrounds/duong-lam-paper.jpg",
+    "dress": "Laterite brown and cream. The gown is ivory or warm sand silk. The groom wears a laterite-brown or cream linen suit."
+  }
+}

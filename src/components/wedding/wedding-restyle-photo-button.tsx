@@ -1,14 +1,15 @@
 'use client'
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
+import { Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WeddingCouplePhotoRestyleId } from '@/lib/wedding/restyle-wedding-couple-photo'
 
 type WeddingRestylePhotoApi = {
   label: string
-  creditLabel: string
   busyLabel: string
   hint: string
+  downloadLabel: string
   busySlot: string | null
   onRestyle: (slot: WeddingCouplePhotoRestyleId) => void
 }
@@ -18,9 +19,9 @@ const WeddingRestylePhotoContext = createContext<WeddingRestylePhotoApi | null>(
 export function WeddingRestylePhotoProvider(props: {
   enabled: boolean
   label: string
-  creditLabel: string
   busyLabel: string
   hint: string
+  downloadLabel: string
   busySlot: string | null
   onRestyle: (slot: WeddingCouplePhotoRestyleId) => void
   children: ReactNode
@@ -29,13 +30,13 @@ export function WeddingRestylePhotoProvider(props: {
     if (!props.enabled) return null
     return {
       label: props.label,
-      creditLabel: props.creditLabel,
       busyLabel: props.busyLabel,
       hint: props.hint,
+      downloadLabel: props.downloadLabel,
       busySlot: props.busySlot,
       onRestyle: props.onRestyle,
     }
-  }, [props.busyLabel, props.busySlot, props.creditLabel, props.enabled, props.hint, props.label, props.onRestyle])
+  }, [props.busyLabel, props.busySlot, props.downloadLabel, props.enabled, props.hint, props.label, props.onRestyle])
 
   if (!value) return props.children
   return <WeddingRestylePhotoContext.Provider value={value}>{props.children}</WeddingRestylePhotoContext.Provider>
@@ -69,11 +70,54 @@ export function WeddingRestylePhotoButton(props: {
       }}
     >
       {busy ? api.busyLabel : api.label}
-      {busy ? null : (
-        <span className="rounded-full bg-[#3f2a12] px-1.5 py-px text-[9px] font-bold leading-none text-[#f0c14b]">
-          {api.creditLabel}
-        </span>
+    </button>
+  )
+}
+
+async function saveWeddingPhoto(url: string) {
+  const filename = 'anh-cuoi.jpg'
+  let href = url
+  let revoke = false
+  try {
+    const res = await fetch(url)
+    if (res.ok) {
+      href = URL.createObjectURL(await res.blob())
+      revoke = true
+    }
+  } catch {
+    // Ảnh ngoài origin vẫn mở bằng chính địa chỉ ảnh.
+  }
+  const link = document.createElement('a')
+  link.href = href
+  link.download = filename
+  link.rel = 'noreferrer'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  if (revoke) URL.revokeObjectURL(href)
+}
+
+/** Icon tải ảnh. Chỉ hiện khi đang sửa thiệp. */
+export function WeddingPhotoDownloadButton(props: { url: string; className?: string }) {
+  const api = useContext(WeddingRestylePhotoContext)
+  const url = props.url.trim()
+  if (!api || !url) return null
+  return (
+    <button
+      type="button"
+      aria-label={api.downloadLabel}
+      className={cn(
+        'pointer-events-auto inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white shadow',
+        props.className,
       )}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        void saveWeddingPhoto(url)
+      }}
+    >
+      <Download className="h-3.5 w-3.5" aria-hidden />
     </button>
   )
 }

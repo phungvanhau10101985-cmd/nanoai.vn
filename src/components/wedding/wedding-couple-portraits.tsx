@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { albumPhotoFrameStyle, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame } from '@/lib/wedding/wedding-section-config'
 import { FrameEdgeGrips, FrameScaleDragBar, WeddingFramedPhoto, type FrameScaleEdit } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
-import { WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
+import { WeddingPhotoDownloadButton, WeddingRestylePhotoButton } from '@/components/wedding/wedding-restyle-photo-button'
 import { centeredFrameBoxStyle } from '@/lib/wedding/wedding-section-config'
 import { weddingOrnamentGestureActive } from '@/lib/wedding/wedding-ornament-gesture'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
@@ -219,6 +219,7 @@ function Portrait(props: {
       {props.photoEdit && props.imageUrl ? <PortraitPhotoPan edit={props.photoEdit} /> : null}
       </div>
       {props.photoEdit && props.imageUrl ? <PortraitZoomBar edit={props.photoEdit} /> : null}
+      {props.imageUrl ? <WeddingPhotoDownloadButton url={props.imageUrl} className="absolute right-1.5 top-10 z-30" /> : null}
       {photoButton}
       {props.frameScaleEdit ? <FrameEdgeGrips edit={props.frameScaleEdit} /> : null}
       {props.frameScaleEdit ? (

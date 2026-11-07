@@ -48,7 +48,7 @@ import { bindWeddingButtonFill, resolveWeddingButtonColor } from '@/lib/wedding/
 import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, weddingThemeIsDark, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer, weddingOrnamentSpotOnPage, weddingOrnamentVisibleSurface } from '@/components/wedding/wedding-ornament-admin'
-import { applyWeddingSampleLook, loadWeddingPreviewTools, resetWeddingCardOrnaments, resetWeddingPresetOrnaments, restyleWeddingCouplePhoto, saveWeddingCardOrnaments, saveWeddingPresetFrame, saveWeddingPresetOrnaments, saveWeddingPresetShell, saveWeddingPreviewEdit, saveWeddingPreviewMedia, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
+import { applyWeddingSampleLook, loadWeddingPreviewTools, previewWeddingOutfitUpload, resetWeddingCardOrnaments, resetWeddingPresetOrnaments, restyleWeddingCouplePhoto, saveWeddingCardOrnaments, saveWeddingPresetFrame, saveWeddingPresetOrnaments, saveWeddingPresetShell, saveWeddingPreviewEdit, saveWeddingPreviewMedia, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
 import { WeddingSampleGallery } from '@/components/wedding/wedding-sample-card-picker'
 import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
 import { weddingEditorReturnPath } from '@/lib/wedding/wedding-sample-use-target'
@@ -58,7 +58,10 @@ import { WeddingMusicLibraryPicker } from '@/components/wedding/wedding-music-li
 import { WeddingFrameChoiceGrid, weddingSharedFrameFromChoice, type WeddingFrameChoice } from '@/components/wedding/wedding-frame-choice-grid'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
 import { WeddingRestylePhotoProvider } from '@/components/wedding/wedding-restyle-photo-button'
-import { WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT, type WeddingCouplePhotoRestyleId } from '@/lib/wedding/restyle-wedding-couple-photo'
+import { WeddingRestylePhotoDialog, type WeddingRestylePhotoReport } from '@/components/wedding/wedding-restyle-photo-dialog'
+import { listWeddingRestylePhotoChoices, WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT, weddingRestyledSlotUrl, type WeddingCouplePhotoRestyleId } from '@/lib/wedding/restyle-wedding-couple-photo'
+import { weddingOutfitChoices, weddingOutfitFamilyId } from '@/lib/wedding/wedding-outfit-sets'
+import { WEDDING_RESTYLE_PLACES, weddingRestylePlaceLabel } from '@/lib/wedding/wedding-restyle-places'
 import type { WeddingCoverFrameLibraryItem, WeddingMusicLibraryRow } from '@/lib/db/wedding-cards-pg'
 import type { WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
 import { resolveWeddingShownOrnaments, weddingOrnamentLayoutKey, weddingOrnamentListsEqual } from '@/lib/wedding/wedding-background-ornament-store'
@@ -758,6 +761,10 @@ export default function WeddingPublicClient({
   const [musicDraftUrl, setMusicDraftUrl] = useState(card.musicUrl)
   const [mediaLocal, setMediaLocal] = useState<{ cover?: string; groom?: string; bride?: string; album?: string[] }>({})
   const [restyleBusy, setRestyleBusy] = useState<string | null>(null)
+  const [restyleOpen, setRestyleOpen] = useState(false)
+  const [restyleSeed, setRestyleSeed] = useState<WeddingCouplePhotoRestyleId | null>(null)
+  const [restyleProgress, setRestyleProgress] = useState<{ done: number; total: number } | null>(null)
+  const [restyleReport, setRestyleReport] = useState<WeddingRestylePhotoReport | null>(null)
   const restyleLock = useRef(false)
   const [framePick, setFramePick] = useState<'cover' | 'groom' | 'bride' | 'pair' | null>(null)
   const mediaLocalRef = useRef(mediaLocal)
@@ -929,6 +936,27 @@ export default function WeddingPublicClient({
   const setActiveDraft = activeSurface === 'letter' ? setLetterDraft : setCoverDraft
   const tImage = getDictionary(uiLocale).weddingCardAiImage
   const tCover = getDictionary(uiLocale).weddingCardAiCover
+  const restyleOutfits = useMemo(
+    () => weddingOutfitChoices(weddingOutfitFamilyId(sectionConfig.backgroundPresetId)),
+    [sectionConfig.backgroundPresetId],
+  )
+  const restylePlaces = useMemo(
+    () => WEDDING_RESTYLE_PLACES.map((place) => ({
+      id: place.id,
+      region: place.region,
+      label: weddingRestylePlaceLabel(place, uiLocale),
+    })),
+    [uiLocale],
+  )
+  const restylePhotoChoices = useMemo(
+    () => listWeddingRestylePhotoChoices({
+      coverPhotoUrl: mediaLocal.cover || resolveCoverPhotoUrl(sectionConfig),
+      groomImageUrl: groomSource,
+      brideImageUrl: brideSource,
+      albumImageUrls: albumSource,
+    }),
+    [albumSource, brideSource, groomSource, mediaLocal.cover, sectionConfig],
+  )
   const tMu = getDictionary(uiLocale).weddingCardAiMusic
   const previewLookOnRef = useRef(false)
   previewLookOnRef.current = previewLookOn
@@ -974,41 +1002,131 @@ export default function WeddingPublicClient({
       setSectionRaw((current) => mergeWeddingSectionConfig(current, { coverPhotoUrl: result.coverPhotoUrl }))
     }
   }, [card.id, rememberLocalPhoto, tImage.ornamentAdminFailed, toast])
-  const restyleCouplePhoto = useCallback(async (slot: WeddingCouplePhotoRestyleId) => {
-    if (restyleLock.current) return
+  const restyleCouplePhotos = useCallback(async (input: {
+    outfitIndex: number
+    placeId: string
+    slots: WeddingCouplePhotoRestyleId[]
+    outfitFile: File | null
+    outfitPreview: string
+  }) => {
+    if (restyleLock.current || input.slots.length === 0) return
     restyleLock.current = true
-    setRestyleBusy(slot)
     const creditLabel = String(WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT)
+    const labelFor = (id: WeddingCouplePhotoRestyleId) => (
+      id === 'cover' ? tCover.restyleSlotCover
+        : id === 'groom' ? tCover.restyleSlotGroom
+          : id === 'bride' ? tCover.restyleSlotBride
+            : tCover.restyleSlotAlbum.replace('{n}', String(Number(id.slice(6)) + 1))
+    )
+    const previousUrl = new Map(restylePhotoChoices.map((photo) => [photo.id, photo.url]))
+    const made = new Map<WeddingCouplePhotoRestyleId, { url: string; credit: number }>()
+    let done = 0
+    let charged = 0
+    let failedId: WeddingCouplePhotoRestyleId | null = null
+    let stopped: 'need_credit' | 'empty' | 'failed' | null = null
     try {
-      const body = new FormData()
-      body.set('cardId', card.id)
-      body.set('slot', slot)
-      const result = await restyleWeddingCouplePhoto(body)
-      if (!result || !('ok' in result)) {
-        const code = result && 'error' in result ? result.error : 'failed'
-        const title = code === 'need_credit'
-          ? tCover.restylePhotoNeedCredit.replace('{n}', creditLabel)
-          : code === 'empty'
-            ? tCover.restylePhotoEmpty
-            : tCover.restylePhotoFailed
-        toast({ title, variant: 'destructive' })
-        return
+      for (const slot of input.slots) {
+        setRestyleBusy(slot)
+        setRestyleProgress({ done: done + 1, total: input.slots.length })
+        const body = new FormData()
+        body.set('cardId', card.id)
+        body.set('slot', slot)
+        body.set('place', input.placeId)
+        if (input.outfitFile) body.set('outfitFile', input.outfitFile)
+        else body.set('outfit', String(input.outfitIndex))
+        const result = await restyleWeddingCouplePhoto(body)
+        if (!result || !('ok' in result)) {
+          const code = result && 'error' in result ? result.error : 'failed'
+          stopped = code === 'need_credit' || code === 'empty' ? code : 'failed'
+          failedId = slot
+          break
+        }
+        const url = weddingRestyledSlotUrl(slot, result)
+        if (!url) {
+          stopped = 'failed'
+          failedId = slot
+          break
+        }
+        done += 1
+        charged += result.credit
+        made.set(slot, { url, credit: result.credit })
+        setMediaLocal((current) => {
+          if (slot === 'cover') return { ...current, cover: result.coverPhotoUrl }
+          if (slot === 'groom') return { ...current, groom: result.groomImageUrl }
+          if (slot === 'bride') return { ...current, bride: result.brideImageUrl }
+          return { ...current, album: result.albumImageUrls }
+        })
+        if (slot === 'cover') {
+          setSectionRaw((current) => mergeWeddingSectionConfig(current, { coverPhotoUrl: result.coverPhotoUrl }))
+        }
       }
-      setMediaLocal((current) => {
-        if (slot === 'cover') return { ...current, cover: result.coverPhotoUrl }
-        if (slot === 'groom') return { ...current, groom: result.groomImageUrl }
-        if (slot === 'bride') return { ...current, bride: result.brideImageUrl }
-        return { ...current, album: result.albumImageUrls }
-      })
-      if (slot === 'cover') {
-        setSectionRaw((current) => mergeWeddingSectionConfig(current, { coverPhotoUrl: result.coverPhotoUrl }))
-      }
-      toast({ title: tCover.restylePhotoDone.replace('{n}', String(result.credit)) })
     } finally {
       restyleLock.current = false
       setRestyleBusy(null)
+      setRestyleProgress(null)
     }
-  }, [card.id, tCover.restylePhotoDone, tCover.restylePhotoEmpty, tCover.restylePhotoFailed, tCover.restylePhotoNeedCredit, toast])
+    if (done === 0) {
+      const title = stopped === 'need_credit'
+        ? tCover.restylePhotoNeedCredit.replace('{n}', creditLabel)
+        : stopped === 'empty'
+          ? tCover.restylePhotoEmpty
+          : tCover.restylePhotoFailed
+      toast({ title, variant: 'destructive' })
+      return
+    }
+    const placeName = restylePlaces.find((place) => place.id === input.placeId)?.label || ''
+    setRestyleReport({
+      title: tCover.restylePhotoReportTitle,
+      summary: tCover.restylePhotoDoneMany.replace('{count}', String(done)).replace('{n}', String(charged)),
+      outfitLabel: tCover.restylePhotoOutfit,
+      outfitUrl: input.outfitPreview || restyleOutfits.find((item) => item.index === input.outfitIndex)?.src || '',
+      placeLabel: tCover.restylePhotoPlace,
+      placeName,
+      close: tCover.restylePhotoReportClose,
+      failed: tCover.restylePhotoReportFailed,
+      skipped: tCover.restylePhotoReportSkipped,
+      items: input.slots.map((id) => {
+        const item = made.get(id)
+        if (item) {
+          return {
+            id,
+            label: labelFor(id),
+            url: item.url,
+            status: 'done' as const,
+            creditText: tCover.restylePhotoCredit.replace('{n}', String(item.credit)),
+          }
+        }
+        return {
+          id,
+          label: labelFor(id),
+          url: previousUrl.get(id) || '',
+          status: id === failedId ? 'failed' as const : 'skipped' as const,
+          creditText: '',
+        }
+      }),
+    })
+  }, [
+    card.id,
+    restyleOutfits,
+    restylePhotoChoices,
+    restylePlaces,
+    tCover.restylePhotoCredit,
+    tCover.restylePhotoDoneMany,
+    tCover.restylePhotoEmpty,
+    tCover.restylePhotoFailed,
+    tCover.restylePhotoNeedCredit,
+    tCover.restylePhotoOutfit,
+    tCover.restylePhotoPlace,
+    tCover.restylePhotoReportClose,
+    tCover.restylePhotoReportFailed,
+    tCover.restylePhotoReportSkipped,
+    tCover.restylePhotoReportTitle,
+    tCover.restyleSlotAlbum,
+    tCover.restyleSlotBride,
+    tCover.restyleSlotCover,
+    tCover.restyleSlotGroom,
+    toast,
+  ])
   const choosePreviewMusic = useCallback(async (audioUrl: string) => {
     setMusicDraftUrl(audioUrl)
     const body = new FormData()
@@ -2488,13 +2606,76 @@ export default function WeddingPublicClient({
     <WeddingRestylePhotoProvider
       enabled={visualEdit}
       label={tCover.restylePhoto}
-      creditLabel={tCover.restylePhotoCredit.replace('{n}', String(WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT))}
       busyLabel={tCover.restylePhotoBusy}
       hint={tCover.restylePhotoHint.replace('{n}', String(WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT))}
+      downloadLabel={tCover.restylePhotoDownload}
       busySlot={restyleBusy}
-      onRestyle={(slot) => { void restyleCouplePhoto(slot) }}
+      onRestyle={(slot) => {
+        if (restyleLock.current) return
+        setRestyleReport(null)
+        setRestyleSeed(slot)
+        setRestyleOpen(true)
+      }}
     >
     <>
+      <WeddingRestylePhotoDialog
+        open={restyleOpen}
+        busy={restyleBusy != null}
+        progress={restyleProgress
+          ? tCover.restylePhotoProgress
+            .replace('{done}', String(restyleProgress.done))
+            .replace('{total}', String(restyleProgress.total))
+          : ''}
+        seed={restyleSeed}
+        outfits={restyleOutfits}
+        places={restylePlaces}
+        photos={restylePhotoChoices.map((photo) => ({
+          ...photo,
+          label: photo.id === 'cover'
+            ? tCover.restyleSlotCover
+            : photo.id === 'groom'
+              ? tCover.restyleSlotGroom
+              : photo.id === 'bride'
+                ? tCover.restyleSlotBride
+                : tCover.restyleSlotAlbum.replace('{n}', String(Number(photo.id.slice(6)) + 1)),
+        }))}
+        copy={{
+          title: tCover.restylePhotoTitle,
+          outfit: tCover.restylePhotoOutfit,
+          outfitHint: tCover.restylePhotoOutfitHint,
+          shared: tCover.restylePhotoShared,
+          sharedHint: tCover.restylePhotoSharedHint,
+          upload: tCover.restylePhotoUpload,
+          uploadHint: tCover.restylePhotoUploadHint,
+          uploadBusy: tCover.restylePhotoUploadBusy,
+          uploadFailed: tCover.restylePhotoUploadFailed,
+          outfitConfirm: tCover.restylePhotoOutfitConfirm,
+          place: tCover.restylePhotoPlace,
+          placeHint: tCover.restylePhotoPlaceHint,
+          vietnam: tCover.restylePhotoVietnam,
+          world: tCover.restylePhotoWorld,
+          photos: tCover.restylePhotoPhotos,
+          start: tCover.restylePhotoStart,
+          credit: tCover.restylePhotoCredit,
+          empty: tCover.restylePhotoEmpty,
+          needOutfit: tCover.restylePhotoNeedOutfit,
+        }}
+        creditEach={WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT}
+        report={restyleReport}
+        onOpenChange={(next) => {
+          setRestyleOpen(next)
+          if (!next) setRestyleReport(null)
+        }}
+        onPrepareOutfit={async (file) => {
+          const body = new FormData()
+          body.set('cardId', card.id)
+          body.set('outfitFile', file)
+          const prepared = await previewWeddingOutfitUpload(body)
+          if (!prepared || !('ok' in prepared) || !prepared.image) return { error: 'failed' }
+          return { image: prepared.image }
+        }}
+        onStart={(input) => { void restyleCouplePhotos(input) }}
+      />
       <style>{`html:has([data-wedding-public]) [data-nanoai-chrome]{display:none !important}html:has([data-wedding-public]) [data-nanoai-shell]{padding-bottom:0 !important}`}</style>
       <div data-wedding-public="" hidden />
       <WeddingGuestNameFontLink />

@@ -85,6 +85,12 @@
   pointer-events: auto;
 }
 
+/* Nút nền sáng không kế thừa mực vàng hoặc trắng của giấy. Nút đã gắn màu riêng (style color) giữ nguyên. */
+[data-wedding-stage] :is(button, a).bg-background:not([style*="color"]),
+[data-wedding-stage] :is(button, a).bg-background:not([style*="color"]):hover {
+  color: #3a2214;
+}
+
 /* Đang sửa hoa: tờ chữ trong suốt không chặn cú chọn mảnh ảnh. Nút và ô nhập vẫn bấm được. */
 [data-wedding-stage][data-ornament-editing] :is([data-wedding-letter-copy], [data-wedding-sheet-content], p, h1, h2, h3, h4, li, figcaption, blockquote) {
   pointer-events: none;
