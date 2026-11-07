@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { WeddingRunningProgress } from '@/components/wedding/wedding-running-progress'
 import { cn } from '@/lib/utils'
 import type { WeddingCouplePhotoRestyleId } from '@/lib/wedding/restyle-wedding-couple-photo'
 
@@ -30,6 +31,9 @@ export function WeddingRestylePhotoDialog(props: {
   open: boolean
   busy: boolean
   progress: string
+  progressDone: number
+  progressTotal: number
+  progressDetail: string
   seed: WeddingCouplePhotoRestyleId | null
   outfits: readonly { index: number; src: string; shared: boolean }[]
   places: readonly { id: string; label: string; region: 'vietnam' | 'world' }[]
@@ -51,6 +55,7 @@ export function WeddingRestylePhotoDialog(props: {
     world: string
     photos: string
     start: string
+    progressHint: string
     credit: string
     empty: string
     needOutfit: string
@@ -137,6 +142,16 @@ export function WeddingRestylePhotoDialog(props: {
             {props.report ? props.report.title : props.copy.title}
           </DialogTitle>
         </DialogHeader>
+        {uploadBusy && !props.busy && !props.report && !outfitZoom ? (
+          <div className="sticky top-0 z-10 rounded-xl bg-[#fffaf3] p-3 shadow-sm ring-1 ring-[#e6d7c3]">
+            <WeddingRunningProgress
+              label={props.copy.uploadBusy}
+              done={0}
+              total={0}
+              indeterminate
+            />
+          </div>
+        ) : null}
         {props.report ? (
           <WeddingRestylePhotoReportView report={props.report} onClose={() => props.onOpenChange(false)} />
         ) : outfitZoom ? (
@@ -313,28 +328,39 @@ export function WeddingRestylePhotoDialog(props: {
             </ul>
           )}
         </section>
-        <button
-          type="button"
-          disabled={!ready}
-          className="sticky bottom-0 inline-flex items-center justify-center gap-2 rounded-full bg-[#f0c14b] px-4 py-2 text-sm font-semibold text-[#3f2a12] disabled:opacity-60"
-          onClick={() => {
-            if (!ready) return
-            props.onStart({
-              outfitIndex: outfit,
-              placeId,
-              slots,
-              outfitFile: useUpload ? uploadFile : null,
-              outfitPreview: useUpload ? uploadPreview : '',
-            })
-          }}
-        >
-          {props.busy && props.progress ? props.progress : props.copy.start.replace('{count}', String(slots.length))}
-          {props.busy ? null : (
-            <span className="rounded-full bg-[#3f2a12] px-1.5 py-px text-[10px] font-bold text-[#f0c14b]">
-              {props.copy.credit.replace('{n}', String(credit))}
-            </span>
-          )}
-        </button>
+        <div className="sticky bottom-0 space-y-2 bg-[#fffaf3] pt-2">
+          {props.busy ? (
+            <WeddingRunningProgress
+              label={[props.progress, props.progressDetail].filter(Boolean).join(' · ') || props.copy.title}
+              done={props.progressDone}
+              total={props.progressTotal}
+              indeterminate={props.progressDone <= 0}
+              hint={props.copy.progressHint}
+            />
+          ) : null}
+          <button
+            type="button"
+            disabled={!ready}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#f0c14b] px-4 py-2 text-sm font-semibold text-[#3f2a12] disabled:opacity-60"
+            onClick={() => {
+              if (!ready) return
+              props.onStart({
+                outfitIndex: outfit,
+                placeId,
+                slots,
+                outfitFile: useUpload ? uploadFile : null,
+                outfitPreview: useUpload ? uploadPreview : '',
+              })
+            }}
+          >
+            {props.busy && props.progress ? props.progress : props.copy.start.replace('{count}', String(slots.length))}
+            {props.busy ? null : (
+              <span className="rounded-full bg-[#3f2a12] px-1.5 py-px text-[10px] font-bold text-[#f0c14b]">
+                {props.copy.credit.replace('{n}', String(credit))}
+              </span>
+            )}
+          </button>
+        </div>
         </>
         )}
       </DialogContent>

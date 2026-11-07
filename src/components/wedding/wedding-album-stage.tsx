@@ -41,14 +41,35 @@ function motionTransition(smooth: boolean) {
 
 function AlbumPhoto(props: { url: string; alt: string; className?: string; frame: WeddingAlbumPhotoFrame }) {
   const fill = props.className?.includes('absolute')
+  const [src, setSrc] = useState(props.url)
+  const attempt = useRef(0)
+  const timer = useRef<number | null>(null)
+  useEffect(() => {
+    attempt.current = 0
+    setSrc(props.url)
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current)
+    }
+  }, [props.url])
   return (
     // eslint-disable-next-line @next/next/no-img-element -- album URLs are external CDN
     <img
-      src={props.url}
+      src={src}
       alt={props.alt}
       draggable={false}
+      decoding="sync"
       className={cn('pointer-events-none object-cover', fill && 'max-w-none', props.className)}
       style={albumPhotoFrameStyle(props.frame)}
+      onError={() => {
+        if (!props.url.startsWith('http') || attempt.current >= 6) return
+        attempt.current += 1
+        const wait = attempt.current
+        if (timer.current) window.clearTimeout(timer.current)
+        timer.current = window.setTimeout(() => {
+          const join = props.url.includes('?') ? '&' : '?'
+          setSrc(`${props.url}${join}album=${wait}`)
+        }, 350 * wait)
+      }}
     />
   )
 }
@@ -307,6 +328,8 @@ export function WeddingAlbumStage(props: {
   onOpenAlbum?: () => void
   /** Chỉ bật ở màn tạo thiệp. Thiệp khách mời không truyền prop này. */
   edit?: WeddingAlbumStageEdit
+  /** Ảnh cần đưa ra giữa khung khi số ảnh đổi, ví dụ ảnh vừa đăng. */
+  focusIndex?: number | null
 }) {
   const urls = props.urls.filter(Boolean)
   const count = urls.length
@@ -335,11 +358,11 @@ export function WeddingAlbumStage(props: {
   }, [index])
 
   useEffect(() => {
-    setIndex(0)
+    setIndex(props.focusIndex == null ? 0 : wrap(props.focusIndex, count))
     setGlide(0)
     setSmooth(true)
     settling.current = false
-  }, [layout, count])
+  }, [layout, count, props.focusIndex])
 
   useEffect(() => {
     return () => {

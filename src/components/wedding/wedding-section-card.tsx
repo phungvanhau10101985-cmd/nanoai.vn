@@ -12,14 +12,16 @@ type Props = {
   id?: string
   className?: string
   contentClassName?: string
+  /** false: khối hiện ngay. Phần sửa dùng cái này để album không chờ hiệu ứng. */
+  reveal?: boolean
 }
 
 /** Khối nội dung trên nền ảnh AI, không có tấm nền chữ riêng. */
-export function WeddingSectionCard({ theme, title, children, id, className, contentClassName }: Props) {
+export function WeddingSectionCard({ theme, title, children, id, className, contentClassName, reveal = true }: Props) {
   return (
     <WeddingReadableGlass
       id={id}
-      reveal
+      reveal={reveal}
       className={cn('rounded-[1.75rem] px-4 py-5 sm:rounded-[2rem] sm:px-5 sm:py-6 md:px-8 md:py-7', className)}
     >
       {title ? (

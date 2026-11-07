@@ -778,7 +778,9 @@ export async function saveWeddingPreviewMedia(formData: FormData) {
   } catch {
     return { error: 'unavailable' as const }
   }
-  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  const touchesAlbum = typeof formData.get('albumImageUrls') === 'string'
+    || formData.getAll('albumImages').some((file) => file instanceof File && file.size > 0)
+  if (access.slug && !touchesAlbum) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
   return {
     ok: true as const,
     coverPhotoUrl: resolveCoverPhotoUrl(parseWeddingSectionConfig(sectionConfig)),

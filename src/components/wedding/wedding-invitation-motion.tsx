@@ -68,7 +68,11 @@ export function WeddingInvitationMotion(props: { enabled: boolean; instant?: boo
     }
     markInView()
     root.dataset.weddingMotionReady = '1'
-    if (revealAll) return
+    if (revealAll) {
+      const added = new MutationObserver(() => markInView())
+      added.observe(root, { childList: true, subtree: true })
+      return () => added.disconnect()
+    }
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {

@@ -4081,6 +4081,10 @@ export type Dictionary = {
     uploadLabel: string
     choosePhoto: string
     chooseWeddingAlbum: string
+    albumUploadProgress: string
+    albumUploadHint: string
+    albumUploadFailed: string
+    albumUploadFull: string
     chooseGroomPhoto: string
     chooseBridePhoto: string
     chooseFrame: string
@@ -4121,6 +4125,7 @@ export type Dictionary = {
     restylePhotoPhotos: string
     restylePhotoStart: string
     restylePhotoProgress: string
+    restylePhotoProgressHint: string
     restylePhotoPartial: string
     restylePhotoDoneMany: string
     restylePhotoNeedOutfit: string
@@ -8715,6 +8720,10 @@ export const VI_DICTIONARY: Dictionary = {
     uploadLabel: 'Ảnh cặp đôi trên vỏ thiệp',
     choosePhoto: 'Chọn ảnh',
     chooseWeddingAlbum: 'Chọn album ảnh cưới',
+    albumUploadProgress: 'Đang tải album {done}/{total}',
+    albumUploadHint: 'Ảnh đã tải hiện trên album ngay, không cần tải lại trang.',
+    albumUploadFailed: 'Có ảnh chưa tải được. Những ảnh đã xong vẫn nằm trên album.',
+    albumUploadFull: 'Album giữ tối đa 30 ảnh.',
     chooseGroomPhoto: 'Chọn ảnh chú rể',
     chooseBridePhoto: 'Chọn ảnh cô dâu',
     chooseFrame: 'Chọn khung',
@@ -8755,6 +8764,7 @@ export const VI_DICTIONARY: Dictionary = {
     restylePhotoPhotos: 'Ảnh cần dựng lại',
     restylePhotoStart: 'Dựng {count} ảnh',
     restylePhotoProgress: 'Đang dựng {done}/{total}',
+    restylePhotoProgressHint: 'Đang dựng ảnh. Giữ trang này mở, ảnh hiện trên thiệp ngay khi xong.',
     restylePhotoPartial: 'Đã dựng {done} ảnh. Ảnh tiếp theo không dựng được.',
     restylePhotoDoneMany: 'Đã dựng {count} ảnh. Đã trừ {n} credit.',
     restylePhotoNeedOutfit: 'Chủ đề này chưa có bộ trang phục.',

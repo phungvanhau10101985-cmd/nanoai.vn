@@ -59,6 +59,7 @@ import { WeddingFrameChoiceGrid, weddingSharedFrameFromChoice, type WeddingFrame
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
 import { WeddingRestylePhotoProvider } from '@/components/wedding/wedding-restyle-photo-button'
 import { WeddingRestylePhotoDialog, type WeddingRestylePhotoReport } from '@/components/wedding/wedding-restyle-photo-dialog'
+import { WeddingRunningProgress } from '@/components/wedding/wedding-running-progress'
 import { listWeddingRestylePhotoChoices, WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT, weddingRestyledSlotUrl, type WeddingCouplePhotoRestyleId } from '@/lib/wedding/restyle-wedding-couple-photo'
 import { weddingOutfitChoices, weddingOutfitFamilyId } from '@/lib/wedding/wedding-outfit-sets'
 import { WEDDING_RESTYLE_PLACES, weddingRestylePlaceLabel } from '@/lib/wedding/wedding-restyle-places'
@@ -618,6 +619,9 @@ function useOrnamentFaceAutosave(input: {
   return { saving, reset, draftRef }
 }
 
+/** Ảnh album vừa đăng. Sống qua lần React dựng lại, mất khi tải lại cả trang. */
+const weddingAlbumLive = new Map<string, { display: string[]; saved: string[] }>()
+
 export default function WeddingPublicClient({
   card,
   sideWishes,
@@ -759,11 +763,19 @@ export default function WeddingPublicClient({
   const [musicLibrary, setMusicLibrary] = useState<WeddingMusicLibraryRow[]>([])
   const [frameLibrary, setFrameLibrary] = useState<WeddingCoverFrameLibraryItem[]>([])
   const [musicDraftUrl, setMusicDraftUrl] = useState(card.musicUrl)
-  const [mediaLocal, setMediaLocal] = useState<{ cover?: string; groom?: string; bride?: string; album?: string[] }>({})
+  const [mediaLocal, setMediaLocal] = useState<{ cover?: string; groom?: string; bride?: string; album?: string[] }>(() => {
+    const live = weddingAlbumLive.get(card.id)
+    return live?.display.length ? { album: [...live.display] } : {}
+  })
   const [restyleBusy, setRestyleBusy] = useState<string | null>(null)
   const [restyleOpen, setRestyleOpen] = useState(false)
   const [restyleSeed, setRestyleSeed] = useState<WeddingCouplePhotoRestyleId | null>(null)
-  const [restyleProgress, setRestyleProgress] = useState<{ done: number; total: number } | null>(null)
+  const [restyleProgress, setRestyleProgress] = useState<{ done: number; total: number; label: string } | null>(null)
+  const [albumUpload, setAlbumUpload] = useState<{ done: number; total: number } | null>(null)
+  const [albumFocus, setAlbumFocus] = useState<number | null>(null)
+  const albumUploadLock = useRef(false)
+  const albumSavedRef = useRef<string[] | null>(weddingAlbumLive.get(card.id)?.saved ?? null)
+  const albumShownRef = useRef<string[]>([])
   const [restyleReport, setRestyleReport] = useState<WeddingRestylePhotoReport | null>(null)
   const restyleLock = useRef(false)
   const [framePick, setFramePick] = useState<'cover' | 'groom' | 'bride' | 'pair' | null>(null)
@@ -781,6 +793,7 @@ export default function WeddingPublicClient({
   const groomPhotoUrl = sampleDemo || !isWeddingSamplePhotoUrl(groomSource) ? groomSource : ''
   const bridePhotoUrl = sampleDemo || !isWeddingSamplePhotoUrl(brideSource) ? brideSource : ''
   const albumPhotoUrls = sampleDemo ? albumSource : albumSource.filter((url) => !isWeddingSamplePhotoUrl(url))
+  albumShownRef.current = albumPhotoUrls
   const plateUrls = previewPlates ?? backgroundPlateUrls
   const masterUrl = forcedMasterUrl !== undefined ? forcedMasterUrl : card.masterImageUrl
   const pageBackground = (plateUrls[0] || (previewLookOn ? '' : masterUrl) || '').trim()
@@ -973,13 +986,15 @@ export default function WeddingPublicClient({
     })
   }, [hostEditor])
   useEffect(() => {
+    const cardId = card.id
     return () => {
       const local = mediaLocalRef.current
-      for (const url of [local.cover, local.groom, local.bride, ...(local.album ?? [])]) {
-        if (url?.startsWith('blob:')) URL.revokeObjectURL(url)
+      const keep = new Set(weddingAlbumLive.get(cardId)?.display ?? [])
+      for (const url of [local.cover, local.groom, local.bride]) {
+        if (url?.startsWith('blob:') && !keep.has(url)) URL.revokeObjectURL(url)
       }
     }
-  }, [])
+  }, [card.id])
   const rememberLocalPhoto = useCallback((slot: 'cover' | 'groom' | 'bride', file: File) => {
     const next = URL.createObjectURL(file)
     setMediaLocal((current) => {
@@ -1002,6 +1017,64 @@ export default function WeddingPublicClient({
       setSectionRaw((current) => mergeWeddingSectionConfig(current, { coverPhotoUrl: result.coverPhotoUrl }))
     }
   }, [card.id, rememberLocalPhoto, tImage.ornamentAdminFailed, toast])
+  const uploadAlbumPhotos = useCallback(async (files: File[]) => {
+    if (!files.length || albumUploadLock.current) return
+    const current = (mediaLocalRef.current.album ?? albumShownRef.current).filter(Boolean)
+    const saved = albumSavedRef.current ?? current.filter((url) => url.startsWith('http'))
+    const room = Math.max(0, 30 - current.length)
+    if (room <= 0) {
+      toast({ title: tCover.albumUploadFull, variant: 'destructive' })
+      return
+    }
+    const batch = files.slice(0, room)
+    if (files.length > batch.length) toast({ title: tCover.albumUploadFull })
+    albumUploadLock.current = true
+    const previews = batch.map((file) => URL.createObjectURL(file))
+    const show = (display: string[], nextSaved: string[]) => {
+      const urls = display.filter(Boolean)
+      const stored = nextSaved.filter((url) => url.startsWith('http') && (sampleDemo || !isWeddingSamplePhotoUrl(url)))
+      weddingAlbumLive.set(card.id, { display: urls, saved: stored })
+      albumSavedRef.current = stored
+      setMediaLocal((prev) => ({ ...prev, album: urls }))
+      window.requestAnimationFrame(() => {
+        const glass = document.querySelector('[data-wedding-album]')?.closest('[data-wedding-glass]')
+        if (glass instanceof HTMLElement) glass.dataset.weddingShown = '1'
+      })
+    }
+    show([...current, ...previews], saved)
+    setAlbumFocus(current.length)
+    setAlbumUpload({ done: 0, total: batch.length })
+    window.setTimeout(() => {
+      document.querySelector('[data-wedding-album]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 50)
+    let failed = 0
+    try {
+      for (let index = 0; index < batch.length; index += 1) {
+        const file = batch[index]
+        if (!file) continue
+        const body = new FormData()
+        body.set('cardId', card.id)
+        body.append('albumImages', file)
+        let result: Awaited<ReturnType<typeof saveWeddingPreviewMedia>>
+        try {
+          result = await saveWeddingPreviewMedia(body)
+        } catch {
+          result = { error: 'unavailable' }
+        }
+        if (result && 'albumImageUrls' in result) {
+          const live = weddingAlbumLive.get(card.id)
+          show(live?.display ?? [...current, ...previews], result.albumImageUrls)
+        } else {
+          failed += 1
+        }
+        setAlbumUpload({ done: index + 1 - failed, total: batch.length })
+      }
+    } finally {
+      albumUploadLock.current = false
+      setAlbumUpload(null)
+    }
+    if (failed) toast({ title: tCover.albumUploadFailed, variant: 'destructive' })
+  }, [card.id, sampleDemo, tCover.albumUploadFailed, tCover.albumUploadFull, toast])
   const restyleCouplePhotos = useCallback(async (input: {
     outfitIndex: number
     placeId: string
@@ -1027,7 +1100,7 @@ export default function WeddingPublicClient({
     try {
       for (const slot of input.slots) {
         setRestyleBusy(slot)
-        setRestyleProgress({ done: done + 1, total: input.slots.length })
+        setRestyleProgress({ done: done + 1, total: input.slots.length, label: labelFor(slot) })
         const body = new FormData()
         body.set('cardId', card.id)
         body.set('slot', slot)
@@ -1054,7 +1127,10 @@ export default function WeddingPublicClient({
           if (slot === 'cover') return { ...current, cover: result.coverPhotoUrl }
           if (slot === 'groom') return { ...current, groom: result.groomImageUrl }
           if (slot === 'bride') return { ...current, bride: result.brideImageUrl }
-          return { ...current, album: result.albumImageUrls }
+          const album = result.albumImageUrls.filter((url) => url.startsWith('http'))
+          weddingAlbumLive.set(card.id, { display: album, saved: album })
+          albumSavedRef.current = album
+          return { ...current, album }
         })
         if (slot === 'cover') {
           setSectionRaw((current) => mergeWeddingSectionConfig(current, { coverPhotoUrl: result.coverPhotoUrl }))
@@ -2606,7 +2682,11 @@ export default function WeddingPublicClient({
     <WeddingRestylePhotoProvider
       enabled={visualEdit}
       label={tCover.restylePhoto}
-      busyLabel={tCover.restylePhotoBusy}
+      busyLabel={restyleProgress
+        ? tCover.restylePhotoProgress
+          .replace('{done}', String(restyleProgress.done))
+          .replace('{total}', String(restyleProgress.total))
+        : tCover.restylePhotoBusy}
       hint={tCover.restylePhotoHint.replace('{n}', String(WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT))}
       downloadLabel={tCover.restylePhotoDownload}
       busySlot={restyleBusy}
@@ -2626,6 +2706,9 @@ export default function WeddingPublicClient({
             .replace('{done}', String(restyleProgress.done))
             .replace('{total}', String(restyleProgress.total))
           : ''}
+        progressDone={restyleProgress?.done ?? 0}
+        progressTotal={restyleProgress?.total ?? 0}
+        progressDetail={restyleProgress?.label ?? ''}
         seed={restyleSeed}
         outfits={restyleOutfits}
         places={restylePlaces}
@@ -2656,6 +2739,7 @@ export default function WeddingPublicClient({
           world: tCover.restylePhotoWorld,
           photos: tCover.restylePhotoPhotos,
           start: tCover.restylePhotoStart,
+          progressHint: tCover.restylePhotoProgressHint,
           credit: tCover.restylePhotoCredit,
           empty: tCover.restylePhotoEmpty,
           needOutfit: tCover.restylePhotoNeedOutfit,
@@ -2676,6 +2760,18 @@ export default function WeddingPublicClient({
         }}
         onStart={(input) => { void restyleCouplePhotos(input) }}
       />
+      {albumUpload && typeof document !== 'undefined' ? createPortal(
+        <div className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[145] mx-auto max-w-md rounded-2xl border border-[#e6d7c3] bg-[#fffaf3] p-3 shadow-2xl">
+          <WeddingRunningProgress
+            label={tCover.albumUploadProgress.replace('{done}', String(albumUpload.done)).replace('{total}', String(albumUpload.total))}
+            done={albumUpload.done}
+            total={albumUpload.total}
+            indeterminate={albumUpload.done <= 0}
+            hint={tCover.albumUploadHint}
+          />
+        </div>,
+        document.body,
+      ) : null}
       <style>{`html:has([data-wedding-public]) [data-nanoai-chrome]{display:none !important}html:has([data-wedding-public]) [data-nanoai-shell]{padding-bottom:0 !important}`}</style>
       <div data-wedding-public="" hidden />
       <WeddingGuestNameFontLink />
@@ -3644,36 +3740,30 @@ export default function WeddingPublicClient({
                     <WeddingDeviceFileInput
                       className="h-12 min-w-[11.5rem] rounded-full bg-[#f0c14b] px-7 text-base font-bold tracking-wide text-[#3f2a12] shadow-[0_6px_16px_rgba(0,0,0,0.28)] ring-2 ring-[#fff3c4]"
                       multiple
+                      disabled={albumUpload != null}
                       label={
                         <span className="inline-flex items-center gap-2">
-                          <ImagePlus className="h-5 w-5" aria-hidden />
-                          {tCover.chooseWeddingAlbum}
+                          {albumUpload ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <ImagePlus className="h-5 w-5" aria-hidden />}
+                          {albumUpload
+                            ? tCover.albumUploadProgress
+                              .replace('{done}', String(albumUpload.done))
+                              .replace('{total}', String(albumUpload.total))
+                            : tCover.chooseWeddingAlbum}
                         </span>
                       }
-                      onFiles={(files) => {
-                        if (!files.length) return
-                        const body = new FormData()
-                        body.set('cardId', card.id)
-                        for (const file of files) body.append('albumImages', file)
-                        void saveWeddingPreviewMedia(body).then((result) => {
-                          if (!result || 'error' in result) {
-                            toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
-                            return
-                          }
-                          setMediaLocal((current) => ({ ...current, album: result.albumImageUrls }))
-                        })
-                      }}
+                      onFiles={(files) => { void uploadAlbumPhotos(files) }}
                     />
                   </div>
                 </div>
               ) : null}
             </WeddingReadableGlass>
             {albumPhotoUrls.length > 0 ? (
-              <WeddingSectionCard theme={theme} title={tx.albumTitle} className="relative min-w-0" contentClassName="min-w-0 -mx-1 sm:-mx-2">
+              <WeddingSectionCard theme={theme} title={tx.albumTitle} reveal={!visualEdit} className="relative min-w-0" contentClassName="min-w-0 -mx-1 sm:-mx-2">
                 <WeddingAlbumStage
                   urls={albumPhotoUrls}
                   alt={tx.albumAlt}
                   layoutId={albumLayoutId}
+                  focusIndex={albumFocus}
                   locale={uiLocale}
                   crops={sectionConfig.albumPhotoCrops}
                   edit={
@@ -3691,15 +3781,20 @@ export default function WeddingPublicClient({
                             markPreview('shell')
                           },
                           onRemove: (index) => {
-                            const next = albumPhotoUrls.filter((_, itemIndex) => itemIndex !== index)
-                            setMediaLocal((current) => ({ ...current, album: next }))
+                            const display = albumPhotoUrls
+                            const saved = albumSavedRef.current ?? display.filter((url) => url.startsWith('http'))
+                            const nextDisplay = display.filter((_, itemIndex) => itemIndex !== index)
+                            const nextSaved = index < saved.length ? saved.filter((_, itemIndex) => itemIndex !== index) : saved
+                            weddingAlbumLive.set(card.id, { display: nextDisplay, saved: nextSaved })
+                            albumSavedRef.current = nextSaved
+                            setMediaLocal((current) => ({ ...current, album: nextDisplay }))
                             setSectionRaw((raw) => mergeWeddingSectionConfig(raw, {
                               albumPhotoCrops: shiftAlbumPhotoCropsAfterRemove(parseWeddingSectionConfig(raw).albumPhotoCrops, index),
                             }))
                             markPreview('shell')
                             const body = new FormData()
                             body.set('cardId', card.id)
-                            body.set('albumImageUrls', next.join('\n'))
+                            body.set('albumImageUrls', nextSaved.join('\n'))
                             void saveWeddingPreviewMedia(body)
                           },
                           removeLabel: tImage.customReferenceRemove,
@@ -3739,25 +3834,18 @@ export default function WeddingPublicClient({
                     <WeddingDeviceFileInput
                       className="h-12 min-w-[11.5rem] rounded-full bg-[#f0c14b] px-7 text-base font-bold tracking-wide text-[#3f2a12] shadow-[0_6px_16px_rgba(0,0,0,0.28)] ring-2 ring-[#fff3c4]"
                       multiple
+                      disabled={albumUpload != null}
                       label={
                         <span className="inline-flex items-center gap-2">
-                          <ImagePlus className="h-5 w-5" aria-hidden />
-                          {tCover.chooseWeddingAlbum}
+                          {albumUpload ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <ImagePlus className="h-5 w-5" aria-hidden />}
+                          {albumUpload
+                            ? tCover.albumUploadProgress
+                              .replace('{done}', String(albumUpload.done))
+                              .replace('{total}', String(albumUpload.total))
+                            : tCover.chooseWeddingAlbum}
                         </span>
                       }
-                      onFiles={(files) => {
-                        if (!files.length) return
-                        const body = new FormData()
-                        body.set('cardId', card.id)
-                        for (const file of files) body.append('albumImages', file)
-                        void saveWeddingPreviewMedia(body).then((result) => {
-                          if (!result || 'error' in result) {
-                            toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
-                            return
-                          }
-                          setMediaLocal((current) => ({ ...current, album: result.albumImageUrls }))
-                        })
-                      }}
+                      onFiles={(files) => { void uploadAlbumPhotos(files) }}
                     />
                     </div>
                     </div>
