@@ -669,8 +669,9 @@ export default async function RootLayout({
                 var __gaIsLikelyBot = /bot|crawler|spider|facebookexternalhit|facebot|meta-externalagent|meta-externalfetcher|slackbot|whatsapp|telegrambot|twitterbot|linkedinbot|bingbot|googlebot|yandex|duckduckbot|embedly|quora link preview|pinterest|discordbot|applebot/i.test(__gaUa);
                 gtag('js', new Date());
                 if (!__gaIsLikelyBot) {
+                  window.__nanoPlatformGaId='${gaMeasurementId}';
                   gtag('config', '${gaMeasurementId}');
-                  ${googleAdsId ? `gtag('config', '${googleAdsId}'); window.__nanoPlatformGoogleAdsId='${googleAdsId}';` : ''}
+                  ${googleAdsId ? `gtag('config', '${googleAdsId}', { send_page_view: false }); window.__nanoPlatformGoogleAdsId='${googleAdsId}';` : ''}
                   window.__nanoPlatformGoogleAdsLabels=${googleAdsLabelsJson};
                 }
               `}

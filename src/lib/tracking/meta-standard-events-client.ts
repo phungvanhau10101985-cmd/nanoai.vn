@@ -41,8 +41,11 @@ export type MetaStandardEventName =
   | 'StartTrial'
   | 'Subscribe'
   | 'ViewContent'
+  | 'Search'
   | 'AddToCart'
+  | 'AddToWishlist'
   | 'InitiateCheckout'
+  | 'AddPaymentInfo'
   | 'Purchase'
 
 function sendMetaStandardEventToServer(params: {

@@ -26,6 +26,7 @@ import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { fireNanoAiFacebookDynamicEvent } from '@/lib/tracking/nanoai-facebook-dynamic-events-client'
 import { buildNanoAiCreditMetaCustomData } from '@/lib/catalog/nanoai-facebook-catalog'
 
 type PaymentConfig = {
@@ -149,6 +150,30 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
       const payJson = (await payRes.json()) as { payment?: Payment; error?: string }
       if (!payRes.ok || !payJson.payment) throw new Error(payJson.error || 'payment')
       setPayment(payJson.payment)
+      const creditMeta = buildNanoAiCreditMetaCustomData({
+        amountVnd: amount,
+        creditsAdded: creditsToAdd,
+      })
+      const creditId = Array.isArray(creditMeta.content_ids) ? String(creditMeta.content_ids[0] || '') : ''
+      if (creditId) {
+        fireNanoAiFacebookDynamicEvent({
+          event: 'InitiateCheckout',
+          contentId: creditId,
+          contentName: 'NanoAI credits top-up',
+          valueVnd: amount,
+          category: 'credits',
+          dedupeKey: `topup_checkout_${payJson.payment.id}`,
+        })
+        fireNanoAiFacebookDynamicEvent({
+          event: 'AddPaymentInfo',
+          contentId: creditId,
+          contentName: 'NanoAI credits top-up',
+          valueVnd: amount,
+          orderId: payJson.payment.id,
+          category: 'credits',
+          dedupeKey: `topup_payment_${payJson.payment.id}`,
+        })
+      }
     } catch (e) {
       console.error(e)
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không thể tạo giao dịch', 'Cannot create transaction', '无法创建交易', '取引を作成できません', '거래를 생성할 수 없습니다'), variant: 'destructive' })

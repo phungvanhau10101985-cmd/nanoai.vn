@@ -11,6 +11,9 @@ import {
   flushPlatformPurchaseCookie,
 } from '@/lib/tracking/nanoai-platform-commerce-client'
 import { trackNanoAiFeatureView } from '@/lib/tracking/feature-remarketing-client'
+import { fireNanoAiDynamicRemarketingPageView } from '@/lib/tracking/nanoai-platform-dynamic-remarketing-client'
+import { readNanoAiFacebookSearchString } from '@/lib/tracking/nanoai-facebook-dynamic-events'
+import { fireNanoAiFacebookDynamicEvent } from '@/lib/tracking/nanoai-facebook-dynamic-events-client'
 import { trackWeddingViewContent } from '@/lib/tracking/wedding-commerce-client'
 import { WEDDING_COMMERCE_PATH } from '@/lib/wedding/wedding-commerce-events'
 import { isPathMatchedByFeatureRoute } from '@/lib/catalog/nanoai-feature-catalog-id'
@@ -18,6 +21,7 @@ import { isPathMatchedByFeatureRoute } from '@/lib/catalog/nanoai-feature-catalo
 declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void
+    __nanoPlatformGaId?: string
     __nanoMetaLastViewContentKey?: string
     __nanoMetaLastViewContentAt?: number
     __nanoCartClickAt?: Record<string, number>
@@ -85,11 +89,28 @@ function track(eventName: string, params: Record<string, unknown> = {}) {
 
 function firePageView() {
   if (typeof window === 'undefined') return
-  const pagePath = `${window.location.pathname}${window.location.search}`
+  const pathname = window.location.pathname || '/'
+  const pagePath = `${pathname}${window.location.search}`
+  const gaId = String(window.__nanoPlatformGaId || '').trim()
   track('page_view', {
     page_path: pagePath,
     page_title: document.title,
+    ...(gaId ? { send_to: gaId } : {}),
   })
+  const matched = findMatchedFeatureRoute(pathname)
+  fireNanoAiDynamicRemarketingPageView(pathname, matched)
+  const searchString = readNanoAiFacebookSearchString(window.location.search || '')
+  if (searchString) {
+    const feature = matched ? nanoAiFeatureRemarketing(matched) : null
+    fireNanoAiFacebookDynamicEvent({
+      event: 'Search',
+      contentId: feature?.contentId || '',
+      contentName: searchString,
+      valueVnd: feature?.valueVnd || 0,
+      searchString,
+      skipDedupe: true,
+    })
+  }
 }
 
 function fireMetaFeatureViewContent() {
@@ -196,6 +217,22 @@ export function AnalyticsTracker() {
               extra: { feature_route: matchedFeature },
             })
           }
+        }
+      }
+
+      const wishlist = target.closest<HTMLElement>('[data-nano-wishlist="1"]')
+      if (wishlist) {
+        const featureRoute = findMatchedFeatureRoute(window.location.pathname || '/')
+        if (featureRoute) {
+          const { contentId, valueVnd } = nanoAiFeatureRemarketing(featureRoute)
+          const label = (wishlist.textContent || wishlist.getAttribute('aria-label') || featureRoute).trim()
+          fireNanoAiFacebookDynamicEvent({
+            event: 'AddToWishlist',
+            contentId,
+            contentName: label.slice(0, 200) || featureRoute,
+            valueVnd,
+            dedupeKey: `wishlist_${contentId}`,
+          })
         }
       }
 

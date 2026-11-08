@@ -2,6 +2,7 @@
 
 import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 import { broadcastNanoAiCommerce } from '@/lib/tracking/nanoai-platform-commerce-client'
+import { fireNanoAiFacebookDynamicEvent } from '@/lib/tracking/nanoai-facebook-dynamic-events-client'
 import {
   WEDDING_COMMERCE_CONTENT_ID,
   weddingAddToCartCustomData,
@@ -66,9 +67,20 @@ export function trackWeddingGuestPackCheckout(input: {
 }): boolean {
   const paymentId = input.paymentId.trim()
   if (!paymentId || input.amountVnd <= 0) return false
-  return fire('InitiateCheckout', weddingPackPaymentCustomData(input), {
+  const custom = weddingPackPaymentCustomData(input)
+  const accepted = fire('InitiateCheckout', custom, {
     dedupeKey: `wedding_checkout_${paymentId}`,
   })
+  fireNanoAiFacebookDynamicEvent({
+    event: 'AddPaymentInfo',
+    contentId: WEDDING_COMMERCE_CONTENT_ID,
+    contentName: custom.content_name,
+    valueVnd: custom.value,
+    orderId: paymentId,
+    category: custom.content_category,
+    dedupeKey: `wedding_payment_info_${paymentId}`,
+  })
+  return accepted
 }
 
 /** Ngân hàng báo tiền về (quét QR thành công). Giá trị đơn = số tiền của gói vừa trả. */

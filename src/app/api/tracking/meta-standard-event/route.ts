@@ -13,8 +13,11 @@ type MetaStandardEventName =
   | 'StartTrial'
   | 'Subscribe'
   | 'ViewContent'
+  | 'Search'
   | 'AddToCart'
+  | 'AddToWishlist'
   | 'InitiateCheckout'
+  | 'AddPaymentInfo'
   | 'Purchase'
 
 type CustomScalar = string | number | boolean
@@ -105,8 +108,11 @@ export async function POST(request: NextRequest) {
     'StartTrial',
     'Subscribe',
     'ViewContent',
+    'Search',
     'AddToCart',
+    'AddToWishlist',
     'InitiateCheckout',
+    'AddPaymentInfo',
     'Purchase',
   ]
   if (!allowedEvents.includes(eventNameRaw as MetaStandardEventName)) {
