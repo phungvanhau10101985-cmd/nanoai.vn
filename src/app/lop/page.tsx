@@ -7,7 +7,6 @@ import { getServerDictionary } from '@/lib/i18n/server'
 import Link from 'next/link'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import LopClientPage, { type ClassItem } from './lop-client-page'
-import EnterClassForm from './enter-class-form'
 
 export const metadata = buildMetadata({
   title: 'Lớp học',
@@ -46,7 +45,7 @@ export default async function LopPage() {
   const myClasses: ClassItem[] = (myRows ?? []).map(mapMineToClassItem)
   const memberClasses: ClassItem[] = (memberRows ?? []).map(mapMineToClassItem)
 
-  const { locale, t } = await getServerDictionary()
+  const { t } = await getServerDictionary()
 
   return (
     <div className="app-shell min-h-screen">
@@ -59,13 +58,13 @@ export default async function LopPage() {
                 href="/lop/tham-gia"
                 className="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent lg:rounded-xl lg:px-5 lg:py-2.5 lg:shadow-sm lg:transition-shadow lg:hover:shadow-md"
               >
-                {t.classes.joinClass}
+                {t.classes.joinClassForStudent}
               </Link>
               <Link
                 href="/lop/tao"
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 lg:rounded-xl lg:px-5 lg:py-2.5 lg:shadow-md lg:transition-shadow lg:hover:shadow-lg"
               >
-                {t.classes.createClass}
+                {t.classes.createClassForTeacher}
               </Link>
             </div>
           </header>
@@ -86,8 +85,6 @@ export default async function LopPage() {
               </Link>
             </div>
           ) : null}
-
-          <EnterClassForm t={t.classes} locale={locale} />
 
           <LopClientPage t={t.classes} myClasses={myClasses} memberClasses={memberClasses} />
         </div>

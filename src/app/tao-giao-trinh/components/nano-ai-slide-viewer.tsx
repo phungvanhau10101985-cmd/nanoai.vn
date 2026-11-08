@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, MonitorPlay, Timer, Link2, Copy, ExternalLink, FileText, Square } from 'lucide-react'
+import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, MonitorPlay, Timer, Link2, Copy, ExternalLink, FileText, Square, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -1384,6 +1384,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const shouldRenderInlineInfographicCanvas = !visualFullscreenOpen && !infographicFullscreenOpen
   /** Học sinh + giáo trình (không phiếu): cột phải — một slide hoặc toàn bộ slide nối liền (markdown). */
   const [studentCurriculumRightMode, setStudentCurriculumRightMode] = useState<'single-slide' | 'markdown-all'>('single-slide')
+  /** Điện thoại học sinh: đồ thị, bài, hoặc cả hai. Desktop không đọc state này. */
+  const [studentPhonePane, setStudentPhonePane] = useState<'both' | 'visual' | 'lesson'>('both')
   const notifyTeacherStudentCurriculumMode = useCallback((mode: 'single-slide' | 'markdown-all') => {
     try {
       window.opener?.postMessage({ type: 'student-curriculum-right-mode-changed', mode }, window.location.origin)
@@ -1618,6 +1620,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [viewportW])
   /** Dưới 768px: visual + nội dung xếp dọc full width; từ md: giữ neo phải + minWidth như desktop */
   const narrowSlideLayout = viewportW < 768
+  /** Học sinh trên điện thoại. Desktop và giáo viên không vào nhánh này. */
+  const studentPhone = narrowSlideLayout && !isTeacherView
 
   const [virtualMousePos, setVirtualMousePos] = useState<{ x: number; y: number } | null>(null)
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
@@ -4418,6 +4422,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     if (isTeacherView) return
     const root = studentSlideContentLayoutRef.current
     if (!root) return
+    if (narrowSlideLayout) {
+      root.style.width = ''
+      root.style.maxWidth = ''
+      root.style.flex = ''
+      root.querySelectorAll('[data-pointer-prose-root], [data-pointer-sync-id^="slide-title-"]').forEach((node) => {
+        if (!(node instanceof HTMLElement)) return
+        node.style.width = ''
+        node.style.minWidth = ''
+        node.style.maxWidth = ''
+      })
+      return
+    }
     if (syncedTeacherSlideLayoutW != null && syncedTeacherSlideLayoutW > 0) {
       root.style.width = `${syncedTeacherSlideLayoutW}px`
       root.style.maxWidth = `${syncedTeacherSlideLayoutW}px`
@@ -4435,7 +4451,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       node.style.minWidth = px
       node.style.maxWidth = px
     })
-  }, [isTeacherView, syncedTeacherSlideLayoutW, syncedTeacherProseW, slides, currentIndex, studentCurriculumRightMode])
+  }, [isTeacherView, narrowSlideLayout, syncedTeacherSlideLayoutW, syncedTeacherProseW, slides, currentIndex, studentCurriculumRightMode])
 
   /** Chuỗi slide (HS): thêm vùng cuộn dưới cùng ~½ chiều cao slide hiện tại để slide không dính sát đáy khung. */
   useLayoutEffect(() => {
@@ -4510,12 +4526,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     <div className="fixed inset-0 z-[100] bg-black flex flex-col overflow-hidden">
       <div
         className={cn(
-          'print:hidden overflow-hidden [direction:rtl] box-border pr-3 md:pr-0',
+          'print:hidden box-border',
+          studentPhone ? 'overflow-hidden' : 'overflow-hidden [direction:rtl] pr-3 md:pr-0',
           presentationMode === 'slide-interaction' && 'border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm',
           presentationMode === 'slide-interaction' && 'pointer-events-auto'
         )}
       >
-        <div className="[direction:ltr] w-full md:w-max">
+        <div className={cn(studentPhone ? 'w-full min-w-0' : '[direction:ltr] w-full md:w-max')}>
           <PresentationControlBar
             variant={isWorksheetTeacher || presentationMode === 'slide-interaction' ? 'teacher' : 'student'}
             tr={tr}
@@ -4553,6 +4570,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             hideInsert
             hideIndex={presentationMode === 'slide-interaction'}
             printHidden={false}
+            phoneStudent={studentPhone && presentationMode !== 'slide-interaction'}
           />
         </div>
         {presentationMode === 'slide-interaction' && (
@@ -5078,9 +5096,36 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       })()}
       {/* Đồng hồ cát nổi – học sinh thấy khi giáo viên chia sẻ màn hình */}
       {timerSeconds > 0 && (
-        <div className={cn('fixed bottom-4 right-4 md:bottom-6 md:right-6 z-[102] flex items-center gap-2 px-4 py-2 rounded-xl bg-black/80 text-white shadow-xl border border-amber-400/50 pb-[max(0.5rem,env(safe-area-inset-bottom))]', timerRunning && timerSeconds <= 30 && 'animate-pulse')}>
+        <div className={cn('fixed bottom-4 right-4 md:bottom-6 md:right-6 z-[102] flex items-center gap-2 px-4 py-2 rounded-xl bg-black/80 text-white shadow-xl border border-amber-400/50 pb-[max(0.5rem,env(safe-area-inset-bottom))]', studentPhone && 'bottom-[4.75rem] right-3', timerRunning && timerSeconds <= 30 && 'animate-pulse')}>
           <Timer className="h-5 w-5 text-amber-400 shrink-0" />
           <span className={cn('font-mono text-xl font-bold tabular-nums', timerSeconds <= 30 && 'text-amber-300')}>{formatTimer(timerSeconds)}</span>
+        </div>
+      )}
+
+      {studentPhone && (
+        <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-200 bg-slate-50 p-1.5">
+          {(
+            [
+              ['visual', tr('Đồ thị', 'Figure', '图形', '図', '그림')],
+              ['both', tr('Cả hai', 'Both', '同时', '両方', '함께')],
+              ['lesson', tr('Bài học', 'Lesson', '课文', '本文', '본문')],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setStudentPhonePane(id)}
+              className={cn(
+                'h-9 rounded-lg text-xs font-semibold',
+                studentPhonePane === id
+                  ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                  : 'text-slate-600'
+              )}
+              aria-pressed={studentPhonePane === id}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -5108,12 +5153,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 }
           }
         >
-        {/* Visual: GV desktop 45%; HS desktop 50% (chia đôi cân với cột nội dung); mobile full width + max-height */}
+        {/* Visual: GV desktop 45%; HS desktop 50%. Mobile có chiều cao thật — con absolute nếu không sẽ co về 0. */}
         <div
           className={cn(
             'min-h-0 relative overflow-hidden shrink-0',
             narrowSlideLayout
-              ? 'w-full max-h-[min(40vh,360px)] flex-shrink-0 border-b border-slate-200'
+              ? cn(
+                  'w-full border-b border-slate-200',
+                  studentPhone && studentPhonePane === 'lesson' && 'hidden',
+                  studentPhone && studentPhonePane === 'visual' && 'min-h-0 flex-1 border-b-0',
+                  (!studentPhone || studentPhonePane === 'both') && 'h-[min(32vh,260px)] min-h-[160px]'
+                )
               : isTeacherView
                 ? 'w-[45%]'
                 : 'w-1/2',
@@ -5127,7 +5177,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             className={cn(
               'absolute top-2 right-2 z-20 flex max-w-[calc(100%-3.5rem)] flex-wrap items-center justify-end gap-1 md:top-4 md:right-4 md:max-w-[calc(100%-4.5rem)] landscape:top-4 landscape:right-4 print:hidden',
               /** HS giáo trình: lệch cụm nút so với mép phải (tương đương -40px so với căn phải gốc) */
-              isStudentCurriculumSlide && '-translate-x-[40px]'
+              isStudentCurriculumSlide && !narrowSlideLayout && '-translate-x-[40px]'
             )}
           >
             {isTeacherView && autoGeoSuggestion && (
@@ -5603,23 +5653,24 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             </div>
         </div>
 
-        {/* Content: GV desktop 55%; HS desktop 50%; mobile full width bên dưới visual */}
+        {/* Content: GV desktop 55%; HS desktop 50%. Mobile: flex-1 min-h-0 để cột chữ cuộn được. */}
         <div
           className={cn(
-            'flex min-h-0 shrink-0 flex-col bg-white',
+            'flex min-h-0 flex-col bg-white',
             narrowSlideLayout
-              ? 'w-full flex-1 min-h-[min(60vh,520px)]'
-              : isTeacherView
-                ? 'w-[55%]'
-                : 'w-1/2',
+              ? cn('w-full min-h-0', studentPhone && studentPhonePane === 'visual' ? 'hidden' : 'flex-1')
+              : cn('shrink-0', isTeacherView ? 'w-[55%]' : 'w-1/2'),
           )}
         >
           {!isTeacherView && !worksheetPresentation && slides.length > 0 && (
             <div
-              className="flex h-12 shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-3 shadow-sm print:hidden md:h-14 md:px-4"
+              className={cn(
+                'flex shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-3 shadow-sm print:hidden md:h-14 md:px-4',
+                studentPhone ? 'h-11' : 'h-12'
+              )}
               data-control="student-curriculum-mode"
             >
-              <div className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap md:flex-none md:gap-2.5">
+              <div className={cn('flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap md:flex-none md:gap-2.5', studentPhone && 'grid w-full grid-cols-2')}>
               <button
                 type="button"
                 data-control="student-curriculum-all"
@@ -5630,6 +5681,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 }}
                 className={cn(
                   'flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition-colors md:h-9 md:px-3 md:text-sm',
+                  studentPhone && 'w-full justify-center',
                   studentCurriculumRightMode === 'markdown-all'
                     ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-400/50'
                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
@@ -5655,6 +5707,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 }}
                 className={cn(
                   'flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition-colors md:h-9 md:px-3 md:text-sm',
+                  studentPhone && 'w-full justify-center',
                   studentCurriculumRightMode === 'single-slide'
                     ? 'border-amber-400 bg-amber-50 text-amber-900 ring-1 ring-amber-400/50'
                     : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
@@ -5695,10 +5748,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             ref={studentSlideContentLayoutRef}
             className={cn(
               'min-w-0',
-              !isTeacherView && syncedTeacherSlideLayoutW != null && 'mx-auto',
+              !isTeacherView && !narrowSlideLayout && syncedTeacherSlideLayoutW != null && 'mx-auto',
             )}
             style={
-              !isTeacherView && syncedTeacherSlideLayoutW != null
+              !isTeacherView && !narrowSlideLayout && syncedTeacherSlideLayoutW != null
                 ? {
                     width: syncedTeacherSlideLayoutW,
                     maxWidth: 'none',
@@ -5900,7 +5953,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     className={cn(
                       SLIDE_POINTER_CHAIN_CARD_CLASS,
                       'scroll-mt-6 scroll-mb-8 border-slate-200 bg-slate-50/90 shadow-sm md:scroll-mt-10 md:scroll-mb-12',
-                      si === currentIndex && 'ring-2 ring-amber-400'
+                      studentPhone && 'p-3',
+                      si === currentIndex && 'ring-2 ring-amber-400',
+                      si === currentIndex && studentPhone && 'bg-amber-50'
                     )}
                   >
                     <h3
@@ -6043,6 +6098,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         </div>
                         <div className={cn(SLIDE_POINTER_SINGLE_BODY_CLASS, 'text-slate-800')}>{blockBody}</div>
                       </div>
+                    ) : studentPhone ? (
+                      <div key={i} className="overflow-hidden rounded-lg border border-slate-100 bg-white shadow-sm">
+                        <div className="flex items-center gap-2 bg-violet-100 px-3 py-2 text-violet-700">
+                          <div className="text-violet-600">{getIconForHeader(b.header)}</div>
+                          <span className="text-xs font-bold leading-tight">{b.header}</span>
+                        </div>
+                        <div className="p-3 text-slate-800">{blockBody}</div>
+                      </div>
                     ) : (
                       <div key={i} className="flex rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
                         <div className="w-24 min-w-[96px] bg-violet-100 flex flex-col items-center justify-center p-3">
@@ -6082,6 +6145,40 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         </div>
         </div>
       </div>
+
+      {studentPhone && (
+        <div className="flex shrink-0 items-center gap-2 border-t border-slate-200 bg-white px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={goPrev}
+            disabled={currentIndex === 0}
+            className="flex h-11 shrink-0 items-center justify-center gap-1 rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white disabled:opacity-35"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            {tr('Trước', 'Back', '上一张', '前へ', '이전')}
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="text-center text-xs font-semibold tabular-nums text-slate-700">
+              {tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')} {currentIndex + 1}/{slides.length}
+            </p>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200" aria-hidden>
+              <div
+                className="h-full rounded-full bg-amber-500 transition-[width]"
+                style={{ width: `${slides.length ? ((currentIndex + 1) / slides.length) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={goNext}
+            disabled={currentIndex >= slides.length - 1}
+            className="flex h-11 shrink-0 items-center justify-center gap-1 rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white disabled:opacity-35"
+          >
+            {tr('Tiếp', 'Next', '下一张', '次へ', '다음')}
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <MemoryDebugHudRuntime
         enabled={memoryDebugEnabled}

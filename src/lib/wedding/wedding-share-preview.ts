@@ -258,22 +258,22 @@ export function buildWeddingSharePreviewSvg(model: WeddingSharePreviewModel, art
     diamond(48, 582, 14, look.frame),
     diamond(1152, 582, 14, look.frame),
     `<rect x="${panelX}" y="${panelY}" width="${panelW}" height="${panelH}" rx="28" fill="${look.panel}" stroke="${look.frame}" stroke-width="3"/>`,
-    `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Georgia, Times New Roman, serif'}" font-size="22" font-weight="600" letter-spacing="6" fill="${look.accent}">THIỆP MỜI</text>`,
+    `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Cambria, Times New Roman, serif'}" font-size="22" font-weight="600" letter-spacing="6" fill="${look.accent}">THIỆP MỜI</text>`,
   )
   y += 16 + 12
   parts.push(diamond(600, y, 12, look.frame))
   y += 18 + model.groomSize
   parts.push(
-    `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Georgia, Times New Roman, serif'}" font-size="${model.groomSize}" font-weight="600" fill="${look.ink}">${xmlText(model.groomName)}</text>`,
+    `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Cambria, Times New Roman, serif'}" font-size="${model.groomSize}" font-weight="600" fill="${look.ink}">${xmlText(model.groomName)}</text>`,
   )
   if (model.brideName) {
     y += 8 + 28
     parts.push(
-      `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Georgia, Times New Roman, serif'}" font-size="28" font-weight="600" fill="${look.accent}">${xmlText('&')}</text>`,
+      `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Cambria, Times New Roman, serif'}" font-size="28" font-weight="600" fill="${look.accent}">${xmlText('&')}</text>`,
     )
     y += 4 + model.brideSize
     parts.push(
-      `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Georgia, Times New Roman, serif'}" font-size="${model.brideSize}" font-weight="600" fill="${look.ink}">${xmlText(model.brideName)}</text>`,
+      `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Cambria, Times New Roman, serif'}" font-size="${model.brideSize}" font-weight="600" fill="${look.ink}">${xmlText(model.brideName)}</text>`,
     )
   }
   y += 18
@@ -281,18 +281,18 @@ export function buildWeddingSharePreviewSvg(model: WeddingSharePreviewModel, art
   if (model.dateLine) {
     y += 16 + 26
     parts.push(
-      `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Georgia, Times New Roman, serif'}" font-size="26" fill="${look.muted}">${xmlText(model.dateLine)}</text>`,
+      `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Cambria, Times New Roman, serif'}" font-size="26" fill="${look.muted}">${xmlText(model.dateLine)}</text>`,
     )
   }
   if (model.venueLine) {
     y += 8 + 24
     parts.push(
-      `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Georgia, Times New Roman, serif'}" font-size="22" fill="${look.muted}">${xmlText(model.venueLine)}</text>`,
+      `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Cambria, Times New Roman, serif'}" font-size="22" fill="${look.muted}">${xmlText(model.venueLine)}</text>`,
     )
   }
   y += 16 + 24
   parts.push(
-    `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Georgia, Times New Roman, serif'}" font-size="24" font-weight="600" fill="${look.ink}">${xmlText(model.inviteLine)}</text>`,
+    `<text x="600" y="${y}" text-anchor="middle" font-family="${look.fontFamily || 'Cambria, Times New Roman, serif'}" font-size="24" font-weight="600" fill="${look.ink}">${xmlText(model.inviteLine)}</text>`,
     `</svg>`,
   )
   return parts.join('')

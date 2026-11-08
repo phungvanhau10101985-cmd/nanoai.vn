@@ -44,8 +44,6 @@ function mirrorLocaleCookies(response: NextResponse, locale: string) {
   response.cookies.set(LOCALE_COOKIE_NAME_LEGACY, locale, LOCALE_COOKIE_OPTS)
 }
 
-const FORCE_REAL_LOGIN_COOKIE = 'force_real_login'
-
 function resolveEmailSessionMaxAgeSec(): number {
   const raw = process.env.EMAIL_SESSION_MAX_AGE_DAYS?.trim()
   const days = raw ? parseInt(raw, 10) : 3650
@@ -313,7 +311,6 @@ export async function middleware(request: NextRequest) {
     const locale = cookieLocale || DEFAULT_WEB_LOCALE
     mirrorLocaleCookies(response, locale)
     refreshEmailSessionCookies(response, request)
-    response.cookies.set(FORCE_REAL_LOGIN_COOKIE, '', { path: '/', maxAge: 0 })
     applyCommonResponseHeaders(response, request, host)
     return response
   }

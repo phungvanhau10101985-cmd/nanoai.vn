@@ -93,6 +93,10 @@ export interface PresentationControlBarProps {
   hideTeacherLeftButtons?: boolean
   /** Ẩn toàn bộ (print) */
   printHidden?: boolean
+  /** Học sinh, cửa sổ dưới 768px: một hàng cuộn ngang. Desktop không bật. */
+  phoneStudent?: boolean
+  /** Giáo viên, cửa sổ dưới 768px: một hàng cuộn ngang. Desktop không bật. */
+  phoneTeacher?: boolean
 }
 
 export function PresentationControlBar({
@@ -139,6 +143,8 @@ export function PresentationControlBar({
   hideIndex = false,
   hideTeacherLeftButtons = false,
   printHidden = false,
+  phoneStudent = false,
+  phoneTeacher = false,
 }: PresentationControlBarProps) {
   const isStudent = variant === 'student'
   const isTeacher = variant === 'teacher'
@@ -190,10 +196,14 @@ export function PresentationControlBar({
   return (
     <div
       className={cn(
-        SHARED_LAYOUT.container,
+        phoneStudent
+          ? 'flex items-center gap-1.5 px-2 py-1.5 !flex-nowrap'
+          : phoneTeacher
+            ? 'flex items-center gap-1.5 overflow-x-auto px-2 py-1.5 !flex-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+            : SHARED_LAYOUT.container,
         theme.text,
         // Keep right controls visible by pinning content to the right.
-        prioritizeRightControls && 'justify-end flex-nowrap overflow-x-hidden',
+        !phoneStudent && !phoneTeacher && prioritizeRightControls && 'justify-end flex-nowrap overflow-x-hidden',
         // Giao diện học sinh slide-interaction: toàn bộ control bar (visua, cài đặt...) phải click được.
         shareButtonClickableWhenParentDisabled && 'pointer-events-auto'
       )}
@@ -203,7 +213,12 @@ export function PresentationControlBar({
           {currentIndex + 1} / {totalSlides}
         </span>
       )}
-      <div className={cn(SHARED_LAYOUT.rightGroup, prioritizeRightControls && 'ml-auto w-full md:w-max justify-end')}>
+      {phoneStudent && (
+        <span className="sticky left-0 z-10 shrink-0 rounded-md bg-black px-2 py-1 text-xs font-semibold tabular-nums text-white">
+          {currentIndex + 1}/{totalSlides}
+        </span>
+      )}
+      <div className={cn(SHARED_LAYOUT.rightGroup, phoneStudent ? 'min-w-0 flex-1 !flex-nowrap justify-start gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : phoneTeacher ? 'w-max shrink-0 !flex-nowrap justify-start gap-1.5' : prioritizeRightControls && 'ml-auto w-full md:w-max justify-end')}>
         {onOpenTeacherView && (
           <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
             <button
@@ -216,9 +231,10 @@ export function PresentationControlBar({
               onClick={(e) => e.preventDefault()}
               className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap shrink-0 h-9', theme.btnInactive, highlightClass('giao-dien-giao-vien'))}
               title={tr('Mở nhanh giao diện giáo viên', 'Open teacher interface', '打开教师界面', '教師画面を開く', '교사 화면 열기')}
+              aria-label={tr('Giao diện giáo viên', 'Teacher interface', '教师界面', '教師インターフェース', '교사 인터페이스')}
             >
               <Monitor className="h-4 w-4" />
-              {tr('Giao diện giáo viên', 'Teacher interface', '教师界面', '教師インターフェース', '교사 인터페이스')}
+              {phoneStudent ? null : tr('Giao diện giáo viên', 'Teacher interface', '教师界面', '教師インターフェース', '교사 인터페이스')}
             </button>
           </span>
         )}
@@ -339,7 +355,7 @@ export function PresentationControlBar({
         </div>
 
         {/* 4. Đồng hồ cát – teacher: luôn nút start (gửi lệnh). student: countdown khi chạy */}
-        <div data-control="đồng-hồ-cát" data-pointer-sync-id="ctrl-sand" className={cn(SHARED_LAYOUT.sandTimer, theme.sandTimerBorder, highlightClass('đồng-hồ-cát'), highlightedControl === 'ctrl-sand' || highlightedControl?.startsWith('ctrl-sand-') ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-slate-950 brightness-125' : '')}>
+        <div data-control="đồng-hồ-cát" data-pointer-sync-id="ctrl-sand" className={cn(SHARED_LAYOUT.sandTimer, phoneTeacher && 'flex-nowrap', theme.sandTimerBorder, highlightClass('đồng-hồ-cát'), highlightedControl === 'ctrl-sand' || highlightedControl?.startsWith('ctrl-sand-') ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-slate-950 brightness-125' : '')}>
           <Timer className={cn('h-4 w-4 shrink-0', theme.sandTimerText)} />
           {(isTeacher || sandTimerSeconds <= 0) ? (
             SANDS_SECONDS.map((sec) => (
@@ -389,7 +405,7 @@ export function PresentationControlBar({
                 <Printer className="h-5 w-5" />
               </button>
             )}
-            {onClose && (
+            {onClose && !phoneStudent && (
               <button data-control="close" type="button" onClick={onClose} className={cn(SHARED_LAYOUT.btnIcon, theme.btnBase, highlightClass('close'))} title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}>
                 <X className="h-5 w-5" />
               </button>
@@ -397,6 +413,11 @@ export function PresentationControlBar({
           </>
         )}
       </div>
+      {phoneStudent && onClose && (
+        <button data-control="close" type="button" onClick={onClose} className={cn(SHARED_LAYOUT.btnIcon, theme.btnBase, highlightClass('close'))} title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}>
+          <X className="h-5 w-5" />
+        </button>
+      )}
     </div>
   )
 }

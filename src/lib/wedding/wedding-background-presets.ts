@@ -498,8 +498,8 @@ const VAN_MIEU_LA = '/wedding/backgrounds/ornaments/van-mieu-la.png'
 const VAN_MIEU_NU = '/wedding/backgrounds/ornaments/van-mieu-nu.png'
 const VAN_MIEU_DA = '/wedding/backgrounds/ornaments/van-mieu-da.png'
 
-const SOFT_FONT = 'Palatino Linotype, Palatino, Georgia, serif'
-const FORMAL_FONT = 'Georgia, Times New Roman, serif'
+const SOFT_FONT = 'Palatino Linotype, Palatino, Cambria, Times New Roman, serif'
+const FORMAL_FONT = 'Cambria, Palatino Linotype, Times New Roman, serif'
 
 /** Bốn hoa bám hai mép mobile. Một phần tràn ra ngoài tờ, phần lớn vẫn nằm trên tờ. */
 function themeEdgeOrnaments(a: string, b: string, c: string, d: string): readonly WeddingBackgroundOrnament[] {

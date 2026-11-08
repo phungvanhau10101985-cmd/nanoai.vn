@@ -13,7 +13,7 @@ import {
   fetchTeacherSchoolSettingsPrevMinePg,
   insertClassMemberPg,
   insertClassMinePg,
-  removeClassMemberPg,
+  leaveClassAsStudentPg,
   schoolExistsByIdPg,
   updateClassMemberDisplayNameForTeacherPg,
   updateClassMemberProfilePg,
@@ -22,6 +22,9 @@ import {
   upsertTeacherSchoolSettingsMinePg,
 } from '@/lib/db/classes-pg'
 import { fetchExamSessionForClassJoinByCodePg } from '@/lib/db/exam-session-pg'
+import { fetchStudentIdentity } from '@/lib/db/student-identity-pg'
+import { fetchTeacherIdentity } from '@/lib/db/teacher-identity-pg'
+import { getServerDictionary } from '@/lib/i18n/server'
 import { isValidStudentDobIso } from '@/lib/student-dob'
 
 function generateJoinCode(): string {
@@ -58,7 +61,10 @@ export async function createClass(formData: FormData) {
   if (!schoolOk) return { error: 'Không tìm thấy trường đã chọn.' }
 
   const subjectLabel = normalizeFacingLabel(formData.get('subjectLabel')?.toString() ?? '', 120)
-  const teacherDisplayName = normalizeFacingLabel(formData.get('teacherDisplayName')?.toString() ?? '', 120)
+  const { t } = getServerDictionary()
+  const identity = await fetchTeacherIdentity(user.id, 'vi')
+  if (!identity.publicName) return { error: t.classes.teacherIdentityRequired, code: 'profile_required' as const }
+  const teacherDisplayName = identity.publicName
 
   let joinCode = generateJoinCode()
   let attempts = 0
@@ -120,7 +126,10 @@ export async function updateClassStudentFacingInfo(input: {
   if (!cid) return { error: 'Thiếu thông tin.' }
 
   const subjectLabel = normalizeFacingLabel(input.subjectLabel ?? '', 120)
-  const teacherDisplayName = normalizeFacingLabel(input.teacherDisplayName ?? '', 120)
+  const { t } = getServerDictionary()
+  const identity = await fetchTeacherIdentity(user.id, 'vi')
+  if (!identity.publicName) return { error: t.classes.teacherIdentityRequired }
+  const teacherDisplayName = identity.publicName
 
   const cls = await fetchClassTeacherAndSchoolIdPg(cid)
   if (!cls) return { error: DB_ERR }
@@ -151,22 +160,20 @@ export async function updateClassStudentFacingInfo(input: {
   return { success: true }
 }
 
-export async function joinClass(input: { joinCode: string; studentDisplayName: string; birthDate: string }) {
+export async function joinClass(input: { joinCode: string }) {
   const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
   if (!isPgConfigured()) return { error: DB_ERR }
+  const { t } = getServerDictionary()
 
   const code = input.joinCode?.trim().toUpperCase()
   if (!code) return { error: 'Vui lòng nhập mã tham gia.' }
 
-  const displayName = input.studentDisplayName?.replace(/\s+/g, ' ').trim() ?? ''
-  if (displayName.length < 2) return { error: 'Họ tên quá ngắn (ít nhất 2 ký tự).' }
-  if (displayName.length > 120) return { error: 'Họ tên quá dài.' }
-
-  const birthRaw = input.birthDate?.trim() ?? ''
-  if (!birthRaw) return { error: 'Vui lòng chọn ngày sinh.' }
-  if (!isValidStudentDobIso(birthRaw)) return { error: 'Ngày sinh không hợp lệ.' }
+  const identity = await fetchStudentIdentity(user.id)
+  if (!identity.complete || !identity.gender) {
+    return { error: t.classes.studentIdentityRequired, code: 'profile_required' as const }
+  }
 
   const classId = await fetchClassIdByJoinCodePg(code)
   if (!classId) return { error: 'Mã không hợp lệ.' }
@@ -178,8 +185,8 @@ export async function joinClass(input: { joinCode: string; studentDisplayName: s
   const ins = await insertClassMemberPg({
     classId,
     userId: user.id,
-    memberDisplayName: displayName,
-    birthDateIso: birthRaw,
+    memberDisplayName: identity.givenName,
+    birthDateIso: identity.birthDate,
   })
   if (ins !== true) return { error: 'Không thể tham gia lớp.' }
 
@@ -188,21 +195,24 @@ export async function joinClass(input: { joinCode: string; studentDisplayName: s
   return { success: true, classId }
 }
 
-export async function removeClassMember(classId: string, memberUserId: string) {
+export async function removeClassMember(_classId: string, _memberUserId: string) {
+  const { t } = getServerDictionary()
+  return { error: t.classes.leaveClassTeachersCannotRemove }
+}
+
+export async function leaveClass(classId: string) {
   const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
   if (!isPgConfigured()) return { error: DB_ERR }
+  const { t } = getServerDictionary()
 
   const cid = classId?.trim()
-  const mid = memberUserId?.trim()
-  if (!cid || !mid) return { error: 'Thiếu thông tin.' }
+  if (!cid) return { error: t.classes.leaveClassFailed }
 
-  const res = await removeClassMemberPg(cid, user.id, mid)
+  const res = await leaveClassAsStudentPg(cid, user.id)
   if (res === null) return { error: DB_ERR }
-  if (res === 'not_teacher') return { error: 'Bạn không có quyền xóa thành viên.' }
-  if (res === 'cannot_remove_owner') return { error: 'Không thể xóa chủ lớp khỏi danh sách này.' }
-  if (res === 'not_found') return { error: 'Không tìm thấy thành viên.' }
+  if (res !== 'ok') return { error: t.classes.leaveClassFailed }
 
   revalidatePath('/lop')
   revalidatePath(`/lop/${cid}`)
@@ -275,26 +285,17 @@ export async function removeWorksheetFromClass(classId: string, worksheetId: str
 /**
  * HS mở link đề thi gắn lớp: tham gia lớp bằng họ tên + ngày sinh (mã phiên thi hợp lệ thay cho mã lớp).
  */
-export async function joinClassForActiveExam(input: {
-  examCode: string
-  studentDisplayName: string
-  birthDate: string
-}) {
+export async function joinClassForActiveExam(input: { examCode: string }) {
   const result = await getUserForAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
   if (!isPgConfigured()) return { error: DB_ERR }
+  const { t } = getServerDictionary()
 
   const examCode = input.examCode?.trim().toUpperCase()
   if (!examCode || examCode.length < 4) return { error: 'Mã bài thi không hợp lệ.' }
 
-  const displayName = input.studentDisplayName?.replace(/\s+/g, ' ').trim() ?? ''
-  if (displayName.length < 2) return { error: 'Họ tên quá ngắn (ít nhất 2 ký tự).' }
-  if (displayName.length > 120) return { error: 'Họ tên quá dài.' }
-
-  const birthRaw = input.birthDate?.trim() ?? ''
-  if (!birthRaw) return { error: 'Vui lòng chọn ngày sinh.' }
-  if (!isValidStudentDobIso(birthRaw)) return { error: 'Ngày sinh không hợp lệ.' }
+  const identity = await fetchStudentIdentity(user.id)
 
   const session = await fetchExamSessionForClassJoinByCodePg(examCode)
   if (!session || session.status !== 'active') {
@@ -304,32 +305,34 @@ export async function joinClassForActiveExam(input: {
   if (!classId) return { error: 'Đề thi này không gắn lớp.' }
 
   const existing = await fetchClassMemberBriefForUserPg(classId, user.id)
+  const existingName = String(existing?.member_display_name ?? '').replace(/\s+/g, ' ').trim()
+  const existingBirth = existing?.birth_date != null ? String(existing.birth_date).slice(0, 10) : ''
+  const alreadyComplete = existingName.length >= 2 && isValidStudentDobIso(existingBirth)
 
-  const alreadyComplete =
-    existing &&
-    String(existing.member_display_name ?? '').trim().length > 0 &&
-    existing.birth_date != null
-  if (alreadyComplete) {
-    revalidatePath('/lop')
-    revalidatePath(`/lop/${classId}`)
-    revalidatePath(`/lam-bai/${input.examCode.trim()}`)
-    return { success: true, classId }
+  if (!identity.complete || !identity.gender) {
+    if (alreadyComplete) {
+      revalidatePath('/lop')
+      revalidatePath(`/lop/${classId}`)
+      revalidatePath(`/lam-bai/${input.examCode.trim()}`)
+      return { success: true as const, classId, studentName: existingName, birthDate: existingBirth }
+    }
+    return { error: t.classes.studentIdentityRequired, code: 'profile_required' as const }
   }
 
   if (existing) {
     const upd = await updateClassMemberProfilePg({
       classId,
       userId: user.id,
-      memberDisplayName: displayName,
-      birthDateIso: birthRaw,
+      memberDisplayName: identity.givenName,
+      birthDateIso: identity.birthDate,
     })
     if (upd !== true) return { error: 'Không cập nhật được thông tin lớp.' }
   } else {
     const ins = await insertClassMemberPg({
       classId,
       userId: user.id,
-      memberDisplayName: displayName,
-      birthDateIso: birthRaw,
+      memberDisplayName: identity.givenName,
+      birthDateIso: identity.birthDate,
     })
     if (ins !== true) return { error: 'Không thể tham gia lớp.' }
   }
@@ -337,5 +340,5 @@ export async function joinClassForActiveExam(input: {
   revalidatePath('/lop')
   revalidatePath(`/lop/${classId}`)
   revalidatePath(`/lam-bai/${input.examCode.trim()}`)
-  return { success: true, classId }
+  return { success: true as const, classId, studentName: identity.givenName, birthDate: identity.birthDate }
 }

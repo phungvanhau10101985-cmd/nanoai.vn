@@ -1,4 +1,4 @@
-import { beginFeatureTrial } from '@/lib/feature-trial-start'
+import { teacherCanTeachInClassPg } from '@/lib/db/classes-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
@@ -155,7 +155,6 @@ export async function insertExamSessionCreatePg(params: {
       ]
     )
     if (!row?.id) return null
-    await beginFeatureTrial(params.teacherId, 'curriculum')
     return { id: row.id }
   } catch (e) {
     console.error('[exam-session-admin-pg] insertExamSessionCreatePg', e)
@@ -263,7 +262,8 @@ export async function fetchClassForAttachExamPg(
       [classId]
     )
     if (!row) return 'not_found'
-    if (row.teacher_id !== teacherId) return 'forbidden'
+    const teaches = await teacherCanTeachInClassPg(classId, teacherId)
+    if (teaches !== true) return teaches === null ? null : 'forbidden'
     return {
       id: row.id,
       teacher_id: row.teacher_id,
@@ -407,7 +407,6 @@ export async function insertExamSessionAttachPg(params: {
       [...baseValues, params.lineageRootId]
     )
     if (!row?.id) return null
-    await beginFeatureTrial(params.teacherId, 'curriculum')
     return { id: row.id }
   } catch (e) {
     if (isMissingLineageColumnError(e)) {
@@ -461,7 +460,6 @@ export async function insertExamSessionAttachWithoutLineagePg(params: {
       ]
     )
     if (!row?.id) return null
-    await beginFeatureTrial(params.teacherId, 'curriculum')
     return { id: row.id }
   } catch (e) {
     console.error('[exam-session-admin-pg] insertExamSessionAttachWithoutLineagePg', e)

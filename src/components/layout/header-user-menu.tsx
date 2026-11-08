@@ -61,6 +61,14 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
   const [guestTrialBudget, setGuestTrialBudget] = useState<number>(3)
   const [trialForcedLogout, setTrialForcedLogout] = useState(false)
 
+  const accountName =
+    typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : ''
+  const accountAvatar =
+    typeof user.user_metadata?.avatar_url === 'string' && /^https?:\/\//i.test(user.user_metadata.avatar_url.trim())
+      ? user.user_metadata.avatar_url.trim()
+      : undefined
+  const accountInitial = (accountName || user.email || '?').charAt(0).toUpperCase()
+
   const creditLabel = isGuestTrial
     ? `Dùng thử ${guestTrialRemaining.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}/${guestTrialBudget.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} credits`
     : `${displayCredits} ${t.menu.credits}`
@@ -131,11 +139,8 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
             aria-label={t.menu.accountMenu}
           >
             <Avatar className="pointer-events-none h-8 w-8">
-              <AvatarImage
-                src={typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url : undefined}
-                alt={user.email ?? ''}
-              />
-              <AvatarFallback>{(user.email ?? '?').charAt(0).toUpperCase()}</AvatarFallback>
+              <AvatarImage src={accountAvatar} alt={accountName || user.email || ''} />
+              <AvatarFallback>{accountInitial}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
@@ -152,9 +157,9 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
         >
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">
-                {typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : ''}
-              </p>
+              {accountName ? (
+                <p className="text-sm font-medium leading-none">{accountName}</p>
+              ) : null}
               <p className="text-xs leading-none text-muted-foreground">
                 {user.email}
               </p>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,8 @@ import { fillI18nTemplate } from '@/lib/i18n/fill-template'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
 import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { BookOpen, Copy, ExternalLink, Link2, RefreshCw, Trash2 } from 'lucide-react'
+import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
+import { createFromClassHref } from '@/lib/lop/create-from-class-href'
 
 export type ClassHomeworkSession = {
   id: string
@@ -24,22 +26,31 @@ export type ClassHomeworkSession = {
 
 export default function GanPhieuClient({
   classId,
+  backHref,
   sessions,
   webLocale,
   t,
   examUi,
   /** Chỉ chủ lớp — học sinh không được hiện nút xóa (server cũng phải chặn truy cập trang). */
   canDeleteHomework,
+  subjectId = '',
 }: {
   classId: string
+  backHref: string
   sessions: ClassHomeworkSession[]
   webLocale: WebLocale
   t: Dictionary['classes']
   examUi: Dictionary['createExamPage']
   canDeleteHomework: boolean
+  subjectId?: string
 }) {
   const router = useRouter()
   const { toast } = useToast()
+  const goBack = useCallback(() => {
+    router.push(backHref)
+  }, [backHref, router])
+  useSetCreationToolBackHandler(goBack)
+  const createHomeworkHref = createFromClassHref('/tao-bai-tap-ve-nha', { classId, subjectId })
   const [attachOpen, setAttachOpen] = useState(false)
   const [attachSessionId, setAttachSessionId] = useState<string | null>(null)
   const [attachSessionTitle, setAttachSessionTitle] = useState<string>('')
@@ -119,7 +130,7 @@ export default function GanPhieuClient({
         <Toaster />
         <p className="text-sm text-muted-foreground">{t.classHomeworkListEmpty}</p>
         <Button type="button" variant="secondary" className="mt-4" asChild>
-          <Link href="/tao-bai-tap-ve-nha">{t.classHomeworkListCreateCta}</Link>
+          <Link href={createHomeworkHref}>{t.classHomeworkListCreateCta}</Link>
         </Button>
       </>
     )
@@ -143,7 +154,7 @@ export default function GanPhieuClient({
       />
       <div className="mb-4 flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" asChild>
-          <Link href="/tao-bai-tap-ve-nha">{t.classHomeworkListCreateCta}</Link>
+          <Link href={createHomeworkHref}>{t.classHomeworkListCreateCta}</Link>
         </Button>
       </div>
       <ul className="space-y-3">

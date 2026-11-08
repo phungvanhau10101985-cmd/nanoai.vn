@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Copy, QrCode } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import {
@@ -22,6 +30,17 @@ type SchoolClassOption = { id: string; name: string; choice: 'original' | 'edite
 
 function foldClassKey(raw: string) {
   return raw.toLowerCase().replace(/\s+/g, '')
+}
+
+/** Khớp cách server so tên lớp trong một trường: bỏ khoảng trắng đầu cuối, gộp khoảng trắng, không phân biệt hoa thường. */
+function classNameKey(raw: string) {
+  return raw.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function findSchoolClass(name: string, classes: SchoolClassOption[]) {
+  const key = classNameKey(name)
+  if (!key) return null
+  return classes.find((item) => classNameKey(item.name) === key) ?? null
 }
 
 type EnterResult = {
@@ -47,9 +66,12 @@ export default function EnterClassForm({
   const [renamingClass, setRenamingClass] = useState(false)
   const classPanelRef = useRef<HTMLDivElement>(null)
   const [subjectId, setSubjectId] = useState('')
-  const [teacherFacing, setTeacherFacing] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<EnterResult | null>(null)
+  const [joinQrOpen, setJoinQrOpen] = useState(false)
+  const [joinQrUrl, setJoinQrUrl] = useState('')
+  const [joinQrDataUrl, setJoinQrDataUrl] = useState<string | null>(null)
+  const [joinQrFailed, setJoinQrFailed] = useState(false)
   const [schoolSearch, setSchoolSearch] = useState('')
   const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false)
   const {
@@ -83,14 +105,41 @@ export default function EnterClassForm({
         if (mapped && mapped !== 'khac') {
           setSubjectId((prev) => (prev ? prev : mapped))
         }
-        const dtn = String(ds?.teacherDisplayName ?? '').trim()
-        if (dtn) setTeacherFacing((prev) => (prev.trim() ? prev : dtn))
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!joinQrOpen) return
+    const code = result?.joinCode.trim() ?? ''
+    if (!code || typeof window === 'undefined') {
+      setJoinQrDataUrl(null)
+      setJoinQrFailed(true)
+      return
+    }
+    const url = `${window.location.origin}/lop/tham-gia?code=${encodeURIComponent(code)}`
+    let cancelled = false
+    setJoinQrUrl(url)
+    setJoinQrDataUrl(null)
+    setJoinQrFailed(false)
+    void import('qrcode')
+      .then((QR) => QR.default.toDataURL(url, { width: 280, margin: 2 }))
+      .then((dataUrl) => {
+        if (!cancelled) setJoinQrDataUrl(dataUrl)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setJoinQrDataUrl(null)
+          setJoinQrFailed(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [joinQrOpen, result?.joinCode])
 
   useEffect(() => {
     setClassName('')
@@ -321,10 +370,15 @@ export default function EnterClassForm({
       toast({ variant: 'destructive', description: t.createClassSchoolRequired })
       return
     }
-    if (!className.trim()) {
+    const typedName = (className || classSearch).trim().replace(/\s+/g, ' ')
+    if (!typedName) {
       toast({ variant: 'destructive', description: t.enterClassPickClassPlaceholder })
       return
     }
+    const existingAtSchool = findSchoolClass(typedName, schoolClasses)
+    const classIdToSend =
+      existingAtSchool?.id ||
+      (pickedClassId && classNameKey(className) === classNameKey(typedName) ? pickedClassId : '')
     if (!subjectId.trim()) {
       toast({ variant: 'destructive', description: t.enterClassSubject })
       return
@@ -335,16 +389,19 @@ export default function EnterClassForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          className: className.trim(),
-          classId: pickedClassId,
+          className: existingAtSchool?.name || typedName,
+          classId: classIdToSend,
           schoolId: selectedSchoolId,
           subjectId,
-          teacherDisplayName: teacherFacing.trim(),
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data?.item?.id) {
-        toast({ variant: 'destructive', description: data?.error || t.enterClassFailed })
+        toast({
+          variant: 'destructive',
+          description:
+            data?.code === 'profile_required' ? t.teacherIdentityRequired : data?.error || t.enterClassFailed,
+        })
         return
       }
       const status =
@@ -354,7 +411,7 @@ export default function EnterClassForm({
       setResult({
         status,
         classId: String(data.item.id),
-        className: String(data.item.name ?? className.trim()),
+        className: String(data.item.name ?? typedName),
         joinCode: String(data.item.joinCode ?? ''),
       })
       router.refresh()
@@ -383,7 +440,7 @@ export default function EnterClassForm({
           {result.joinCode ? (
             <div>
               <label className="text-sm font-medium text-muted-foreground">{t.joinCode}</label>
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <code className="flex-1 px-3 py-2 rounded-lg bg-muted font-mono text-lg tracking-wider">
                   {result.joinCode}
                 </code>
@@ -398,9 +455,66 @@ export default function EnterClassForm({
                 >
                   {t.copyCode}
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  className="gap-1.5"
+                  onClick={() => setJoinQrOpen(true)}
+                >
+                  <QrCode className="h-4 w-4" aria-hidden />
+                  {t.joinQrButton}
+                </Button>
               </div>
             </div>
           ) : null}
+          <Dialog open={joinQrOpen} onOpenChange={setJoinQrOpen}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>{t.joinQrTitle}</DialogTitle>
+                <DialogDescription>{t.joinQrHint}</DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-3 py-1">
+                <p className="text-sm font-medium text-foreground">
+                  {result.className}
+                  <span className="ml-2 font-mono tracking-wide text-muted-foreground">{result.joinCode}</span>
+                </p>
+                {joinQrDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- data URL từ thư viện qrcode
+                  <img
+                    src={joinQrDataUrl}
+                    alt={t.joinQrTitle}
+                    width={280}
+                    height={280}
+                    className="rounded-lg border border-border bg-white p-2"
+                  />
+                ) : joinQrFailed ? (
+                  <p className="text-sm text-destructive">{t.joinQrFailed}</p>
+                ) : (
+                  <div className="h-[280px] w-[280px] animate-pulse rounded-lg bg-muted" aria-hidden />
+                )}
+                <div className="flex w-full gap-2">
+                  <div className="min-w-0 flex-1 rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs break-all text-foreground">
+                    {joinQrUrl}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    aria-label={t.joinQrCopyLink}
+                    onClick={() => {
+                      if (!joinQrUrl) return
+                      void navigator.clipboard.writeText(joinQrUrl)
+                      toast({ description: t.copied })
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <div className="flex flex-wrap gap-2 pt-1">
             <Button asChild>
               <a href={`/lop/${result.classId}`}>{t.classNameTakenOpen}</a>
@@ -413,6 +527,12 @@ export default function EnterClassForm({
       </>
     )
   }
+
+  const typedClassName = (className || classSearch).trim()
+  const classAlreadyAtSchool = Boolean(
+    findSchoolClass(typedClassName, schoolClasses) ||
+      (pickedClassId && classNameKey(className) === classNameKey(typedClassName))
+  )
 
   return (
     <>
@@ -579,23 +699,10 @@ export default function EnterClassForm({
           />
         </div>
 
-        <div className="space-y-2">
-          <label htmlFor="enter-teacher" className="block text-sm font-medium text-foreground">
-            {t.createClassFacingTeacherLabel}
-          </label>
-          <Input
-            id="enter-teacher"
-            value={teacherFacing}
-            onChange={(e) => setTeacherFacing(e.target.value)}
-            placeholder={t.createClassFacingTeacherPlaceholder}
-            maxLength={120}
-            disabled={loading}
-            className="w-full"
-          />
-        </div>
+        <p className="text-sm text-muted-foreground">{t.teacherIdentityAccountNote}</p>
 
         <Button type="submit" disabled={loading || !selectedSchoolId} className="w-full">
-          {loading ? '...' : t.enterClassSubmit}
+          {loading ? '...' : classAlreadyAtSchool ? t.enterClassSubmit : t.createClass}
         </Button>
       </form>
     </>

@@ -17,9 +17,13 @@ const pageSectionTitle = 'text-base font-semibold tracking-tight text-foreground
 export function ClassGradebookSection({
   classId,
   t,
+  focusSubject = null,
+  subjectLine = '',
 }: {
   classId: string
   t: Dictionary['classes']
+  focusSubject?: { subjectId: string; teacherId: string } | null
+  subjectLine?: string
 }) {
   const { toast } = useToast()
   const [data, setData] = useState<GradebookPayload | null>(null)
@@ -31,7 +35,10 @@ export function ClassGradebookSection({
     let cancelled = false
     setLoading(true)
     setError(false)
-    void fetch(`/api/lop/${encodeURIComponent(classId)}/gradebook`)
+    const scope = focusSubject
+      ? `?subject=${encodeURIComponent(focusSubject.subjectId)}&teacher=${encodeURIComponent(focusSubject.teacherId)}`
+      : ''
+    void fetch(`/api/lop/${encodeURIComponent(classId)}/gradebook${scope}`)
       .then(async (res) => {
         if (!res.ok) throw new Error('bad')
         return res.json() as Promise<GradebookPayload>
@@ -51,12 +58,15 @@ export function ClassGradebookSection({
     return () => {
       cancelled = true
     }
-  }, [classId])
+  }, [classId, focusSubject])
 
   const exportExcel = useCallback(async () => {
     setExporting(true)
     try {
-      const res = await fetch(`/api/lop/${encodeURIComponent(classId)}/gradebook/export`)
+      const scope = focusSubject
+        ? `?subject=${encodeURIComponent(focusSubject.subjectId)}&teacher=${encodeURIComponent(focusSubject.teacherId)}`
+        : ''
+      const res = await fetch(`/api/lop/${encodeURIComponent(classId)}/gradebook/export${scope}`)
       if (!res.ok) throw new Error('bad')
       const blob = await res.blob()
       const cd = res.headers.get('Content-Disposition')
@@ -75,7 +85,7 @@ export function ClassGradebookSection({
     } finally {
       setExporting(false)
     }
-  }, [classId, t.gradebookExportFailed, toast])
+  }, [classId, focusSubject, t.gradebookExportFailed, toast])
 
   if (loading) {
     return (
@@ -127,6 +137,7 @@ export function ClassGradebookSection({
               <h2 id="class-gradebook-heading" className={pageSectionTitle}>
                 {t.gradebookTitle}
               </h2>
+              {subjectLine ? <p className="mt-0.5 text-sm text-muted-foreground">{subjectLine}</p> : null}
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground">
                 {t.gradebookDescription}
               </p>

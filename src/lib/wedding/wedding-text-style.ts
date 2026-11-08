@@ -3,9 +3,9 @@ import type { WeddingTextFont, WeddingTextStyle } from '@/lib/wedding/wedding-se
 
 export const WEDDING_TEXT_FONT_FAMILY: Record<WeddingTextFont, string> = {
   script: '"Dancing Script", cursive',
-  soft: '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif',
-  formal: 'Georgia, "Times New Roman", Times, serif',
-  lotus: '"Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif',
+  soft: '"Palatino Linotype", Palatino, "Book Antiqua", Cambria, "Times New Roman", serif',
+  formal: 'Cambria, "Palatino Linotype", "Book Antiqua", "Times New Roman", Times, serif',
+  lotus: '"Iowan Old Style", "Palatino Linotype", Palatino, Cambria, "Times New Roman", serif',
 }
 
 export const WEDDING_TEXT_SIZES = [18, 24, 32, 40, 52] as const

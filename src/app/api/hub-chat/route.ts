@@ -6,6 +6,7 @@ import {
   buildHubToolCatalog,
   filterCatalogByGroup,
   HUB_CHAT_CREDIT,
+  shouldChargeHubChatTurn,
   type HubChatMode,
   type HubWorkflowGroup,
 } from '@/lib/hub-chat/hub-chat-catalog'
@@ -13,6 +14,7 @@ import {
   pgCreateHubMultiTaskPlan,
   pgEnsureHubChatThread,
   pgGetHubChatThread,
+  pgHubChatThreadHasUserMessage,
   pgInsertHubChatMessage,
   pgSaveHubThreadSession,
   type HubPlanStepInput,
@@ -481,11 +483,24 @@ export async function POST(request: NextRequest) {
       : 'all'
     const t = getDictionary(locale)
 
-    const charged = await deductUserCredits(user.id, HUB_CHAT_CREDIT, 'hub-chat')
-    if (!charged.ok) {
-      const status = charged.code === 'INSUFFICIENT_CREDITS' ? 402 : 500
-      return NextResponse.json({ error: charged.error, code: charged.code }, { status })
+    const threadId = await pgEnsureHubChatThread(user.id, body?.threadId, locale, message.slice(0, 80))
+    const hasPriorUserMessage = threadId ? await pgHubChatThreadHasUserMessage(threadId) : false
+    const chargeChat = shouldChargeHubChatTurn({
+      action: 'message',
+      hasPreset: false,
+      hasPriorUserMessage,
+    })
+
+    let chargedBalance: number | undefined
+    if (chargeChat) {
+      const charged = await deductUserCredits(user.id, HUB_CHAT_CREDIT, 'hub-chat')
+      if (!charged.ok) {
+        const status = charged.code === 'INSUFFICIENT_CREDITS' ? 402 : 500
+        return NextResponse.json({ error: charged.error, code: charged.code }, { status })
+      }
+      chargedBalance = charged.balance
     }
+    const chargedAmount = chargeChat ? HUB_CHAT_CREDIT : 0
 
     const fullCatalog = buildHubToolCatalog(t.tool, t.navGroup)
     const scopedCatalog = filterCatalogByGroup(fullCatalog, workflowGroup)
@@ -567,8 +582,6 @@ Rules:
 - prefillPrompt: actionable text for that specific step.
 - href MUST match catalog exactly.`
 
-    const threadId = await pgEnsureHubChatThread(user.id, body?.threadId, locale, message.slice(0, 80))
-
     try {
       const genAI = new GoogleGenerativeAI(apiKey)
       const model = genAI.getGenerativeModel({
@@ -590,7 +603,7 @@ Rules:
 
       const resText = r.response.text()?.trim() ?? ''
       if (!resText) {
-        await refundUserCredits(user.id, HUB_CHAT_CREDIT, 'hub-chat')
+        if (chargedAmount > 0) await refundUserCredits(user.id, chargedAmount, 'hub-chat')
         return NextResponse.json({ error: 'Model không trả lời.' }, { status: 502 })
       }
 
@@ -602,7 +615,7 @@ Rules:
           plan?: unknown
         }
       } catch {
-        await refundUserCredits(user.id, HUB_CHAT_CREDIT, 'hub-chat')
+        if (chargedAmount > 0) await refundUserCredits(user.id, chargedAmount, 'hub-chat')
         return NextResponse.json({ error: 'Phản hồi AI không hợp lệ. Thử lại.' }, { status: 502 })
       }
 
@@ -651,11 +664,11 @@ Rules:
         workflows,
         plan: planPayload,
         threadId,
-        charged: HUB_CHAT_CREDIT,
-        balance: charged.balance,
+        charged: chargedAmount,
+        ...(chargedBalance !== undefined ? { balance: chargedBalance } : {}),
       })
     } catch (e) {
-      await refundUserCredits(user.id, HUB_CHAT_CREDIT, 'hub-chat')
+      if (chargedAmount > 0) await refundUserCredits(user.id, chargedAmount, 'hub-chat')
       const msg = e instanceof Error ? e.message : 'Lỗi gọi AI.'
       return NextResponse.json({ error: msg }, { status: 502 })
     }

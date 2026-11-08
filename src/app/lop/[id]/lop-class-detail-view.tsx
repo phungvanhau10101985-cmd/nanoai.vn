@@ -1,3 +1,5 @@
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { getServerDictionary } from '@/lib/i18n/server'
 import type { ClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
@@ -11,22 +13,37 @@ export type LopDetailPageMode =
   | 'gradebook'
   | 'student-worksheets'
 
+export function classSubjectScopeFromSearch(sp: { subject?: string; teacher?: string } | undefined) {
+  const subjectId = String(sp?.subject ?? '').trim().slice(0, 40)
+  const teacherId = String(sp?.teacher ?? '').trim()
+  if (!subjectId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teacherId)) {
+    return null
+  }
+  return { subjectId, teacherId }
+}
+
 export function LopClassDetailView({
   payload,
   currentHref,
   pageMode,
   focusSessionId,
+  focusSubject = null,
 }: {
   payload: ClassDetailPayload
   currentHref: string
   pageMode: LopDetailPageMode
   focusSessionId?: string
+  focusSubject?: { subjectId: string; teacherId: string } | null
 }) {
   const { locale, t } = getServerDictionary()
   const {
     cls,
     isTeacher,
     isOwner,
+    viewerUserId,
+    viewerTeacherPublicName,
+    viewerTeacherGivenName,
+    viewerTeacherGender,
     classSubjects,
     members,
     initialExamAttempts,
@@ -35,10 +52,22 @@ export function LopClassDetailView({
     subjectNames,
   } = payload
 
+  if (isTeacher && focusSubject && focusSubject.teacherId !== viewerUserId) {
+    redirect(`/lop/${cls.id}`)
+  }
+
   return (
     <div className="app-shell min-h-screen">
       <CreationToolPageShell currentHref={currentHref}>
         <div className="mx-auto w-full max-w-2xl pb-8 lg:max-w-3xl lg:pb-10">
+          {pageMode === 'hub' && isTeacher && !focusSubject ? (
+            <Link
+              href="/lop"
+              className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              ← {t.creationSidebar.back}
+            </Link>
+          ) : null}
           <LopDetailClient
             cls={{
               id: cls.id,
@@ -52,6 +81,10 @@ export function LopClassDetailView({
             }}
             isTeacher={isTeacher}
             isOwner={isOwner}
+            viewerUserId={viewerUserId}
+            viewerTeacherPublicName={viewerTeacherPublicName}
+            viewerTeacherGivenName={viewerTeacherGivenName}
+            viewerTeacherGender={viewerTeacherGender}
             classSubjects={classSubjects}
             members={members}
             initialExamAttempts={initialExamAttempts}
@@ -59,6 +92,7 @@ export function LopClassDetailView({
             pageMode={pageMode}
             focusSessionId={focusSessionId}
             showClassHomeLink={pageMode !== 'hub'}
+            focusSubject={focusSubject}
             webLocale={locale}
             t={t.classes}
           />

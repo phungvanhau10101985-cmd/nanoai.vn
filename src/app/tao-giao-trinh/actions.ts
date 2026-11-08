@@ -754,7 +754,6 @@ export async function createCurriculum(formData: FormData) {
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
-  await beginFeatureTrial(user.id, 'curriculum')
 
   const loadLessonTitleFromDb = async () => {
     if (!lessonNum) return null
@@ -946,7 +945,6 @@ export async function saveCurriculum(formData: FormData) {
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
-  await beginFeatureTrial(user.id, 'curriculum')
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể lưu giáo trình.' }
   }
@@ -1987,7 +1985,6 @@ export async function createWorksheetFromQuestions(formData: FormData) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const userId = auth.user?.id
-  if (userId) await beginFeatureTrial(userId, 'curriculum')
 
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể tạo phiếu bài tập.' }
@@ -2933,6 +2930,7 @@ export async function getCurriculumSlidesByLessonCached(curriculumId: string, mo
   if (cache.slides.length <= 0) {
     return { error: 'Bản đã chọn chưa có dữ liệu slide trong DB.' }
   }
+  await beginFeatureTrial(user.id, 'curriculum')
   return {
     success: true,
     slides: cache.slides,

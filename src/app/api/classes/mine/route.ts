@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
+import { fetchTeacherIdentity } from '@/lib/db/teacher-identity-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { getServerDictionary } from '@/lib/i18n/server'
 import {
   classExistsWithJoinCodePg,
   fetchClassesMineListForTeacherPg,
@@ -73,9 +75,7 @@ export async function POST(req: NextRequest) {
   const schoolId = String(body?.schoolId ?? '').trim()
   const gradeLevelId = String(body?.gradeLevelId ?? '').trim()
   const subjectLabelRaw = String(body?.subjectLabel ?? '').replace(/\s+/g, ' ').trim()
-  const teacherDisplayNameRaw = String(body?.teacherDisplayName ?? '').replace(/\s+/g, ' ').trim()
   const subjectLabel = subjectLabelRaw.length > 120 ? subjectLabelRaw.slice(0, 120) : subjectLabelRaw
-  const teacherDisplayName = teacherDisplayNameRaw.length > 120 ? teacherDisplayNameRaw.slice(0, 120) : teacherDisplayNameRaw
   if (!name) return NextResponse.json({ error: 'Vui lòng nhập tên lớp.' }, { status: 400 })
   if (!schoolId) return NextResponse.json({ error: 'Vui lòng chọn trường trước khi tạo lớp.' }, { status: 400 })
 
@@ -83,6 +83,15 @@ export async function POST(req: NextRequest) {
   if (schoolOk !== true) {
     return NextResponse.json({ error: 'Không tìm thấy trường đã chọn.' }, { status: 404 })
   }
+  const { t } = getServerDictionary()
+  const identity = await fetchTeacherIdentity(user.id, 'vi')
+  if (!identity.publicName) {
+    return NextResponse.json(
+      { error: t.classes.teacherIdentityRequired, code: 'profile_required' },
+      { status: 400 }
+    )
+  }
+  const teacherDisplayName = identity.publicName
 
   let joinCode = generateJoinCode()
   for (let i = 0; i < 10; i++) {

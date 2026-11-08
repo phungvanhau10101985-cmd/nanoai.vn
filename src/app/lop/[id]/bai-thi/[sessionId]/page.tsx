@@ -5,7 +5,7 @@ import { fetchClassNameByIdPg } from '@/lib/db/classes-pg'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { loadClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
-import { LopClassDetailView } from '../../lop-class-detail-view'
+import { classSubjectScopeFromSearch, LopClassDetailView } from '../../lop-class-detail-view'
 
 export async function generateMetadata({
   params,
@@ -25,8 +25,10 @@ export async function generateMetadata({
 
 export default async function LopBaiThiSessionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; sessionId: string }>
+  searchParams: Promise<{ subject?: string; teacher?: string }>
 }) {
   const { id, sessionId } = await params
   const user = await getUserOrBypass()
@@ -39,7 +41,12 @@ export default async function LopBaiThiSessionPage({
     redirect(`/lop/${id}/bai-thi`)
   }
 
-  const sessionOk = payload.initialExamSessions.some((s) => s.id === sessionId)
+  const focusSubject = classSubjectScopeFromSearch(await searchParams)
+  const sessionOk = payload.initialExamSessions.some((s) => {
+    if (s.id !== sessionId) return false
+    if (!focusSubject) return true
+    return s.teacherId === focusSubject.teacherId && s.subjectId === focusSubject.subjectId
+  })
   if (!sessionOk) notFound()
 
   return (
@@ -48,6 +55,7 @@ export default async function LopBaiThiSessionPage({
       currentHref={`/lop/${id}/bai-thi/${sessionId}`}
       pageMode="exam-session"
       focusSessionId={sessionId}
+      focusSubject={focusSubject}
     />
   )
 }

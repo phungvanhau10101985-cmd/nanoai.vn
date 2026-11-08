@@ -1,4 +1,6 @@
 import { fetchClassSubjectsPg } from '@/lib/db/classes-pg'
+import { fetchTeacherIdentity, fetchTeacherPublicNames, saveTeacherIdentity } from '@/lib/db/teacher-identity-pg'
+import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { fetchSubjectNameExtrasPg } from '@/lib/db/name-edit-votes'
 import { SUBJECTS } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -35,6 +37,8 @@ export type ExamSessionPayload = {
   createdAt: string | null
   status?: string
   practiceHomework: boolean
+  teacherId: string
+  subjectId: string
 }
 
 export type ClassDetailPayload = {
@@ -50,6 +54,11 @@ export type ClassDetailPayload = {
   isTeacher: boolean
   isOwner: boolean
   isSubjectTeacher: boolean
+  viewerUserId: string
+  /** Null khi tài khoản chưa có họ tên hoặc giới tính. */
+  viewerTeacherPublicName: string | null
+  viewerTeacherGivenName: string
+  viewerTeacherGender: 'male' | 'female' | null
   classSubjects: {
     subjectId: string
     subjectLabel: string
@@ -159,7 +168,7 @@ export async function loadClassDetailPayload(
         name: display || '—',
         birthDate: birthDateOnly(m.birth_date),
         kind,
-        removable: isOwner && kind === 'student' && m.user_id !== cls.teacher_id,
+        removable: false,
       }
     })
 
@@ -174,8 +183,10 @@ export async function loadClassDetailPayload(
         title: string | null
         created_at: unknown
         is_practice_homework: boolean | null
+        teacher_id: string | null
+        subject_id: string | null
       }>(
-        `select id::text, code, title, created_at, is_practice_homework
+        `select id::text, code, title, created_at, is_practice_homework, teacher_id::text, subject_id
          from public.exam_sessions
          where class_id = $1::uuid and teacher_id = $2::uuid
          order by created_at desc
@@ -189,6 +200,8 @@ export async function loadClassDetailPayload(
         title: String(x.title ?? '').trim() || 'Bài thi',
         createdAt: x.created_at != null ? tsIso(x.created_at) : null,
         practiceHomework: Boolean(x.is_practice_homework),
+        teacherId: String(x.teacher_id ?? ''),
+        subjectId: String(x.subject_id ?? ''),
       }))
 
       const sessionIds = examSessions.map((x) => x.id)
@@ -295,8 +308,11 @@ export async function loadClassDetailPayload(
         created_at: unknown
         status: string | null
         is_practice_homework: boolean | null
+        teacher_id: string | null
+        subject_id: string | null
       }>(
-        `select id::text, code, title, created_at, status::text, is_practice_homework
+        `select id::text, code, title, created_at, status::text, is_practice_homework,
+                teacher_id::text, subject_id
          from public.exam_sessions
          where class_id = $1::uuid
          order by created_at desc
@@ -311,6 +327,8 @@ export async function loadClassDetailPayload(
         createdAt: x.created_at != null ? tsIso(x.created_at) : null,
         status: x.status != null ? String(x.status) : 'active',
         practiceHomework: Boolean(x.is_practice_homework),
+        teacherId: String(x.teacher_id ?? ''),
+        subjectId: String(x.subject_id ?? ''),
       }))
 
       const sessionIds = sessionsForStudent.map((x) => x.id)
@@ -360,6 +378,21 @@ export async function loadClassDetailPayload(
       }
     }
 
+    const locale = getCurrentWebLocale()
+    const identity = await fetchTeacherIdentity(userId, locale)
+    const publicNames = await fetchTeacherPublicNames(
+      [cls.teacher_id, ...classSubjects.map((s) => s.teacher_id)],
+      locale
+    )
+    const ownerPublicName = publicNames.get(cls.teacher_id) ?? null
+    if (isTeacher && identity.gender && identity.givenName) {
+      await saveTeacherIdentity({
+        userId,
+        fullName: identity.givenName,
+        gender: identity.gender,
+      })
+    }
+
     return {
       cls: {
         id: cls.id,
@@ -368,16 +401,20 @@ export async function loadClassDetailPayload(
         teacher_id: cls.teacher_id,
         grade_level_id: cls.grade_level_id,
         subject_label: cls.subject_label,
-        teacher_display_name: cls.teacher_display_name,
+        teacher_display_name: ownerPublicName ?? cls.teacher_display_name,
       },
       isTeacher,
       isOwner,
       isSubjectTeacher,
+      viewerUserId: userId,
+      viewerTeacherPublicName: identity.publicName,
+      viewerTeacherGivenName: identity.givenName,
+      viewerTeacherGender: identity.gender,
       classSubjects: classSubjects.map((s) => ({
         subjectId: s.subject_id,
         subjectLabel: s.subject_label,
         teacherId: s.teacher_id,
-        teacherDisplayName: s.teacher_display_name,
+        teacherDisplayName: publicNames.get(s.teacher_id) ?? s.teacher_display_name,
       })),
       schoolName,
       subjectNames,

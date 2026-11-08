@@ -82,9 +82,24 @@ export async function persistShopCustomerGoogleIdentity(input: {
       `insert into public.profiles (id, full_name, avatar_url, updated_at)
        values ($1::uuid, $2, $3, now())
        on conflict (id) do update set
-         full_name = coalesce(nullif(trim(public.profiles.full_name), ''), excluded.full_name),
+         full_name = coalesce(nullif(trim(excluded.full_name), ''), public.profiles.full_name),
          avatar_url = coalesce(nullif(trim(excluded.avatar_url), ''), public.profiles.avatar_url),
          updated_at = now()`,
+      [userId, name || null, picture]
+    )
+    await pgQueryOne(
+      `update auth.users
+       set raw_user_meta_data = coalesce(raw_user_meta_data, '{}'::jsonb)
+         || jsonb_strip_nulls(jsonb_build_object(
+              'provider', 'google',
+              'name', nullif(trim($2::text), ''),
+              'full_name', nullif(trim($2::text), ''),
+              'picture', nullif(trim($3::text), ''),
+              'avatar_url', nullif(trim($3::text), '')
+            )),
+           updated_at = now()
+       where id = $1::uuid
+       returning id::text`,
       [userId, name || null, picture]
     )
   } catch (e) {

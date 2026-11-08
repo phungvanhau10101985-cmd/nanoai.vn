@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +10,7 @@ import { Toaster } from '@/components/ui/toaster'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
+  ChevronRight,
   FileQuestion,
   RefreshCw,
   QrCode,
@@ -369,6 +371,7 @@ export default function TaoBaiThiClientPage({
   initialWebLocale = DEFAULT_WEB_LOCALE,
 }: { variant?: 'exam' | 'homework'; initialWebLocale?: WebLocale } = {}) {
   const isHomework = variant === 'homework'
+  const router = useRouter()
   const formDefaultsPrimary = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK : EXAM_FORM_DEFAULTS_KEY_EXAM
   const formDefaultsLegacy = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK_LEGACY : EXAM_FORM_DEFAULTS_KEY_EXAM_LEGACY
   const [uiLocale, setUiLocale] = useState<WebLocale>(initialWebLocale)
@@ -428,7 +431,7 @@ export default function TaoBaiThiClientPage({
   const [catalogReloadToken, setCatalogReloadToken] = useState(0)
   const [createdExamsLoading, setCreatedExamsLoading] = useState(false)
   const [deletingCode, setDeletingCode] = useState<string | null>(null)
-  const [classesLoading, setClassesLoading] = useState(false)
+  const [classesLoading, setClassesLoading] = useState(true)
   const [creatingClass, setCreatingClass] = useState(false)
   const [pendingReview, setPendingReview] = useState<ExamReviewItem[] | null>(null)
   const [teacherClasses, setTeacherClasses] = useState<Array<{
@@ -442,6 +445,19 @@ export default function TaoBaiThiClientPage({
     teacherDisplayName: string
   }>>([])
   const [selectedClassId, setSelectedClassId] = useState('')
+  /** Từ nút Tạo đề thi trong lớp: ?classId=&subject= */
+  const classExamPresetRef = useRef<{ classId: string; subjectId: string } | null>(null)
+  const classExamPresetSeenRef = useRef(false)
+  const classExamPresetAppliedRef = useRef(false)
+  if (typeof window !== 'undefined' && !classExamPresetSeenRef.current) {
+    const params = new URLSearchParams(window.location.search)
+    const classId = (params.get('classId') ?? '').trim()
+    classExamPresetRef.current = classId
+      ? { classId, subjectId: (params.get('subject') ?? '').trim() }
+      : null
+    classExamPresetSeenRef.current = true
+    if (!classExamPresetRef.current) classExamPresetAppliedRef.current = true
+  }
   const [newClassName, setNewClassName] = useState('')
   const [newClassSubject, setNewClassSubject] = useState('')
   const [newClassTeacher, setNewClassTeacher] = useState('')
@@ -785,7 +801,7 @@ export default function TaoBaiThiClientPage({
           schoolId: selectedSchoolId,
           gradeLevelId,
           subjectId: newClassSubject,
-          teacherDisplayName: newClassTeacher.trim(),
+          teacherDisplayName: '',
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -1215,7 +1231,39 @@ export default function TaoBaiThiClientPage({
     [teacherClasses, selectedSchoolId]
   )
   useEffect(() => {
+    if (classExamPresetAppliedRef.current || classesLoading) return
+    const preset = classExamPresetRef.current
+    if (!preset) {
+      classExamPresetAppliedRef.current = true
+      return
+    }
+    const row = teacherClasses.find((c) => c.id === preset.classId)
+    if (!row) {
+      classExamPresetAppliedRef.current = true
+      return
+    }
+    const schoolName = row.schoolName.trim()
+    const schoolId = row.schoolId.trim()
+    if (schoolId) {
+      setSelectedSchoolId(schoolId)
+      setSelectedSchoolName(schoolName)
+      setSchoolSearch(schoolName)
+    } else if (schoolName) {
+      setSchoolSearch(schoolName)
+    }
+    if (row.gradeLevelId && GRADE_LEVEL_ID_SET.has(row.gradeLevelId)) {
+      setGradeLevelId(row.gradeLevelId as (typeof GRADE_LEVELS)[number]['id'])
+    }
+    const subjectFromClass = preset.subjectId
+    if (subjectFromClass && subjectFromClass !== 'khac' && subjectFromClass.length <= 40) {
+      setSubjectId(subjectFromClass)
+    }
+    setSelectedClassId(row.id)
+    classExamPresetAppliedRef.current = true
+  }, [classesLoading, teacherClasses])
+  useEffect(() => {
     if (classesLoading) return
+    if (classExamPresetRef.current && !classExamPresetAppliedRef.current) return
     if (classOptions.length === 0) {
       setSelectedClassId('')
       return
@@ -1577,6 +1625,16 @@ export default function TaoBaiThiClientPage({
     <>
       <Toaster />
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-ml-2 h-9 gap-1 px-2 text-muted-foreground"
+          onClick={() => router.back()}
+        >
+          <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
+          {dict.creationSidebar.back}
+        </Button>
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             {isHomework ? (
@@ -2861,16 +2919,8 @@ export default function TaoBaiThiClientPage({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-muted-foreground">
-                    {tx.teacherForStudents}
-                  </label>
-                  <Input
-                    value={newClassTeacher}
-                    onChange={(e) => setNewClassTeacher(e.target.value)}
-                    placeholder={tx.teacherForStudentsPh}
-                    maxLength={120}
-                    className="h-8 text-sm"
-                  />
+                  <p className="text-[11px] font-medium text-muted-foreground">{tx.teacherForStudents}</p>
+                  <p className="text-xs text-muted-foreground">{dict.classes.teacherIdentityAccountNote}</p>
                 </div>
               </div>
               <div className="flex justify-end gap-2">

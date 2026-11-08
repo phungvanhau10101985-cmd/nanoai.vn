@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
-import { HUB_CHAT_CREDIT } from '@/lib/hub-chat/hub-chat-catalog'
+import { HUB_CHAT_CREDIT, shouldChargeHubChatTurn } from '@/lib/hub-chat/hub-chat-catalog'
 import { buildBannerImageGenerationPrompt } from '@/lib/hub-chat/banner-image-prompt-builder'
 import { buildMenuImageGenerationPrompt } from '@/lib/hub-chat/menu-image-prompt-builder'
 import {
@@ -166,6 +166,7 @@ import {
   pgDeleteHubMessagesAfter,
   pgGetHubChatThread,
   pgGetHubThreadSession,
+  pgHubChatThreadHasUserMessage,
   pgInsertHubChatMessage,
   pgReplaceLatestHubStudioImageMessage,
   pgSaveHubThreadSession,
@@ -7137,7 +7138,13 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioMinChars }
   }
 
-  const shouldChargeChat = !session.presetId || action === 'edit_step'
+  const hasPriorUserMessage =
+    action === 'message' ? await pgHubChatThreadHasUserMessage(input.threadId) : true
+  const shouldChargeChat = shouldChargeHubChatTurn({
+    action,
+    hasPreset: Boolean(session.presetId),
+    hasPriorUserMessage,
+  })
   if (shouldChargeChat) {
     const chatCharge = await deductUserCredits(input.userId, HUB_CHAT_CREDIT, 'hub-chat')
     if (!chatCharge.ok) {
@@ -8429,7 +8436,9 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       showFeaturePicker: forwardMissingFeature && !startedPresetThisTurn ? true : undefined,
     }
   } catch (e) {
-    await refundUserCredits(input.userId, HUB_CHAT_CREDIT, 'hub-chat')
+    if (chargedChat > 0) {
+      await refundUserCredits(input.userId, chargedChat, 'hub-chat')
+    }
     const msg = e instanceof Error ? e.message : t.errorGeneric
     return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: msg }
   }

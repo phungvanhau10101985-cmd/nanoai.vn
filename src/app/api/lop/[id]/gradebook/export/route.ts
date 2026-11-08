@@ -14,15 +14,24 @@ function slugFileBase(name: string): string {
   return s || 'lop'
 }
 
+function gradebookScope(req: NextRequest) {
+  const subjectId = String(req.nextUrl.searchParams.get('subject') ?? '').trim().slice(0, 40)
+  const teacherId = String(req.nextUrl.searchParams.get('teacher') ?? '').trim()
+  if (!subjectId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(teacherId)) {
+    return null
+  }
+  return { subjectId, teacherId }
+}
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: classId } = await params
   const auth = await getUserForAction()
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
-  const result = await fetchClassGradebookData(classId, auth.user.id)
+  const result = await fetchClassGradebookData(classId, auth.user.id, gradebookScope(req))
   if (!result.ok) {
     if (result.error === 'db') {
       return NextResponse.json({ error: 'Không thể tải bảng điểm.' }, { status: 503 })

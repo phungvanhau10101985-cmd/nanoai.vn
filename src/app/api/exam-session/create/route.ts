@@ -14,6 +14,7 @@ import {
 } from '@/lib/db/exam-session-admin-pg'
 import {
   fetchClassForExamSessionCreatePg,
+  teacherCanTeachInClassPg,
   updateClassGradeLevelIfDifferentPg,
   updateClassSchoolAndGradeIfUnsetPg,
 } from '@/lib/db/classes-pg'
@@ -31,6 +32,7 @@ import { getEssayProblem } from '@/app/tao-giao-trinh/lib/worksheet-content-json
 import { runWorksheetVerifyForQuestionIds } from '@/lib/worksheet-verify/run-worksheet-verify-for-sheet'
 import { shuffleArray } from '@/lib/exam-layout-token'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { notifyClassStudentsOfAssignment } from '@/lib/lop/notify-class-assignment'
 
 /** Hàng từ worksheet_questions / ngân hàng — annotate để TS khớp khi client là service role. */
 type WorksheetQuestionPick = {
@@ -331,7 +333,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Không tìm thấy lớp đã chọn.' }, { status: 404 })
     }
     const cls = clsFetch
-    if (String(cls.teacher_id ?? '') !== user.id) {
+    const canTeach = await teacherCanTeachInClassPg(classId, user.id)
+    if (canTeach === null) {
+      return NextResponse.json({ error: 'Không thể đọc lớp.' }, { status: 503 })
+    }
+    if (!canTeach) {
       return NextResponse.json({ error: 'Bạn không có quyền dùng lớp này.' }, { status: 403 })
     }
 
@@ -659,6 +665,14 @@ export async function POST(req: NextRequest) {
     }
 
     const examUrl = `${resolveBaseUrl(req)}/lam-bai/${code}`
+    await notifyClassStudentsOfAssignment({
+      classId,
+      teacherUserId: user.id,
+      sessionId: session.id,
+      title,
+      code,
+      homework: practiceHomework,
+    }).catch((error) => console.warn('[exam-session/create] notify students', error))
 
     return NextResponse.json({
       success: true,

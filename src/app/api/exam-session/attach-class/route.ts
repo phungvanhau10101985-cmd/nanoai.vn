@@ -14,6 +14,7 @@ import {
   insertExamSessionAttachWithoutLineagePg,
 } from '@/lib/db/exam-session-admin-pg'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { notifyClassStudentsOfAssignment } from '@/lib/lop/notify-class-assignment'
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -204,6 +205,14 @@ export async function POST(req: NextRequest) {
     const baseUrl = resolveBaseUrl(req)
     const examUrl = `${baseUrl}/lam-bai/${code}`
     revalidatePath(`/lop/${classId}`)
+    await notifyClassStudentsOfAssignment({
+      classId,
+      teacherUserId: user.id,
+      sessionId: newSessionId,
+      title: baseParams.title,
+      code,
+      homework: practiceHomework,
+    }).catch((error) => console.warn('[exam-session/attach-class] notify students', error))
 
     return NextResponse.json({
       success: true,

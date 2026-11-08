@@ -50,7 +50,7 @@ export default function LopClientPage({
       <div className="rounded-xl border border-dashed border-muted-foreground/25 p-12 text-center text-muted-foreground">
         <p className="text-base">{t.noClasses}</p>
         <p className="text-sm mt-2">
-          {t.createClass} hoặc {t.joinClass}
+          {t.createClassForTeacher} · {t.joinClassForStudent}
         </p>
       </div>
     )

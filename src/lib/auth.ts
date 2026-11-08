@@ -51,6 +51,48 @@ async function canonicalizeUserByEmail(user: AppUser): Promise<AppUser> {
   return user
 }
 
+function httpDisplayAvatar(raw: string | null | undefined): string | null {
+  const url = String(raw ?? '').trim()
+  if (!/^https?:\/\//i.test(url) || url.length > 2000) return null
+  return url
+}
+
+/** Tên + ảnh hồ sơ (Google ghi vào profiles) để menu tài khoản hiện đúng tên. */
+async function attachAccountDisplayFromPg(user: AppUser): Promise<AppUser> {
+  if (!isPgConfigured() || !isValidUuidString(user.id)) return user
+  try {
+    const row = await pgQueryOne<{
+      full_name: string | null
+      avatar_url: string | null
+      meta_name: string | null
+      meta_picture: string | null
+    }>(
+      `select nullif(trim(p.full_name), '') as full_name,
+              nullif(trim(p.avatar_url), '') as avatar_url,
+              nullif(trim(coalesce(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name')), '') as meta_name,
+              nullif(trim(coalesce(u.raw_user_meta_data->>'avatar_url', u.raw_user_meta_data->>'picture')), '') as meta_picture
+       from auth.users u
+       left join public.profiles p on p.id = u.id
+       where u.id = $1::uuid
+       limit 1`,
+      [user.id]
+    )
+    if (!row) return user
+    const fullName = String(row.full_name || row.meta_name || '').trim()
+    const avatar = httpDisplayAvatar(row.avatar_url) || httpDisplayAvatar(row.meta_picture)
+    if (!fullName && !avatar) return user
+    const meta = { ...(user.user_metadata ?? {}) }
+    if (fullName) {
+      meta.full_name = fullName
+      meta.name = fullName
+    }
+    if (avatar) meta.avatar_url = avatar
+    return { ...user, user_metadata: meta }
+  } catch {
+    return user
+  }
+}
+
 /** Crawler và bot mua sắm phải thấy cùng HTML với khách chưa đăng nhập. */
 function isSearchEngineCrawler(): boolean {
   try {
@@ -102,21 +144,23 @@ function getDevUser(): AppUser {
   }
 }
 
+/** Phiên email thật. Có cookie đăng nhập thì dùng tài khoản đó, kể cả trên localhost. */
+async function readRealEmailUser(): Promise<AppUser | null> {
+  const emailUser = await getEmailSessionUser()
+  if (!emailUser || !isValidUuidString(emailUser.id)) return null
+  return attachAccountDisplayFromPg(await canonicalizeUserByEmail(emailUser))
+}
+
 /**
  * Lấy user hiện tại (JWT email) hoặc user giả khi bypass local.
+ * Đã đăng nhập tài khoản thật thì giữ tài khoản đó. Dev chỉ là fallback khi chưa có phiên.
  * Crawler không nhận user giả: trang tính năng render bản công khai giống khách chưa đăng nhập.
  */
 export async function getUserOrBypass(): Promise<AppUser | null> {
-  // On localhost (non-prod): dev bypass takes priority — no login needed.
-  // Only check real email session when auth is required (production or force_real_login cookie).
-  if (!isAuthRequired()) return canonicalizeUserByEmail(getDevUser())
   if (isSearchEngineCrawler()) return null
-
-  const emailUser = await getEmailSessionUser()
-  if (emailUser) {
-    if (!isValidUuidString(emailUser.id)) return null
-    return canonicalizeUserByEmail(emailUser)
-  }
+  const signedIn = await readRealEmailUser()
+  if (signedIn) return signedIn
+  if (!isAuthRequired()) return canonicalizeUserByEmail(getDevUser())
   return null
 }
 
@@ -188,6 +232,8 @@ export async function getWalletSessionUser(): Promise<AppUser | null> {
 export async function getUserForAction(
   errorMessage = 'Vui lòng đăng nhập.'
 ): Promise<{ user: AppUser } | { error: string }> {
+  const signedIn = await readRealEmailUser()
+  if (signedIn) return { user: signedIn }
   if (!isAuthRequired()) return { user: await canonicalizeUserByEmail(getDevUser()) }
   const user = await getWalletSessionUser()
   if (user) return { user }
@@ -228,6 +274,8 @@ async function resolveGuestTrialUser(): Promise<AppUser | null> {
 export async function getUserForCreditAction(
   errorMessage = 'Bạn đã dùng hết 3 credits dùng thử. Vui lòng đăng nhập để tiếp tục.'
 ): Promise<{ user: AppUser } | { error: string }> {
+  const signedIn = await readRealEmailUser()
+  if (signedIn) return { user: signedIn }
   if (!isAuthRequired()) return { user: await canonicalizeUserByEmail(getDevUser()) }
   const user = await getWalletSessionUser()
   if (user) return { user }

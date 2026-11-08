@@ -29,15 +29,23 @@
     min-height: 44px;
     min-width: 44px;
   }
-  /* Bộ thiệp: font hệ thống có dấu tiếng Việt, không tải font lúc build. */
-  .wedding-font-soft .font-serif {
-    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  /* Trang công cụ đã gắn nút Quay lại vào slot — không hiện nút mặc định thứ hai. */
+  #site-header-back-slot:has([data-creation-tool-back]) ~ [data-site-default-back] {
+    display: none;
   }
-  .wedding-font-formal .font-serif {
-    font-family: Georgia, "Times New Roman", Times, serif;
+  /* Bộ thiệp: font hệ thống có dấu tiếng Việt, không tải font lúc build.
+     Georgia vẽ ề ế ằ ầ ồ bằng dấu thanh chiếm trọn một ký tự, nên không dùng. */
+  html:has([data-wedding-public]) .font-serif {
+    font-family: Cambria, "Palatino Linotype", Palatino, "Book Antiqua", "Times New Roman", Times, serif;
   }
-  .wedding-font-lotus .font-serif {
-    font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  html:has([data-wedding-public]) .wedding-font-soft .font-serif {
+    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Cambria, "Times New Roman", serif;
+  }
+  html:has([data-wedding-public]) .wedding-font-formal .font-serif {
+    font-family: Cambria, "Palatino Linotype", "Book Antiqua", "Times New Roman", Times, serif;
+  }
+  html:has([data-wedding-public]) .wedding-font-lotus .font-serif {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Cambria, "Times New Roman", serif;
   }
   /* Song hỷ: tấm kem trên giấy đỏ. Viền kép nằm trong tấm, không trồi ra khỏi khổ. */
   /* Nền chữ nằm dưới hoa văn. Chữ ở lớp trên nên nét không bị cánh cắt. */

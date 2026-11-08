@@ -1,10 +1,13 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { headers } from 'next/headers'
 import type { AppUser } from '@/lib/auth/app-user'
+import { readLoginNextFromHeaders } from '@/lib/auth/app-request-headers'
 import { Button } from '@/components/ui/button'
 import { getUserOrBypass } from '@/lib/auth'
 import { MobileHubHistoryButton } from './mobile-hub-history-button'
 import { SITE_HEADER_BACK_SLOT_ID } from './site-header-back-slot'
+import { SiteHeaderDefaultBackButton } from './site-header-default-back'
 import { HeaderUserMenu } from './header-user-menu'
 import { LocaleSwitcher } from './locale-switcher'
 import { LayoutGrid } from 'lucide-react'
@@ -18,6 +21,8 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 export async function Header() {
   const { t } = getServerDictionary()
   const locale = getCurrentWebLocale()
+  const pathWithQuery = readLoginNextFromHeaders((name) => headers().get(name))
+  const initialPath = pathWithQuery.split('?')[0] || '/'
   const clientDictionary: Dictionary = getDictionary(locale)
 
   let user: AppUser | null = null
@@ -58,6 +63,7 @@ export async function Header() {
         <div className="flex items-center justify-between gap-2 sm:gap-3.5 lg:gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 md:max-w-none md:flex-none md:gap-3.5 lg:gap-4">
             <div id={SITE_HEADER_BACK_SLOT_ID} className="contents" />
+            <SiteHeaderDefaultBackButton label={t.creationSidebar.back} initialPath={initialPath} />
             <MobileHubHistoryButton />
             <Link href="/" className="group flex min-w-0 shrink-0 items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 bg-card/90 shadow-sm transition-transform duration-200 group-hover:scale-[1.02] lg:h-9 lg:w-9">

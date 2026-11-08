@@ -436,6 +436,34 @@ export async function teacherHasClassSubjectPg(
   }
 }
 
+/** Người tạo lớp hoặc cô đang dạy một môn trong lớp. */
+export async function teacherCanTeachInClassPg(
+  classId: string,
+  teacherId: string
+): Promise<boolean | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ ok: number }>(
+      `select 1 as ok
+       from public.classes c
+       where c.id = $1::uuid
+         and (
+           c.teacher_id = $2::uuid
+           or exists (
+             select 1 from public.class_subjects s
+             where s.class_id = c.id and s.teacher_id = $2::uuid
+           )
+         )
+       limit 1`,
+      [classId, teacherId]
+    )
+    return row != null
+  } catch (e) {
+    console.error('[classes-pg] teacherCanTeachInClassPg', e)
+    return null
+  }
+}
+
 export type TeachingSubjectRow = { id: string; label: string }
 
 export async function fetchTeachingSubjectsPg(): Promise<TeachingSubjectRow[] | null> {
@@ -760,6 +788,8 @@ export async function fetchHomeworkExamSessionsForGanPhieuPg(
       title: string
       status: string
       created_at: string
+      subject_id: string
+      teacher_id: string
     }>
   | null
 > {
@@ -772,8 +802,11 @@ export async function fetchHomeworkExamSessionsForGanPhieuPg(
       status: string | null
       created_at: unknown
       is_practice_homework: boolean | null
+      subject_id: string | null
+      teacher_id: string | null
     }>(
-      `select id::text, code, title, status::text, created_at, is_practice_homework
+      `select id::text, code, title, status::text, created_at, is_practice_homework,
+              subject_id, teacher_id::text
        from public.exam_sessions
        where class_id = $1::uuid and teacher_id = $2::uuid
        order by created_at desc`,
@@ -786,6 +819,8 @@ export async function fetchHomeworkExamSessionsForGanPhieuPg(
         code: String(r.code ?? ''),
         title: String(r.title ?? '').trim(),
         status: String(r.status ?? 'active'),
+        subject_id: String(r.subject_id ?? ''),
+        teacher_id: String(r.teacher_id ?? ''),
         created_at:
           r.created_at instanceof Date
             ? r.created_at.toISOString()
@@ -1001,29 +1036,40 @@ export async function insertClassMemberPg(params: {
   }
 }
 
+/** Giáo viên không xóa học sinh. Học sinh tự rời qua `leaveClassAsStudentPg`. */
 export async function removeClassMemberPg(
-  classId: string,
-  teacherUserId: string,
-  memberUserId: string
+  _classId: string,
+  _teacherUserId: string,
+  _memberUserId: string
 ): Promise<'ok' | 'not_teacher' | 'cannot_remove_owner' | 'not_found' | null> {
+  return 'not_teacher'
+}
+
+/** Học sinh xóa đúng dòng của mình. Cô dạy môn hoặc người tạo lớp không rời bằng đường này. */
+export async function leaveClassAsStudentPg(
+  classId: string,
+  userId: string
+): Promise<'ok' | 'not_member' | 'not_student' | null> {
   if (!isPgConfigured()) return null
   try {
     const cls = await pgQueryOne<{ teacher_id: string }>(
       `select teacher_id::text from public.classes where id = $1::uuid limit 1`,
       [classId]
     )
-    if (!cls) return 'not_found'
-    if (cls.teacher_id !== teacherUserId) return 'not_teacher'
-    if (memberUserId === cls.teacher_id) return 'cannot_remove_owner'
+    if (!cls) return 'not_member'
+    if (cls.teacher_id === userId) return 'not_student'
+    const teaches = await teacherHasClassSubjectPg(classId, userId)
+    if (teaches === null) return null
+    if (teaches) return 'not_student'
     const del = await pgQueryOne<{ user_id: string }>(
       `delete from public.class_members
        where class_id = $1::uuid and user_id = $2::uuid
        returning user_id::text`,
-      [classId, memberUserId]
+      [classId, userId]
     )
-    return del ? 'ok' : 'not_found'
+    return del ? 'ok' : 'not_member'
   } catch (e) {
-    console.error('[classes-pg] removeClassMemberPg', e)
+    console.error('[classes-pg] leaveClassAsStudentPg', e)
     return null
   }
 }
@@ -1041,7 +1087,8 @@ export async function updateClassMemberDisplayNameForTeacherPg(params: {
       [params.classId]
     )
     if (!cls) return 'not_teacher'
-    if (cls.teacher_id !== params.teacherUserId) return 'not_teacher'
+    const allowed = await teacherCanTeachInClassPg(params.classId, params.teacherUserId)
+    if (allowed !== true) return allowed === null ? null : 'not_teacher'
     if (params.memberUserId === cls.teacher_id) return 'cannot_edit_owner'
     const mem = await pgQueryOne<{ user_id: string }>(
       `select user_id::text from public.class_members

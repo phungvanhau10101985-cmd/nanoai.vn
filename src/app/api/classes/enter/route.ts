@@ -4,13 +4,14 @@ import {
   classExistsWithJoinCodePg,
   fetchClassAtSchoolByIdPg,
   fetchClassAtSchoolByNamePg,
-  fetchTeacherSchoolDefaultsMinePg,
   insertClassMinePg,
   insertClassSubjectPg,
   schoolExistsByIdPg,
   upsertTeacherSchoolSettingsMinePg,
 } from '@/lib/db/classes-pg'
+import { fetchTeacherIdentity } from '@/lib/db/teacher-identity-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { getServerDictionary } from '@/lib/i18n/server'
 import { resolveStoredTeachingSubject } from '@/lib/lop/normalize-teaching-subject'
 
 function generateJoinCode(): string {
@@ -35,9 +36,15 @@ export async function POST(req: NextRequest) {
   const schoolId = String(body?.schoolId ?? '').trim()
   const subjectId = String(body?.subjectId ?? '').trim()
   const gradeLevelId = String(body?.gradeLevelId ?? '').trim()
-  const teacherDisplayNameRaw = String(body?.teacherDisplayName ?? '').replace(/\s+/g, ' ').trim()
-  const teacherDisplayName =
-    teacherDisplayNameRaw.length > 120 ? teacherDisplayNameRaw.slice(0, 120) : teacherDisplayNameRaw
+  const { t } = getServerDictionary()
+  const identity = await fetchTeacherIdentity(user.id, 'vi')
+  if (!identity.publicName) {
+    return NextResponse.json(
+      { error: t.classes.teacherIdentityRequired, code: 'profile_required' },
+      { status: 400 }
+    )
+  }
+  const displayName = identity.publicName
 
   if (!schoolId) return NextResponse.json({ error: 'Vui lòng chọn trường.' }, { status: 400 })
   if (!className) return NextResponse.json({ error: 'Vui lòng chọn hoặc nhập tên lớp.' }, { status: 400 })
@@ -51,9 +58,6 @@ export async function POST(req: NextRequest) {
   if (schoolOk !== true) {
     return NextResponse.json({ error: 'Không tìm thấy trường đã chọn.' }, { status: 404 })
   }
-
-  const defaults = await fetchTeacherSchoolDefaultsMinePg(user.id)
-  const displayName = teacherDisplayName || defaults?.teacherDisplayName || null
 
   const byId = requestedClassId ? await fetchClassAtSchoolByIdPg(schoolId, requestedClassId) : null
   const existing = byId ?? (await fetchClassAtSchoolByNamePg(schoolId, className))

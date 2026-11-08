@@ -13,6 +13,7 @@ import {
 } from '@/lib/db/exam-session-admin-pg'
 import { fetchExamPresetSourcePg, findTeacherExamCopyPg } from '@/lib/db/exam-preset-pg'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { notifyClassStudentsOfAssignment } from '@/lib/lop/notify-class-assignment'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ALLOWED_EXAM_TYPES = new Set(['15ph', '1tiet', 'hocky', 'totnghiep'])
@@ -138,6 +139,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Không sao chép được câu hỏi.' }, { status: 500 })
     }
     revalidatePath(`/lop/${classId}`)
+    await notifyClassStudentsOfAssignment({
+      classId,
+      teacherUserId: user.id,
+      sessionId: newSessionId,
+      title,
+      code,
+      homework: false,
+    }).catch((error) => console.warn('[exam-session/from-preset] notify students', error))
     return NextResponse.json({
       success: true,
       reused: false,

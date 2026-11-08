@@ -25,6 +25,10 @@ import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib
 import ClassSubjectField from '../lop/class-subject-field'
 import { parseCurriculumLessonNumber, formatCurriculumLessonNoDisplay } from './lib/curriculum-input-normalize'
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
+import { saveCurriculumToClass } from '@/app/lop/class-curriculum-actions'
+import { attachLessonToClass, listClassesForTeaching } from '@/app/lop/class-lesson-actions'
+import { TeachClassDialog } from '@/components/lop/teach-class-dialog'
+import type { TeachClassOption } from '@/lib/db/class-taught-lessons-pg'
 import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
 import { useWorksheetQuestionProposals, WorksheetQuestionCompare } from './components/worksheet-question-proposals'
 import {
@@ -461,6 +465,11 @@ export default function TaoGiaoTrinhClientPage({
   const [lessonMetaByMode, setLessonMetaByMode] = useState<Partial<Record<SlideVersionChoice, LessonSlideGroup[]>>>({})
   const [, setLessonTotalSlidesByMode] = useState<Partial<Record<SlideVersionChoice, number>>>({})
   const [lessonSelectOpen, setLessonSelectOpen] = useState(false)
+  const [teachClassOpen, setTeachClassOpen] = useState(false)
+  const [teachClassLoading, setTeachClassLoading] = useState(false)
+  const [teachClasses, setTeachClasses] = useState<TeachClassOption[]>([])
+  const pendingTeachOpenRef = useRef<(() => void) | null>(null)
+  const teachOpenOnceRef = useRef(false)
   const [lessonGroups, setLessonGroups] = useState<LessonSlideGroup[]>([])
   const [lessonPreparingGroupId, setLessonPreparingGroupId] = useState<string | null>(null)
   const [lessonPreparingLessonNo, setLessonPreparingLessonNo] = useState<number | null>(null)
@@ -755,6 +764,11 @@ export default function TaoGiaoTrinhClientPage({
   }
 
   const [dailyAiQuota, setDailyAiQuota] = useState<CurriculumDailyQuota | null>(null)
+  /** Bài mới còn suất miễn phí thì nút không ghi credit. Hết suất mới hiện. Theo chủ đề không trừ. Nút ghi đè luôn hiện credit. */
+  const createLessonCreditSuffix =
+    createMode !== 'topic' && dailyAiQuota != null && dailyAiQuota.remaining <= 0
+      ? creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)
+      : ''
 
   const refreshDailyAiQuota = useCallback(async () => {
     try {
@@ -1954,6 +1968,75 @@ export default function TaoGiaoTrinhClientPage({
     [curriculumMarkdown, displayTopic, curriculumId, subjectId, hasOriginalOrSharedVersion, infographicShared, infographicOriginal, infographicPersonal, toast, tr]
   )
 
+  const beginTeachOpen = useCallback((open: () => void) => {
+    const lessonNo = selectedLessonNoRef.current
+    if (!curriculumId || !subjectId || !lessonNo) {
+      open()
+      return
+    }
+    pendingTeachOpenRef.current = open
+    teachOpenOnceRef.current = false
+    setTeachClasses([])
+    setTeachClassLoading(true)
+    setTeachClassOpen(true)
+    void listClassesForTeaching(subjectId)
+      .then((rows) => {
+        if (teachOpenOnceRef.current) return
+        const preferred = typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('classId')?.trim() ?? ''
+          : ''
+        const sorted = preferred
+          ? [...rows.filter((row) => row.classId === preferred), ...rows.filter((row) => row.classId !== preferred)]
+          : rows
+        setTeachClasses(sorted)
+        setTeachClassLoading(false)
+        if (sorted.length === 0) {
+          teachOpenOnceRef.current = true
+          pendingTeachOpenRef.current = null
+          setTeachClassOpen(false)
+          open()
+        }
+      })
+      .catch(() => {
+        if (teachOpenOnceRef.current) return
+        teachOpenOnceRef.current = true
+        pendingTeachOpenRef.current = null
+        setTeachClassLoading(false)
+        setTeachClassOpen(false)
+        open()
+      })
+  }, [curriculumId, subjectId])
+
+  const finishTeachOpen = useCallback((classId: string | null) => {
+    if (teachOpenOnceRef.current) return
+    teachOpenOnceRef.current = true
+    const open = pendingTeachOpenRef.current
+    pendingTeachOpenRef.current = null
+    setTeachClassOpen(false)
+    setTeachClassLoading(false)
+    const lessonNo = selectedLessonNoRef.current
+    if (classId && curriculumId && subjectId && lessonNo) {
+      void attachLessonToClass({
+        classId,
+        subjectId,
+        curriculumId,
+        lessonNo,
+      }).then((res) => {
+        if (!res.ok) return
+        toast({
+          description: tr(
+            'Đã gắn tiết vào lớp. Học sinh mở lại để ôn.',
+            'Lesson attached to the class. Students can review it.',
+            '课时已挂到班级。学生可以打开复习。',
+            '授業をクラスに付けました。生徒は復習できます。',
+            '차시를 수업에 붙였습니다. 학생이 복습할 수 있습니다.'
+          ),
+        })
+      })
+    }
+    open?.()
+  }, [curriculumId, subjectId, toast, tr])
+
   const clearSlideVersionCaches = useCallback(() => {
     // Giải phóng các mảng version lớn khi không còn cần cho popup chọn phiên bản.
     setSharedSlides(null)
@@ -2362,13 +2445,13 @@ export default function TaoGiaoTrinhClientPage({
             })
           }
           setAiSlides(selectedSlides)
-          openGiaoVienWindow(
+          beginTeachOpen(() => openGiaoVienWindow(
             selectedSlides,
             choice,
             curriculumInfographicFromCache ?? infForChoice,
             lessonMarkdown || null,
             lessonInfographic
-          )
+          ))
           scheduleLessonIdleTrim()
           return
         }
@@ -3094,6 +3177,26 @@ export default function TaoGiaoTrinhClientPage({
     if (curriculumId || curriculumMarkdown.trim()) return
     hasAutoRestoredCurriculumRef.current = true
     try {
+      const params = new URLSearchParams(window.location.search)
+      const openId = params.get('openCurriculum')?.trim()
+      const classId = params.get('classId')?.trim() ?? ''
+      const subjectFromClass = params.get('subject')?.trim() ?? ''
+      const gradeFromClass = params.get('grade')?.trim() ?? ''
+      if (openId) {
+        if (classId && subjectFromClass) void saveCurriculumToClass({ classId, subjectId: subjectFromClass, curriculumId: openId })
+        skipNextResultScrollRef.current = true
+        void handleLoadCurriculum(openId, { skipScroll: true })
+        return
+      }
+      if (classId || subjectFromClass) {
+        if (subjectFromClass && subjectFromClass !== 'khac' && subjectFromClass.length <= 80) {
+          setSubjectId(subjectFromClass)
+        }
+        if (gradeFromClass && GRADE_LEVELS.some((g) => g.id === gradeFromClass)) {
+          setGradeLevelId(gradeFromClass)
+        }
+        return
+      }
       const savedCurriculumId = localStorage.getItem(LAST_OPENED_CURRICULUM_KEY)?.trim()
       if (!savedCurriculumId) return
       skipNextResultScrollRef.current = true
@@ -3783,6 +3886,25 @@ export default function TaoGiaoTrinhClientPage({
           {wsCreateReport ? <WorksheetCreateReport report={wsCreateReport} tr={tr} onFillRetry={(rows) => { setWsStepRows(rows); setWsCreateReport(null) }} /> : null}
         </DialogContent>
       </Dialog>
+      <TeachClassDialog
+        open={teachClassOpen}
+        loading={teachClassLoading}
+        classes={teachClasses}
+        labels={{
+          title: tr('Chọn lớp để lên lớp', 'Choose a class to teach', '选择上课班级', '授業するクラスを選択', '수업할 학급 선택'),
+          lead: tr(
+            'Tiết này gắn vào môn của cô trong lớp đã chọn. Học sinh mở lại để ôn. Lớp khác đã gắn vẫn giữ.',
+            'This lesson is attached to your subject in the chosen class. Students can review it. Other classes stay attached.',
+            '该课时挂到所选班级里你的科目。学生可以复习。其他班级仍然保留。',
+            'この授業は選んだクラスの担当教科に付きます。生徒は復習できます。他のクラスはそのままです。',
+            '이 차시는 고른 학급의 담당 과목에 붙습니다. 학생은 복습할 수 있습니다. 다른 학급은 그대로입니다.'
+          ),
+          loading: tr('Đang tải lớp…', 'Loading classes…', '正在加载班级…', 'クラスを読み込み中…', '학급 불러오는 중…'),
+          skip: tr('Chỉ mở slide', 'Open slides only', '只打开幻灯片', 'スライドだけ開く', '슬라이드만 열기'),
+        }}
+        onPick={(classId) => finishTeachOpen(classId)}
+        onSkip={() => finishTeachOpen(null)}
+      />
       <Dialog open={lessonSelectOpen} onOpenChange={handleLessonSelectOpenChange}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -4099,11 +4221,11 @@ export default function TaoGiaoTrinhClientPage({
               {dailyAiQuota ? (
                 <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
                   {tr(
-                    `Hôm nay còn ${dailyAiQuota.remaining}/${dailyAiQuota.limit} bài mới miễn phí AI (lần đầu slide/infographic trong bài cũng miễn phí; tạo lại hoặc từ bài thứ 4 trừ credit).`,
-                    `Today: ${dailyAiQuota.remaining}/${dailyAiQuota.limit} free new-lesson AI slots left (first slides/infographic per lesson are free; regenerate or lesson #4+ uses credits).`,
-                    `今日剩余 ${dailyAiQuota.remaining}/${dailyAiQuota.limit} 个免费新课 AI 名额（课时内首次幻灯片/信息图免费；重新生成或第 4 课起扣积分）。`,
-                    `本日: 無料AI枠 残り${dailyAiQuota.remaining}/${dailyAiQuota.limit}（初回スライド/インフォグラフィック無料・再生成または4本目以降はクレジット）。`,
-                    `오늘 무료 AI 신규 ${dailyAiQuota.remaining}/${dailyAiQuota.limit}회 남음(차시별 첫 슬라이드/인포그래픽 무료, 재생성·4번째부터 크레딧).`
+                    `Hôm nay còn ${dailyAiQuota.remaining}/${dailyAiQuota.limit} bài mới miễn phí AI (lần đầu slide/infographic trong bài cũng miễn phí; tạo lại hoặc từ bài thứ ${dailyAiQuota.limit + 1} trừ credit).`,
+                    `Today: ${dailyAiQuota.remaining}/${dailyAiQuota.limit} free new-lesson AI slots left (first slides/infographic per lesson are free; regenerate or lesson #${dailyAiQuota.limit + 1}+ uses credits).`,
+                    `今日剩余 ${dailyAiQuota.remaining}/${dailyAiQuota.limit} 个免费新课 AI 名额（课时内首次幻灯片/信息图免费；重新生成或第 ${dailyAiQuota.limit + 1} 课起扣积分）。`,
+                    `本日: 無料AI枠 残り${dailyAiQuota.remaining}/${dailyAiQuota.limit}（初回スライド/インフォグラフィック無料・再生成または${dailyAiQuota.limit + 1}本目以降はクレジット）。`,
+                    `오늘 무료 AI 신규 ${dailyAiQuota.remaining}/${dailyAiQuota.limit}회 남음(차시별 첫 슬라이드/인포그래픽 무료, 재생성·${dailyAiQuota.limit + 1}번째부터 크레딧).`
                   )}
                 </p>
               ) : null}
@@ -4687,14 +4809,14 @@ export default function TaoGiaoTrinhClientPage({
                     {createMode === 'topic' ? (
                       <>
                         {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
-                        {creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)}
+                        {createLessonCreditSuffix}
                       </>
                     ) : checkLoading ? (
                       tr('Đang kiểm tra...', 'Checking...', '正在检查...', '確認中...', '확인 중...')
                     ) : (
                       <>
                         {tr('Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラムを作成', '교육과정 생성')}
-                        {creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)}
+                        {createLessonCreditSuffix}
                       </>
                     )}
                   </Button>

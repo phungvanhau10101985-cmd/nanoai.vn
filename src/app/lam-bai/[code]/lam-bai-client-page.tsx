@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { RefreshCw, CheckCircle, Clock, Share2, Play, Camera } from 'lucide-react'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import { StudentBirthDateSelects } from '@/components/student-birth-date-selects'
+import { StudentIdentityForm, studentIdentityLabels } from '@/components/lop/student-identity-form'
+import type { TeacherGender } from '@/lib/lop/teacher-public-name'
 import { buildDob, formatDobDisplay, isValidStudentDobIso, splitDob } from '@/lib/student-dob'
 import { joinClassForActiveExam } from '@/app/lop/actions'
 import { useToast } from '@/hooks/use-toast'
@@ -241,6 +243,12 @@ export default function LamBaiClientPage({
   } | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
   const [enrollSubmitting, setEnrollSubmitting] = useState(false)
+  const [enrollProfile, setEnrollProfile] = useState<{
+    givenName: string
+    gender: TeacherGender | null
+    birthDate: string
+    complete: boolean
+  } | null>(null)
   const { toast } = useToast()
   const [exam, setExam] = useState<{
     title: string
@@ -344,6 +352,32 @@ export default function LamBaiClientPage({
     },
     []
   )
+
+  useEffect(() => {
+    if (!enrollmentGate) return
+    let cancelled = false
+    setEnrollProfile(null)
+    void fetch('/api/profile/student-identity', { cache: 'no-store' })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (cancelled || !r.ok) return
+        const gender = data?.gender === 'male' || data?.gender === 'female' ? data.gender : null
+        setEnrollProfile({
+          givenName: typeof data?.givenName === 'string' ? data.givenName : '',
+          gender,
+          birthDate: typeof data?.birthDate === 'string' ? data.birthDate : '',
+          complete: data?.complete === true && gender != null,
+        })
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEnrollProfile({ givenName: '', gender: null, birthDate: '', complete: false })
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [enrollmentGate])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -965,10 +999,8 @@ export default function LamBaiClientPage({
   }
 
   if (enrollmentGate && !exam) {
-    const birthDate = buildDob(dobDay, dobMonth, dobYear)
-    const canEnroll =
-      normalizeName(studentName).length >= 2 && isValidStudentDobIso(birthDate)
     const gateHw = enrollmentGate.practiceHomework
+    const profileReady = enrollProfile?.complete === true && enrollProfile.gender != null
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
         <Toaster />
@@ -993,66 +1025,55 @@ export default function LamBaiClientPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="exam-gate-name" className="text-sm font-medium">
-                {t.joinStudentDisplayName} <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="exam-gate-name"
-                placeholder={t.joinStudentDisplayName}
-                value={studentName}
-                onChange={(e) => setStudentName(e.target.value)}
-                autoComplete="name"
-                disabled={enrollSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                {t.joinStudentBirthDate} <span className="text-destructive">*</span>
-              </label>
-              <StudentBirthDateSelects
-                idPrefix="exam-gate-dob"
-                dobDay={dobDay}
-                dobMonth={dobMonth}
-                dobYear={dobYear}
-                onDayChange={setDobDay}
-                onMonthChange={setDobMonth}
-                onYearChange={setDobYear}
-                disabled={enrollSubmitting}
-                labels={{
-                  day: t.joinDobDayPlaceholder,
-                  month: t.joinDobMonthPlaceholder,
-                  year: t.joinDobYearPlaceholder,
+            {!enrollProfile ? (
+              <p className="text-sm text-muted-foreground">{t.joinClassPreviewLoading}</p>
+            ) : !profileReady || !enrollProfile.gender ? (
+              <StudentIdentityForm
+                initialName={enrollProfile.givenName}
+                initialGender={enrollProfile.gender}
+                initialBirthDate={enrollProfile.birthDate}
+                labels={studentIdentityLabels(t)}
+                onSaved={(value) => {
+                  setEnrollProfile({
+                    givenName: value.givenName,
+                    gender: value.gender,
+                    birthDate: value.birthDate,
+                    complete: true,
+                  })
                 }}
               />
-            </div>
+            ) : (
+              <p className="text-sm text-foreground">
+                {t.studentIdentityShownAs
+                  .replace('{name}', enrollProfile.givenName)
+                  .replace('{birth}', formatDobDisplay(enrollProfile.birthDate))
+                  .replace(
+                    '{gender}',
+                    enrollProfile.gender === 'male' ? t.teacherIdentityMale : t.teacherIdentityFemale
+                  )}
+              </p>
+            )}
+            {profileReady ? (
             <Button
               type="button"
               className="w-full"
-              disabled={!canEnroll || enrollSubmitting}
+              disabled={enrollSubmitting}
               onClick={async () => {
-                const name = normalizeName(studentName)
-                if (name.length < 2) {
-                  toast({ variant: 'destructive', description: t.joinNameTooShort })
-                  return
-                }
-                const bd = buildDob(dobDay, dobMonth, dobYear)
-                if (!bd || !isValidStudentDobIso(bd)) {
-                  toast({ variant: 'destructive', description: t.joinBirthRequired })
-                  return
-                }
                 setEnrollSubmitting(true)
-                const res = await joinClassForActiveExam({
-                  examCode: code,
-                  studentDisplayName: name,
-                  birthDate: bd,
-                })
+                const res = await joinClassForActiveExam({ examCode: code })
                 setEnrollSubmitting(false)
                 if ('error' in res) {
                   toast({ variant: 'destructive', description: res.error })
                   return
                 }
+                const name = normalizeName(res.studentName)
+                const bd = res.birthDate
                 setStudentName(name)
+                setStudentDob(bd)
+                const parts = splitDob(bd)
+                setDobDay(parts.day)
+                setDobMonth(parts.month)
+                setDobYear(parts.year)
                 try {
                   if (typeof window !== 'undefined') {
                     window.localStorage.setItem(
@@ -1076,6 +1097,7 @@ export default function LamBaiClientPage({
                   ? t.homeworkEnrollSubmitButton
                   : t.examEnrollSubmitButton}
             </Button>
+            ) : null}
           </CardContent>
         </Card>
       </div>

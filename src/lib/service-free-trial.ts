@@ -2,7 +2,7 @@
  * Dùng thử 18 ngày: không trừ phí tháng giáo trình (`/api/account/monthly-service-credits`).
  * Gói học sinh có dùng thử riêng 6 ngày — không dùng mốc 18 ngày này.
  * Không miễn credit AI theo lượt; học tiếng Anh AI vẫn trừ credit theo buổi/bài khi dùng.
- * Mốc là lần đầu dùng giáo trình / phiếu / bài thi (`feature_trial_starts.curriculum`), không phải lúc tạo tài khoản.
+ * Mốc là lần đầu mở tiết học (`feature_trial_starts.curriculum`), không phải lúc tạo tài khoản hay lúc tạo giáo trình, phiếu, bài thi.
  */
 export const SERVICE_FREE_TRIAL_DAYS = 18
 

@@ -443,7 +443,7 @@ export type Dictionary = {
     trialActiveLine: string
     /** {days} */
     trialTotalDaysNote: string
-    /** {days} — chưa dùng giáo trình lần nào */
+    /** {days} — chưa mở tiết học lần nào */
     trialNotStarted: string
     /** {days} */
     trialDaysLeft: string
@@ -3083,6 +3083,8 @@ export type Dictionary = {
     myClasses: string
     createClass: string
     joinClass: string
+    joinClassForStudent: string
+    createClassForTeacher: string
     joinClassRoleHint: string
     joinClassPreviewTitle: string
     joinClassPreviewCheckHint: string
@@ -3093,6 +3095,26 @@ export type Dictionary = {
     createClassFacingSubjectPlaceholder: string
     createClassFacingTeacherLabel: string
     createClassFacingTeacherPlaceholder: string
+    teacherIdentityTitle: string
+    teacherIdentityLead: string
+    teacherIdentityNameLabel: string
+    teacherIdentityNamePlaceholder: string
+    teacherIdentityGenderLabel: string
+    teacherIdentityMale: string
+    teacherIdentityFemale: string
+    teacherIdentitySave: string
+    teacherIdentityRequired: string
+    teacherIdentitySaved: string
+    teacherIdentityEdit: string
+    teacherIdentityShownAs: string
+    teacherIdentityAccountNote: string
+    studentIdentityTitle: string
+    studentIdentityLead: string
+    studentIdentityRequired: string
+    studentIdentitySaved: string
+    studentIdentityEdit: string
+    studentIdentityShownAs: string
+    studentIdentityAccountNote: string
     createClassFacingFieldsHint: string
     updateClassFacingSave: string
     updateClassFacingSaveAsDefaults: string
@@ -3104,6 +3126,11 @@ export type Dictionary = {
     joinCode: string
     copyCode: string
     copied: string
+    joinQrButton: string
+    joinQrTitle: string
+    joinQrHint: string
+    joinQrCopyLink: string
+    joinQrFailed: string
     students: string
     worksheets: string
     noStudents: string
@@ -3143,6 +3170,10 @@ export type Dictionary = {
     enterClassFailed: string
     classSubjectsTitle: string
     classSubjectsEmpty: string
+    classSubjectPickHint: string
+    /** GV chỉ mở môn của mình; môn cô khác chỉ hiện */
+    classSubjectOwnOnlyHint: string
+    classSubjectBack: string
     backToList: string
     /** Chỉ mobile: mở /tao-bai-thi (cùng trang tạo bài thi trực tuyến) */
     mobileCreateExam: string
@@ -3489,6 +3520,14 @@ export type Dictionary = {
     removeStudentFailed: string
     removeStudentSuccess: string
     removeStudentRemoving: string
+    leaveClassButton: string
+    leaveClassConfirmTitle: string
+    leaveClassConfirmDescription: string
+    leaveClassConfirmAction: string
+    leaveClassFailed: string
+    leaveClassSuccess: string
+    leaveClassLeaving: string
+    leaveClassTeachersCannotRemove: string
     /** Màn tham gia lớp ngay trên trang làm bài thi (đề gắn lớp) */
     examEnrollGateTitle: string
     examEnrollGateDescription: string
@@ -3536,6 +3575,28 @@ export type Dictionary = {
     classHubCardCreateExamButton: string
     /** Hub GV: nút trong thẻ bài tập → /tao-bai-tap-ve-nha */
     classHubCardCreateHomeworkButton: string
+    classHubCardCurriculaTitle: string
+    classHubCardCurriculaDesc: string
+    classCurriculaEmpty: string
+    classCurriculaOpen: string
+    classCurriculaCreate: string
+    classCurriculaOther: string
+    /** {n} — số bài */
+    classCurriculaLesson: string
+    classReviewTitle: string
+    classReviewLead: string
+    classReviewEmpty: string
+    classReviewOpen: string
+    classReviewLesson: string
+    classReviewNoSlides: string
+    studentMyScoresTitle: string
+    studentMyScoresLead: string
+    studentMyScoresEmpty: string
+    studentMyScoresExam: string
+    studentMyScoresHomework: string
+    studentMyScoresNotSubmitted: string
+    studentMyScoresSubmitted: string
+    studentMyScoresPoints: string
     /** Trang lam-bai: không parse được TN/TL */
     worksheetLamBaiNoInteractiveHint: string
     /** Trang lam-bai: nút về danh sách phiếu trong lớp */
@@ -4725,7 +4786,7 @@ export const VI_DICTIONARY: Dictionary = {
     suggestedExamplePrefix: 'Ví dụ:',
     loginRequired: 'Đăng nhập để dùng trợ lý AI (0,1 credit/lượt).',
     errorGeneric: 'Không gửi được. Thử lại sau.',
-    creditNote: '0,1 credit / lượt chat hoặc sửa bước',
+    creditNote: 'Tin đầu mỗi hội thoại miễn phí. Sau đó 0,1 credit / lượt chat hoặc sửa bước',
     fallbackReply: 'Bạn có thể chọn một công cụ bên dưới hoặc mô tả rõ hơn nhu cầu.',
     workflowPick: 'Nhóm workflow',
     clearReply: 'Xóa',
@@ -5040,14 +5101,14 @@ export const VI_DICTIONARY: Dictionary = {
     trialSectionTitle: 'Dùng thử miễn phí',
     trialActiveLine:
       'Bạn đang trong thời gian dùng thử — chưa trừ phí tháng giáo trình.',
-    trialTotalDaysNote: 'Thời lượng dùng thử: {days} ngày kể từ lần đầu dùng giáo trình, phiếu bài tập hoặc bài thi.',
+    trialTotalDaysNote: 'Thời lượng dùng thử: {days} ngày kể từ lần đầu mở tiết học.',
     trialNotStarted:
-      'Chưa bắt đầu. {days} ngày dùng thử tính từ lần đầu bạn tạo giáo trình, phiếu hoặc bài thi — không tính từ lúc tạo tài khoản.',
+      'Chưa bắt đầu. {days} ngày dùng thử tính từ lần đầu bạn mở tiết học — không tính từ lúc tạo tài khoản.',
     trialDaysLeft: 'Còn lại khoảng {days} ngày.',
     trialEndsAtLine: 'Hết hạn dùng thử (dự kiến): {datetime}',
     trialNotActive:
-      'Đã hết thời gian dùng thử kể từ lần đầu dùng giáo trình. Phí tháng giáo trình sẽ trừ bằng credit mỗi kỳ khi áp dụng.',
-    statusTrialPending: 'Chưa dùng giáo trình — phí tháng chưa trừ.',
+      'Đã hết thời gian dùng thử kể từ lần đầu mở tiết học. Phí tháng giáo trình sẽ trừ bằng credit mỗi kỳ khi áp dụng.',
+    statusTrialPending: 'Chưa mở tiết học — phí tháng chưa trừ.',
     servicesSectionTitle: 'Phí tháng giáo trình (credit)',
     productCurriculum: 'Giáo trình & tạo bài',
     statusViaTrial: 'Đang dùng thử — chưa trừ phí tháng.',
@@ -7766,6 +7827,8 @@ export const VI_DICTIONARY: Dictionary = {
     myClasses: 'Lớp của tôi',
     createClass: 'Tạo lớp',
     joinClass: 'Tham gia lớp',
+    joinClassForStudent: 'Tham gia lớp · Học sinh',
+    createClassForTeacher: 'Tạo lớp · Giáo viên',
     joinClassRoleHint:
       'Tham gia bằng mã lớp: bạn là học sinh/thành viên. Mở link hoặc mã làm bài thi cũng chỉ đăng ký bạn là học sinh. Thầy/cô là người đã tạo lớp và người đã tạo bài thi — không đổi được qua mã hay link tham gia.',
     joinClassPreviewTitle: 'Bạn sắp vào lớp',
@@ -7777,6 +7840,27 @@ export const VI_DICTIONARY: Dictionary = {
     createClassFacingSubjectPlaceholder: 'VD: Toán',
     createClassFacingTeacherLabel: 'Tên giáo viên (hiển thị cho học sinh)',
     createClassFacingTeacherPlaceholder: 'VD: Cô Duyên',
+    teacherIdentityTitle: 'Cập nhật thông tin cá nhân',
+    teacherIdentityLead: 'Cần có họ tên và giới tính trước khi tạo lớp hoặc vào lớp. Nam hiển thị Thầy, nữ hiển thị Cô. Sửa tên tài khoản thì mọi lớp cập nhật theo.',
+    teacherIdentityNameLabel: 'Họ và tên',
+    teacherIdentityNamePlaceholder: 'Ví dụ: Hoa',
+    teacherIdentityGenderLabel: 'Giới tính',
+    teacherIdentityMale: 'Nam',
+    teacherIdentityFemale: 'Nữ',
+    teacherIdentitySave: 'Lưu và tiếp tục',
+    teacherIdentityRequired: 'Nhập họ tên và chọn giới tính.',
+    teacherIdentitySaved: 'Đã cập nhật. Tên trên các lớp đã đổi theo tài khoản.',
+    teacherIdentityEdit: 'Sửa tên tài khoản',
+    teacherIdentityShownAs: 'Học sinh thấy: {name}',
+    teacherIdentityAccountNote: 'Tên lấy từ tài khoản, không nhập riêng khi tạo lớp.',
+    studentIdentityTitle: 'Cập nhật thông tin học sinh',
+    studentIdentityLead:
+      'Cần có họ tên, ngày sinh và giới tính trước khi tham gia lớp. Sửa trên tài khoản thì mọi lớp cập nhật theo.',
+    studentIdentityRequired: 'Nhập họ tên, ngày sinh và chọn giới tính.',
+    studentIdentitySaved: 'Đã lưu. Tên trên các lớp đã đổi theo tài khoản.',
+    studentIdentityEdit: 'Sửa thông tin học sinh',
+    studentIdentityShownAs: 'Tên trong lớp: {name} · Sinh {birth} · {gender}',
+    studentIdentityAccountNote: 'Họ tên, ngày sinh và giới tính lấy từ tài khoản, không nhập riêng khi tham gia lớp.',
     createClassFacingFieldsHint:
       'Học sinh sẽ thấy dạng: Tên lớp — Môn — Giáo viên khi tham gia và trong danh sách lớp. Có thể sửa sau ở trang lớp hoặc khi tạo đề thi.',
     updateClassFacingSave: 'Lưu thông tin hiển thị',
@@ -7788,6 +7872,11 @@ export const VI_DICTIONARY: Dictionary = {
     joinCode: 'Mã tham gia',
     copyCode: 'Sao chép mã',
     copied: 'Đã sao chép',
+    joinQrButton: 'Xem mã QR',
+    joinQrTitle: 'Mã QR tham gia lớp',
+    joinQrHint: 'Học sinh quét mã, nhập họ tên và ngày sinh để vào lớp.',
+    joinQrCopyLink: 'Sao chép liên kết',
+    joinQrFailed: 'Không tạo được mã QR. Dùng liên kết bên dưới.',
     students: 'Học sinh',
     worksheets: 'Phiếu bài tập',
     noClasses: 'Chưa có lớp nào',
@@ -7825,6 +7914,9 @@ export const VI_DICTIONARY: Dictionary = {
     enterClassAlready: 'Bạn đã dạy môn này ở lớp đó.',
     classSubjectsTitle: 'Môn trong lớp',
     classSubjectsEmpty: 'Chưa có môn nào trong lớp.',
+    classSubjectPickHint: 'Chọn môn của một cô để vào. Muốn sang môn khác thì bấm Quay lại.',
+    classSubjectOwnOnlyHint: 'Bạn chỉ vào được môn của mình. Môn của cô khác chỉ xem, không mở được.',
+    classSubjectBack: 'Quay lại',
     backToList: 'Về danh sách',
     mobileCreateExam: 'Tạo bài thi',
     mobileCreateHomework: 'Tạo bài tập về nhà',
@@ -8125,9 +8217,18 @@ export const VI_DICTIONARY: Dictionary = {
     removeStudentFailed: 'Không xóa được học sinh.',
     removeStudentSuccess: 'Đã xóa học sinh khỏi lớp.',
     removeStudentRemoving: 'Đang xóa…',
+    leaveClassButton: 'Rời lớp',
+    leaveClassConfirmTitle: 'Rời khỏi lớp?',
+    leaveClassConfirmDescription:
+      'Bạn sẽ không còn trong danh sách lớp. Có thể tham gia lại bằng mã lớp.',
+    leaveClassConfirmAction: 'Rời lớp',
+    leaveClassFailed: 'Không rời được lớp.',
+    leaveClassSuccess: 'Đã rời lớp.',
+    leaveClassLeaving: 'Đang rời…',
+    leaveClassTeachersCannotRemove: 'Giáo viên không xóa học sinh khỏi lớp. Học sinh tự rời lớp.',
     examEnrollGateTitle: 'Tham gia lớp để làm bài thi',
     examEnrollGateDescription:
-      'Đề thi này gắn với một lớp. Nhập họ tên và ngày sinh đúng như trong sổ lớp (không dùng tên mặc định tài khoản Google). Sau đó em có thể bắt đầu làm bài.',
+      'Đề thi này gắn với một lớp. Cần họ tên, ngày sinh và giới tính trên tài khoản trước khi vào lớp. Sau đó em có thể bắt đầu làm bài.',
     examEnrollSubmitButton: 'Tham gia lớp và làm bài thi',
     examEnrollSubmitting: 'Đang tham gia…',
     gradebookTitle: 'Sổ điểm học sinh',
@@ -8163,6 +8264,27 @@ export const VI_DICTIONARY: Dictionary = {
       'Bài tập về nhà giáo viên giao: mở link hoặc mã phiên để làm bài (trang làm bài).',
     classHubCardCreateExamButton: 'Tạo đề thi',
     classHubCardCreateHomeworkButton: 'Tạo bài tập',
+    classHubCardCurriculaTitle: 'Giáo trình của tôi',
+    classHubCardCurriculaDesc: 'Giáo trình cô đã tạo hoặc đã mở, lưu theo môn của lớp này.',
+    classCurriculaEmpty: 'Chưa có giáo trình cho môn này. Tạo hoặc mở một giáo trình để lưu vào lớp.',
+    classCurriculaOpen: 'Mở',
+    classCurriculaCreate: 'Tạo giáo trình',
+    classCurriculaOther: 'Chưa lưu giáo trình môn này. Mở một giáo trình của cô để lưu vào lớp.',
+    classCurriculaLesson: 'Bài {n}',
+    classReviewTitle: 'Ôn bài',
+    classReviewLead: 'Các tiết cô đã lên lớp. Học sinh mở lại đúng tiết để ôn.',
+    classReviewEmpty: 'Chưa có tiết nào được gắn vào môn này.',
+    classReviewOpen: 'Ôn',
+    classReviewLesson: 'Tiết {n}',
+    classReviewNoSlides: 'Tiết này chưa có slide để ôn.',
+    studentMyScoresTitle: 'Điểm của tôi',
+    studentMyScoresLead: 'Bài thi và bài tập cô đã giao trong môn này. Bài thi hiện điểm của em.',
+    studentMyScoresEmpty: 'Chưa có bài nào được giao trong môn này.',
+    studentMyScoresExam: 'Bài thi',
+    studentMyScoresHomework: 'Bài tập',
+    studentMyScoresNotSubmitted: 'Chưa làm',
+    studentMyScoresSubmitted: 'Đã nộp',
+    studentMyScoresPoints: '{score}/10',
     worksheetLamBaiNoInteractiveHint:
       'Phiếu chưa có phần trắc nghiệm hoặc tự luận làm được trên web (giáo viên cần gắn câu hỏi vào phiếu trong Tạo giáo trình). Bạn chưa thể nộp bài ở đây.',
     worksheetLamBaiBackToClassWorksheets: 'Về danh sách phiếu lớp',

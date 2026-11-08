@@ -39,7 +39,7 @@ function pointsOn10(score: number, max: number): number {
  * - Chưa chấm TL nhưng có TN: chỉ quy phần TN theo quizPoints/quizPointsMax (tránh 3/100 → 0.3 làm lệch tổng).
  * - Chỉ TL, chưa chấm: 0; đã chấm: score/max.
  */
-function examPointsOn10(score: number, max: number, meta: ExamGradingMeta | null): number {
+export function examPointsOn10(score: number, max: number, meta: ExamGradingMeta | null): number {
   if (!meta) {
     return pointsOn10(score, max)
   }
@@ -69,7 +69,8 @@ export type GradebookFetchError = 'not_found' | 'forbidden' | 'db'
  */
 export async function fetchClassGradebookData(
   classId: string,
-  teacherUserId: string
+  teacherUserId: string,
+  scope?: { subjectId: string; teacherId: string } | null
 ): Promise<{ ok: false; error: GradebookFetchError } | { ok: true; data: GradebookPayload }> {
   if (!isPgConfigured()) return { ok: false, error: 'db' }
 
@@ -97,13 +98,15 @@ export async function fetchClassGradebookData(
 
     const students = memberRows.filter((m) => m.user_id !== cls.teacher_id)
 
-    const cwRows = await pgQuery<{ worksheet_id: string; assigned_at: string | null }>(
-      `select worksheet_id::text, assigned_at::text as assigned_at
-       from public.class_worksheets
-       where class_id = $1::uuid
-       order by assigned_at asc nulls first`,
-      [classId]
-    )
+    const cwRows = scope
+      ? []
+      : await pgQuery<{ worksheet_id: string; assigned_at: string | null }>(
+          `select worksheet_id::text, assigned_at::text as assigned_at
+           from public.class_worksheets
+           where class_id = $1::uuid
+           order by assigned_at asc nulls first`,
+          [classId]
+        )
 
     const wsIds = [...new Set(cwRows.map((r) => r.worksheet_id))]
     const wsMetas =
@@ -118,12 +121,14 @@ export async function fetchClassGradebookData(
       wsMetas.map((w) => [w.id, String(w.topic ?? '').trim() || '—'])
     )
 
+    const examTeacherId = scope && cls.teacher_id === teacherUserId ? scope.teacherId : teacherUserId
     const examRows = await pgQuery<{ id: string; code: string | null; title: string | null }>(
       `select id::text, code, title
        from public.exam_sessions
        where class_id = $1::uuid and teacher_id = $2::uuid
+         and ($3::text is null or subject_id = $3)
        order by created_at desc`,
-      [classId, teacherUserId]
+      [classId, examTeacherId, scope?.subjectId ?? null]
     )
 
     const subRows = await pgQuery<{

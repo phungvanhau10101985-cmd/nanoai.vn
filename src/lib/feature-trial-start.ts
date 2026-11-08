@@ -31,16 +31,14 @@ async function minTimestamp(sql: string, userId: string): Promise<number | null>
   }
 }
 
-/** Lần dùng thật sớm nhất đã có trong dữ liệu, trước khi có dòng mốc. */
+/**
+ * Lần dùng thật sớm nhất đã có trong dữ liệu, trước khi có dòng mốc.
+ * Gói giáo trình không suy từ lúc tạo giáo trình, phiếu hay bài thi — mốc chỉ ghi khi mở tiết.
+ */
 async function earliestRealUseMs(userId: string, feature: FeatureTrialFeature): Promise<number | null> {
   const queries =
     feature === 'curriculum'
-      ? [
-          `select min(created_at) as ts from public.worksheet_curricula where user_id = $1::uuid`,
-          `select min(created_at) as ts from public.worksheet_worksheets where user_id = $1::uuid`,
-          `select min(created_at) as ts from public.curriculum_ai_first_use where user_id = $1::uuid`,
-          `select min(created_at) as ts from public.exam_sessions where teacher_id = $1::uuid`,
-        ]
+      ? []
       : [
           `select min(created_at) as ts from public.homework_messages where user_id = $1::uuid and role = 'user'`,
           `select min(created_at) as ts from public.tutor_messages where user_id = $1::uuid and role = 'user'`,
@@ -83,8 +81,8 @@ async function insertStart(userId: string, feature: FeatureTrialFeature, started
 }
 
 /**
- * Đọc mốc đã ghi. Nếu chưa có dòng nhưng đã dùng tính năng, ghi mốc bằng lần dùng sớm nhất.
- * Chưa dùng thì trả null — đồng hồ chưa chạy.
+ * Đọc mốc đã ghi. Gói học sinh: nếu chưa có dòng nhưng đã gửi bài, ghi mốc bằng lần dùng sớm nhất.
+ * Gói giáo trình: chưa mở tiết thì trả null — đồng hồ chưa chạy.
  */
 export async function readFeatureTrialStartedAt(
   userId: string,

@@ -32,6 +32,7 @@ import { formatWeddingMusicSecondsForInput } from '@/lib/wedding/parse-music-pla
 import { invitationComposeNamesReady } from '@/lib/wedding/invitation-compose'
 import {
   INVITATION_OCCASION_GROUPS,
+  INVITATION_OCCASION_KEYS,
   invitationCardStructure,
   invitationEditorCopy,
   invitationOccasionShape,
@@ -44,11 +45,12 @@ import { omitWeddingAddressesFromSharedCopy, stripSharedWeddingCopy, weddingShar
 import { resolveWeddingDateIso } from '@/lib/wedding/wedding-date-normalize'
 import { WEDDING_MOBILE_HEIGHT, WEDDING_MOBILE_WIDTH } from '@/lib/wedding/wedding-design-viewport'
 import { splitLibraryByRecommendation } from '@/lib/wedding/wedding-ai-library-match'
+import { WeddingLandingThemes } from '@/components/wedding/wedding-landing-themes'
 import { WeddingSampleGallery, WeddingSampleLookStrip } from '@/components/wedding/wedding-sample-card-picker'
 import { WeddingSampleDemoFrame } from '@/components/wedding/wedding-sample-demo-bar'
 import { weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey, weddingOrnamentSurfaceKey } from '@/lib/wedding/wedding-background-ornament-store'
 import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/lib/wedding/wedding-ornament-sync'
-import { findWeddingSampleCard, findWeddingSampleInUse, isWeddingSamplePhotoUrl, stripWeddingSamplePhotos, weddingLibrarySampleSectionPatch, weddingOccasionDemos, weddingSamplesWithActiveFirst, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
+import { findWeddingSampleCard, findWeddingSampleInUse, isWeddingSamplePhotoUrl, stripWeddingSamplePhotos, weddingLibrarySampleSectionPatch, weddingOccasionDemos, weddingSampleCardTitle, weddingSampleScrollStrip, weddingSamplesWithActiveFirst, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
 import { clearPendingWeddingSampleUse, readPendingWeddingSampleUse, weddingSavedCardQueryId } from '@/lib/wedding/wedding-sample-use-target'
 import { WeddingSampleComposeModal } from '@/components/wedding/wedding-sample-compose-modal'
 import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
@@ -603,7 +605,21 @@ export default function WeddingCardAiClientPage() {
   }, [])
   const tBrief = useMemo(() => getDictionary(uiLocale).weddingCardAiBrief, [uiLocale])
   const tImage = useMemo(() => getDictionary(uiLocale).weddingCardAiImage, [uiLocale])
+  const tLanding = useMemo(() => getDictionary(uiLocale).weddingCardAiLanding, [uiLocale])
   const txPublic = useMemo(() => getDictionary(uiLocale).weddingCardPublic, [uiLocale])
+  const emptySampleThemes = useMemo(
+    () =>
+      INVITATION_OCCASION_KEYS.flatMap((occasionKey) =>
+        weddingOccasionDemos(occasionKey).map((sample) => ({
+          id: sample.id,
+          title: weddingSampleCardTitle(uiLocale, sample),
+          image: weddingSampleScrollStrip(sample),
+          cover: sample.coverPhotoUrl,
+          occasionKey,
+        })),
+      ).filter((item) => item.title && item.image),
+    [uiLocale],
+  )
 
   useEffect(() => {
     const fmt = (n: number | null) => (n != null && Number.isFinite(n) ? String(n) : '')
@@ -2358,16 +2374,28 @@ export default function WeddingCardAiClientPage() {
           </div>
         </div>
 
+        {savedCardList.length === 0 ? (
+          <section aria-labelledby="wedding-empty-samples" className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-rose-100 sm:p-5">
+            <h2 id="wedding-empty-samples" className="text-lg font-semibold text-slate-950">{tLanding.samplesTitle}</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{tLanding.samplesHint}</p>
+            <div className="mt-4">
+              <WeddingLandingThemes
+                locale={uiLocale}
+                themes={emptySampleThemes}
+                moreLabel={tLanding.themesMore}
+                lessLabel={tLanding.themesLess}
+                openLabel={tLanding.themesOpen}
+              />
+            </div>
+          </section>
+        ) : (
         <Card id="wedding-saved-cards">
           <CardHeader className="gap-1">
             <CardTitle>Thiệp đã lưu</CardTitle>
             <CardDescription>Mỗi thiệp giữ riêng. Bấm tên thiệp để xem demo. Sửa mở xem thử. Khách mời và Xem nhanh mở đúng thiệp. Xóa khi không dùng.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {savedCardList.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Chưa có thiệp nào. Bấm Tạo thiệp mới khi muốn làm thiệp.</p>
-            ) : (
-              savedCardList.map((item) => {
+            {savedCardList.map((item) => {
                 const active = item.id === card.id
                 return (
                   <div
@@ -2452,10 +2480,10 @@ export default function WeddingCardAiClientPage() {
                     </div>
                   </div>
                 )
-              })
-            )}
+              })}
           </CardContent>
         </Card>
+        )}
 
         <Dialog
           open={backgroundPageOpen}

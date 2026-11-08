@@ -441,7 +441,8 @@ test('every ready background is one synchronized kit', () => {
     assert.match(preset.look.textPlate, /^rgba\(/, preset.id)
     assert.match(preset.look.fontClass, /^wedding-font-/, preset.id)
     assert.equal(preset.look.textClass, `text-[${preset.look.ink}]`, preset.id)
-    assert.match(preset.look.shareFont, /Georgia/, preset.id)
+    assert.match(preset.look.shareFont, /Cambria|Palatino/, preset.id)
+    assert.doesNotMatch(preset.look.shareFont, /Georgia/, preset.id)
   }
   const lotus = findWeddingBackgroundPreset('sen-vang')
   assert.ok(lotus)

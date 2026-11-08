@@ -5,7 +5,7 @@ import { fetchClassNameByIdPg } from '@/lib/db/classes-pg'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { loadClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
-import { LopClassDetailView } from '../lop-class-detail-view'
+import { classSubjectScopeFromSearch, LopClassDetailView } from '../lop-class-detail-view'
 
 export async function generateMetadata({
   params,
@@ -23,13 +23,27 @@ export async function generateMetadata({
   })
 }
 
-export default async function LopHocSinhPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LopHocSinhPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ subject?: string; teacher?: string }>
+}) {
   const { id } = await params
   const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
   const payload = await loadClassDetailPayload(id, user.id)
   if (!payload) notFound()
+  const focusSubject = classSubjectScopeFromSearch(await searchParams)
 
-  return <LopClassDetailView payload={payload} currentHref={`/lop/${id}/hoc-sinh`} pageMode="roster" />
+  return (
+    <LopClassDetailView
+      payload={payload}
+      currentHref={`/lop/${id}/hoc-sinh`}
+      pageMode="roster"
+      focusSubject={focusSubject}
+    />
+  )
 }

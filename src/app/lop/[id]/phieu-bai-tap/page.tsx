@@ -5,7 +5,7 @@ import { fetchClassNameByIdPg } from '@/lib/db/classes-pg'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { loadClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
-import { LopClassDetailView } from '../lop-class-detail-view'
+import { classSubjectScopeFromSearch, LopClassDetailView } from '../lop-class-detail-view'
 
 export async function generateMetadata({
   params,
@@ -23,7 +23,13 @@ export async function generateMetadata({
   })
 }
 
-export default async function LopPhieuBaiTapPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LopPhieuBaiTapPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ subject?: string; teacher?: string }>
+}) {
   const { id } = await params
   const user = await getUserOrBypass()
   if (!user) redirectToLogin()
@@ -38,11 +44,14 @@ export default async function LopPhieuBaiTapPage({ params }: { params: Promise<{
     redirect(`/lop/${id}/gan-phieu`)
   }
 
+  const focusSubject = classSubjectScopeFromSearch(await searchParams)
+
   return (
     <LopClassDetailView
       payload={payload}
       currentHref={`/lop/${id}/phieu-bai-tap`}
       pageMode="student-worksheets"
+      focusSubject={focusSubject}
     />
   )
 }

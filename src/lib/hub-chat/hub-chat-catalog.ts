@@ -16,6 +16,19 @@ export type HubToolCatalogEntry = {
 
 export const HUB_CHAT_CREDIT = 0.1
 
+/**
+ * Tin user đầu tiên của mỗi hội thoại không trừ credit.
+ * Lượt chat sau (khi chưa khóa preset) và sửa bước vẫn trừ HUB_CHAT_CREDIT.
+ */
+export function shouldChargeHubChatTurn(input: {
+  action: 'message' | 'edit_step'
+  hasPreset: boolean
+  hasPriorUserMessage: boolean
+}): boolean {
+  if (input.action === 'message' && !input.hasPriorUserMessage) return false
+  return !input.hasPreset || input.action === 'edit_step'
+}
+
 export const HUB_CHAT_MODELS = [
   {
     id: 'gemini-2.5-flash',

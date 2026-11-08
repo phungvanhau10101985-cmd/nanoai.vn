@@ -179,6 +179,20 @@ export async function pgSetHubChatThreadTitleIfPlaceholder(threadId: string, tit
   )
 }
 
+/** True khi hội thoại đã có ít nhất một tin của user (tin đang gửi chưa được ghi). */
+export async function pgHubChatThreadHasUserMessage(threadId: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pool = getPgPool()
+  const r = await pool.query<{ has_user: boolean }>(
+    `select exists(
+       select 1 from public.hub_chat_messages
+       where thread_id = $1::uuid and role = 'user'
+     ) as has_user`,
+    [threadId]
+  )
+  return Boolean(r.rows[0]?.has_user)
+}
+
 export async function pgInsertHubChatMessage(params: {
   threadId: string
   role: 'user' | 'assistant'

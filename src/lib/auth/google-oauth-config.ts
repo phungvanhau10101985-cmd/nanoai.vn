@@ -58,7 +58,22 @@ type GoogleUserInfo = {
   email?: string
   email_verified?: boolean
   name?: string
+  given_name?: string
+  family_name?: string
   picture?: string
+}
+
+/** Tên hiển thị trên tài khoản Google. `name` là tên họ đã đặt; không có thì ghép given + family. */
+export function googleAccountDisplayName(info: {
+  name?: string | null
+  given_name?: string | null
+  family_name?: string | null
+}): string {
+  const name = String(info.name ?? '').replace(/\s+/g, ' ').trim()
+  if (name) return name.slice(0, 180)
+  const given = String(info.given_name ?? '').replace(/\s+/g, ' ').trim()
+  const family = String(info.family_name ?? '').replace(/\s+/g, ' ').trim()
+  return [given, family].filter(Boolean).join(' ').slice(0, 180)
 }
 
 export async function exchangeGoogleOAuthCode(input: {
@@ -95,6 +110,8 @@ export async function exchangeGoogleOAuthCode(input: {
   if (!userRes.ok || !userInfo.email) {
     throw new Error('google_userinfo_failed')
   }
+  const displayName = googleAccountDisplayName(userInfo)
+  if (displayName) userInfo.name = displayName
 
   return { accessToken: tokenJson.access_token, userInfo }
 }

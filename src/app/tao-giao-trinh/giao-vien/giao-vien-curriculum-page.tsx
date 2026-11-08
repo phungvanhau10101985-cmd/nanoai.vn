@@ -6,7 +6,7 @@ import { markExamTeacher } from '@/lib/exam-teacher-mark'
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, ClipboardCheck, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
+import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, ClipboardCheck, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -1451,6 +1451,8 @@ export default function CurriculumViewPage() {
   }, [viewportW])
   /** Dưới 768px: hai cột xếp dọc full width; từ md: giữ layout neo phải + minWidth như cũ */
   const narrowTeacherLayout = viewportW < 768
+  /** Điện thoại: giáo trình, slide, hoặc cả hai. Desktop không đọc state này. */
+  const [teacherPhonePane, setTeacherPhonePane] = useState<'curriculum' | 'both' | 'slide'>('slide')
   // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
   const currentVisualPresentation = useMemo(() => {
     const s = slides[currentIndex]
@@ -5763,7 +5765,7 @@ export default function CurriculumViewPage() {
   const replaceLessonTextOnce = (haystack: string, from: string, to: string) => replaceCurriculumExercise(haystack, from, to)
 
   return (
-    <div className="fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col items-stretch">
+    <div className={cn('fixed inset-0 z-50 flex h-screen w-screen flex-col items-stretch overflow-x-hidden bg-slate-950 text-white', narrowTeacherLayout ? 'overflow-hidden' : 'overflow-y-auto')}>
       {exampleReviewOpen ? (
         <LessonExampleReviewDialog
           markdown={content}
@@ -5829,7 +5831,7 @@ export default function CurriculumViewPage() {
       ) : null}
       {/* Layout neo phải: thu nhỏ tới đâu chỉ bị cắt phần bên trái tới đó */}
       <div
-        className="flex-1 flex flex-col min-h-0 shrink-0 w-full"
+        className={cn('flex flex-1 flex-col min-h-0 w-full', narrowTeacherLayout ? 'overflow-hidden' : 'shrink-0')}
       >
       {/* Thanh điều khiển đặt trên cùng */}
       <div className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm">
@@ -5860,13 +5862,14 @@ export default function CurriculumViewPage() {
           hideIndex
           hideInsert
           hideTeacherLeftButtons
+          phoneTeacher={narrowTeacherLayout}
         />
       </div>
 
       <header className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex flex-col">
         {/* Hàng thông tin – mobile: wrap, desktop: flex-nowrap */}
-        <div className="px-3 md:px-5 py-2 flex items-center justify-end gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap min-w-0 overflow-x-auto">
-          <div className="flex items-center gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap shrink-0 min-w-max">
+        <div className={cn('px-3 md:px-5 py-2 flex items-center justify-end gap-2 md:gap-3 min-w-0 overflow-x-auto', narrowTeacherLayout ? 'flex-nowrap py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'flex-wrap md:flex-nowrap landscape:flex-nowrap')}>
+          <div className={cn('flex items-center gap-2 md:gap-3 shrink-0 min-w-max', narrowTeacherLayout ? 'flex-nowrap' : 'flex-wrap md:flex-nowrap landscape:flex-nowrap')}>
             <span className="text-xs md:text-sm font-medium tabular-nums shrink-0 text-slate-300">{currentIndex + 1}/{slideTitles.length || slides.length}</span>
             <h1 className="text-sm md:text-base font-semibold text-amber-400/95 tracking-tight">
               {worksheetId ? tr('Phiếu bài tập + Ghi chú', 'Worksheet + Notes', '练习+备注', 'ワークシート+メモ', '워크시트+메모') : tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}
@@ -5937,6 +5940,31 @@ export default function CurriculumViewPage() {
         </div>
       </header>
 
+      {narrowTeacherLayout && content ? (
+        <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-700 bg-slate-900 p-1.5">
+          {(
+            [
+              ['curriculum', worksheetId ? tr('Phiếu', 'Sheet', '练习', '用紙', '학습지') : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')],
+              ['both', tr('Cả hai', 'Both', '同时', '両方', '함께')],
+              ['slide', tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTeacherPhonePane(id)}
+              className={cn(
+                'h-9 rounded-lg text-xs font-semibold',
+                teacherPhonePane === id ? 'bg-amber-400 text-slate-900' : 'text-slate-300'
+              )}
+              aria-pressed={teacherPhonePane === id}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {!content ? (
         <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-slate-900/30">
           <div className="text-center space-y-4 md:space-y-6 max-w-sm px-2">
@@ -5957,12 +5985,15 @@ export default function CurriculumViewPage() {
       ) : (
         <div
           className={cn(
-            'flex-1 flex min-h-0 isolate shrink-0 w-full',
-            narrowTeacherLayout ? 'flex-col justify-start overflow-y-auto overflow-x-hidden' : 'flex-row justify-end overflow-hidden'
+            'flex-1 flex min-h-0 isolate w-full',
+            narrowTeacherLayout ? 'flex-col overflow-hidden' : 'shrink-0 flex-row justify-end overflow-hidden'
           )}
         >
           <div
-            className={cn('shrink-0 flex min-h-0 min-w-0', narrowTeacherLayout ? 'w-full flex-1 min-h-0 flex flex-col' : 'h-full')}
+            className={cn(
+              'flex min-h-0 min-w-0',
+              narrowTeacherLayout ? 'h-full w-full min-h-0 flex-1 flex-col' : 'h-full shrink-0'
+            )}
             style={
               narrowTeacherLayout
                 ? undefined
@@ -5975,8 +6006,15 @@ export default function CurriculumViewPage() {
           >
           <div
             className={cn(
-              'min-w-0 shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-slate-700/60',
-              narrowTeacherLayout ? 'w-full max-h-[min(48vh,380px)] border-b border-r-0 flex-shrink-0' : 'border-r',
+              'min-w-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-slate-700/60',
+              narrowTeacherLayout
+                ? cn(
+                    'w-full min-h-0 border-b border-r-0',
+                    teacherPhonePane === 'slide' && 'hidden',
+                    teacherPhonePane === 'curriculum' && 'flex-1',
+                    teacherPhonePane === 'both' && 'h-[min(32vh,240px)] shrink-0'
+                  )
+                : 'shrink-0 border-r',
               /* Luôn 50% — không đổi 45%/50% theo tab (nguyên nhân cụm Giáo trình|Infographic|Visual bị nhảy) */
               !narrowTeacherLayout && 'w-1/2'
             )}
@@ -6590,14 +6628,16 @@ export default function CurriculumViewPage() {
           {/* Phải: Slide – desktop giữ tỷ lệ; mobile: full width phía dưới */}
           <div
             className={cn(
-              'min-w-0 shrink-0 flex flex-col overflow-hidden isolate',
-              narrowTeacherLayout ? 'w-full flex-1 min-h-[min(52vh,480px)]' : 'w-1/2'
+              'min-w-0 flex flex-col overflow-hidden isolate',
+              narrowTeacherLayout
+                ? cn('w-full min-h-0', teacherPhonePane === 'curriculum' ? 'hidden' : 'flex-1')
+                : 'w-1/2 shrink-0'
             )}
           >
-            <div className="flex h-12 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-slate-700/60 bg-slate-900/30 px-3 text-xs font-medium uppercase tracking-wider text-slate-400 md:h-14 md:px-4">
-              <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
+            <div className={cn('flex shrink-0 items-center justify-between gap-2 border-b border-slate-700/60 bg-slate-900/30 text-xs font-medium uppercase tracking-wider text-slate-400', narrowTeacherLayout ? 'h-auto flex-col items-stretch gap-1.5 overflow-visible px-2 py-1.5' : 'h-12 overflow-hidden px-3 md:h-14 md:px-4')}>
+              <div className={cn('flex min-w-0 flex-1 items-center gap-2 md:gap-3', narrowTeacherLayout && 'w-full')}>
                 {!worksheetId && slides.length > 0 ? (
-                  <div className="flex shrink-0 items-center gap-1 md:gap-1.5" data-control="gv-remote-student-curriculum-mode">
+                  <div className={cn('flex shrink-0 items-center gap-1 md:gap-1.5', narrowTeacherLayout && 'grid w-full grid-cols-2')} data-control="gv-remote-student-curriculum-mode">
                     <button
                       type="button"
                       data-pointer-sync-id="student-mode-markdown-all"
@@ -6607,6 +6647,7 @@ export default function CurriculumViewPage() {
                       }}
                       className={cn(
                         'flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium normal-case tracking-normal transition-colors md:h-9 md:px-3',
+                        narrowTeacherLayout && 'w-full justify-center',
                         studentCurriculumRemoteMode === 'markdown-all'
                           ? 'border-emerald-400/80 bg-emerald-500/25 text-emerald-200 ring-1 ring-emerald-400/45'
                           : 'border-slate-600/80 bg-slate-800/50 text-slate-300 hover:bg-slate-700/55'
@@ -6631,6 +6672,7 @@ export default function CurriculumViewPage() {
                       }}
                       className={cn(
                         'flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium normal-case tracking-normal transition-colors md:h-9 md:px-3',
+                        narrowTeacherLayout && 'w-full justify-center',
                         studentCurriculumRemoteMode === 'single-slide'
                           ? 'border-amber-400/80 bg-amber-500/30 text-amber-200 ring-1 ring-amber-400/45'
                           : 'border-slate-600/80 bg-slate-800/50 text-slate-300 hover:bg-slate-700/55'
@@ -6648,13 +6690,13 @@ export default function CurriculumViewPage() {
                     </button>
                   </div>
                 ) : null}
-                <span className="min-w-0 truncate">
+                <span className={cn('min-w-0 truncate', narrowTeacherLayout && 'hidden')}>
                   {slideViewMode === 'single'
                     ? tr('Slide đang hiển thị', 'Current slide', '当前幻灯片', '表示中のスライド', '표시 중 슬라이드')
                     : tr('3 slide: trước · hiện tại · sau', '3 slides: prev · current · next', '3张: 前·当前·后', '3枚: 前·現在·次', '3장: 이전·현재·다음')}
                 </span>
               </div>
-              <div data-control="slide-mode-xem-hoc-sinh" className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50 shrink-0">
+              <div data-control="slide-mode-xem-hoc-sinh" className={cn('flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50 shrink-0', narrowTeacherLayout && 'w-full justify-end')}>
                 <button type="button" onClick={() => setSlideViewMode('single')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'single' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="1 slide"><Square className="h-3.5 w-3.5 inline mr-1" />1</button>
                 <button type="button" onClick={() => setSlideViewMode('triple')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'triple' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="3 slide"><LayoutGrid className="h-3.5 w-3.5 inline mr-1" />3</button>
                 {!worksheetId ? (
@@ -7737,6 +7779,39 @@ export default function CurriculumViewPage() {
         </div>
         </div>
       )}
+      {narrowTeacherLayout && content ? (
+        <div className="flex shrink-0 items-center gap-2 border-t border-slate-700 bg-slate-950 px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => sendSlideControl('slide-prev')}
+            disabled={currentIndex <= 0}
+            className="flex h-11 shrink-0 items-center justify-center gap-1 rounded-xl bg-amber-400 px-3 text-sm font-semibold text-slate-900 disabled:opacity-35"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            {tr('Trước', 'Back', '上一张', '前へ', '이전')}
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="text-center text-xs font-semibold tabular-nums text-slate-200">
+              {tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')} {currentIndex + 1}/{slideTitles.length || slides.length}
+            </p>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-700" aria-hidden>
+              <div
+                className="h-full rounded-full bg-amber-400"
+                style={{ width: `${(slideTitles.length || slides.length) ? ((currentIndex + 1) / (slideTitles.length || slides.length)) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => sendSlideControl('slide-next')}
+            disabled={currentIndex >= (slideTitles.length || slides.length) - 1}
+            className="flex h-11 shrink-0 items-center justify-center gap-1 rounded-xl bg-amber-400 px-3 text-sm font-semibold text-slate-900 disabled:opacity-35"
+          >
+            {tr('Tiếp', 'Next', '下一张', '次へ', '다음')}
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
       </div>
       {proposalDialog && curriculumId && (
         <SlideProposalDialog
