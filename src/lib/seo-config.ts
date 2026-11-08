@@ -87,6 +87,12 @@ export const SEO_PAGES: Record<string, PageSEOConfig> = {
     path: '/admin/credit-spend-stats',
     noIndex: true,
   },
+  '/admin/wedding-card-stats': {
+    title: 'Thống kê thiệp',
+    description: 'Khách đã bấm tạo thiệp, link thiệp, mức hoàn thiện và thời điểm tạo.',
+    path: '/admin/wedding-card-stats',
+    noIndex: true,
+  },
   '/test': {
     title: 'Trang test',
     description: 'Trang kiểm thử.',

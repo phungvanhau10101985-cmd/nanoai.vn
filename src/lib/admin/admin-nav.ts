@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   AlertTriangle,
   CircleHelp,
+  Heart,
   PieChart,
 } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -270,6 +271,24 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
           ko: '회원 목록 확인 및 크레딧 조정.',
         },
         icon: Users,
+      },
+      {
+        href: '/admin/wedding-card-stats',
+        title: {
+          vi: 'Thống kê thiệp',
+          en: 'Invitation stats',
+          zh: '请柬统计',
+          ja: '招待状の統計',
+          ko: '청첩장 통계',
+        },
+        description: {
+          vi: 'Khách đã bấm tạo thiệp, link, mức hoàn thiện và thời điểm tạo.',
+          en: 'Customers who created an invitation, with link, completion, and time.',
+          zh: '已创建请柬的客户，含链接、完成度与时间。',
+          ja: '招待状を作成したお客様。リンク、完成度、日時。',
+          ko: '청첩장을 만든 고객, 링크, 완성도, 만든 시각.',
+        },
+        icon: Heart,
       },
       {
         href: '/admin/customer-api-keys',
