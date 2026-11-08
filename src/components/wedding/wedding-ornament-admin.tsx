@@ -174,6 +174,8 @@ export function WeddingOrnamentAdminLayer(props: {
   frameLines?: boolean
   /** Hiện thanh phóng, xoay, mờ khi bấm một hoa. Bỏ trống thì theo `frameLines`. */
   showTools?: boolean
+  /** Mọi hoa văn có khung để nắm kéo. Xem thử bỏ trống: chỉ hoa đang chọn có khung. */
+  showFrames?: boolean
   /** Sau bấy nhiêu mili giây không chạm hoa thì bỏ chọn và giấu thanh chỉnh. */
   toolIdleMs?: number
   onSelectionChange?: (index: number | null) => void
@@ -715,11 +717,12 @@ export function WeddingOrnamentAdminLayer(props: {
               alt=""
               draggable={false}
               data-ornament-index={index}
+              data-ornament-frame={props.showFrames || (toolsOn && active) ? '' : undefined}
               className={cn('pointer-events-none block w-full max-w-none select-none', active && 'cursor-grabbing')}
               style={{
                 ...weddingOrnamentImageStyle(item),
-                outline: !toolsOn || !active ? 'none' : '3px solid #e11d48',
-                outlineOffset: !toolsOn || !active ? 0 : 3,
+                outline: toolsOn && active ? '3px solid #e11d48' : props.showFrames ? '2px dashed #e11d48' : 'none',
+                outlineOffset: (toolsOn && active) || props.showFrames ? 3 : 0,
               }}
             />
           </div>

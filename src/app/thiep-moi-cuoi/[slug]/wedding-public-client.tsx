@@ -908,6 +908,7 @@ export default function WeddingPublicClient({
   const [editFace, setEditFace] = useState<'cover' | 'letter'>('cover')
   const [chromeHold, setChromeHold] = useState(false)
   const [flowerHold, setFlowerHold] = useState(false)
+  const [flowerEdit, setFlowerEdit] = useState(false)
   const flowerHoldsRef = useRef({ cover: false, letter: false })
   const noteFlowerHold = useCallback((surface: 'cover' | 'letter', index: number | null) => {
     flowerHoldsRef.current[surface] = index != null
@@ -923,7 +924,7 @@ export default function WeddingPublicClient({
   const [coverDraft, setCoverDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
   const [letterDraft, setLetterDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
   const visualEdit = Boolean(hostEditor && frameLines)
-  /** Lướt vừa xem vừa thêm hoa. Sửa nội dung không gắn và không kéo hoa. */
+  /** Xem thử vẫn kéo hoa và tự lưu. Sửa hoa văn mới hiện khung mọi hoa và nút thêm hoa. Sửa nội dung không gắn và không kéo hoa. */
   const browseFlowers = Boolean(hostEditor && !frameLines)
   const activeSurface: OrnamentFace = editorStack ?? (visualEdit ? editFace : opened ? 'letter' : 'cover')
   const layoutDevice: 'desktop' | 'mobile' = (sampleDemo || hostPreview || layoutPreview) && viewDevice === 'desktop' ? 'desktop' : 'mobile'
@@ -1424,6 +1425,8 @@ export default function WeddingPublicClient({
   const openedAtRef = useRef(0)
   const frameLinesRef = useRef(frameLines)
   frameLinesRef.current = frameLines
+  const flowerEditRef = useRef(false)
+  flowerEditRef.current = flowerEdit
   const flowerHoldRef = useRef(false)
   flowerHoldRef.current = flowerHold
   const resumeAfterFlowerRef = useRef(false)
@@ -1978,7 +1981,31 @@ export default function WeddingPublicClient({
     if (surface === 'letter') setLetterDraft([...current, { src, x: spot.x, y: spot.y, w: spot.w, free: true }])
     else setCoverDraft([...current, { src, x: spot.x, y: spot.y, w: spot.w, free: true }])
   }
+  /** Vỏ ở trên, nội dung ở dưới, giống sửa nội dung. Chữ và ảnh không sửa. */
+  const enterFlowerEdit = () => {
+    setFlowerEdit(true)
+    setFrameLines(false)
+    setTextPick(null)
+    setFramePick(null)
+    setLookOpen(false)
+    doorStarted.current = false
+    setOpened(false)
+    setCoverGate(true)
+    setContentVisible(true)
+    weddingMusicAudioRef.current?.pausePlayback()
+    scrollWeddingPageToTop()
+  }
+  const leaveFlowerEdit = () => {
+    setFlowerEdit(false)
+    doorStarted.current = false
+    setOpened(false)
+    setCoverGate(true)
+    setContentVisible(false)
+    weddingMusicAudioRef.current?.pausePlayback()
+    scrollWeddingPageToTop()
+  }
   const enterEditMode = () => {
+    setFlowerEdit(false)
     setEditFace('cover')
     setTextPick(null)
     setFramePick(null)
@@ -1990,6 +2017,7 @@ export default function WeddingPublicClient({
     setFrameLines(true)
   }
   const enterBrowseMode = () => {
+    setFlowerEdit(false)
     setEditFace('cover')
     setTextPick(null)
     setFramePick(null)
@@ -2050,6 +2078,10 @@ export default function WeddingPublicClient({
       revealEditLetter()
       return
     }
+    if (hostEditor && flowerEdit) {
+      document.getElementById('wedding-letter-edit')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
     if (letterView == null) {
       setHouseAskOpen(true)
       return
@@ -2075,22 +2107,22 @@ export default function WeddingPublicClient({
     setOpened(true)
     openedAtRef.current = performance.now()
     if (!effectsEnabled) return
-    if (hostEditor && (frameLinesRef.current || flowerHoldRef.current)) return
+    if (hostEditor && (frameLinesRef.current || flowerHoldRef.current || flowerEditRef.current)) return
     if (reduced) {
       startWeddingInvitationAutoScroll()
       return
     }
     scrollTimer.current = window.setTimeout(() => {
-      if (hostEditor && (frameLinesRef.current || flowerHoldRef.current)) return
+      if (hostEditor && (frameLinesRef.current || flowerHoldRef.current || flowerEditRef.current)) return
       startWeddingInvitationAutoScroll()
     }, 5600)
   }
 
   useEffect(() => {
     if (!hostEditor) return
-    if (frameLines || flowerHold || !opened || !effectsEnabled) {
-      if (flowerHold && opened && !frameLines) resumeAfterFlowerRef.current = true
-      else if (frameLines || !opened) resumeAfterFlowerRef.current = false
+    if (frameLines || flowerHold || flowerEdit || !opened || !effectsEnabled) {
+      if (flowerHold && opened && !frameLines && !flowerEdit) resumeAfterFlowerRef.current = true
+      else if (frameLines || flowerEdit || !opened) resumeAfterFlowerRef.current = false
       if (scrollTimer.current) {
         window.clearTimeout(scrollTimer.current)
         scrollTimer.current = null
@@ -2110,7 +2142,7 @@ export default function WeddingPublicClient({
       window.clearTimeout(timer)
       stopWeddingInvitationAutoScroll()
     }
-  }, [effectsEnabled, flowerHold, frameLines, hostEditor, opened])
+  }, [effectsEnabled, flowerEdit, flowerHold, frameLines, hostEditor, opened])
 
   useEffect(() => {
     if (!hostEditor || frameLines) return
@@ -2237,6 +2269,13 @@ export default function WeddingPublicClient({
   useEffect(() => {
     if (!hostEditor) return
     if (frameLines) {
+      doorStarted.current = false
+      setOpened(false)
+      setCoverGate(true)
+      setContentVisible(true)
+      return
+    }
+    if (flowerEditRef.current) {
       doorStarted.current = false
       setOpened(false)
       setCoverGate(true)
@@ -2910,7 +2949,7 @@ export default function WeddingPublicClient({
         </div>
       ) : null}
       {hostEditor && !frameLines ? (
-        <WeddingDraggableChrome storageKey="wedding-host-browse-chrome" defaultCorner="top-right" hidden={!chromeHold}>
+        <WeddingDraggableChrome storageKey="wedding-host-browse-chrome" defaultCorner="top-right" hidden={flowerEdit ? false : !chromeHold}>
           <div className="w-56 rounded-2xl bg-white/95 p-1.5 shadow-lg ring-1 ring-black/10">
             <button
               type="button"
@@ -2919,19 +2958,28 @@ export default function WeddingPublicClient({
             >
               {tImage.previewEditMode}
             </button>
-            <WeddingOrnamentAdminBar
-              locale={uiLocale}
-              compact
-              hint={`${tImage.ornamentAdminOnDevice.replace('{device}', viewDevice === 'desktop' ? tImage.previewDesktop : tImage.previewMobile)} ${templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}`}
-              addLabel={tImage.ornamentAdminAdd}
-              saveLabel={tImage.ornamentAdminSave}
-              resetLabel={tImage.ornamentAdminReset}
-              dirty={activeDraft != null}
-              saving={ornamentSaving}
-              showReset={!templateEditor}
-              onAdd={placeOrnament}
-              onReset={() => void resetOrnaments()}
-            />
+            <button
+              type="button"
+              className="mt-1 h-10 w-full rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white"
+              onClick={() => (flowerEdit ? leaveFlowerEdit() : enterFlowerEdit())}
+            >
+              {flowerEdit ? tImage.previewBrowseMode : tImage.ornamentEditMode}
+            </button>
+            {flowerEdit ? (
+              <WeddingOrnamentAdminBar
+                locale={uiLocale}
+                compact
+                hint={`${tImage.ornamentAdminOnDevice.replace('{device}', viewDevice === 'desktop' ? tImage.previewDesktop : tImage.previewMobile)} ${templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}`}
+                addLabel={tImage.ornamentAdminAdd}
+                saveLabel={tImage.ornamentAdminSave}
+                resetLabel={tImage.ornamentAdminReset}
+                dirty={activeDraft != null}
+                saving={ornamentSaving}
+                showReset={!templateEditor}
+                onAdd={placeOrnament}
+                onReset={() => void resetOrnaments()}
+              />
+            ) : null}
             <button
               type="button"
               className="mt-1 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-4 text-sm font-semibold text-rose-900"
@@ -3078,6 +3126,13 @@ export default function WeddingPublicClient({
             <button
               type="button"
               className="mt-1 h-9 w-full rounded-xl bg-rose-600 text-xs font-semibold text-white"
+              onClick={enterFlowerEdit}
+            >
+              {tImage.ornamentEditMode}
+            </button>
+            <button
+              type="button"
+              className="mt-1 h-9 w-full rounded-xl bg-rose-600 text-xs font-semibold text-white"
               onClick={enterBrowseMode}
             >
               {tImage.previewBrowseMode}
@@ -3150,14 +3205,15 @@ export default function WeddingPublicClient({
                   deleteLabel={tImage.ornamentAdminDelete}
                   frameLines={frameLines}
                   showTools={browseFlowers ? true : undefined}
+                  showFrames={flowerEdit}
                   toolIdleMs={browseFlowers ? 2000 : undefined}
                   onSelectionChange={browseFlowers ? onCoverFlowerSelection : undefined}
-                  onToolsIdle={browseFlowers ? hideFlowerChrome : undefined}
+                  onToolsIdle={browseFlowers && !flowerEdit ? hideFlowerChrome : undefined}
                   onChange={setCoverDraft}
                 />
               ) : null}
               </div>
-              <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center px-3 pb-4 pt-3 sm:px-4', weddingCoverCentersOnStage(coverPresetId) ? 'justify-center' : 'justify-start', ornamentEditor && coverPreview && 'pointer-events-none')} style={weddingCoverCentersOnStage(coverPresetId) ? { minHeight: coverDesignWidth >= WEDDING_DESKTOP_MIN_PX ? WEDDING_DESKTOP_HEIGHT : WEDDING_MOBILE_HEIGHT } : undefined}>
+              <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center px-3 pb-4 pt-3 sm:px-4', weddingCoverCentersOnStage(coverPresetId) ? 'justify-center' : 'justify-start', ((ornamentEditor && coverPreview) || flowerEdit) && 'pointer-events-none')} style={weddingCoverCentersOnStage(coverPresetId) ? { minHeight: coverDesignWidth >= WEDDING_DESKTOP_MIN_PX ? WEDDING_DESKTOP_HEIGHT : WEDDING_MOBILE_HEIGHT } : undefined}>
                 <div
                   data-wedding-cover-column=""
                   className={cn(
@@ -3276,7 +3332,7 @@ export default function WeddingPublicClient({
           </>
         )}
         {/* Vỏ: tên bay từ hai bên một lần lúc hiện. Bấm mở thì gỡ vỏ và chạy chữ bên trong, không phát lại vỏ. */}
-        {contentVisible && !coverPreview && !visualEdit ? (
+        {contentVisible && !coverPreview && !visualEdit && !flowerEdit ? (
           <nav
             data-wedding-letter-nav=""
             className={cn(
@@ -3319,8 +3375,8 @@ export default function WeddingPublicClient({
           />
         ) : null}
         <div aria-hidden data-wedding-paper-wash="" className="pointer-events-none absolute inset-0" style={{ ...contentSurface, zIndex: 0 }} />
-        <div data-wedding-letter-copy="" className={cn('relative', ornamentEditor && editorStack && 'pointer-events-none')} style={{ opacity: contentVisible ? 1 : 0 }}>
-        <WeddingInvitationMotion enabled={effectsEnabled && !layoutPreview} instant={visualEdit} open={contentVisible}>
+        <div data-wedding-letter-copy="" className={cn('relative', ((ornamentEditor && editorStack) || flowerEdit) && 'pointer-events-none')} style={{ opacity: contentVisible ? 1 : 0 }}>
+        <WeddingInvitationMotion enabled={effectsEnabled && !layoutPreview} instant={visualEdit || flowerEdit} open={contentVisible}>
         {ornamentEditor && !editorStack && !asEditor ? (
           <div className="pointer-events-none absolute inset-x-0 top-0 z-40">
             <div className="pointer-events-auto bg-white/95 px-3 py-2 shadow-sm">
@@ -4411,9 +4467,10 @@ export default function WeddingPublicClient({
             deleteLabel={tImage.ornamentAdminDelete}
             frameLines={frameLines}
             showTools={browseFlowers ? true : undefined}
+            showFrames={flowerEdit}
             toolIdleMs={browseFlowers ? 2000 : undefined}
             onSelectionChange={browseFlowers ? onLetterFlowerSelection : undefined}
-            onToolsIdle={browseFlowers ? hideFlowerChrome : undefined}
+            onToolsIdle={browseFlowers && !flowerEdit ? hideFlowerChrome : undefined}
             onChange={setLetterDraft}
           />
         ) : (

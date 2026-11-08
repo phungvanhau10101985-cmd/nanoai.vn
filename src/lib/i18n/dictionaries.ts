@@ -3960,6 +3960,7 @@ export type Dictionary = {
     ornamentFrameLinesShow: string
     previewBrowseMode: string
     previewEditMode: string
+    ornamentEditMode: string
     previewChangeLook: string
     previewChangeLookHint: string
     previewChangeLookClose: string
@@ -8594,6 +8595,7 @@ export const VI_DICTIONARY: Dictionary = {
     ornamentFrameLinesShow: 'Hiện nét khung',
     previewBrowseMode: 'Xem thử',
     previewEditMode: 'Sửa nội dung',
+    ornamentEditMode: 'Sửa hoa văn',
     previewChangeLook: 'Đổi giao diện',
     previewChangeLookHint: 'Bấm một giao diện. Popup có OK và Đóng. OK đổi thiệp đang sửa ngay.',
     previewChangeLookClose: 'Đóng',
