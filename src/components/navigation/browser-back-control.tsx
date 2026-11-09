@@ -21,7 +21,7 @@ export function BrowserBackButton({
       variant="outline"
       size="sm"
       className={cn(
-        'w-full touch-manipulation justify-start gap-2 lg:w-auto lg:shrink-0 lg:border-border/80 lg:bg-background/90',
+        'w-full touch-manipulation justify-start gap-2 lg:w-auto lg:shrink-0',
         className
       )}
       onClick={() => router.back()}

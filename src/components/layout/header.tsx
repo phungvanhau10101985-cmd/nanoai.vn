@@ -85,7 +85,7 @@ export async function Header() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 gap-1.5 rounded-lg border-border/70 bg-card/80 px-2.5 text-xs lg:h-9 lg:px-3 lg:text-sm lg:shadow-sm"
+                  className="h-8 gap-1.5 rounded-lg px-2.5 text-xs lg:h-9 lg:px-3 lg:text-sm lg:shadow-sm"
                 >
                   <LayoutGrid className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                   {t.app.toolHub}

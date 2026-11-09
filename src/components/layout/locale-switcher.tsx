@@ -58,7 +58,7 @@ export function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
           <SelectTrigger
             aria-label="Language"
             title="Language"
-            className="h-7 w-fit min-w-0 max-w-[100%] gap-1 border-border/70 bg-card/60 px-2 py-0 text-[10px] shadow-none [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60"
+            className="h-7 w-fit min-w-0 max-w-[100%] gap-1 border-indigo-300 bg-indigo-100 px-2 py-0 text-[10px] text-indigo-950 shadow-none [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60"
           >
             <SelectValue aria-label={LABELS[currentLocale]} />
           </SelectTrigger>

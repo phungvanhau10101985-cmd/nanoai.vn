@@ -20,6 +20,90 @@ function toTokens(input: string): string[] {
     .filter(Boolean)
 }
 
+const SCHOOL_LEVEL_PHRASES: { tokens: string[]; code: string }[] = [
+  { tokens: ['trung', 'hoc', 'pho', 'thong'], code: 'thpt' },
+  { tokens: ['trung', 'hoc', 'co', 'so'], code: 'thcs' },
+  { tokens: ['tieu', 'hoc'], code: 'tieu hoc' },
+  { tokens: ['mam', 'non'], code: 'mam non' },
+]
+
+const SCHOOL_LEVEL_TOKEN: Record<string, string> = {
+  thpt: 'thpt',
+  thcs: 'thcs',
+  th: 'tieu hoc',
+  mn: 'mam non',
+}
+
+function indexOfSequence(tokens: string[], phrase: string[]): number {
+  if (phrase.length === 0 || phrase.length > tokens.length) return -1
+  for (let i = 0; i <= tokens.length - phrase.length; i += 1) {
+    let matched = true
+    for (let j = 0; j < phrase.length; j += 1) {
+      if (tokens[i + j] !== phrase[j]) {
+        matched = false
+        break
+      }
+    }
+    if (matched) return i
+  }
+  return -1
+}
+
+function earliestLevel(tokens: string[]): { at: number; len: number; code: string } | null {
+  let best: { at: number; len: number; code: string } | null = null
+  const consider = (at: number, len: number, code: string) => {
+    if (at < 0) return
+    if (!best || at < best.at || (at === best.at && len > best.len)) best = { at, len, code }
+  }
+  for (const phrase of SCHOOL_LEVEL_PHRASES) {
+    consider(indexOfSequence(tokens, phrase.tokens), phrase.tokens.length, phrase.code)
+  }
+  for (let i = 0; i < tokens.length; i += 1) {
+    const code = SCHOOL_LEVEL_TOKEN[tokens[i] ?? '']
+    if (code) consider(i, 1, code)
+  }
+  return best
+}
+
+function stripLeadingPlaceFillers(tokens: string[]): string[] {
+  const out = [...tokens]
+  let changed = true
+  while (changed && out.length > 0) {
+    changed = false
+    if (out[0] === 'huyen' || out[0] === 'tp') {
+      out.shift()
+      changed = true
+      continue
+    }
+    if (out[0] === 'thanh' && out[1] === 'pho') {
+      out.splice(0, 2)
+      changed = true
+      continue
+    }
+    if (out[0] === 'tinh' && out.length >= 3) {
+      out.shift()
+      changed = true
+    }
+  }
+  return out
+}
+
+/** Cấp đã bung + tên riêng. Viết tắt và viết đủ của cùng một trường ra cùng khóa. */
+export function schoolIdentityKey(input: string): string {
+  let tokens = toTokens(input)
+  if (tokens[0] === 'truong') tokens = tokens.slice(1)
+  let level = ''
+  let found = earliestLevel(tokens)
+  while (found) {
+    if (!level) level = found.code
+    tokens = tokens.slice(0, found.at).concat(tokens.slice(found.at + found.len))
+    found = earliestLevel(tokens)
+  }
+  const name = stripLeadingPlaceFillers(tokens).join(' ')
+  if (!level && !name) return ''
+  return `${level}|${name}`
+}
+
 export function toSearchTokens(input: string): string[] {
   const tokens = toTokens(input)
   const filtered = tokens.filter((token) => token.length >= 2 && !GENERIC_SCHOOL_TOKENS.has(token))
@@ -81,7 +165,7 @@ export function filterSchoolSuggestions(names: string[], query: string, limit = 
   for (const raw of names) {
     const name = cleanSchoolLabel(raw)
     if (name.length < 3 || !schoolSuggestionContainsQuery(name, query)) continue
-    const key = normalizeSchoolName(name)
+    const key = schoolIdentityKey(name) || normalizeSchoolName(name)
     if (!key || seen.has(key)) continue
     seen.add(key)
     kept.push(name)

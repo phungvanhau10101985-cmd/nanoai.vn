@@ -653,8 +653,8 @@ export function FloatingChatWidget({
     return (
       <div ref={rootRef} data-nanoai-chrome="" data-nanoai-widget-root className="contents">
         {renderLauncherButton(
-          `pointer-events-auto fixed ${launcherPlaceClass} ${topLayerClass} flex h-14 w-14 cursor-grab touch-none select-none items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`,
-          <MessageCircle className="pointer-events-none h-7 w-7 text-muted-foreground" aria-hidden />
+          `pointer-events-auto fixed ${launcherPlaceClass} ${topLayerClass} flex h-14 w-14 cursor-grab touch-none select-none items-center justify-center rounded-full border border-indigo-300 bg-indigo-100 p-0 text-indigo-950 shadow-lg transition hover:bg-indigo-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2`,
+          <MessageCircle className="pointer-events-none h-7 w-7 text-indigo-950" aria-hidden />
         )}
       </div>
     )

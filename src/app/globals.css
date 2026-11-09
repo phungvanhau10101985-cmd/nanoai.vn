@@ -298,3 +298,82 @@
     padding: 0;
   }
 }
+
+/* Nút tự gắn nền trắng / gần trắng: tô màu cho khỏi chìm vào thẻ. */
+@layer utilities {
+  :is(button, [role="button"]):is(
+    [class~="bg-white"],
+    [class~="bg-background"],
+    [class~="bg-card"],
+    [class~="bg-muted"],
+    [class~="bg-slate-50"],
+    [class~="bg-gray-50"],
+    [class~="bg-zinc-50"],
+    [class~="bg-neutral-50"],
+    [class~="bg-stone-50"],
+    [class~="bg-white/70"],
+    [class~="bg-white/80"],
+    [class~="bg-white/90"],
+    [class~="bg-white/95"],
+    [class~="bg-background/70"],
+    [class~="bg-background/80"],
+    [class~="bg-background/90"],
+    [class~="bg-background/95"],
+    [class~="bg-card/60"],
+    [class~="bg-card/80"],
+    [class~="bg-card/90"],
+    [class~="bg-card/95"]
+  ):not([class~="text-white"]) {
+    background-color: #e0e7ff;
+  }
+
+  :is(button, [role="button"]):is(
+    [class~="bg-white"],
+    [class~="bg-background"],
+    [class~="bg-card"],
+    [class~="bg-muted"],
+    [class~="bg-slate-50"],
+    [class~="bg-gray-50"],
+    [class~="bg-zinc-50"],
+    [class~="bg-neutral-50"],
+    [class~="bg-stone-50"],
+    [class~="bg-white/70"],
+    [class~="bg-white/80"],
+    [class~="bg-white/90"],
+    [class~="bg-white/95"],
+    [class~="bg-background/70"],
+    [class~="bg-background/80"],
+    [class~="bg-background/90"],
+    [class~="bg-background/95"],
+    [class~="bg-card/60"],
+    [class~="bg-card/80"],
+    [class~="bg-card/90"],
+    [class~="bg-card/95"]
+  ):not([class~="text-white"]):hover {
+    background-color: #c7d2fe;
+  }
+
+  [data-wedding-stage] :is(button, [role="button"]):is(
+    [class~="bg-white"],
+    [class~="bg-background"],
+    [class~="bg-card"],
+    [class~="bg-stone-50"],
+    [class~="bg-white/80"],
+    [class~="bg-white/90"],
+    [class~="bg-white/95"]
+  ):not([class~="text-white"]) {
+    background-color: #ffe4e6;
+  }
+
+  [data-wedding-stage] :is(button, [role="button"]):is(
+    [class~="bg-white"],
+    [class~="bg-background"],
+    [class~="bg-card"],
+    [class~="bg-stone-50"],
+    [class~="bg-white/80"],
+    [class~="bg-white/90"],
+    [class~="bg-white/95"]
+  ):not([class~="text-white"]):hover {
+    background-color: #fecdd3;
+  }
+}

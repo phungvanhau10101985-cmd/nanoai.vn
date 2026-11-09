@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import {
   appendSchoolSearchTokens,
+  deleteSchoolEditIfSameIdentity,
+  ensureOneSchoolForIdentity,
   fetchSchoolByIdPg,
   findSchoolByNormalizedName,
   insertSchool,
+  mergeSchoolIds,
   proposeSchoolNameEdit,
   searchSchoolsWithEdits,
   upsertTeacherDefaultSchool,
@@ -20,6 +23,7 @@ import {
   ensureSchoolPrefix,
   filterSchoolSuggestions,
   normalizeSchoolName,
+  schoolIdentityKey,
   schoolSuggestionContainsQuery,
   toSearchTokens,
 } from '@/lib/school-name'
@@ -85,7 +89,9 @@ Không giải thích.`
       fallbackOutputChars: text.length,
     })
     if (!res.ok) return []
-    const knownKeys = new Set(already.map((name) => normalizeSchoolName(ensureSchoolPrefix(name))))
+    const knownKeys = new Set(
+      already.map((name) => schoolIdentityKey(ensureSchoolPrefix(name)) || normalizeSchoolName(ensureSchoolPrefix(name)))
+    )
     const queryTokens = toSearchTokens(query)
     const matched = parseSuggestedSchools(text).filter((name) => {
       if (schoolSuggestionContainsQuery(name, query)) return true
@@ -96,9 +102,13 @@ Không giải thích.`
     return filterSchoolSuggestions(matched, query, 8)
       .concat(matched.filter((name) => !schoolSuggestionContainsQuery(name, query)))
       .filter((name, index, all) => {
-        const key = normalizeSchoolName(ensureSchoolPrefix(name))
+        const key = schoolIdentityKey(ensureSchoolPrefix(name)) || normalizeSchoolName(ensureSchoolPrefix(name))
         if (!key || knownKeys.has(key)) return false
-        return all.findIndex((item) => normalizeSchoolName(ensureSchoolPrefix(item)) === key) === index
+        return (
+          all.findIndex(
+            (item) => (schoolIdentityKey(ensureSchoolPrefix(item)) || normalizeSchoolName(ensureSchoolPrefix(item))) === key
+          ) === index
+        )
       })
       .slice(0, 4)
   } catch {
@@ -111,8 +121,11 @@ async function saveSchoolNames(names: string[], userId: string, query = ''): Pro
   for (const raw of names) {
     const canonicalName = ensureSchoolPrefix(raw)
     const normalized = normalizeSchoolName(canonicalName)
+    const identityKey = schoolIdentityKey(canonicalName)
     if (!normalized) continue
-    const existing = await findSchoolByNormalizedName(normalized)
+    const existing = identityKey
+      ? await ensureOneSchoolForIdentity(identityKey)
+      : await findSchoolByNormalizedName(normalized)
     if (existing?.id) {
       if (extra) await appendSchoolSearchTokens(existing.id, extra)
       continue
@@ -124,6 +137,7 @@ async function saveSchoolNames(names: string[], userId: string, query = ''): Pro
         normalizedName: normalized,
         searchTokens,
         createdBy: userId,
+        identityKey,
       })
     } catch {
       /* tên vừa được lưu bởi request khác */
@@ -136,6 +150,7 @@ type SchoolHit = {
   name: string
   normalized_name: string
   search_tokens: string
+  identity_key?: string | null
   edited_name?: string | null
   edited_normalized?: string | null
 }
@@ -154,24 +169,53 @@ async function listMatchingSchools(
 ): Promise<Array<{ id: string; name: string; choice: 'original' | 'edited' | null }>> {
   const normalized = normalizeSchoolName(q)
   const queryTokens = toSearchTokens(q)
-  const data = await searchSchoolsWithEdits(q, normalized)
-  const listed: Array<{ id: string; name: string; choice: 'original' | 'edited' | null }> = []
+  const queryKey = schoolIdentityKey(q)
+  const data = await searchSchoolsWithEdits(q, normalized, queryKey)
+  const matched: SchoolHit[] = []
   for (const row of data || []) {
     const hit = row as SchoolHit
     const originalHay = `${hit.name} ${hit.normalized_name} ${hit.search_tokens}`
     const editedHay = `${hit.edited_name || ''} ${hit.edited_normalized || ''}`
-    const matched =
+    const rowKey = schoolIdentityKey(hit.name) || String(hit.identity_key ?? '')
+    const sameIdentity = Boolean(queryKey && rowKey && queryKey === rowKey)
+    const textMatched =
       schoolTextMatches(originalHay, normalized, queryTokens) || schoolTextMatches(editedHay, normalized, queryTokens)
-    if (!matched) continue
-    const editedName = String(hit.edited_name ?? '').trim()
+    if (!sameIdentity && !textMatched) continue
+    matched.push(hit)
+  }
+
+  const groups = new Map<string, SchoolHit[]>()
+  for (const hit of matched) {
+    const key = schoolIdentityKey(hit.name) || String(hit.identity_key ?? '') || normalizeSchoolName(hit.name)
+    const list = groups.get(key) ?? []
+    list.push(hit)
+    groups.set(key, list)
+  }
+
+  const listed: Array<{ id: string; name: string; choice: 'original' | 'edited' | null }> = []
+  for (const [key, group] of groups) {
+    const ids = [...new Set(group.map((item) => String(item.id)))]
+    let survivor = { id: ids[0] ?? '', name: String(group[0]?.name ?? '').trim() }
+    if (ids.length > 1) {
+      const merged = await mergeSchoolIds(key, ids)
+      if (merged) survivor = merged
+    } else if (ids[0] && String(group[0]?.identity_key ?? '') !== key) {
+      const tagged = await ensureOneSchoolForIdentity(key)
+      if (tagged) survivor = tagged
+    }
+    const source = group.find((item) => String(item.id) === survivor.id)
+    let editedName = String(source?.edited_name ?? '').trim()
+    if (editedName && schoolIdentityKey(editedName) === key) {
+      await deleteSchoolEditIfSameIdentity(survivor.id, key)
+      editedName = ''
+    }
+    if (!survivor.id || !survivor.name) continue
     listed.push({
-      id: String(hit.id),
-      name: String(hit.name ?? '').trim(),
+      id: survivor.id,
+      name: survivor.name,
       choice: editedName ? 'original' : null,
     })
-    if (editedName) {
-      listed.push({ id: String(hit.id), name: editedName, choice: 'edited' })
-    }
+    if (editedName) listed.push({ id: survivor.id, name: editedName, choice: 'edited' })
     if (listed.length >= 40) break
   }
   return listed
@@ -247,7 +291,10 @@ export async function GET(req: NextRequest) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
-  const existsExact = items.some((x) => normalizeSchoolName(x.name) === normalized)
+  const queryKey = schoolIdentityKey(q)
+  const sameSchool = (label: string) =>
+    normalizeSchoolName(label) === normalized || Boolean(queryKey && schoolIdentityKey(label) === queryKey)
+  const existsExact = items.some((item) => sameSchool(item.name))
 
   let aiSuggestedName: string | null = null
   let aiMatchedExisting: { id: string; name: string } | null = null
@@ -255,7 +302,8 @@ export async function GET(req: NextRequest) {
     aiSuggestedName = await canonicalizeSchoolNameByDeepseek(q, auth.user?.id ?? null)
     if (aiSuggestedName) {
       const aiNorm = normalizeSchoolName(aiSuggestedName)
-      const exactByAi = await findSchoolByNormalizedName(aiNorm)
+      const aiKey = schoolIdentityKey(aiSuggestedName)
+      const exactByAi = (aiKey ? await ensureOneSchoolForIdentity(aiKey) : null) ?? (await findSchoolByNormalizedName(aiNorm))
       if (exactByAi?.id) {
         aiMatchedExisting = {
           id: String(exactByAi.id),
@@ -270,7 +318,7 @@ export async function GET(req: NextRequest) {
     : items
 
   if (mergedItems.length > 0 || !wantSuggest || !auth.user?.id || normalized.length < 3) {
-    const listedExact = mergedItems.some((item) => normalizeSchoolName(item.name) === normalized)
+    const listedExact = mergedItems.some((item) => sameSchool(item.name))
     return NextResponse.json({
       items: mergedItems,
       suggestions: [],
@@ -344,18 +392,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tên trường quá ngắn.' }, { status: 400 })
   }
 
-  const canonicalName = ensureSchoolPrefix((await canonicalizeSchoolNameByDeepseek(name, user.id)) || name)
+  const typedName = ensureSchoolPrefix(name)
+  const typedKey = schoolIdentityKey(typedName)
+  let existing = typedKey ? await ensureOneSchoolForIdentity(typedKey) : null
+  let canonicalName = existing?.name || typedName
+  if (!existing) {
+    canonicalName = ensureSchoolPrefix((await canonicalizeSchoolNameByDeepseek(name, user.id)) || name)
+    const canonicalKey = schoolIdentityKey(canonicalName)
+    if (canonicalKey && canonicalKey !== typedKey) existing = await ensureOneSchoolForIdentity(canonicalKey)
+    if (existing?.name) canonicalName = existing.name
+  }
   const normalized = normalizeSchoolName(canonicalName)
+  const identityKey = schoolIdentityKey(canonicalName) || typedKey
   if (!normalized) return NextResponse.json({ error: 'Tên trường không hợp lệ.' }, { status: 400 })
 
   if (siblingNames.length > 0) {
     await saveSchoolNames([canonicalName, ...siblingNames], user.id, query)
+    if (!existing && identityKey) existing = await ensureOneSchoolForIdentity(identityKey)
   }
 
   let schoolId = ''
-  const existing = await findSchoolByNormalizedName(normalized)
   if (existing?.id) {
     schoolId = String(existing.id)
+    canonicalName = existing.name || canonicalName
   } else {
     try {
       const inserted = await insertSchool({
@@ -363,15 +422,19 @@ export async function POST(req: NextRequest) {
         normalizedName: normalized,
         searchTokens: normalized,
         createdBy: user.id,
+        identityKey,
       })
       if (!inserted?.id) {
         return NextResponse.json({ error: 'Không thể tạo trường.' }, { status: 500 })
       }
       schoolId = String(inserted.id)
     } catch {
-      const again = await findSchoolByNormalizedName(normalized)
+      const again = identityKey
+        ? await ensureOneSchoolForIdentity(identityKey)
+        : await findSchoolByNormalizedName(normalized)
       if (!again?.id) return NextResponse.json({ error: 'Không thể tạo trường.' }, { status: 500 })
       schoolId = String(again.id)
+      canonicalName = again.name || canonicalName
     }
   }
 

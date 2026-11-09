@@ -767,7 +767,7 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="gap-1 bg-background/80"
+                      className="gap-1"
                       onClick={() => void copyText(reportBriefMd)}
                     >
                       <Copy className="h-3.5 w-3.5" />
@@ -777,7 +777,7 @@ export default function GhiAmBaoCaoCuocHopClientPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="gap-1 bg-background/80"
+                      className="gap-1"
                       onClick={() =>
                         downloadBlobText(
                           reportBriefMd,
