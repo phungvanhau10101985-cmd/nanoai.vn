@@ -168,7 +168,7 @@ export default function TuMoiClientPage() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="absolute right-1 top-1 h-8 w-8 text-muted-foreground hover:text-destructive"
+                    className="absolute right-1 top-1 h-8 w-8 hover:text-destructive"
                     onClick={() => void handleDelete(item)}
                     disabled={deletingId === item.id}
                     title={localText('Xóa từ này', 'Delete this word')}

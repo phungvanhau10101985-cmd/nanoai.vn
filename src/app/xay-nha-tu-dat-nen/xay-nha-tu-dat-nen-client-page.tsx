@@ -215,7 +215,7 @@ export default function XayNhaTuDatNenClientPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 shrink-0 hover:text-destructive"
                       onClick={(e) => handleDeleteProject(p.id, e)}
                       title={uiLocale === 'vi' ? 'Xóa dự án' : uiLocale === 'en' ? 'Delete project' : uiLocale === 'zh' ? '删除项目' : uiLocale === 'ja' ? 'プロジェクト削除' : '프로젝트 삭제'}
                     >
@@ -355,7 +355,7 @@ function StepWizard({
         <Button
           variant="ghost"
           size="sm"
-          className="text-muted-foreground hover:text-destructive"
+          className="hover:text-destructive"
           onClick={onDelete}
           title={tr(uiLocale, 'Xóa dự án', 'Delete project', '删除项目', 'プロジェクト削除', '프로젝트 삭제')}
         >

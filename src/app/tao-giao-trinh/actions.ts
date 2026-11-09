@@ -1884,9 +1884,10 @@ export async function getWorksheetQuestionReviewItem(questionId: string) {
   if ('error' in authResult) return { error: authResult.error }
   const userId = authResult.user?.id
   if (!userId || !questionId) return { error: 'Thiếu câu cần xem.' }
-  const [reviewRows, sharedRows] = await Promise.all([
+  const [reviewRows, sharedRows, ackedIds] = await Promise.all([
     fetchQuestionReviewRowsPg([questionId]),
     fetchWorksheetQuestionsFullByIdsFromPg([questionId]),
+    acknowledgedQuestionIdsPg(userId, [questionId]),
   ])
   const meta = sharedRows[0]
   if (!meta) return { error: 'Không tìm thấy câu.' }
@@ -1916,6 +1917,7 @@ export async function getWorksheetQuestionReviewItem(questionId: string) {
     editCount: counts.editCount,
     authorIsMe: pending?.authorIsMe ?? false,
     pending: Boolean(pending),
+    confirmedByMe: ackedIds.includes(questionId),
   }
 }
 

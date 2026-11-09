@@ -251,14 +251,14 @@ export default function HoanDoiKhuonMatClientPage() {
                     <button
                       type="button"
                       onClick={() => setSwapMode('single')}
-                      className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${swapMode === 'single' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                      className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${swapMode === 'single' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}
                     >
                       {t.swap1}
                     </button>
                     <button
                       type="button"
                       onClick={() => setSwapMode('couple')}
-                      className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${swapMode === 'couple' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                      className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${swapMode === 'couple' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}
                     >
                       {t.swap2}
                     </button>

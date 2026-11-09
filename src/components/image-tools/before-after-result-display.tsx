@@ -137,7 +137,7 @@ export function BeforeAfterResultDisplay({
           type="button"
           size="sm"
           variant={mode === 'split' ? 'default' : 'ghost'}
-          className={cn('h-8 px-3 text-xs', mode === 'split' ? '' : 'text-muted-foreground')}
+          className={cn('h-8 px-3 text-xs', mode === 'split' ? '' : '')}
           onClick={() => setMode('split')}
         >
           {labels.split}
@@ -147,7 +147,7 @@ export function BeforeAfterResultDisplay({
           size="sm"
           variant={mode === 'compare' ? 'default' : 'ghost'}
           disabled={!compareEnabled}
-          className={cn('h-8 px-3 text-xs', mode === 'compare' ? '' : 'text-muted-foreground')}
+          className={cn('h-8 px-3 text-xs', mode === 'compare' ? '' : '')}
           onClick={() => compareEnabled && setMode('compare')}
           title={!compareEnabled ? uiTr(loc, 'Chỉ xem cạnh nhau khi có nhiều ảnh trước.', 'Side-by-side only when there are multiple «before» images.', '多张原图时仅支持并排。', '複数の元画像がある場合は並列のみです。', '원본이 여러 장이면 나란히만 됩니다.') : undefined}
         >

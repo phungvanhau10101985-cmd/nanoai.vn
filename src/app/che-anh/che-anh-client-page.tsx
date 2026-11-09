@@ -371,7 +371,7 @@ export default function CheAnhClientPage() {
                       variant="outline"
                       onClick={handleFetchFromUrl}
                       disabled={urlLoading}
-                      className="shrink-0 border-amber-200 text-amber-700 hover:bg-amber-50"
+                      className="shrink-0 border-indigo-300 text-indigo-950 hover:bg-indigo-200"
                     >
                       <Link2 className="mr-2 h-4 w-4" />
                       {urlLoading ? tr('Đang tải...', 'Loading...', '加载中...', '読み込み中...', '불러오는 중...') : tr('Lấy ảnh', 'Fetch image', '获取图片', '画像を取得', '이미지 가져오기')}
@@ -396,7 +396,7 @@ export default function CheAnhClientPage() {
                           type="button"
                           onClick={() => setAspectRatio(r.value)}
                           className={`px-2 py-1.5 rounded-md border text-xs font-medium transition-colors ${
-                            aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                            aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {tr(r.labels[0], r.labels[1], r.labels[2], r.labels[3], r.labels[4])}
@@ -405,7 +405,7 @@ export default function CheAnhClientPage() {
                     </div>
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
-                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
+                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-indigo-300 text-indigo-950 hover:bg-indigo-200" />
                                         <div className="flex flex-wrap items-center justify-center gap-2">
                       <ImageEnginePicker
                       locale={uiLocale}

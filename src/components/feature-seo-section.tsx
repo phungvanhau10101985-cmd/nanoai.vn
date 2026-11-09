@@ -125,7 +125,7 @@ export function FeatureSeoSection({ seo, showCatalogPrice = true }: FeatureSeoSe
             <Link
               key={tool.href}
               href={tool.href}
-              className="rounded-lg border border-border/80 bg-white px-4 py-3 text-sm text-foreground transition-colors hover:border-sky-300 hover:text-sky-700 lg:rounded-xl lg:px-5 lg:py-3.5 lg:shadow-sm lg:transition-shadow lg:hover:border-sky-400/80 lg:hover:shadow-md dark:bg-background/90 dark:lg:bg-background/80"
+              className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-950 transition-colors hover:border-indigo-400 hover:bg-indigo-100 lg:rounded-xl lg:px-5 lg:py-3.5 lg:shadow-sm lg:transition-shadow lg:hover:shadow-md dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-50 dark:hover:bg-indigo-900"
             >
               {tool.label}
             </Link>

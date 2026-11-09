@@ -1392,7 +1392,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs font-medium text-muted-foreground">{tr('Phiên bản', 'Variants', '版本', 'バリアント', '버전')}:</span>
                   {[1, 2, 3].map((n) => (
-                    <button key={n} type="button" onClick={() => setVariantCount(n)} className={`px-2 py-1 rounded text-xs font-medium ${variantCount === n ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 hover:bg-slate-200'}`}>{n}</button>
+                    <button key={n} type="button" onClick={() => setVariantCount(n)} className={`px-2 py-1 rounded text-xs font-medium ${variantCount === n ? 'bg-sky-800 text-white' : 'border border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>{n}</button>
                   ))}
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">
@@ -1879,7 +1879,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs font-medium text-muted-foreground">{tr('Phiên bản', 'Variants', '版本', 'バリアント', '버전')}:</span>
                   {[1, 2, 3].map((n) => (
-                    <button key={n} type="button" onClick={() => setVariantCount(n)} className={`px-2 py-1 rounded text-xs font-medium ${variantCount === n ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 hover:bg-slate-200'}`}>{n}</button>
+                    <button key={n} type="button" onClick={() => setVariantCount(n)} className={`px-2 py-1 rounded text-xs font-medium ${variantCount === n ? 'bg-emerald-700 text-white' : 'border border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>{n}</button>
                   ))}
                 </div>
                 <div className="flex flex-wrap gap-2 items-center">

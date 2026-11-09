@@ -211,9 +211,15 @@ export function ExamCreateReviewGate({
                           type="button"
                           disabled={busy || seen}
                           onClick={() => void confirm(item, 'agree')}
-                          className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+                          className={
+                            seen
+                              ? 'cursor-default rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-emerald-50'
+                              : 'rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50'
+                          }
                         >
-                          {tr('Xác nhận đúng', 'Confirm correct', '确认正确', '正しいと確認', '맞다고 확인')}
+                          {seen
+                            ? tr('Đã xác nhận', 'Confirmed', '已确认', '確認済', '확인함')
+                            : tr('Xác nhận đúng', 'Confirm correct', '确认正确', '正しいと確認', '맞다고 확인')}
                         </button>
                         {item.pending && !item.authorIsMe ? (
                           <button

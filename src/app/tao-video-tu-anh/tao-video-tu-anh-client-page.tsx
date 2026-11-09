@@ -181,7 +181,7 @@ export default function TaoVideoTuAnhClientPage() {
   const optionBtn = (active: boolean) =>
     cn(
       'w-full px-3 py-2.5 rounded-md border text-sm font-medium transition-colors text-left',
-      active ? 'border-violet-500 bg-violet-50 text-violet-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+      active ? 'border-violet-500 bg-violet-50 text-violet-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
     )
 
   return (

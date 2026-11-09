@@ -286,7 +286,7 @@ export default function ThietKeConDauClientPage() {
                   <img src={resultUrl} alt={tr('Con dấu đã tạo', 'Created stamp', '已创建印章', '作成したスタンプ', '생성된 스탬프')} className="max-w-full max-h-[400px] object-contain rounded shadow" />
                 </div>
                 <div className="flex flex-wrap gap-2 mt-4">
-                  <a href={resultUrl} download="con-dau-ai.png" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border bg-white hover:bg-gray-50 text-sm font-medium">
+                  <a href={resultUrl} download="con-dau-ai.png" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-indigo-300 bg-indigo-100 text-sm font-medium text-indigo-950 hover:bg-indigo-200">
                     <Download className="h-3 w-3" /> {tr('Tải PNG', 'Download PNG', '下载 PNG', 'PNGをダウンロード', 'PNG 다운로드')}
                   </a>
                   <DownloadImageButton
@@ -330,7 +330,7 @@ export default function ThietKeConDauClientPage() {
                           type="button"
                           onClick={() => setStampType(t)}
                           className={`min-h-[44px] px-3 py-2 rounded-md border text-sm font-medium transition-colors cursor-pointer select-none touch-manipulation ${
-                            stampType === t ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                            stampType === t ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {tr(l.vi, l.en, l.zh, l.ja, l.ko)}
@@ -392,7 +392,7 @@ export default function ThietKeConDauClientPage() {
                           }
                           setShape(s.value)
                         }}
-                        className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${shape === s.value ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                        className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${shape === s.value ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}
                       >
                         {shapeLabels[s.value]}
                       </button>
@@ -409,7 +409,7 @@ export default function ThietKeConDauClientPage() {
                         type="button"
                         onClick={() => setColor(c.value)}
                         className={`min-h-[36px] px-3 py-1.5 rounded-md border text-xs font-medium transition-colors cursor-pointer touch-manipulation ${
-                          color === c.value ? 'border-rose-500 bg-rose-50 text-rose-800 ring-1 ring-rose-500' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                          color === c.value ? 'border-rose-500 bg-rose-50 text-rose-800 ring-1 ring-rose-500' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                         }`}
                       >
                         {colorLabels[c.value]}
@@ -430,7 +430,7 @@ export default function ThietKeConDauClientPage() {
                             key={`w-${s}`}
                             type="button"
                             onClick={() => setRectWidthMm(s)}
-                            className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${rectWidthMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                            className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${rectWidthMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}
                           >
                             {s} mm
                           </button>
@@ -447,7 +447,7 @@ export default function ThietKeConDauClientPage() {
                             key={`h-${s}`}
                             type="button"
                             onClick={() => setRectHeightMm(s)}
-                            className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${rectHeightMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                            className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${rectHeightMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}
                           >
                             {s} mm
                           </button>
@@ -464,7 +464,7 @@ export default function ThietKeConDauClientPage() {
                           key={s}
                           type="button"
                           onClick={() => setSizeMm(s)}
-                          className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${sizeMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
+                          className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${sizeMm === s ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}
                         >
                           {s} mm
                         </button>

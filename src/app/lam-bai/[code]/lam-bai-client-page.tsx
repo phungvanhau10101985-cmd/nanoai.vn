@@ -1409,7 +1409,7 @@ export default function LamBaiClientPage({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="w-full text-muted-foreground"
+                className="w-full"
                 onClick={() => {
                   setIdentityFromClassRoster(false)
                   setEditingProfile(true)

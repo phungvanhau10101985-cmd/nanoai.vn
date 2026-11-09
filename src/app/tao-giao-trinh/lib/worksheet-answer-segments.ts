@@ -87,11 +87,69 @@ export function sliceWorksheetAnswerPartsAfterSegments(parts: WorksheetAnswerPar
 }
 
 /** Block tối thiểu (trên → dưới) còn segment chưa lộ — khớp interval GV + chỉ một bút “đang gõ”. */
-export type BlockLikeForSequentialReveal = { content?: string; isAnswer?: boolean }
+export type BlockLikeForSequentialReveal = { content?: string; header?: string; isAnswer?: boolean }
+
+/** Cùng điều kiện block tham gia gõ segment như interval GV / tìm leader. */
+export type SlideSolutionSegmentOpts = {
+  worksheetPresentation: boolean
+  hasCurriculumSegmentTyping: boolean
+}
 
 /** Key reveal segment cho tiêu đề slide (giáo trình) — gõ trước các block. */
 export function curriculumSlideTitleRevealKey(slideIndex: number): string {
   return `${slideIndex}-title`
+}
+
+/** Chuỗi slide: gõ cả số thứ tự «5. …», không hiện sẵn số rồi mới gõ chữ. */
+export function curriculumSlideTitleTypingText(
+  slideIndex: number,
+  title: string,
+  numbered: boolean
+): string {
+  const t = title ?? ''
+  return numbered ? `${slideIndex + 1}. ${t}` : t
+}
+
+export function curriculumTypingIncludesHeaders(opts: SlideSolutionSegmentOpts): boolean {
+  return opts.hasCurriculumSegmentTyping && !opts.worksheetPresentation
+}
+
+export function blockTypingSegmentCount(
+  block: BlockLikeForSequentialReveal,
+  opts: SlideSolutionSegmentOpts
+): number {
+  const content = worksheetAnswerSegmentCount(block.content ?? '')
+  if (!curriculumTypingIncludesHeaders(opts)) return content
+  return worksheetAnswerSegmentCount((block.header ?? '').trim()) + content
+}
+
+export function splitBlockTypingReveal(
+  block: BlockLikeForSequentialReveal,
+  revealed: number | undefined,
+  opts: SlideSolutionSegmentOpts & { typingOn: boolean }
+): {
+  headerVisible: number
+  contentVisible: number
+  headerTotal: number
+  contentTotal: number
+} {
+  const headerTotal = worksheetAnswerSegmentCount((block.header ?? '').trim())
+  const contentTotal = worksheetAnswerSegmentCount(block.content ?? '')
+  if (!opts.typingOn) {
+    return { headerVisible: headerTotal, contentVisible: contentTotal, headerTotal, contentTotal }
+  }
+  const r = Math.max(0, revealed ?? 0)
+  if (!curriculumTypingIncludesHeaders(opts)) {
+    return {
+      headerVisible: headerTotal,
+      contentVisible: Math.min(contentTotal, r),
+      headerTotal,
+      contentTotal,
+    }
+  }
+  const headerVisible = Math.min(headerTotal, r)
+  const contentVisible = Math.min(contentTotal, Math.max(0, r - headerTotal))
+  return { headerVisible, contentVisible, headerTotal, contentTotal }
 }
 
 export function findFirstSequentialSolutionBlockIndex(
@@ -139,17 +197,11 @@ export function findFirstSequentialSolutionBlockIndex(
     if (params.answerVisibility?.[key] === false) continue
     if (params.typingPaused?.[key] === true) break
     if (params.typingEnabled?.[key] === false) continue
-    const total = worksheetAnswerSegmentCount(b.content ?? '')
+    const total = blockTypingSegmentCount(b, params)
     const cur = params.reveal?.[key] ?? 0
     if (cur < total) return bi
   }
   return null
-}
-
-/** Cùng điều kiện block tham gia gõ segment như interval GV / tìm leader. */
-export type SlideSolutionSegmentOpts = {
-  worksheetPresentation: boolean
-  hasCurriculumSegmentTyping: boolean
 }
 
 export function typableSolutionBlockIndices(
@@ -178,7 +230,7 @@ export function slideSolutionSegmentsGlobalTotal(
     sum += worksheetAnswerSegmentCount(slideTitle)
   }
   for (const bi of typableSolutionBlockIndices(blocks, opts)) {
-    sum += worksheetAnswerSegmentCount(blocks[bi].content ?? '')
+    sum += blockTypingSegmentCount(blocks[bi], opts)
   }
   return sum
 }
@@ -201,7 +253,7 @@ export function globalRevealedSegmentsOnSlide(
     sum += Math.min(tt, Math.max(0, r))
   }
   for (const bi of typableSolutionBlockIndices(blocks, opts)) {
-    const total = worksheetAnswerSegmentCount(blocks[bi].content ?? '')
+    const total = blockTypingSegmentCount(blocks[bi], opts)
     const r = reveal[`${slideIndex}-${bi}`] ?? 0
     sum += Math.min(total, Math.max(0, r))
   }
@@ -228,7 +280,7 @@ export function distributeGlobalRevealAcrossSlide(
     remaining -= give
   }
   for (const bi of typableSolutionBlockIndices(blocks, opts)) {
-    const total = worksheetAnswerSegmentCount(blocks[bi].content ?? '')
+    const total = blockTypingSegmentCount(blocks[bi], opts)
     const give = Math.min(total, remaining)
     out[`${slideIndex}-${bi}`] = give
     remaining -= give

@@ -287,7 +287,7 @@ export default function TaoMoHinh3DTuAnhClientPage() {
                   </div>
                   <div className="flex gap-2">
                     <Input placeholder={tr('Dán link ảnh rồi bấm Lấy ảnh', 'Paste image URL then click Fetch', '粘贴图片链接后点击获取', '画像URLを貼り付けて取得をクリック', '이미지 링크 붙여넣기 후 가져오기 클릭')} value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} className="flex-1" />
-                    <Button type="button" variant="outline" onClick={handleFetchFromUrl} disabled={urlLoading} className="shrink-0 border-amber-200 text-amber-700 hover:bg-amber-50">
+                    <Button type="button" variant="outline" onClick={handleFetchFromUrl} disabled={urlLoading} className="shrink-0 border-indigo-300 text-indigo-950 hover:bg-indigo-200">
                       <Link2 className="mr-2 h-4 w-4" /> {urlLoading ? tr('Đang tải...', 'Loading...', '加载中...', '読み込み中...', '불러오는 중...') : tr('Lấy ảnh', 'Fetch image', '获取图片', '画像を取得', '이미지 가져오기')}
                     </Button>
                   </div>
@@ -302,7 +302,7 @@ export default function TaoMoHinh3DTuAnhClientPage() {
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
-                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
+                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-indigo-300 text-indigo-950 hover:bg-indigo-200" />
                                         <div className="flex flex-wrap items-center justify-center gap-2">
                       <ImageEnginePicker
                       locale={uiLocale}

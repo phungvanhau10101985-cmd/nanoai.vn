@@ -220,7 +220,7 @@ function CompactPaymentField({
         className={`h-7 w-8 shrink-0 sm:h-8 sm:w-9 ${
           onViolet
             ? 'text-white/90 hover:bg-white/15 hover:text-white'
-            : 'text-muted-foreground hover:text-foreground'
+            : 'hover:text-foreground'
         }`}
         onClick={() => void copy()}
         aria-label={`Sao chép ${label}`}

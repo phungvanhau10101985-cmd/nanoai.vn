@@ -231,7 +231,7 @@ export default function ThietKeLogoClientPage() {
                           type="button"
                           onClick={() => setAspectRatio(r.value)}
                           className={`px-2 py-1.5 rounded-md border text-xs font-medium transition-colors ${
-                            aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                            aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {tr(r.labels[0], r.labels[1], r.labels[2], r.labels[3], r.labels[4])}
@@ -249,7 +249,7 @@ export default function ThietKeLogoClientPage() {
                     <span>{tr('Xóa nền (PNG trong suốt, +1.5 credits)', 'Remove background (transparent PNG, +1.5 credits)', '抠透明背景（透明 PNG，+1.5 积分）', '背景を削除（透過 PNG、+1.5 クレジット）', '배경 제거 (투명 PNG, +1.5 크레딧)')}</span>
                   </label>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
-                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
+                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-indigo-300 text-indigo-950 hover:bg-indigo-200" />
                     <div className="flex flex-wrap items-center justify-center gap-2">
                     <ImageEnginePicker
                       locale={uiLocale}

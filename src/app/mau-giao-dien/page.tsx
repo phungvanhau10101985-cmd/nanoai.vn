@@ -89,7 +89,7 @@ export default async function ShopTemplateGalleryPage() {
                       href={previewHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-orange-800 px-3 py-2 text-sm font-semibold text-white hover:bg-orange-900"
                     >
                       {t.templateGalleryViewSample}
                       <ExternalLink className="h-3.5 w-3.5" />

@@ -638,7 +638,7 @@ export default function DichAnhTaiLieuClientPage() {
                   ) : batchMode === 'excel' ? (
                     <div className="space-y-3">
                       <div className="flex gap-2">
-                        <Button type="button" variant="outline" size="sm" asChild className="border-slate-300 bg-slate-100 text-slate-800 hover:bg-slate-200">
+                        <Button type="button" variant="outline" size="sm" asChild className="border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200">
                           <a href="/api/dich-tai-lieu-mau" download="dich-tai-lieu-mau.xlsx">
                             <FileSpreadsheet className="mr-2 h-4 w-4" /> {tr(uiLocale, 'Tải bảng mẫu', 'Download template', '下载模板', 'テンプレートをダウンロード', '템플릿 다운로드')}
                           </a>
@@ -749,7 +749,7 @@ export default function DichAnhTaiLieuClientPage() {
                         onChange={(e) => setImageUrl(e.target.value)}
                         className="flex-1 bg-slate-100 border-slate-300"
                       />
-                      <Button type="button" variant="outline" onClick={handleFetchFromUrl} disabled={urlLoading} className="shrink-0 border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200">
+                      <Button type="button" variant="outline" onClick={handleFetchFromUrl} disabled={urlLoading} className="shrink-0 border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200">
                         <Link2 className="mr-2 h-4 w-4" /> {urlLoading ? tr(uiLocale, 'Đang tải...', 'Loading...', '加载中...', '読み込み中...', '로딩 중...') : tr(uiLocale, 'Lấy ảnh', 'Fetch image', '获取图片', '画像を取得', '이미지 가져오기')}
                       </Button>
                     </div>
@@ -847,7 +847,7 @@ export default function DichAnhTaiLieuClientPage() {
                         {tr(uiLocale, 'Cần', 'Need', '需要', '必要', '필요')} {estimatedCost.toLocaleString('vi-VN')} credits, {tr(uiLocale, 'hiện có', 'currently have', '当前有', '現在', '현재 보유')} {userCredits.toLocaleString('vi-VN')}. {tr(uiLocale, 'Nạp đủ mới bấm Dịch.', 'Top up first, then click Translate.', '请先充值，再点击翻译。', '先にチャージしてから翻訳してください。', '충전 후 번역을 눌러주세요.')}
                       </p>
                     )}
-                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200" onCreditsUpdated={fetchCredits} />
+                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200" onCreditsUpdated={fetchCredits} />
                     <div className="flex flex-wrap items-center justify-center gap-2">
                     <ImageEnginePicker
                       locale={uiLocale}
@@ -1034,10 +1034,10 @@ export default function DichAnhTaiLieuClientPage() {
                     printReadyInferFromImage
                   />
                   )}
-                  <Button size="sm" variant="outline" onClick={handleReset} className="w-full border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200">
+                  <Button size="sm" variant="outline" onClick={handleReset} className="w-full border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200">
                     <RefreshCw className="mr-2 h-3 w-3" /> {tr(uiLocale, 'Thử lại', 'Try again', '重试', '再試行', '다시 시도')}
                   </Button>
-                  <Button size="sm" variant="outline" asChild className="w-full border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200">
+                  <Button size="sm" variant="outline" asChild className="w-full border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200">
                     <Link href="/dashboard/history/translate">
                       <FileText className="mr-2 h-3 w-3" /> {tr(uiLocale, 'Lịch sử dịch ảnh', 'Translation history', '翻译历史', '翻訳履歴', '번역 기록')}
                     </Link>

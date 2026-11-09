@@ -408,7 +408,7 @@ export default function LamDepAnhClientPage() {
                           className={`px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${
                             personCount === n
                               ? 'border-rose-500 bg-rose-50 text-rose-800'
-                              : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                              : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {uiLocale === 'vi' ? `${n} người` : n}
@@ -429,7 +429,7 @@ export default function LamDepAnhClientPage() {
                               className={`flex-1 px-2 py-1.5 rounded border text-xs font-medium ${
                                 personGenders[i] === 'male'
                                   ? 'border-rose-500 bg-rose-50 text-rose-800'
-                                  : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                                  : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                               }`}
                             >
                               {uiLocale === 'vi' ? 'Nam' : uiLocale === 'en' ? 'Male' : uiLocale === 'zh' ? '男' : uiLocale === 'ja' ? '男性' : '남성'}
@@ -440,7 +440,7 @@ export default function LamDepAnhClientPage() {
                               className={`flex-1 px-2 py-1.5 rounded border text-xs font-medium ${
                                 personGenders[i] === 'female'
                                   ? 'border-rose-500 bg-rose-50 text-rose-800'
-                                  : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                                  : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                               }`}
                             >
                               {uiLocale === 'vi' ? 'Nữ' : uiLocale === 'en' ? 'Female' : uiLocale === 'zh' ? '女' : uiLocale === 'ja' ? '女性' : '여성'}
@@ -478,7 +478,7 @@ export default function LamDepAnhClientPage() {
                           className={`px-2 py-2 rounded-md border text-[11px] font-medium transition-colors ${
                             beautifyStyle === value
                               ? 'border-rose-500 bg-rose-50 text-rose-800'
-                              : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                              : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {label}
@@ -501,7 +501,7 @@ export default function LamDepAnhClientPage() {
                           className={`px-2 py-2 rounded-md border text-xs font-medium transition-colors ${
                             beautifyStrength === value
                               ? 'border-rose-500 bg-rose-50 text-rose-800'
-                              : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                              : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {label}

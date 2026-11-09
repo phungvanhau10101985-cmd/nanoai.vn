@@ -933,7 +933,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
                           Number(labelWidthMm || 0) >= Number(labelHeightMm || 0)
                             ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
-                            : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                            : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                         }`}
                       >
                         {tr('Quay ngang', 'Landscape', '横向', '横', '가로')}
@@ -949,7 +949,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors ${
                           Number(labelWidthMm || 0) < Number(labelHeightMm || 0)
                             ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
-                            : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                            : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                         }`}
                       >
                         {tr('Quay dọc', 'Portrait', '纵向', '縦', '세로')}
@@ -1147,7 +1147,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                                 )
                               }}
                               className={`px-2 py-1.5 rounded-md border text-[10px] font-medium transition-colors ${
-                                isSelected ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                                isSelected ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                               }`}
                             >
                               {uiLocale === 'en' ? icon.labelEn : icon.labelVi}
@@ -1195,20 +1195,20 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Tùy chọn thiết kế', 'Design options', '设计选项', 'デザインオプション', '디자인 옵션')}</h4>
                     <div className="flex flex-wrap gap-2">
                       {STYLES.map((s) => (
-                        <button key={s.value} type="button" onClick={() => setStyle(s.value)} className={`px-2 py-1.5 rounded-md border text-xs font-medium ${style === s.value ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>
+                        <button key={s.value} type="button" onClick={() => setStyle(s.value)} className={`px-2 py-1.5 rounded-md border text-xs font-medium ${style === s.value ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>
                           {uiLocale === 'en' ? s.labelEn : s.labelVi}
                         </button>
                       ))}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {BACKGROUND_OPTIONS.map((b) => (
-                        <button key={b.value} type="button" onClick={() => setBackgroundType(b.value)} className={`px-2 py-1 rounded-md border text-[10px] font-medium ${backgroundType === b.value ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>
+                        <button key={b.value} type="button" onClick={() => setBackgroundType(b.value)} className={`px-2 py-1 rounded-md border text-[10px] font-medium ${backgroundType === b.value ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>
                           {uiLocale === 'en' ? b.labelEn : b.labelVi}
                         </button>
                       ))}
                     </div>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => setHasBorder(!hasBorder)} className={`px-2 py-1.5 rounded-md border text-xs font-medium ${hasBorder ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>
+                      <button type="button" onClick={() => setHasBorder(!hasBorder)} className={`px-2 py-1.5 rounded-md border text-xs font-medium ${hasBorder ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>
                         {tr('Có viền', 'With border', '有边框', '枠あり', '테두리 있음')}
                       </button>
                       {hasBorder && (
@@ -1246,7 +1246,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                               type="button"
                               onClick={() => setImages((prev) => prev.map((im, j) => (j === i ? { ...im, removeBackground: true } : im)))}
                               className={`flex items-center justify-center gap-1 py-1.5 rounded-md border text-[10px] font-medium transition-colors ${
-                                img.removeBackground ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                                img.removeBackground ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                               }`}
                             >
                               {img.removeBackground && <Check className="h-3 w-3 shrink-0" />}
@@ -1256,7 +1256,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                               type="button"
                               onClick={() => setImages((prev) => prev.map((im, j) => (j === i ? { ...im, removeBackground: false } : im)))}
                               className={`flex items-center justify-center gap-1 py-1.5 rounded-md border text-[10px] font-medium transition-colors ${
-                                !img.removeBackground ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                                !img.removeBackground ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                               }`}
                             >
                               {!img.removeBackground && <Check className="h-3 w-3 shrink-0" />}

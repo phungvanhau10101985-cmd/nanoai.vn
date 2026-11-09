@@ -1644,7 +1644,7 @@ export default function LopDetailClient({
 
       {showClassHomeLink ? (
         <div className="mb-6">
-          <Button variant="ghost" size="sm" className="h-9 gap-1 px-2 text-muted-foreground" asChild>
+          <Button variant="ghost" size="sm" className="h-9 gap-1 px-2" asChild>
             <Link
               href={
                 focusSubject

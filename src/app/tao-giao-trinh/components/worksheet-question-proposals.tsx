@@ -169,6 +169,7 @@ export function WorksheetQuestionCompare({
                 type="button"
                 size="sm"
                 disabled={busy || item.myVote === 'agree'}
+                className={item.myVote === 'agree' ? 'cursor-default bg-emerald-800 text-emerald-50 hover:bg-emerald-800 disabled:opacity-100' : undefined}
                 onClick={() => onVote('agree')}
               >
                 {item.myVote === 'agree'

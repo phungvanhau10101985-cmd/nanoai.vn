@@ -20,6 +20,7 @@ type ReviewItem = {
   editCount: number
   authorIsMe: boolean
   pending: boolean
+  confirmedByMe?: boolean
 }
 
 type Labels = {
@@ -32,6 +33,7 @@ type Labels = {
   edit: string
   save: string
   confirm: string
+  confirmed: string
   disagree: string
   usingEdit: string
   usingOriginal: string
@@ -185,8 +187,14 @@ export function ExamQuestionQuickView({
               <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>{labels.save}</Button>
             ) : (
               <>
-                <Button type="button" size="sm" disabled={busy || !item} onClick={() => void confirm('agree')}>
-                  {labels.confirm}
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy || !item || item.confirmedByMe === true}
+                  className={item?.confirmedByMe ? 'cursor-default bg-emerald-800 text-emerald-50 hover:bg-emerald-800' : undefined}
+                  onClick={() => void confirm('agree')}
+                >
+                  {item?.confirmedByMe ? labels.confirmed : labels.confirm}
                 </Button>
                 {item?.pending && !item.authorIsMe ? (
                   <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void confirm('reject')}>

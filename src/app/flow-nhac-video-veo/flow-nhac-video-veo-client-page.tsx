@@ -581,7 +581,7 @@ export default function FlowNhacVideoVeoClientPage({ copy: t }: Props) {
   const optBtn = (active: boolean) =>
     active
       ? 'border-violet-500 bg-violet-50 text-violet-800'
-      : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+      : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
 
   const nSeg = Math.min(MAX_SEGMENTS, Math.max(1, segmentTexts.length))
   const videoWizardVisibleThrough = Math.min(Math.max(1, videoWizardOpenThrough), nSeg)

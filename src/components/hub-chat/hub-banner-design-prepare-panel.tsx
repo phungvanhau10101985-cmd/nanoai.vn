@@ -317,7 +317,7 @@ export function HubBannerDesignPreparePanel({
           type="button"
           size="sm"
           variant="ghost"
-          className="h-8 text-xs text-muted-foreground"
+          className="h-8 text-xs"
           disabled={busy}
           onClick={() => void onFinishFlow()}
         >

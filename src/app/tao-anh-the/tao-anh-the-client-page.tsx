@@ -318,7 +318,7 @@ export default function TaoAnhTheClientPage() {
                       variant="outline"
                       onClick={handleFetchFromUrl}
                       disabled={urlLoading}
-                      className="shrink-0 border-amber-200 text-amber-700 hover:bg-amber-50"
+                      className="shrink-0 border-indigo-300 text-indigo-950 hover:bg-indigo-200"
                     >
                       <Link2 className="mr-2 h-4 w-4" />
                       {urlLoading ? t.loading : t.fetch}
@@ -343,7 +343,7 @@ export default function TaoAnhTheClientPage() {
                           type="button"
                           onClick={() => setAspectRatio(r.value)}
                           className={`px-2 py-1.5 rounded-md border text-xs font-medium transition-colors ${
-                            aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                            aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {getAspectLabel(r.value, r.label)}
@@ -393,7 +393,7 @@ export default function TaoAnhTheClientPage() {
                     />
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
-                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
+                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-indigo-300 text-indigo-950 hover:bg-indigo-200" />
                                         <div className="flex flex-wrap items-center justify-center gap-2">
                       <ImageEnginePicker
                       locale={uiLocale}

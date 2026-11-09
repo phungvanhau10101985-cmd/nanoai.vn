@@ -190,7 +190,7 @@ export function WeddingTimelineEditor({ label, value, onChange, hint, className 
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="ml-auto h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive md:order-3 md:ml-0"
+                className="ml-auto h-10 w-10 shrink-0 hover:text-destructive md:order-3 md:ml-0"
                 onClick={() => removeRow(index)}
                 disabled={rows.length === 1 && !row.time && !row.title && !row.note}
                 title="Xóa mốc"

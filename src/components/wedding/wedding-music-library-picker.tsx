@@ -214,12 +214,12 @@ export function WeddingMusicLibraryPicker(props: {
       {selected ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium">{selected.title}</p>
-          <Button type="button" variant="outline" size="sm" className="border-[#e8c87a]/70 bg-[#fff8ee] text-[#3a2214] hover:bg-[#fff1dc] hover:text-[#3a2214]" onClick={() => setOpen(true)}>
+          <Button type="button" variant="outline" size="sm" className="border-rose-300 bg-rose-100 text-rose-950 hover:bg-rose-200 hover:text-rose-950" onClick={() => setOpen(true)}>
             {props.chooseAgainLabel}
           </Button>
         </div>
       ) : (
-        <Button type="button" variant="outline" className="w-full border-[#e8c87a]/70 bg-[#fff8ee] text-[#3a2214] hover:bg-[#fff1dc] hover:text-[#3a2214] sm:w-auto" onClick={() => setOpen(true)}>
+        <Button type="button" variant="outline" className="w-full border-rose-300 bg-rose-100 text-rose-950 hover:bg-rose-200 hover:text-rose-950 sm:w-auto" onClick={() => setOpen(true)}>
           {props.chooseLabel}
         </Button>
       )}

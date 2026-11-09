@@ -154,7 +154,7 @@ export default function LamBaiClient({
         <Button onClick={handleSubmit} disabled={!canSubmit || submitting || submitted}>
           {submitting ? '...' : t.submit}
         </Button>
-        <Button variant="ghost" size="sm" className="h-auto px-2 text-muted-foreground hover:text-foreground" asChild>
+        <Button variant="ghost" size="sm" className="h-auto px-2 hover:text-foreground" asChild>
           <Link href={`/lop/${classId}/phieu-bai-tap`}>{t.worksheetLamBaiBackToClassWorksheets}</Link>
         </Button>
       </div>

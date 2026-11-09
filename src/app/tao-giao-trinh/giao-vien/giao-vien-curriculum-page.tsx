@@ -5,7 +5,6 @@ import { markExamTeacher } from '@/lib/exam-teacher-mark'
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { createPortal } from 'react-dom'
 import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, ClipboardCheck, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
@@ -36,13 +35,17 @@ import {
   SLIDE_SYNC_MARKDOWN_CLASS,
 } from '../components/slide-sync-markdown-classes'
 import { readCharRevealLineBreaks, readPointerTextHit } from '../components/slide-pointer-text-hit'
+import { bindLatestPointerFrame, VirtualMouseOverlay, type VirtualMouseController } from '../components/virtual-mouse-overlay'
 import { AnswerTypingPositionPopover } from '../components/answer-typing-position-popover'
 import {
+  blockTypingSegmentCount,
   curriculumSlideTitleRevealKey,
+  curriculumSlideTitleTypingText,
   distributeGlobalRevealAcrossSlide,
   findFirstSequentialSolutionBlockIndex,
   globalRevealedSegmentsOnSlide,
   slideSolutionSegmentsGlobalTotal,
+  splitBlockTypingReveal,
   typableSolutionBlockIndices,
   worksheetAnswerSegmentCount,
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
@@ -943,9 +946,13 @@ export default function CurriculumViewPage() {
   const [infographicFullscreenOpen, setInfographicFullscreenOpen] = useState(false)
   const [teacherExpandedCellIndex, setTeacherExpandedCellIndex] = useState<number | null>(null)
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
+  /** Chuỗi slide: popup xem quiz của một slide đã qua. null = slide đang chiếu (đồng bộ học sinh như cũ). */
+  const [quizFocusSlideIndex, setQuizFocusSlideIndex] = useState<number | null>(null)
+  const quizPopupMirrorsStudentRef = useRef(true)
+  quizPopupMirrorsStudentRef.current = true
   const [quizSessionData, setQuizSessionData] = useState<Record<string, { sessionCode: string; quizDurationSeconds: number }>>({})
   const [quizSessionSettings, setQuizSessionSettings] = useState<Record<string, { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }>>({})
-  const [studentMousePos, setStudentMousePos] = useState<{ x: number; y: number } | null>(null)
+  const studentMouseRef = useRef<VirtualMouseController | null>(null)
   /** Phiếu bài tập: ẩn/hiện đáp án từng câu trên giao diện học sinh. Key: "slideIndex-blockIndex", default true */
   const [answerVisibility, setAnswerVisibility] = useState<Record<string, boolean>>({})
   /** Phiếu bài tập: tạm dừng / tiếp tục gõ (độc lập ẩn/hiện trên màn HS). Key: "slideIndex-blockIndex" */
@@ -959,7 +966,9 @@ export default function CurriculumViewPage() {
     if (!worksheetId && !curriculumId) return {} as Record<string, boolean>
     const m: Record<string, boolean> = {}
     slides.forEach((s, si) => {
-      if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(s.title ?? '') > 0) {
+      const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
+      const titleText = curriculumSlideTitleTypingText(si, s.title ?? '', numberedTitle)
+      if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(titleText) > 0) {
         m[curriculumSlideTitleRevealKey(si)] = answerTypingSegmentsGloballyEnabled
       }
       const blks = s.blocks ?? []
@@ -971,7 +980,7 @@ export default function CurriculumViewPage() {
       })
     })
     return m
-  }, [slides, worksheetId, curriculumId, answerTypingSegmentsGloballyEnabled])
+  }, [slides, worksheetId, curriculumId, answerTypingSegmentsGloballyEnabled, studentCurriculumRemoteMode])
 
   /** Tốc độ gõ segment nội dung (ms) — khác tốc độ "Viết" tiêu đề trên thanh */
   const [answerTypingSpeedMs, setAnswerTypingSpeedMs] = useState(55)
@@ -987,6 +996,7 @@ export default function CurriculumViewPage() {
     const slide = slides[currentIndex]
     const blks = slide?.blocks
     if (!blks?.length) return null
+    const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
     return findFirstSequentialSolutionBlockIndex(blks, currentIndex, {
       worksheetPresentation: !!worksheetId,
       hasCurriculumSegmentTyping: !!curriculumId,
@@ -994,7 +1004,7 @@ export default function CurriculumViewPage() {
       typingEnabled: answerTypingEnabled,
       typingPaused: answerTypingPaused,
       answerVisibility,
-      slideTitle: slide?.title ?? '',
+      slideTitle: curriculumSlideTitleTypingText(currentIndex, slide?.title ?? '', numberedTitle),
     })
   }, [
     worksheetId,
@@ -1005,6 +1015,7 @@ export default function CurriculumViewPage() {
     answerTypingEnabled,
     answerTypingPaused,
     answerVisibility,
+    studentCurriculumRemoteMode,
   ])
   /** Slide đang mở dialog chỉnh tiến độ gõ (áp dụng cả slide, nhiều block). */
   const [answerRevealJumpPopoverSlideIndex, setAnswerRevealJumpPopoverSlideIndex] = useState<number | null>(null)
@@ -1025,22 +1036,28 @@ export default function CurriculumViewPage() {
     if (si == null) return 0
     const blks = slides[si]?.blocks ?? []
     const slideRow = slides[si]
-    return slideSolutionSegmentsGlobalTotal(blks, answerRevealJumpOpts, slideRow?.title ?? '')
-  }, [answerRevealJumpPopoverSlideIndex, slides, answerRevealJumpOpts])
+    const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
+    return slideSolutionSegmentsGlobalTotal(
+      blks,
+      answerRevealJumpOpts,
+      curriculumSlideTitleTypingText(si, slideRow?.title ?? '', numberedTitle)
+    )
+  }, [answerRevealJumpPopoverSlideIndex, slides, answerRevealJumpOpts, worksheetId, studentCurriculumRemoteMode])
 
   const answerRevealJumpPreviewByBlock = useMemo(() => {
     if (answerRevealJumpPopoverSlideIndex == null) return null
     const blks = slides[answerRevealJumpPopoverSlideIndex]?.blocks ?? []
     if (!blks.length) return null
     const slideRow = slides[answerRevealJumpPopoverSlideIndex]
+    const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
     return distributeGlobalRevealAcrossSlide(
       answerRevealJumpDraft,
       blks,
       answerRevealJumpPopoverSlideIndex,
       answerRevealJumpOpts,
-      slideRow?.title ?? ''
+      curriculumSlideTitleTypingText(answerRevealJumpPopoverSlideIndex, slideRow?.title ?? '', numberedTitle)
     )
-  }, [answerRevealJumpPopoverSlideIndex, answerRevealJumpDraft, slides, answerRevealJumpOpts])
+  }, [answerRevealJumpPopoverSlideIndex, answerRevealJumpDraft, slides, answerRevealJumpOpts, worksheetId, studentCurriculumRemoteMode])
 
   const closeAnswerRevealJumpDialog = useCallback(() => {
     const saved = pauseBeforeAnswerRevealPopoverRef.current
@@ -1065,7 +1082,9 @@ export default function CurriculumViewPage() {
       const slide = slides[slideIdx]
       const blks = slide?.blocks ?? []
       const keys: string[] = []
-      if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(slide?.title ?? '') > 0) {
+      const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
+      const titleText = curriculumSlideTitleTypingText(slideIdx, slide?.title ?? '', numberedTitle)
+      if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(titleText) > 0) {
         keys.push(curriculumSlideTitleRevealKey(slideIdx))
       }
       keys.push(...typableSolutionBlockIndices(blks, answerRevealJumpOpts).map((bi) => `${slideIdx}-${bi}`))
@@ -1083,11 +1102,11 @@ export default function CurriculumViewPage() {
         return next
       })
       setAnswerRevealJumpDraft(
-        globalRevealedSegmentsOnSlide(blks, slideIdx, answerRevealProgress, answerRevealJumpOpts, slide?.title ?? '')
+        globalRevealedSegmentsOnSlide(blks, slideIdx, answerRevealProgress, answerRevealJumpOpts, titleText)
       )
       setAnswerRevealJumpPopoverSlideIndex(slideIdx)
     },
-    [slides, answerRevealProgress, answerRevealJumpOpts, worksheetId, curriculumId]
+    [slides, answerRevealProgress, answerRevealJumpOpts, worksheetId, curriculumId, studentCurriculumRemoteMode]
   )
 
   /** Một thanh điều khiển gõ cho cả slide (không lặp theo từng block). Ẩn/Hiện đáp án vẫn từng block (phiếu). */
@@ -1105,7 +1124,9 @@ export default function CurriculumViewPage() {
 
     const typableIdx = typableSolutionBlockIndices(blks, answerRevealJumpOpts)
     const typableKeys: string[] = []
-    if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(slides[slideIndex]?.title ?? '') > 0) {
+    const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
+    const titleText = curriculumSlideTitleTypingText(slideIndex, slides[slideIndex]?.title ?? '', numberedTitle)
+    if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(titleText) > 0) {
       typableKeys.push(curriculumSlideTitleRevealKey(slideIndex))
     }
     typableKeys.push(...typableIdx.map((bi) => `${slideIndex}-${bi}`))
@@ -1246,7 +1267,6 @@ export default function CurriculumViewPage() {
   const lastTypingDocKeyRef = useRef<string>('')
   const [remoteAutoPlay, setRemoteAutoPlay] = useState(false)
   const [remoteAutoPlayIntervalMs, setRemoteAutoPlayIntervalMs] = useState(5000)
-  const pointerThrottleRef = useRef(0)
   const syncSeqRef = useRef(1)
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   const hasHydratedFromCurriculumRef = useRef(false)
@@ -2479,7 +2499,8 @@ export default function CurriculumViewPage() {
       const prevSlide = sl[prevIdx]
       const prevBlks = prevSlide?.blocks ?? []
       const prevKeys: string[] = []
-      if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(prevSlide?.title ?? '') > 0) {
+      const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
+      if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(curriculumSlideTitleTypingText(prevIdx, prevSlide?.title ?? '', numberedTitle)) > 0) {
         prevKeys.push(curriculumSlideTitleRevealKey(prevIdx))
       }
       prevKeys.push(...typableSolutionBlockIndices(prevBlks, answerRevealJumpOpts).map((bi) => `${prevIdx}-${bi}`))
@@ -2493,7 +2514,8 @@ export default function CurriculumViewPage() {
       const s = sl[currentIndex]
       const blks = s?.blocks ?? []
       const keys: string[] = []
-      if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(s?.title ?? '') > 0) {
+      const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
+      if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(curriculumSlideTitleTypingText(currentIndex, s?.title ?? '', numberedTitle)) > 0) {
         keys.push(curriculumSlideTitleRevealKey(currentIndex))
       }
       keys.push(...typableSolutionBlockIndices(blks, answerRevealJumpOpts).map((bi) => `${currentIndex}-${bi}`))
@@ -2525,7 +2547,8 @@ export default function CurriculumViewPage() {
         const next = { ...prev }
 
         if (!worksheetId && curriculumId) {
-          const titleText = slide.title ?? ''
+          const numberedTitle = studentCurriculumRemoteMode === 'markdown-all'
+          const titleText = curriculumSlideTitleTypingText(currentIndex, slide.title ?? '', numberedTitle)
           const titleTotal = worksheetAnswerSegmentCount(titleText)
           if (titleTotal > 0) {
             const titleKey = curriculumSlideTitleRevealKey(currentIndex)
@@ -2542,8 +2565,11 @@ export default function CurriculumViewPage() {
 
         if (!slide.blocks?.length) return prev
 
-        // Một tick chỉ +1 segment cho **một** block: block đầu tiên (trên xuống) chưa gõ xong.
-        // Tránh slide ghép nhiều block gõ song song hàng loạt.
+        // Một tick chỉ +1 segment cho **một** block: tiêu đề khối rồi nội dung, trên xuống.
+        const typingOpts = {
+          worksheetPresentation: !!worksheetId,
+          hasCurriculumSegmentTyping: !!curriculumId,
+        }
         let targetBi = -1
         for (let bi = 0; bi < slide.blocks.length; bi++) {
           const b = slide.blocks[bi]
@@ -2554,7 +2580,7 @@ export default function CurriculumViewPage() {
           if (answerTypingPaused[key] === true) break
           const typingOn = answerTypingEnabled[key] !== false
           if (!typingOn) continue
-          const total = worksheetAnswerSegmentCount(b.content ?? '')
+          const total = blockTypingSegmentCount(b, typingOpts)
           const cur = next[key] ?? 0
           if (cur < total) {
             targetBi = bi
@@ -2569,7 +2595,7 @@ export default function CurriculumViewPage() {
       })
     }, ms)
     return () => window.clearInterval(id)
-  }, [worksheetId, curriculumId, answerTypingSpeedMs, currentIndex, slides, answerVisibility, answerTypingEnabled, answerTypingPaused])
+  }, [worksheetId, curriculumId, answerTypingSpeedMs, currentIndex, slides, answerVisibility, answerTypingEnabled, answerTypingPaused, studentCurriculumRemoteMode])
 
   /** Đẩy trạng thái gõ/hiện đáp án theo kênh nhẹ, tách khỏi payload slide lớn. */
   useEffect(() => {
@@ -3197,7 +3223,11 @@ export default function CurriculumViewPage() {
       else channel.postMessage({ type: 'visual-fullscreen-close' })
       if (infographicFullscreenOpen) channel.postMessage({ type: 'infographic-fullscreen-open' })
       else channel.postMessage({ type: 'infographic-fullscreen-close' })
-      channel.postMessage({ type: 'quiz-popup-open', value: quizPopupOpen })
+      channel.postMessage({
+        type: 'quiz-popup-open',
+        value: quizPopupOpen,
+        slideIndex: quizFocusSlideIndex ?? currentIndex,
+      })
       if (quizPopupOpen) {
         const scrollEl = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
         if (scrollEl) channel.postMessage({ type: 'quiz-popup-scroll', scrollTop: scrollEl.scrollTop })
@@ -3217,7 +3247,7 @@ export default function CurriculumViewPage() {
       channel.close()
       if (syncChannelRef.current === channel) syncChannelRef.current = null
     }
-  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
+  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, quizPopupOpen, quizFocusSlideIndex, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     setInfographicFullscreenOpen(false)
@@ -3376,29 +3406,36 @@ export default function CurriculumViewPage() {
   }, [worksheetId, leftPanelMode, infographicFullscreenOpen, closeTeacherInfographicFullscreen])
 
   useEffect(() => {
-    sendToStudentView({ type: 'quiz-popup-open', value: quizPopupOpen })
-  }, [quizPopupOpen, sendToStudentView])
+    sendToStudentView({
+      type: 'quiz-popup-open',
+      value: quizPopupOpen,
+      slideIndex: quizFocusSlideIndex ?? currentIndex,
+    })
+  }, [quizPopupOpen, quizFocusSlideIndex, currentIndex, sendToStudentView])
 
   useEffect(() => {
-    if (!quizPopupOpen) setStudentMousePos(null)
+    if (!quizPopupOpen) studentMouseRef.current?.hide()
   }, [quizPopupOpen])
 
-  const openQuizPopupFresh = useCallback(() => {
+  const openQuizPopupFresh = useCallback((slideIndex?: number) => {
+    const index = typeof slideIndex === 'number' ? slideIndex : currentIndex
+    const mirrorStudent = index === currentIndex
+    setQuizFocusSlideIndex(mirrorStudent ? null : index)
     setQuizSessionData((prev) => {
       const next = { ...prev }
       for (const k of Object.keys(next)) {
-        if (k.startsWith(`${currentIndex}-`)) delete next[k]
+        if (k.startsWith(`${index}-`)) delete next[k]
       }
       return next
     })
     setQuizSessionSettings((prev) => {
       const next = { ...prev }
       for (const k of Object.keys(next)) {
-        if (k.startsWith(`${currentIndex}-`)) delete next[k]
+        if (k.startsWith(`${index}-`)) delete next[k]
       }
       return next
     })
-    sendToStudentView({ type: 'quiz-session-reset-slide', slideIndex: currentIndex })
+    if (mirrorStudent) sendToStudentView({ type: 'quiz-session-reset-slide', slideIndex: index })
     setQuizPopupOpen(true)
   }, [currentIndex, sendToStudentView])
 
@@ -3457,10 +3494,9 @@ export default function CurriculumViewPage() {
       return el ? (el as HTMLElement).getBoundingClientRect() : null
     }
     const readEarlierChainPointer = (clientX: number, clientY: number, scrollEl: HTMLElement) => {
-      const currentBody = teacherSlidePointerSyncRef.current
       const prose = (document.elementsFromPoint(clientX, clientY) as HTMLElement[])
         .map((el) => el.closest('[data-pointer-prose-root]') as HTMLElement | null)
-        .find((el): el is HTMLElement => !!el && scrollEl.contains(el) && !currentBody?.contains(el))
+        .find((el): el is HTMLElement => !!el && scrollEl.contains(el))
       if (prose) {
         const rr = prose.getBoundingClientRect()
         const pointerSlideIndex = Number(prose.getAttribute('data-slide-index'))
@@ -3485,7 +3521,6 @@ export default function CurriculumViewPage() {
         .map((el) => el.closest('[data-teacher-chain-slide]') as HTMLElement | null)
         .find((el): el is HTMLElement => !!el && scrollEl.contains(el))
       if (!chainCard) return null
-      if (currentBody && chainCard.contains(currentBody)) return null
       const pointerSlideIndex = Number(chainCard.getAttribute('data-teacher-chain-slide'))
       if (!Number.isFinite(pointerSlideIndex)) return null
       const body = chainCard.querySelector(`[data-pointer-slide-body="${pointerSlideIndex}"]`) as HTMLElement | null
@@ -3496,12 +3531,14 @@ export default function CurriculumViewPage() {
       if (!inBody) {
         const title = chainCard.querySelector(`[data-pointer-sync-id="slide-title-${pointerSlideIndex}"]`) as HTMLElement | null
         const titleRect = title?.getBoundingClientRect()
-        const aboveBody = !bodyRect || clientY < bodyRect.top
-        if (aboveBody && titleRect && titleRect.width > 0 && titleRect.height > 0) {
+        const inTitle = !!titleRect && titleRect.width > 0 && titleRect.height > 0
+          && clientX >= titleRect.left && clientX <= titleRect.right
+          && clientY >= titleRect.top && clientY <= titleRect.bottom
+        if (inTitle && titleRect) {
           return {
             syncAnchor: `slide-title-${pointerSlideIndex}`,
-            relX: (clientX - titleRect.left) / titleRect.width,
-            relY: (clientY - titleRect.top) / titleRect.height,
+            relX: Math.max(0, Math.min(1, (clientX - titleRect.left) / titleRect.width)),
+            relY: Math.max(0, Math.min(1, (clientY - titleRect.top) / titleRect.height)),
           }
         }
       }
@@ -3555,11 +3592,37 @@ export default function CurriculumViewPage() {
       }
     }
     const sendPointerMove = (e: MouseEvent | PointerEvent) => {
-      // Ưu tiên anchor [data-pointer-sync-id]: khớp vị trí giữa 2 cửa sổ dù layout khác nhau (vd nút "Chuỗi slide / Slide đơn").
+      // Neo chrome (Chuỗi slide / Slide đơn / ctrl-*) chỉ khi chuột thật đang nằm trên đúng ô đó.
+      // Trong chuỗi slide, chỗ trống của slide mới nhất không được kéo chuột ảo lên head.
+      const pointInClientRect = (x: number, y: number, r: DOMRect) =>
+        x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+      const isChromePointerSyncId = (id: string) => id.startsWith('student-mode-') || id.startsWith('ctrl-')
+      const slidePane = teacherSlideContentPaneRef.current
+      const inSlidePane = !!(slidePane && pointInClientRect(e.clientX, e.clientY, slidePane.getBoundingClientRect()))
       try {
-        const anchor = (document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[])
+        const hits = document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[]
+        const inChainCard = hits.some((el) => {
+          const card = el.closest('[data-teacher-chain-slide]') as HTMLElement | null
+          return !!card && pointInClientRect(e.clientX, e.clientY, card.getBoundingClientRect())
+        })
+        const anchor = hits
           .map((el) => el.closest('[data-pointer-sync-id]') as HTMLElement | null)
-          .find((el): el is HTMLElement => !!el)
+          .find((el): el is HTMLElement => {
+            if (!el) return false
+            const id = el.getAttribute('data-pointer-sync-id') || ''
+            if (!id) return false
+            const rect = el.getBoundingClientRect()
+            if (rect.width <= 0 || rect.height <= 0) return false
+            if (!pointInClientRect(e.clientX, e.clientY, rect)) return false
+            if ((inSlidePane || inChainCard) && isChromePointerSyncId(id)) return false
+            if (
+              inChainCard &&
+              !id.startsWith('slide-title-') &&
+              !id.startsWith('slide-block-header-') &&
+              !id.startsWith('slide-quiz-view-')
+            ) return false
+            return true
+          })
         if (anchor) {
           const rect = anchor.getBoundingClientRect()
           const id = anchor.getAttribute('data-pointer-sync-id')
@@ -3575,7 +3638,7 @@ export default function CurriculumViewPage() {
         const hit = e.target as HTMLElement | null
         if (hit?.closest?.('[data-teacher-chrome]')) return
       } catch { /* ignore */ }
-      if (quizPopupOpen) {
+      if (quizPopupOpen && quizPopupMirrorsStudentRef.current) {
         const rect = getQuizPopupRect()
         if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
           const relX = rect.right - e.clientX
@@ -3867,16 +3930,17 @@ export default function CurriculumViewPage() {
               e.clientY >= lr.top &&
               e.clientY <= lr.bottom
             if (insideCard) {
-              const bodyTop = teacherSlidePointerSyncRef.current?.getBoundingClientRect().top
-              const aboveBody = bodyTop == null || e.clientY < bodyTop
               const title = layoutEl.querySelector(`[data-pointer-sync-id="slide-title-${currentIndex}"]`) as HTMLElement | null
               const titleRect = title?.getBoundingClientRect()
-              if (aboveBody && titleRect && titleRect.width > 0 && titleRect.height > 0) {
+              const inTitle = !!titleRect && titleRect.width > 0 && titleRect.height > 0
+                && e.clientX >= titleRect.left && e.clientX <= titleRect.right
+                && e.clientY >= titleRect.top && e.clientY <= titleRect.bottom
+              if (inTitle && titleRect) {
                 sendToStudentView({
                   type: 'mouse-pos',
                   syncAnchor: `slide-title-${currentIndex}`,
-                  relX: (e.clientX - titleRect.left) / titleRect.width,
-                  relY: (e.clientY - titleRect.top) / titleRect.height,
+                  relX: Math.max(0, Math.min(1, (e.clientX - titleRect.left) / titleRect.width)),
+                  relY: Math.max(0, Math.min(1, (e.clientY - titleRect.top) / titleRect.height)),
                 })
                 return
               }
@@ -3901,6 +3965,16 @@ export default function CurriculumViewPage() {
       const clickTarget = e.target as HTMLElement | null
       const syncEl = clickTarget?.closest('[data-pointer-sync-id]') as HTMLElement | null
       const syncId = syncEl?.getAttribute('data-pointer-sync-id') || ''
+      if (syncId.startsWith('slide-quiz-view-') && syncEl) {
+        const rect = syncEl.getBoundingClientRect()
+        sendToStudentView({
+          type: 'mouse-click',
+          syncAnchor: syncId,
+          relX: rect.width > 0 ? Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) : 0.5,
+          relY: rect.height > 0 ? Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)) : 0.5,
+        })
+        return
+      }
       if (syncId.startsWith('ctrl-')) {
         const rect = syncEl!.getBoundingClientRect()
         sendToStudentView({
@@ -3914,7 +3988,7 @@ export default function CurriculumViewPage() {
       if (clickTarget?.closest('[data-control="xem-học-sinh"]')) return
       if (clickTarget?.closest('[data-teacher-chrome]')) return
       if (clickTarget?.closest('[data-pointer-sync-id]')) return
-      if (quizPopupOpen) {
+      if (quizPopupOpen && quizPopupMirrorsStudentRef.current) {
         const rect = getQuizPopupRect()
         if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
           const relX = rect.right - e.clientX
@@ -4204,16 +4278,17 @@ export default function CurriculumViewPage() {
               e.clientY >= lr.top &&
               e.clientY <= lr.bottom
             if (insideCard) {
-              const bodyTop = teacherSlidePointerSyncRef.current?.getBoundingClientRect().top
-              const aboveBody = bodyTop == null || e.clientY < bodyTop
               const title = layoutEl.querySelector(`[data-pointer-sync-id="slide-title-${currentIndex}"]`) as HTMLElement | null
               const titleRect = title?.getBoundingClientRect()
-              if (aboveBody && titleRect && titleRect.width > 0 && titleRect.height > 0) {
+              const inTitle = !!titleRect && titleRect.width > 0 && titleRect.height > 0
+                && e.clientX >= titleRect.left && e.clientX <= titleRect.right
+                && e.clientY >= titleRect.top && e.clientY <= titleRect.bottom
+              if (inTitle && titleRect) {
                 sendToStudentView({
                   type: 'mouse-click',
                   syncAnchor: `slide-title-${currentIndex}`,
-                  relX: (e.clientX - titleRect.left) / titleRect.width,
-                  relY: (e.clientY - titleRect.top) / titleRect.height,
+                  relX: Math.max(0, Math.min(1, (e.clientX - titleRect.left) / titleRect.width)),
+                  relY: Math.max(0, Math.min(1, (e.clientY - titleRect.top) / titleRect.height)),
                 })
                 return
               }
@@ -4234,18 +4309,7 @@ export default function CurriculumViewPage() {
       }
       return
     }
-    // Dùng pointermove + getCoalescedEvents để khớp với luồng infographic — đường di chuột mượt hơn mousemove.
-    const handlePointerMove = (e: PointerEvent) => {
-      const now = Date.now()
-      if (now - pointerThrottleRef.current < 8) return
-      pointerThrottleRef.current = now
-      const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null
-      if (coalesced && coalesced.length > 0) {
-        for (const ev of coalesced) sendPointerMove(ev)
-      } else {
-        sendPointerMove(e)
-      }
-    }
+    const handlePointerMove = bindLatestPointerFrame(sendPointerMove)
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
     window.addEventListener('mousedown', sendPointerClick)
     return () => {
@@ -5439,9 +5503,10 @@ export default function CurriculumViewPage() {
       }
       if (e.data?.type === 'quiz-popup-open' && typeof e.data?.value === 'boolean' && e.source === studentViewWindowRef.current) {
         if (e.data.value) {
-          openQuizPopupFresh()
+          openQuizPopupFresh(typeof e.data.slideIndex === 'number' ? e.data.slideIndex : undefined)
         } else {
           setQuizPopupOpen(false)
+          setQuizFocusSlideIndex(null)
         }
         if (e.data.value && typeof e.data?.scrollTop === 'number') {
           const el = document.querySelector('[data-quiz-popup-scroll]') as HTMLElement | null
@@ -5466,12 +5531,12 @@ export default function CurriculumViewPage() {
           const el = document.querySelector('[data-quiz-popup]')
           const rect = el ? (el as HTMLElement).getBoundingClientRect() : null
           if (rect) {
-            setStudentMousePos({ x: rect.right - e.data.relX, y: rect.top + e.data.relY })
+            studentMouseRef.current?.moveTo(rect.right - e.data.relX, rect.top + e.data.relY)
           }
         } else if (typeof e.data?.x === 'number' && typeof e.data?.y === 'number') {
           const w = window.innerWidth || 1
           const h = window.innerHeight || 1
-          setStudentMousePos({ x: e.data.x * w, y: e.data.y * h })
+          studentMouseRef.current?.moveTo(e.data.x * w, e.data.y * h)
         }
       }
       if (e.data?.type === 'curriculum-data') {
@@ -5767,6 +5832,73 @@ export default function CurriculumViewPage() {
   }, [visualFullscreenOpen, infographicFullscreenOpen, closeTeacherVisualFullscreen, closeTeacherInfographicFullscreen])
 
   const replaceLessonTextOnce = (haystack: string, from: string, to: string) => replaceCurriculumExercise(haystack, from, to)
+
+  const renderSlideQuizAction = (slideIndex: number, blocks: SlideItem['blocks'], opts?: { fullViewLabel?: boolean }) => {
+    if (getQuizCount(blocks) < 1) {
+      return (
+        <div data-teacher-chrome>
+        <Popover open={quizDifficultyPopoverSlide === slideIndex} onOpenChange={(o) => setQuizDifficultyPopoverSlide(o ? slideIndex : null)}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              disabled={quizGenLoading !== null}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {quizGenLoading === slideIndex ? (
+                tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
+              ) : (
+                <>
+                  {tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
+                  {slideQuizGenCreditSuffix}
+                </>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-2" align="end">
+            <p className="text-xs font-medium text-foreground mb-2">{tr('Chọn độ khó', 'Select difficulty', '选择难度', '難易度を選択', '난이도 선택')}</p>
+            <div className="flex flex-col gap-1">
+              {QUIZ_DIFFICULTIES.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => void handleGenerateQuiz(slideIndex, d)}
+                  className={`text-left text-sm font-medium px-2.5 py-2 rounded-md transition-colors ${
+                    d === 'easy'
+                      ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                      : d === 'medium'
+                        ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+                        : 'text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
+                  }`}
+                >
+                  {d === 'easy' ? tr('Dễ', 'Easy', '简单', '易しい', '쉬움') : d === 'medium' ? tr('Trung bình', 'Medium', '中等', '普通', '보통') : tr('Khó', 'Hard', '困难', '難しい', '어려움')}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+        </div>
+      )
+    }
+    return (
+      <button
+        type="button"
+        data-pointer-sync-id={`slide-quiz-view-${slideIndex}`}
+        onClick={() => openQuizPopupFresh(slideIndex)}
+        className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors"
+        title={tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
+      >
+        <ClipboardList className="h-3.5 w-3.5" />
+        {opts?.fullViewLabel
+          ? tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')
+          : tr('Xem câu hỏi', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
+      </button>
+    )
+  }
+
+  const quizPopupSlideIndex = quizFocusSlideIndex ?? currentIndex
 
   return (
     <div className={cn('fixed inset-0 z-50 flex h-screen w-screen flex-col items-stretch overflow-x-hidden bg-slate-950 text-white', narrowTeacherLayout ? 'overflow-hidden' : 'overflow-y-auto')}>
@@ -6798,61 +6930,14 @@ export default function CurriculumViewPage() {
                                 {showDirectEdit && (
                                   <button type="button" onClick={() => { setEditingTitle(currentIndex); setEditingTitleValue(s?.title ?? '') }} className="text-xs text-slate-400 hover:text-amber-400 px-2 py-1 rounded-md hover:bg-slate-700/50 transition-colors">{tr('Sửa tiêu đề', 'Edit title', '编辑标题', 'タイトル編集', '제목 편집')}</button>
                                 )}
-                                {editingTitle !== currentIndex && (
-                                  getQuizCount(blks) < 1 ? (
-                                    <Popover open={quizDifficultyPopoverSlide === currentIndex} onOpenChange={(o) => setQuizDifficultyPopoverSlide(o ? currentIndex : null)}>
-                                      <PopoverTrigger asChild>
-                                        <button
-                                          type="button"
-                                          disabled={quizGenLoading !== null}
-                                          className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                                          title={tr('Tạo câu hỏi trắc nghiệm', 'Generate quiz', '生成测验', 'クイズ作成', '퀴즈 생성')}
-                                        >
-                                          <Sparkles className="h-3.5 w-3.5" />
-                                          {quizGenLoading === currentIndex ? (
-                                            tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
-                                          ) : (
-                                            <>
-                                              {tr('Tạo câu hỏi', 'Add quiz', '添加测验', 'クイズ追加', '퀴즈 추가')}
-                                              {slideQuizGenCreditSuffix}
-                                            </>
-                                          )}
-                                        </button>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-48 p-2" align="start">
-                                        <p className="text-xs font-medium text-foreground mb-2">{tr('Chọn độ khó', 'Select difficulty', '选择难度', '難易度を選択', '난이도 선택')}</p>
-                                        <div className="flex flex-col gap-1">
-                                          {QUIZ_DIFFICULTIES.map((d) => (
-                                            <button
-                                              key={d}
-                                              type="button"
-                                              onClick={() => void handleGenerateQuiz(currentIndex, d)}
-                                              className={`text-left text-sm font-medium px-2.5 py-2 rounded-md transition-colors ${
-                                                d === 'easy'
-                                                  ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
-                                                  : d === 'medium'
-                                                    ? 'text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
-                                                    : 'text-rose-600 dark:text-rose-400 hover:bg-rose-500/20'
-                                              }`}
-                                            >
-                                              {d === 'easy' ? tr('Dễ', 'Easy', '简单', '易しい', '쉬움') : d === 'medium' ? tr('Trung bình', 'Medium', '中等', '普通', '보통') : tr('Khó', 'Hard', '困难', '難しい', '어려움')}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </PopoverContent>
-                                    </Popover>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={openQuizPopupFresh}
-                                      className="text-xs text-violet-400 hover:text-violet-300 px-2.5 py-1 rounded-lg bg-violet-500/15 border border-violet-400/30 flex items-center gap-1.5 transition-colors"
-                                      title={tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
-                                    >
-                                      <ClipboardList className="h-3.5 w-3.5" />
-                                      {tr('Xem câu hỏi', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
-                                    </button>
-                                  )
-                                )}
+                                {!mirrorChain && editingTitle !== currentIndex && getQuizCount(blks) < 1
+                                  ? renderSlideQuizAction(currentIndex, blks)
+                                  : null}
+                                {!mirrorChain && editingTitle !== currentIndex && getQuizCount(blks) >= 1 ? (
+                                  <div className="ml-auto flex justify-end">
+                                    {renderSlideQuizAction(currentIndex, blks, { fullViewLabel: true })}
+                                  </div>
+                                ) : null}
                           </div>
                         )}
                       </div>
@@ -6864,8 +6949,11 @@ export default function CurriculumViewPage() {
                               ? parseContentToBlocks(past.content ?? '')
                               : raw
                             return (
+                              <div key={si} className="w-full">
+                              <div className="mb-1.5 flex flex-wrap items-center justify-end">
+                                {renderSlideQuizAction(si, pastBlks)}
+                              </div>
                               <section
-                                key={si}
                                 id={`teacher-chain-slide-${si}`}
                                 data-teacher-chain-slide={si}
                                 className={cn(SLIDE_POINTER_CHAIN_CARD_CLASS, 'w-full border-slate-600/50 bg-slate-900/25')}
@@ -6912,8 +7000,14 @@ export default function CurriculumViewPage() {
                                   ) : null}
                                 </div>
                               </section>
+                              </div>
                             )
                           })}
+                        </div>
+                      ) : null}
+                      {mirrorChain && editingTitle !== currentIndex ? (
+                        <div className={cn('mb-1.5 flex flex-wrap items-center justify-end', currentIndex > 0 && 'mt-6')}>
+                          {renderSlideQuizAction(currentIndex, blks)}
                         </div>
                       ) : null}
                       <div
@@ -6923,7 +7017,7 @@ export default function CurriculumViewPage() {
                         className={cn(
                           'w-full min-w-0',
                           mirrorChain && cn(SLIDE_POINTER_CHAIN_CARD_CLASS, 'border-amber-400/35 bg-slate-900/35'),
-                          mirrorChain && currentIndex > 0 && 'mt-6'
+                          mirrorChain && currentIndex > 0 && editingTitle === currentIndex && 'mt-6'
                         )}
                       >
                         <h2
@@ -6933,15 +7027,14 @@ export default function CurriculumViewPage() {
                             'text-amber-200'
                           )}
                         >
-                          {mirrorChain ? `${currentIndex + 1}. ` : null}
                           {(() => {
+                            const titleText = curriculumSlideTitleTypingText(currentIndex, s?.title ?? '', !!mirrorChain)
                             const titleK = curriculumSlideTitleRevealKey(currentIndex)
                             const titleTypingOn =
                               !!curriculumId &&
-                              blks.length > 0 &&
                               answerTypingEnabled[titleK] !== false &&
-                              worksheetAnswerSegmentCount(s?.title ?? '') > 0
-                            if (!titleTypingOn) return s?.title ?? ''
+                              worksheetAnswerSegmentCount(titleText) > 0
+                            if (!titleTypingOn) return titleText
                             const preview =
                               answerRevealJumpPopoverSlideIndex === currentIndex && answerRevealJumpPreviewByBlock
                                 ? answerRevealJumpPreviewByBlock[titleK]
@@ -6949,7 +7042,7 @@ export default function CurriculumViewPage() {
                             const revealed = answerRevealProgress[titleK] ?? 0
                             return (
                               <AnimatedCharReveal
-                                text={s?.title ?? ''}
+                                text={titleText}
                                 visibleCount={preview ?? revealed}
                                 showCursor={sequentialSolutionLeaderBlockIndex === -1}
                                 penWhenEmpty={sequentialSolutionLeaderBlockIndex === -1}
@@ -6970,6 +7063,27 @@ export default function CurriculumViewPage() {
                               const showSolutionTypingToolbar =
                                 (!!worksheetId && !!(b as { isAnswer?: boolean }).isAnswer) ||
                                 (!worksheetId && !!curriculumId)
+                              const blockKey = `${currentIndex}-${i}`
+                              const headerTypingOpts = {
+                                worksheetPresentation: !!worksheetId,
+                                hasCurriculumSegmentTyping: !!curriculumId,
+                                typingOn: showSolutionTypingToolbar && answerTypingEnabled[blockKey] !== false,
+                              }
+                              const headerSplit = splitBlockTypingReveal(
+                                b,
+                                answerRevealJumpPopoverSlideIndex === currentIndex && answerRevealJumpPreviewByBlock
+                                  ? answerRevealJumpPreviewByBlock[blockKey]
+                                  : answerRevealProgress[blockKey] ?? 0,
+                                headerTypingOpts
+                              )
+                              const headerIsLeader =
+                                sequentialSolutionLeaderBlockIndex === i &&
+                                headerSplit.headerTotal > 0 &&
+                                headerSplit.headerVisible < headerSplit.headerTotal
+                              const contentIsLeader =
+                                sequentialSolutionLeaderBlockIndex === i &&
+                                headerSplit.headerVisible >= headerSplit.headerTotal
+                              const headerLabel = (b.header ?? '').trim()
                               return (
                                 <div
                                   key={i}
@@ -6992,20 +7106,40 @@ export default function CurriculumViewPage() {
                                     </div>
                                   ) : (
                                     <>
-                                    {(mirrorChain ? !!(b.header ?? '').trim() : true) && (
+                                    {(mirrorChain ? !!headerLabel : true) && (
                                       mirrorChain ? (
                                         <div
                                           data-pointer-sync-id={`slide-block-header-${currentIndex}-${i}`}
                                           className={cn(SLIDE_POINTER_CHAIN_HEADER_CLASS, 'text-amber-200')}
                                         >
-                                          {b.header}
+                                          {headerTypingOpts.typingOn && headerLabel ? (
+                                            <AnimatedCharReveal
+                                              text={headerLabel}
+                                              visibleCount={headerSplit.headerVisible}
+                                              showCursor={headerIsLeader}
+                                              penWhenEmpty={headerIsLeader}
+                                            />
+                                          ) : (
+                                            b.header
+                                          )}
                                         </div>
                                       ) : (
                                         <div className={cn(SLIDE_POINTER_SINGLE_HEADER_CLASS, 'border-slate-600/50 text-amber-200')}>
                                           <span data-pointer-sync-id={`slide-block-header-${currentIndex}-${i}`}>
-                                            {(b.header ?? '').trim()
-                                              ? b.header
-                                              : tr('Nội dung', 'Content', '内容', '内容', '내용')}
+                                            {headerLabel ? (
+                                              headerTypingOpts.typingOn ? (
+                                                <AnimatedCharReveal
+                                                  text={headerLabel}
+                                                  visibleCount={headerSplit.headerVisible}
+                                                  showCursor={headerIsLeader}
+                                                  penWhenEmpty={headerIsLeader}
+                                                />
+                                              ) : (
+                                                b.header
+                                              )
+                                            ) : (
+                                              tr('Nội dung', 'Content', '内容', '内容', '내용')
+                                            )}
                                           </span>
                                         </div>
                                       )
@@ -7053,11 +7187,11 @@ export default function CurriculumViewPage() {
                                           content={b.content ?? ''}
                                           typingEnabled={answerTypingEnabled[`${currentIndex}-${i}`] !== false}
                                           typingPaused={answerVisibility[`${currentIndex}-${i}`] === false || answerTypingPaused[`${currentIndex}-${i}`] === true}
-                                          revealedSegments={answerRevealProgress[`${currentIndex}-${i}`] ?? 0}
-                                          isSequentialTypingLeader={sequentialSolutionLeaderBlockIndex === i}
+                                          revealedSegments={headerSplit.contentVisible}
+                                          isSequentialTypingLeader={contentIsLeader}
                                           revealPreviewSegments={
                                             answerRevealJumpPopoverSlideIndex === currentIndex && answerRevealJumpPreviewByBlock
-                                              ? answerRevealJumpPreviewByBlock[`${currentIndex}-${i}`]
+                                              ? headerSplit.contentVisible
                                               : undefined
                                           }
                                           tr={tr}
@@ -8017,29 +8151,32 @@ export default function CurriculumViewPage() {
           </div>
         )
       })()}
-      {slides[currentIndex] && (
+      {slides[quizPopupSlideIndex] && (
         <QuizPopupDialog
           open={quizPopupOpen}
           onOpenChange={(open) => {
+            const slideIndex = quizFocusSlideIndex ?? currentIndex
+            const mirrorStudent = quizFocusSlideIndex == null
             setQuizPopupOpen(open)
+            if (!open) setQuizFocusSlideIndex(null)
             setQuizSessionData((prev) => {
               const next = { ...prev }
               for (const k of Object.keys(next)) {
-                if (k.startsWith(`${currentIndex}-`)) delete next[k]
+                if (k.startsWith(`${slideIndex}-`)) delete next[k]
               }
               return next
             })
             setQuizSessionSettings((prev) => {
               const next = { ...prev }
               for (const k of Object.keys(next)) {
-                if (k.startsWith(`${currentIndex}-`)) delete next[k]
+                if (k.startsWith(`${slideIndex}-`)) delete next[k]
               }
               return next
             })
-            sendToStudentView({ type: 'quiz-session-reset-slide', slideIndex: currentIndex })
+            if (mirrorStudent) sendToStudentView({ type: 'quiz-session-reset-slide', slideIndex })
           }}
-          slide={slides[currentIndex]}
-          slideIndex={currentIndex}
+          slide={slides[quizPopupSlideIndex]}
+          slideIndex={quizPopupSlideIndex}
           curriculumId={curriculumId ?? undefined}
           tr={tr}
           teacherMode
@@ -8071,19 +8208,7 @@ export default function CurriculumViewPage() {
           }}
         />
       )}
-      {typeof document !== 'undefined' &&
-        studentMousePos &&
-        createPortal(
-          <div
-            className="fixed z-[115] pointer-events-none transition-all duration-75"
-            style={{ left: studentMousePos.x, top: studentMousePos.y, transform: 'translate(-2px, -2px)' }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="drop-shadow-lg">
-              <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="rgba(34,197,94,0.9)" stroke="rgba(0,0,0,0.5)" strokeWidth="1.2" strokeLinejoin="round" />
-            </svg>
-          </div>,
-          document.body
-        )}
+      <VirtualMouseOverlay variant="remote-student" controllerRef={studentMouseRef} />
       {gvWorksheetEditFilter && worksheetId && (
         <WorksheetEditSectionPopup
           open={true}
@@ -8127,7 +8252,14 @@ export default function CurriculumViewPage() {
           if (si == null) return
           const blks = slides[si]?.blocks ?? []
           const slideRow = slides[si]
-          const distributed = distributeGlobalRevealAcrossSlide(n, blks, si, answerRevealJumpOpts, slideRow?.title ?? '')
+          const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
+          const distributed = distributeGlobalRevealAcrossSlide(
+            n,
+            blks,
+            si,
+            answerRevealJumpOpts,
+            curriculumSlideTitleTypingText(si, slideRow?.title ?? '', numberedTitle)
+          )
           setAnswerRevealProgress((prev) => ({ ...prev, ...distributed }))
         }}
         tr={tr}

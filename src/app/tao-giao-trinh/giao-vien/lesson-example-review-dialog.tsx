@@ -392,16 +392,29 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                     )}
                   </p>
                   <div className="flex flex-wrap justify-end gap-2">
+                  {alreadyMine && !editing && !(stat.warn && stat.proposalText && !stat.proposalAuthorIsMe) ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="cursor-default rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-emerald-50"
+                    >
+                      {tr('Đã xác nhận', 'Confirmed', '已确认', '確認済', '확인함')}
+                    </button>
+                  ) : null}
                   {stat.warn && stat.proposalText && !stat.proposalAuthorIsMe ? (
                     <>
                       <button
                         type="button"
                         disabled={stat.myVote === 'agree'}
                         onClick={() => chooseVersion(index, 'agree')}
-                        className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+                        className={
+                          stat.myVote === 'agree'
+                            ? 'cursor-default rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-emerald-50'
+                            : 'rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50'
+                        }
                       >
                         {stat.myVote === 'agree'
-                          ? tr('Bạn đã đồng ý', 'You agreed', '你已同意', '同意済み', '동의함')
+                          ? tr('Đã xác nhận', 'Confirmed', '已确认', '確認済', '확인함')
                           : tr('Đồng ý đề xuất', 'Agree', '同意提议', '提案に同意', '제안에 동의')}
                       </button>
                       <button

@@ -829,7 +829,7 @@ export function PartnerWebsiteLogosPanel({
                 'h-7 rounded-md px-2.5 text-xs font-medium',
                 device === id
                   ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'hover:text-foreground'
               )}
               onClick={() => setDevice(id)}
             >

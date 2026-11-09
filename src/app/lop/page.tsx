@@ -56,7 +56,7 @@ export default async function LopPage() {
             <div className="flex flex-wrap gap-2 lg:gap-3">
               <Link
                 href="/lop/tham-gia"
-                className="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent lg:rounded-xl lg:px-5 lg:py-2.5 lg:shadow-sm lg:transition-shadow lg:hover:shadow-md"
+                className="rounded-lg border border-indigo-300 bg-indigo-100 px-4 py-2 text-sm font-medium text-indigo-950 hover:bg-indigo-200 lg:rounded-xl lg:px-5 lg:py-2.5 lg:shadow-sm"
               >
                 {t.classes.joinClassForStudent}
               </Link>
@@ -79,7 +79,7 @@ export default async function LopPage() {
               </Link>
               <Link
                 href="/tao-bai-tap-ve-nha"
-                className="flex w-full touch-manipulation items-center justify-center rounded-lg border border-input bg-background px-4 py-3 text-center text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-muted/60 active:bg-muted/80"
+                className="flex w-full touch-manipulation items-center justify-center rounded-lg border border-indigo-300 bg-indigo-100 px-4 py-3 text-center text-sm font-semibold text-indigo-950 shadow-sm transition-colors hover:bg-indigo-200"
               >
                 {t.classes.mobileCreateHomework}
               </Link>

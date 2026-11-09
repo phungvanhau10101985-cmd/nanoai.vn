@@ -234,7 +234,7 @@ export default function GhepAnhClientPage() {
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
-                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
+                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-indigo-300 text-indigo-950 hover:bg-indigo-200" />
                                         <div className="flex flex-wrap items-center justify-center gap-2">
                       <ImageEnginePicker
                       locale={uiLocale}

@@ -299,9 +299,9 @@
   }
 }
 
-/* Nút tự gắn nền trắng / gần trắng: tô màu cho khỏi chìm vào thẻ. */
+/* Nút tự gắn nền trắng / gần trắng: tô màu và chữ đậm cho khỏi chìm vào thẻ. */
 @layer utilities {
-  :is(button, [role="button"]):is(
+  :is(button, [role="button"], a.inline-flex:not([class*="pw-"])):is(
     [class~="bg-white"],
     [class~="bg-background"],
     [class~="bg-card"],
@@ -327,7 +327,7 @@
     background-color: #e0e7ff;
   }
 
-  :is(button, [role="button"]):is(
+  :is(button, [role="button"], a.inline-flex:not([class*="pw-"])):is(
     [class~="bg-white"],
     [class~="bg-background"],
     [class~="bg-card"],
@@ -353,6 +353,120 @@
     background-color: #c7d2fe;
   }
 
+  :is(button, [role="button"], a.inline-flex:not([class*="pw-"])):is(
+    [class~="bg-white"],
+    [class~="bg-background"],
+    [class~="bg-card"],
+    [class~="bg-muted"],
+    [class~="bg-slate-50"],
+    [class~="bg-gray-50"],
+    [class~="bg-zinc-50"],
+    [class~="bg-neutral-50"],
+    [class~="bg-stone-50"],
+    [class~="bg-indigo-50"],
+    [class~="bg-indigo-100"],
+    [class~="bg-white/70"],
+    [class~="bg-white/80"],
+    [class~="bg-white/90"],
+    [class~="bg-white/95"],
+    [class~="bg-background/80"],
+    [class~="bg-background/90"],
+    [class~="bg-background/95"],
+    [class~="bg-card/80"],
+    [class~="bg-card/90"]
+  ):is(
+    [class~="text-muted-foreground"],
+    [class~="text-slate-400"],
+    [class~="text-slate-500"],
+    [class~="text-gray-400"],
+    [class~="text-gray-500"],
+    [class~="text-gray-600"],
+    [class~="text-zinc-500"],
+    [class~="text-neutral-500"]
+  ) {
+    color: #1e1b4b;
+  }
+
+  .dark :is(button, [role="button"], a.inline-flex:not([class*="pw-"])):is(
+    [class~="bg-white"],
+    [class~="bg-background"],
+    [class~="bg-card"],
+    [class~="bg-muted"],
+    [class~="bg-slate-50"],
+    [class~="bg-gray-50"],
+    [class~="bg-zinc-50"],
+    [class~="bg-neutral-50"],
+    [class~="bg-stone-50"],
+    [class~="bg-white/80"],
+    [class~="bg-white/90"],
+    [class~="bg-white/95"],
+    [class~="bg-background/80"],
+    [class~="bg-background/90"],
+    [class~="bg-background/95"],
+    [class~="bg-card/80"],
+    [class~="bg-card/90"]
+  ):not([class~="text-white"]) {
+    background-color: #312e81;
+    color: #eef2ff;
+  }
+
+  :is(button, [role="button"], a.inline-flex):is([class~="bg-amber-500"], [class~="bg-amber-600"], [class~="bg-orange-500"], [class~="bg-orange-600"]):is([class~="text-white"]) {
+    background-color: #9a3412;
+  }
+
+  :is(button, [role="button"], a.inline-flex):is([class~="bg-amber-500"], [class~="bg-amber-600"], [class~="bg-orange-500"], [class~="bg-orange-600"]):is([class~="text-white"]):hover {
+    background-color: #7c2d12;
+  }
+
+  :is(button, [role="button"]):is([class~="bg-amber-50"], [class~="bg-yellow-50"], [class~="bg-orange-50"]) {
+    background-color: #fde68a;
+    color: #451a03;
+  }
+
+  :is(button, [role="button"], a.inline-flex:not([class*="pw-"])):is(
+    [class~="bg-slate-100"],
+    [class~="bg-gray-100"],
+    [class~="bg-zinc-100"],
+    [class~="bg-neutral-100"]
+  ) {
+    background-color: #e0e7ff;
+    color: #1e1b4b;
+  }
+
+  :is(button, [role="button"], a.inline-flex:not([class*="pw-"])):is(
+    [class~="bg-slate-100"],
+    [class~="bg-gray-100"],
+    [class~="bg-zinc-100"],
+    [class~="bg-neutral-100"]
+  ):hover {
+    background-color: #c7d2fe;
+    color: #1e1b4b;
+  }
+
+  :is(button, [role="button"]):is([class~="bg-violet-50"]) {
+    background-color: #ddd6fe;
+  }
+
+  :is(button, [role="button"]):is([class~="bg-violet-50"]):hover {
+    background-color: #c4b5fd;
+  }
+
+  a:not([class*="pw-"]):not([class~="block"]):not([class~="text-white"]):is(
+    [class~="bg-background"],
+    [class~="bg-white"]
+  ):is([class~="font-medium"], [class~="font-semibold"]) {
+    background-color: #e0e7ff;
+    color: #1e1b4b;
+  }
+
+  a:not([class*="pw-"]):not([class~="block"]):not([class~="text-white"]):is(
+    [class~="bg-background"],
+    [class~="bg-white"]
+  ):is([class~="font-medium"], [class~="font-semibold"]):hover {
+    background-color: #c7d2fe;
+    color: #1e1b4b;
+  }
+
   [data-wedding-stage] :is(button, [role="button"]):is(
     [class~="bg-white"],
     [class~="bg-background"],
@@ -363,6 +477,7 @@
     [class~="bg-white/95"]
   ):not([class~="text-white"]) {
     background-color: #ffe4e6;
+    color: #3f1d2e;
   }
 
   [data-wedding-stage] :is(button, [role="button"]):is(
@@ -375,5 +490,6 @@
     [class~="bg-white/95"]
   ):not([class~="text-white"]):hover {
     background-color: #fecdd3;
+    color: #3f1d2e;
   }
 }

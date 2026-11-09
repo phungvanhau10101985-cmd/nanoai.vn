@@ -4595,6 +4595,7 @@ export type Dictionary = {
     quickViewEdit: string
     quickViewSave: string
     quickViewConfirm: string
+    quickViewConfirmed: string
     quickViewDisagree: string
     quickViewUsingEdit: string
     quickViewUsingOriginal: string
@@ -9289,6 +9290,7 @@ export const VI_DICTIONARY: Dictionary = {
     quickViewEdit: 'Sửa',
     quickViewSave: 'Lưu',
     quickViewConfirm: 'Xác nhận đúng',
+    quickViewConfirmed: 'Đã xác nhận',
     quickViewDisagree: 'Không đồng ý',
     quickViewUsingEdit: 'Đang dùng bản sửa',
     quickViewUsingOriginal: 'Đang dùng bản gốc',

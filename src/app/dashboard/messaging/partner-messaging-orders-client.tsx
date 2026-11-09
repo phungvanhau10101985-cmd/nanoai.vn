@@ -1081,7 +1081,7 @@ export function PartnerMessagingOrdersClient({
             onClick={() => exportExcel()}
             disabled={pending}
             title={t.exportExcelTitle}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-100 px-3 py-2 text-sm font-medium text-indigo-950 hover:bg-indigo-200 disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-50"
           >
             <Download className="h-3.5 w-3.5" aria-hidden />
             {t.exportExcel}
@@ -1638,7 +1638,7 @@ export function PartnerMessagingOrdersClient({
                       type="button"
                       onClick={() => void copyCustomerAddress(selectedOrder.shipping_address)}
                       disabled={!selectedOrder.shipping_address?.trim()}
-                      className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 disabled:opacity-45"
+                      className="inline-flex items-center gap-1 rounded-md border border-indigo-300 bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-950 shadow-sm hover:bg-indigo-200 disabled:opacity-45"
                     >
                       {t.modalCopyAddress}
                     </button>

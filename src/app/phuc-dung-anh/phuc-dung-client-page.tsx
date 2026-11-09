@@ -309,7 +309,7 @@ export default function PhucDungClientPage() {
                       variant="outline"
                       onClick={handleFetchFromUrl}
                       disabled={urlLoading}
-                      className="shrink-0 min-h-[44px] border-amber-200 text-amber-700 hover:bg-amber-50 touch-manipulation"
+                      className="shrink-0 min-h-[44px] border-indigo-300 text-indigo-950 hover:bg-indigo-200 touch-manipulation"
                     >
                       <Link2 className="mr-2 h-4 w-4" />
                       {urlLoading ? tr('Đang tải...', 'Loading...', '加载中...', '読み込み中...', '불러오는 중...') : tr('Lấy ảnh', 'Fetch image', '获取图片', '画像を取得', '가져오기')}
@@ -338,7 +338,7 @@ export default function PhucDungClientPage() {
                           className={`py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
                             personCount === n
                               ? 'border-amber-500 bg-amber-50 text-amber-800 ring-2 ring-amber-200'
-                              : 'border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50/50 text-muted-foreground'
+                              : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:border-indigo-400 hover:bg-indigo-200'
                           }`}
                         >
                           {n === 6 ? '6+' : n}
@@ -367,7 +367,7 @@ export default function PhucDungClientPage() {
                                   className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
                                     personInfo[i]?.gender === 'nam'
                                       ? 'border-amber-500 bg-amber-50 text-amber-800'
-                                      : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
+                                      : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:border-indigo-400 hover:bg-indigo-200'
                                   }`}
                                 >
                                   {tr('Nam', 'Male', '男', '男性', '남성')}
@@ -384,7 +384,7 @@ export default function PhucDungClientPage() {
                                   className={`flex-1 py-2.5 rounded-lg border-2 text-sm font-semibold transition-all ${
                                     personInfo[i]?.gender === 'nữ'
                                       ? 'border-amber-500 bg-amber-50 text-amber-800'
-                                      : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
+                                      : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:border-indigo-400 hover:bg-indigo-200'
                                   }`}
                                 >
                                   {tr('Nữ', 'Female', '女', '女性', '여성')}
@@ -451,7 +451,7 @@ export default function PhucDungClientPage() {
                         className={`w-full py-3 rounded-lg border-2 text-sm font-semibold transition-all ${
                           colorMode === 'original'
                             ? 'border-amber-500 bg-amber-50 text-amber-800'
-                            : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
+                            : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:border-indigo-400 hover:bg-indigo-200'
                         }`}
                       >
                         {tr('Giữ nguyên màu', 'Keep original colors', '保留原色', '元の色を保持', '원본 색상 유지')}
@@ -462,7 +462,7 @@ export default function PhucDungClientPage() {
                         className={`w-full py-3 rounded-lg border-2 text-sm font-semibold transition-all ${
                           colorMode === 'colorize'
                             ? 'border-amber-500 bg-amber-50 text-amber-800'
-                            : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
+                            : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:border-indigo-400 hover:bg-indigo-200'
                         }`}
                       >
                         {tr('Phối màu như ảnh thật', 'Colorize naturally', '自然上色', '自然にカラー化', '자연스럽게 컬러화')}
@@ -482,7 +482,7 @@ export default function PhucDungClientPage() {
                     <DepositCreditButton
                       variant="outline"
                       size="sm"
-                      className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
+                      className="w-full border-indigo-300 text-indigo-950 hover:bg-indigo-200"
                     />
                     <div className="flex flex-wrap items-center justify-center gap-2">
                     <ImageEnginePicker

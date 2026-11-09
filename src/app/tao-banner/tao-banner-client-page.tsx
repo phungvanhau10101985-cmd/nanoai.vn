@@ -282,7 +282,7 @@ export default function TaoBannerClientPage() {
                               type="button"
                               onClick={() => setImages((prev) => prev.map((im, j) => (j === i ? { ...im, removeBackground: true } : im)))}
                               className={`flex items-center justify-center gap-1 py-1.5 rounded-md border text-[10px] font-medium transition-colors ${
-                                img.removeBackground ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                                img.removeBackground ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                               }`}
                             >
                               {img.removeBackground && <Check className="h-3 w-3 shrink-0" />}
@@ -292,7 +292,7 @@ export default function TaoBannerClientPage() {
                               type="button"
                               onClick={() => setImages((prev) => prev.map((im, j) => (j === i ? { ...im, removeBackground: false } : im)))}
                               className={`flex items-center justify-center gap-1 py-1.5 rounded-md border text-[10px] font-medium transition-colors ${
-                                !img.removeBackground ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                                !img.removeBackground ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                               }`}
                             >
                               {!img.removeBackground && <Check className="h-3 w-3 shrink-0" />}
@@ -346,7 +346,7 @@ export default function TaoBannerClientPage() {
                           type="button"
                           onClick={() => setAspectRatio(r.value)}
                           className={`px-2 py-1.5 rounded-md border text-xs font-medium transition-colors ${
-                            aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                            aspectRatio === r.value ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {r.label}
@@ -355,7 +355,7 @@ export default function TaoBannerClientPage() {
                     </div>
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
-                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
+                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-indigo-300 text-indigo-950 hover:bg-indigo-200" />
                                         <div className="flex flex-wrap items-center justify-center gap-2">
                       <ImageEnginePicker
                       locale={uiLocale}

@@ -191,7 +191,7 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
                   <img src={resultUrl} alt={tr('Tem đã tạo', 'Created seal', '已创建标签', '作成したシール', '생성된 씰')} className="max-w-full max-h-[400px] object-contain rounded shadow" />
                 </div>
                 <div className="flex flex-wrap gap-2 mt-4">
-                  <a href={resultUrl} download="tem-ai.png" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border bg-white hover:bg-gray-50 text-sm font-medium">
+                  <a href={resultUrl} download="tem-ai.png" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-indigo-300 bg-indigo-100 text-sm font-medium text-indigo-950 hover:bg-indigo-200">
                     <Download className="h-3 w-3" /> {tr('Tải PNG', 'Download PNG', '下载 PNG', 'PNGをダウンロード', 'PNG 다운로드')}
                   </a>
                   <DownloadImageButton imageUrl={resultUrl} filename="tem-ai" printReady printReadyAspectRatio={aspectRatio} printReadyLabel={tr('Tải PDF chuẩn in', 'Download print-ready PDF', '下载印刷用PDF', '印刷用PDFをダウンロード', '인쇄용 PDF 다운로드')} printReadySuccessToast={tr('Đã tạo PDF chuẩn in.', 'Print-ready PDF created.', '已生成印刷用PDF。', '印刷用PDFを作成しました。', '인쇄용 PDF 생성됨.')} />
@@ -217,9 +217,9 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
                     <div className="space-y-2 relative z-10">
                       <label className="text-xs font-medium text-muted-foreground">{tr('Loại tem', 'Label type', '标签类型', 'ラベル種類', '라벨 유형')}</label>
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => setSealType('chinh-hang')} className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-md border text-sm font-medium transition-colors cursor-pointer select-none touch-manipulation ${sealType === 'chinh-hang' ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>{tr('Tem chính hãng', 'Authentic seal', '正品标签', '正規品シール', '정품 씰')}</button>
-                        <button type="button" onClick={() => setSealType('bao-hanh')} className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-md border text-sm font-medium transition-colors cursor-pointer select-none touch-manipulation ${sealType === 'bao-hanh' ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>{tr('Tem bảo hành', 'Warranty seal', '保修标签', '保証シール', '보증 씰')}</button>
-                        <button type="button" onClick={() => setSealType('niem-phong')} className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-md border text-sm font-medium transition-colors cursor-pointer select-none touch-manipulation ${sealType === 'niem-phong' ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>{tr('Tem liêm phong', 'Security seal', '封条', '封印', '봉인')}</button>
+                        <button type="button" onClick={() => setSealType('chinh-hang')} className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-md border text-sm font-medium transition-colors cursor-pointer select-none touch-manipulation ${sealType === 'chinh-hang' ? 'border-green-600 bg-green-50 text-green-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>{tr('Tem chính hãng', 'Authentic seal', '正品标签', '正規品シール', '정품 씰')}</button>
+                        <button type="button" onClick={() => setSealType('bao-hanh')} className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-md border text-sm font-medium transition-colors cursor-pointer select-none touch-manipulation ${sealType === 'bao-hanh' ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>{tr('Tem bảo hành', 'Warranty seal', '保修标签', '保証シール', '보증 씰')}</button>
+                        <button type="button" onClick={() => setSealType('niem-phong')} className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-md border text-sm font-medium transition-colors cursor-pointer select-none touch-manipulation ${sealType === 'niem-phong' ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>{tr('Tem liêm phong', 'Security seal', '封条', '封印', '봉인')}</button>
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -246,7 +246,7 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
                           { value: 'den', label: tr('Đen', 'Black', '黑', '黒', '검정') },
                           { value: 'cam', label: tr('Cam', 'Orange', '橙', 'オレンジ', '주황') },
                         ].map((c) => (
-                          <button key={c.value} type="button" onClick={() => setSealColor(sealColor === c.value ? '' : c.value)} className={`min-h-[36px] px-3 py-1.5 rounded-md border text-xs font-medium transition-colors cursor-pointer touch-manipulation ${sealColor === c.value ? 'border-rose-500 bg-rose-50 text-rose-800 ring-1 ring-rose-500' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>{c.label}</button>
+                          <button key={c.value} type="button" onClick={() => setSealColor(sealColor === c.value ? '' : c.value)} className={`min-h-[36px] px-3 py-1.5 rounded-md border text-xs font-medium transition-colors cursor-pointer touch-manipulation ${sealColor === c.value ? 'border-rose-500 bg-rose-50 text-rose-800 ring-1 ring-rose-500' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>{c.label}</button>
                         ))}
                       </div>
                     </div>
@@ -279,7 +279,7 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
                       <label className="text-xs font-medium text-muted-foreground">{tr('Tỷ lệ / Chất lượng', 'Aspect / Quality', '比例/质量', '比率・画質', '비율·화질')}</label>
                       <div className="flex flex-wrap gap-2">
                         {ASPECT_RATIOS.map((r) => (
-                          <button key={r.value} type="button" onClick={() => setAspectRatio(r.value)} className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${aspectRatio === r.value ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>{r.label}</button>
+                          <button key={r.value} type="button" onClick={() => setAspectRatio(r.value)} className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${aspectRatio === r.value ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'}`}>{r.label}</button>
                         ))}
                       </div>
                     </div>

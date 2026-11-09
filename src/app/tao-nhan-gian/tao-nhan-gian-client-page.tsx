@@ -417,7 +417,7 @@ export default function TaoNhanGianClientPage() {
                               className={`inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-[11px] font-medium transition-colors ${
                                 expressionId === opt.id
                                   ? 'border-teal-500 bg-teal-50 text-teal-900'
-                                  : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                                  : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                               }`}
                               title={labelForExpression(stickerLocale, opt.id)}
                             >
@@ -463,7 +463,7 @@ export default function TaoNhanGianClientPage() {
                           type="button"
                           onClick={() => setAspectRatio(r.value)}
                           className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                            aspectRatio === r.value ? 'border-teal-500 bg-teal-50 text-teal-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                            aspectRatio === r.value ? 'border-teal-500 bg-teal-50 text-teal-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {r.label}

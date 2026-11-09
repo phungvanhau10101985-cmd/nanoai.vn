@@ -25,13 +25,13 @@ import {
   NotebookPen,
 } from 'lucide-react'
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import QRCode from 'qrcode'
 import { GRADE_LEVELS, GRADE_LEVEL_GROUPS } from '../tao-giao-trinh/lib/curriculum-subjects'
 import ClassSubjectField from '../lop/class-subject-field'
@@ -48,7 +48,7 @@ import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
 import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
-import { isMarkedExamTeacher, markExamTeacher } from '@/lib/exam-teacher-mark'
+import { markExamTeacher } from '@/lib/exam-teacher-mark'
 import {
   navigateDetachedTeacherSlideWindow,
   openDetachedTeacherSlideWindow,
@@ -229,7 +229,6 @@ function CreatedExamsListRows({
   webLocale,
   buildExamReviewUrl,
   buildTeacherPaperUrl,
-  showTeacherActions,
   openExamPreview,
   deleteCreatedExam,
   deletingCode,
@@ -244,8 +243,6 @@ function CreatedExamsListRows({
   webLocale: WebLocale
   buildExamReviewUrl: (code: string) => string
   buildTeacherPaperUrl: (code: string) => string
-  /** Chữa bài và Giáo viên mở đề: người tạo đề, dùng đề có sẵn, hoặc đã mở giáo trình. */
-  showTeacherActions: boolean
   openExamPreview: (exam: { code: string; title: string; examUrl: string }) => void
   deleteCreatedExam: (code: string) => void
   deletingCode: string | null
@@ -301,23 +298,19 @@ function CreatedExamsListRows({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-            {showTeacherActions ? (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => openDetachedTeacherSlideWindow(buildExamReviewUrl(exam.code))}
-                >
-                  {tx.review}
-                </Button>
-                <Button type="button" size="sm" asChild>
-                  <Link href={buildTeacherPaperUrl(exam.code)} target="_blank">
-                    {tx.teacherOpenExam}
-                  </Link>
-                </Button>
-              </>
-            ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => openDetachedTeacherSlideWindow(buildExamReviewUrl(exam.code))}
+            >
+              {tx.review}
+            </Button>
+            <Button type="button" size="sm" asChild>
+              <Link href={buildTeacherPaperUrl(exam.code)} target="_blank">
+                {tx.teacherOpenExam}
+              </Link>
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -497,7 +490,6 @@ export default function TaoBaiThiClientPage({
     className: string
     schoolName: string
   }>>([])
-  const [teacherMarked, setTeacherMarked] = useState(false)
   const { toast } = useToast()
   const createdExamResultRef = useRef<HTMLDivElement | null>(null)
   const createdExamListRef = useRef<HTMLDivElement | null>(null)
@@ -511,13 +503,8 @@ export default function TaoBaiThiClientPage({
     (examCode: string) => `/giao-trinh/giao-vien/mo-de/${encodeURIComponent(examCode)}`,
     []
   )
-  const showTeacherExamActions = teacherMarked || createdExams.length > 0
-  useEffect(() => {
-    if (isMarkedExamTeacher()) setTeacherMarked(true)
-  }, [])
   const noteTeacher = () => {
     markExamTeacher()
-    setTeacherMarked(true)
   }
   const curriculaStorageKey = useMemo(
     () => `${isHomework ? 'tao-bai-tap-ve-nha' : 'tao-bai-thi'}:selected-curricula:${subjectId}:${gradeLevelId}`,
@@ -1629,7 +1616,7 @@ export default function TaoBaiThiClientPage({
           type="button"
           variant="ghost"
           size="sm"
-          className="-ml-2 h-9 gap-1 px-2 text-muted-foreground"
+          className="-ml-2 h-9 gap-1 px-2"
           onClick={() => router.back()}
         >
           <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
@@ -1691,24 +1678,20 @@ export default function TaoBaiThiClientPage({
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2 pt-2">
-                    {showTeacherExamActions ? (
-                      <>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="gap-1.5"
-                          onClick={() => openDetachedTeacherSlideWindow(buildExamReviewUrl(result.code))}
-                        >
-                          <BookOpen className="h-4 w-4" />
-                          {tx.reviewSlides}
-                        </Button>
-                        <Button size="sm" asChild>
-                          <Link href={buildTeacherPaperUrl(result.code)} target="_blank">
-                            {tx.teacherOpenExam}
-                          </Link>
-                        </Button>
-                      </>
-                    ) : null}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => openDetachedTeacherSlideWindow(buildExamReviewUrl(result.code))}
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      {tx.reviewSlides}
+                    </Button>
+                    <Button size="sm" asChild>
+                      <Link href={buildTeacherPaperUrl(result.code)} target="_blank">
+                        {tx.teacherOpenExam}
+                      </Link>
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -1753,25 +1736,25 @@ export default function TaoBaiThiClientPage({
         ) : (
           <Card className="border shadow-sm">
             <div className="border-b border-border/70 bg-muted/25 px-4 py-3 sm:px-6">
-              <Sheet
+              <Dialog
                 open={createdExamsSheetOpen}
                 onOpenChange={(open) => {
                   setCreatedExamsSheetOpen(open)
                   if (open) void loadCreatedExams()
                 }}
               >
-                <SheetTrigger asChild>
+                <DialogTrigger asChild>
                   <Button type="button" variant="secondary" className="w-full gap-2 sm:w-auto touch-manipulation">
                     <ListOrdered className="h-4 w-4 shrink-0" aria-hidden />
                     {isHomework ? tx.openCreatedHomeworkListButton : tx.openCreatedExamsListButton}
                   </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden sm:max-w-md">
-                  <SheetHeader className="space-y-1 text-left">
-                    <SheetTitle>{isHomework ? tx.createdHomeworkListTitle : tx.createdExamsList}</SheetTitle>
-                    <SheetDescription>{isHomework ? tx.createdHomeworkHint : tx.createdExamsHint}</SheetDescription>
-                  </SheetHeader>
-                  <div className="mt-4 min-h-0 flex-1 overflow-hidden pr-1">
+                </DialogTrigger>
+                <DialogContent className="flex !h-[min(85vh,52rem)] !w-[min(96vw,72rem)] !max-w-[72rem] flex-col gap-0 overflow-hidden !p-0">
+                  <DialogHeader className="space-y-1 px-6 pb-3 pr-16 pt-6 text-left">
+                    <DialogTitle>{isHomework ? tx.createdHomeworkListTitle : tx.createdExamsList}</DialogTitle>
+                    <DialogDescription>{isHomework ? tx.createdHomeworkHint : tx.createdExamsHint}</DialogDescription>
+                  </DialogHeader>
+                  <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
                     <CreatedExamsListRows
                       loading={createdExamsLoading}
                       exams={createdExams}
@@ -1780,17 +1763,16 @@ export default function TaoBaiThiClientPage({
                       webLocale={uiLocale}
                       buildExamReviewUrl={buildExamReviewUrl}
                       buildTeacherPaperUrl={buildTeacherPaperUrl}
-                      showTeacherActions={showTeacherExamActions}
                       openExamPreview={openExamPreview}
                       deleteCreatedExam={deleteCreatedExam}
                       deletingCode={deletingCode}
-                      scrollClassName="max-h-[calc(100dvh-10rem)]"
+                      scrollClassName="max-h-none"
                       onAttachToOtherClass={(exam) => setAttachTarget(exam)}
                       homeworkList={isHomework}
                     />
                   </div>
-                </SheetContent>
-              </Sheet>
+                </DialogContent>
+              </Dialog>
             </div>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -2026,7 +2008,7 @@ export default function TaoBaiThiClientPage({
                   tx={tx}
                   onUse={(id, openReview) => void applyPresetExam(id, openReview)}
                   onMarkTeacher={noteTeacher}
-                  allowTeacherActions={showTeacherExamActions}
+                  allowTeacherActions
                   onError={(message) => toast({ title: tx.error, description: message, variant: 'destructive' })}
                 />
               ) : null}
@@ -2800,7 +2782,6 @@ export default function TaoBaiThiClientPage({
               webLocale={uiLocale}
               buildExamReviewUrl={buildExamReviewUrl}
               buildTeacherPaperUrl={buildTeacherPaperUrl}
-              showTeacherActions={showTeacherExamActions}
               openExamPreview={openExamPreview}
               deleteCreatedExam={deleteCreatedExam}
               deletingCode={deletingCode}
@@ -2854,28 +2835,24 @@ export default function TaoBaiThiClientPage({
                   >
                     {tx.copyLink}
                   </Button>
-                  <Button type="button" size="sm" asChild>
+                  <Button type="button" size="sm" variant="outline" asChild>
                     <Link href={examPreview.examUrl} target="_blank">
                       {tx.openOnThisDevice}
                     </Link>
                   </Button>
-                  {showTeacherExamActions ? (
-                    <>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => openDetachedTeacherSlideWindow(buildExamReviewUrl(examPreview.code))}
-                      >
-                        {tx.review}
-                      </Button>
-                      <Button type="button" size="sm" asChild>
-                        <Link href={buildTeacherPaperUrl(examPreview.code)} target="_blank">
-                          {tx.teacherOpenExam}
-                        </Link>
-                      </Button>
-                    </>
-                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => openDetachedTeacherSlideWindow(buildExamReviewUrl(examPreview.code))}
+                  >
+                    {tx.review}
+                  </Button>
+                  <Button type="button" size="sm" asChild>
+                    <Link href={buildTeacherPaperUrl(examPreview.code)} target="_blank">
+                      {tx.teacherOpenExam}
+                    </Link>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -2957,6 +2934,7 @@ export default function TaoBaiThiClientPage({
             edit: tx.quickViewEdit,
             save: tx.quickViewSave,
             confirm: tx.quickViewConfirm,
+            confirmed: tx.quickViewConfirmed,
             disagree: tx.quickViewDisagree,
             usingEdit: tx.quickViewUsingEdit,
             usingOriginal: tx.quickViewUsingOriginal,

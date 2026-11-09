@@ -184,7 +184,7 @@ export default function KeChuyenBangHinhAnhClientPage() {
                           type="button"
                           onClick={() => setAspectRatio(r)}
                           className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                            aspectRatio === r ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
+                            aspectRatio === r ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200'
                           }`}
                         >
                           {STORY_ASPECT_RATIO_LABELS[r]?.[uiLocale] ?? r}

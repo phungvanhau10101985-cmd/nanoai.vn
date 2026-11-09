@@ -127,7 +127,7 @@ export function SlideProposalVote({ proposal, currentUserId, tr, onVoted, onDele
             <Button
               variant="ghost"
               size="sm"
-              className="h-5 gap-0.5 px-1.5 text-[10px] text-muted-foreground hover:text-destructive"
+              className="h-5 gap-0.5 px-1.5 text-[10px] hover:text-destructive"
               onClick={handleDelete}
               disabled={deleting}
             >

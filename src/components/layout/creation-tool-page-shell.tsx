@@ -77,8 +77,8 @@ export function CreationToolPageShell({
                   'lg:px-2.5 lg:py-2 lg:leading-snug lg:ring-offset-background',
                   'lg:focus-visible:outline-none lg:focus-visible:ring-2 lg:focus-visible:ring-ring lg:focus-visible:ring-offset-2',
                   item.href === path
-                    ? 'bg-primary/10 text-primary lg:bg-primary/[0.12]'
-                    : 'text-foreground hover:bg-muted/80 lg:hover:bg-muted/70'
+                    ? 'bg-indigo-100 font-medium text-indigo-950'
+                    : 'text-foreground hover:bg-indigo-50'
                 )}
               >
                 {t.tool[item.labelKey]}
@@ -104,8 +104,8 @@ export function CreationToolPageShell({
                 'lg:px-2.5 lg:py-2 lg:leading-snug lg:ring-offset-background',
                 'lg:focus-visible:outline-none lg:focus-visible:ring-2 lg:focus-visible:ring-ring lg:focus-visible:ring-offset-2',
                 item.href === path
-                  ? 'bg-muted/60 font-medium text-foreground lg:bg-muted/50'
-                  : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground lg:hover:bg-muted/60'
+                  ? 'bg-indigo-100 font-medium text-indigo-950'
+                  : 'font-medium text-indigo-950 hover:bg-indigo-100'
               )}
             >
               {t.tool[item.labelKey]}

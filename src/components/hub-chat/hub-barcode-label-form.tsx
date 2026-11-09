@@ -178,7 +178,7 @@ export function HubBarcodeLabelForm({
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-9 shrink-0 text-xs text-muted-foreground"
+                className="h-9 shrink-0 text-xs"
                 disabled={busy || rows.length <= 1}
                 onClick={() => removeRow(index)}
               >

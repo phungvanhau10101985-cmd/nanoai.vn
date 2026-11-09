@@ -9735,7 +9735,7 @@ export default function HocTiengAnhAiClientPage() {
                                   {openedWordKey.startsWith(`${m.id}:`) ? (
                                     <div ref={compactBarRef} className="mt-2 rounded-xl border border-border/70 bg-white p-2 text-xs">
                                       <div className="mb-1.5 flex items-center justify-end">
-                                        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setOpenedWordKey(''); setTappedWordKey('') }} title={coachUiText.wordClose}>
+                                        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 hover:text-foreground" onClick={() => { setOpenedWordKey(''); setTappedWordKey('') }} title={coachUiText.wordClose}>
                                           <X className="h-4 w-4" />
                                         </Button>
                                       </div>
@@ -9951,7 +9951,7 @@ export default function HocTiengAnhAiClientPage() {
                           {openedWordKey.startsWith(`${m.id}:`) ? (
                             <div ref={compactBarRef} className="mt-2 rounded-xl border border-border/70 bg-white p-2 text-xs">
                               <div className="mb-1.5 flex items-center justify-end">
-                                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground" onClick={() => { setOpenedWordKey(''); setTappedWordKey('') }} title={coachUiText.wordClose}>
+                                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 hover:text-foreground" onClick={() => { setOpenedWordKey(''); setTappedWordKey('') }} title={coachUiText.wordClose}>
                                   <X className="h-4 w-4" />
                                 </Button>
                               </div>

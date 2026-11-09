@@ -75,7 +75,7 @@ export function PartnerWebsiteTenantAdminBar({
                 'h-7 rounded-md px-2.5 text-xs font-medium',
                 activeSection === key
                   ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'hover:text-foreground'
               )}
               onClick={() => onSectionSelect?.(key)}
             >
@@ -91,7 +91,7 @@ export function PartnerWebsiteTenantAdminBar({
                 <ExternalLink className="ml-1.5 h-3 w-3" />
               </a>
             </Button>
-            <Button asChild variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground">
+            <Button asChild variant="ghost" size="sm" className="h-7 text-xs hover:text-foreground">
               <a href={`${publicUrl.replace(/\/$/, '')}/sitemap.xml`} target="_blank" rel="noopener noreferrer" title="Sitemap XML">
                 Sitemap
                 <ExternalLink className="ml-1 h-3 w-3" />

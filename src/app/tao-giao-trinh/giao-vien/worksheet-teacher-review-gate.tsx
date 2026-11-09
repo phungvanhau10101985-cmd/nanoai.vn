@@ -43,6 +43,7 @@ export function WorksheetTeacherReviewGate({
   const [items, setItems] = useState<ReviewItem[] | null>(null)
   const [open, setOpen] = useState(false)
   const [handled, setHandled] = useState<Set<string>>(new Set())
+  const handledRef = useRef(handled)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -67,15 +68,30 @@ export function WorksheetTeacherReviewGate({
       return
     }
     const next = (result.items ?? []) as ReviewItem[]
-    setItems(next)
-    if (next.length === 0) {
+    setItems((prev) => {
+      if (!prev?.length) return next
+      const incoming = new Map(next.map((item) => [item.questionId, item]))
+      const merged: ReviewItem[] = []
+      const seenIds = new Set<string>()
+      for (const item of prev) {
+        const fresh = incoming.get(item.questionId)
+        if (fresh) {
+          merged.push(fresh)
+          seenIds.add(item.questionId)
+        } else if (handledRef.current.has(item.questionId)) {
+          merged.push(item)
+          seenIds.add(item.questionId)
+        }
+      }
+      for (const item of next) {
+        if (!seenIds.has(item.questionId)) merged.push(item)
+      }
+      return merged
+    })
+    if (next.length === 0 && handledRef.current.size === 0) {
       setOpen(false)
       return
     }
-    setHandled((prev) => {
-      const still = new Set([...prev].filter((id) => next.some((item) => item.questionId === id)))
-      return still
-    })
     setOpen(true)
   }, [tr, worksheetId])
 
@@ -92,7 +108,9 @@ export function WorksheetTeacherReviewGate({
   }, [items, scrollNextIntoView])
 
   const mark = (questionId: string) => {
-    setHandled((prev) => new Set(prev).add(questionId))
+    const next = new Set(handledRef.current).add(questionId)
+    handledRef.current = next
+    setHandled(next)
     setEditingId((current) => (current === questionId ? null : current))
   }
 
@@ -267,16 +285,22 @@ export function WorksheetTeacherReviewGate({
                       <>
                         <button
                           type="button"
-                          disabled={busy}
+                          disabled={busy || seen}
                           onClick={() => void confirm(item, 'agree')}
-                          className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+                          className={
+                            seen
+                              ? 'cursor-default rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-emerald-50'
+                              : 'rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50'
+                          }
                         >
-                          {tr('Xác nhận đúng', 'Confirm correct', '确认正确', '正しいと確認', '맞다고 확인')}
+                          {seen
+                            ? tr('Đã xác nhận', 'Confirmed', '已确认', '確認済', '확인함')
+                            : tr('Xác nhận đúng', 'Confirm correct', '确认正确', '正しいと確認', '맞다고 확인')}
                         </button>
                         {item.pending && !item.authorIsMe ? (
                           <button
                             type="button"
-                            disabled={busy}
+                            disabled={busy || seen}
                             onClick={() => void confirm(item, 'reject')}
                             className="rounded-md border border-slate-500 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800 disabled:opacity-50"
                           >
@@ -285,7 +309,7 @@ export function WorksheetTeacherReviewGate({
                         ) : null}
                         <button
                           type="button"
-                          disabled={busy}
+                          disabled={busy || seen}
                           onClick={() => {
                             setDraft(item.usingBlock)
                             setEditingId(item.questionId)

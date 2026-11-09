@@ -4,7 +4,6 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams, useParams } from 'next/navigation'
-import { createPortal } from 'react-dom'
 import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
@@ -20,6 +19,7 @@ import { PresentationControlBar } from '../components/presentation-control-bar'
 import { WorksheetTeacherReviewGate } from './worksheet-teacher-review-gate'
 import { WorksheetAnswerTypedBody } from '../components/worksheet-answer-typed-body'
 import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from '../components/slide-sync-markdown-classes'
+import { bindLatestPointerFrame, VirtualMouseOverlay, type VirtualMouseController } from '../components/virtual-mouse-overlay'
 import { AnswerTypingPositionPopover } from '../components/answer-typing-position-popover'
 import {
   distributeGlobalRevealAcrossSlide,
@@ -610,7 +610,7 @@ export default function GiaoVienWorksheetPage() {
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
   const [quizSessionData, setQuizSessionData] = useState<Record<string, { sessionCode: string; quizDurationSeconds: number }>>({})
   const [quizSessionSettings, setQuizSessionSettings] = useState<Record<string, { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }>>({})
-  const [studentMousePos, setStudentMousePos] = useState<{ x: number; y: number } | null>(null)
+  const studentMouseRef = useRef<VirtualMouseController | null>(null)
   /** Phiếu bài tập: ẩn/hiện đáp án từng câu trên giao diện học sinh. Key: "slideIndex-blockIndex", default true */
   const [answerVisibility, setAnswerVisibility] = useState<Record<string, boolean>>({})
   /** Phiếu bài tập: tạm dừng / tiếp tục gõ (độc lập ẩn/hiện trên màn HS). Key: "slideIndex-blockIndex" */
@@ -942,7 +942,6 @@ export default function GiaoVienWorksheetPage() {
   const lastTypingDocKeyRef = useRef<string>('')
   const [remoteAutoPlay, setRemoteAutoPlay] = useState(false)
   const [remoteAutoPlayIntervalMs, setRemoteAutoPlayIntervalMs] = useState(5000)
-  const pointerThrottleRef = useRef(0)
   const syncSeqRef = useRef(1)
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   const hasHydratedFromCurriculumRef = useRef(false)
@@ -1684,7 +1683,7 @@ export default function GiaoVienWorksheetPage() {
   }, [quizPopupOpen, sendToStudentView])
 
   useEffect(() => {
-    if (!quizPopupOpen) setStudentMousePos(null)
+    if (!quizPopupOpen) studentMouseRef.current?.hide()
   }, [quizPopupOpen])
 
   const openQuizPopupFresh = useCallback(() => {
@@ -1760,10 +1759,7 @@ export default function GiaoVienWorksheetPage() {
       const el = document.querySelector('[data-quiz-popup]')
       return el ? (el as HTMLElement).getBoundingClientRect() : null
     }
-    const sendPointerMove = (e: MouseEvent) => {
-      const now = Date.now()
-      if (now - pointerThrottleRef.current < 8) return
-      pointerThrottleRef.current = now
+    const sendPointerMove = (e: MouseEvent | PointerEvent) => {
       try {
         const anchor = (e.target as HTMLElement | null)?.closest('[data-pointer-sync-id]') as HTMLElement | null
         const id = anchor?.getAttribute('data-pointer-sync-id') || ''
@@ -2071,10 +2067,11 @@ export default function GiaoVienWorksheetPage() {
         })
       }
     }
-    window.addEventListener('mousemove', sendPointerMove)
+    const handlePointerMove = bindLatestPointerFrame(sendPointerMove)
+    window.addEventListener('pointermove', handlePointerMove, { passive: true })
     window.addEventListener('mousedown', sendPointerClick)
     return () => {
-      window.removeEventListener('mousemove', sendPointerMove)
+      window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('mousedown', sendPointerClick)
     }
   }, [sendToStudentView, visualFullscreenOpen, quizPopupOpen, slideViewMode])
@@ -3066,12 +3063,12 @@ export default function GiaoVienWorksheetPage() {
           const el = document.querySelector('[data-quiz-popup]')
           const rect = el ? (el as HTMLElement).getBoundingClientRect() : null
           if (rect) {
-            setStudentMousePos({ x: rect.right - e.data.relX, y: rect.top + e.data.relY })
+            studentMouseRef.current?.moveTo(rect.right - e.data.relX, rect.top + e.data.relY)
           }
         } else if (typeof e.data?.x === 'number' && typeof e.data?.y === 'number') {
           const w = window.innerWidth || 1
           const h = window.innerHeight || 1
-          setStudentMousePos({ x: e.data.x * w, y: e.data.y * h })
+          studentMouseRef.current?.moveTo(e.data.x * w, e.data.y * h)
         }
       }
       if (e.data?.type === 'curriculum-data') {
@@ -4840,19 +4837,7 @@ export default function GiaoVienWorksheetPage() {
           }}
         />
       )}
-      {typeof document !== 'undefined' &&
-        studentMousePos &&
-        createPortal(
-          <div
-            className="fixed z-[115] pointer-events-none transition-all duration-75"
-            style={{ left: studentMousePos.x, top: studentMousePos.y, transform: 'translate(-2px, -2px)' }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="drop-shadow-lg">
-              <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="rgba(34,197,94,0.9)" stroke="rgba(0,0,0,0.5)" strokeWidth="1.2" strokeLinejoin="round" />
-            </svg>
-          </div>,
-          document.body
-        )}
+      <VirtualMouseOverlay variant="remote-student" controllerRef={studentMouseRef} />
       {gvWorksheetEditFilter && worksheetId && (
         <WorksheetEditSectionPopup
           open={true}

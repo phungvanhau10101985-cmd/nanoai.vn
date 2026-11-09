@@ -313,7 +313,7 @@ export default function LamNetAnhClientPage() {
                       variant="outline"
                       onClick={handleFetchFromUrl}
                       disabled={urlLoading}
-                      className="shrink-0 border-amber-200 text-amber-700 hover:bg-amber-50"
+                      className="shrink-0 border-indigo-300 text-indigo-950 hover:bg-indigo-200"
                     >
                       <Link2 className="mr-2 h-4 w-4" />
                       {urlLoading ? t.fetching : t.fetchImage}
@@ -342,7 +342,7 @@ export default function LamNetAnhClientPage() {
                     <DepositCreditButton
                       variant="outline"
                       size="sm"
-                      className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50"
+                      className="w-full max-w-[180px] border-indigo-300 text-indigo-950 hover:bg-indigo-200"
                     />
                                         <div className="flex flex-wrap items-center justify-center gap-2">
                       <ImageEnginePicker

@@ -840,6 +840,7 @@ export default function TaoGiaoTrinhClientPage({
     [uiLocale]
   )
   const tcClasses = useMemo(() => getDictionary(uiLocale as WebLocale).classes, [uiLocale])
+  const examPageCopy = useMemo(() => getDictionary(uiLocale as WebLocale).createExamPage, [uiLocale])
 
   const displayTopic = topic.trim() || (lessonNumber ? `Bài ${lessonNumber}` : tr('Chủ đề', 'Topic', '主题', '主題', '주제'))
 
@@ -5810,18 +5811,23 @@ export default function TaoGiaoTrinhClientPage({
                           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                             <Button
                               type="button"
-                              variant="outline"
+                              variant="secondary"
                               size="sm"
                               onClick={() =>
-                                setExamAttachTarget({
-                                  id: exam.id,
-                                  title: exam.title || tr('Bài thi', 'Exam', '测验', 'テスト', '시험'),
-                                })
+                                openDetachedTeacherSlideWindow(
+                                  `/giao-trinh/giao-vien/de-thi/${encodeURIComponent(exam.code)}?t=${Date.now()}`
+                                )
                               }
-                              className="gap-1.5"
                             >
-                              <Link2 className="h-3.5 w-3.5" aria-hidden />
-                              {tcClasses.examAssignClassButton}
+                              {examPageCopy.review}
+                            </Button>
+                            <Button type="button" size="sm" asChild>
+                              <Link
+                                href={`/giao-trinh/giao-vien/mo-de/${encodeURIComponent(exam.code)}`}
+                                target="_blank"
+                              >
+                                {examPageCopy.teacherOpenExam}
+                              </Link>
                             </Button>
                             <Button
                               type="button"
@@ -5834,6 +5840,21 @@ export default function TaoGiaoTrinhClientPage({
                               })}
                             >
                               {tr('Mở', 'Open', '打开', '開く', '열기')}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setExamAttachTarget({
+                                  id: exam.id,
+                                  title: exam.title || tr('Bài thi', 'Exam', '测验', 'テスト', '시험'),
+                                })
+                              }
+                              className="gap-1.5"
+                            >
+                              <Link2 className="h-3.5 w-3.5" aria-hidden />
+                              {tcClasses.examAttachToOtherClassButton}
                             </Button>
                             <Button
                               type="button"
@@ -6133,7 +6154,7 @@ export default function TaoGiaoTrinhClientPage({
               </div>
               <div className="space-y-2">
                 <Input readOnly value={examPreview.examUrl} className="text-xs font-mono" />
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -6142,11 +6163,35 @@ export default function TaoGiaoTrinhClientPage({
                   >
                     {tr('Copy link', 'Copy link', '复制链接', 'リンクをコピー', '링크 복사')}
                   </Button>
-                  <Button type="button" size="sm" asChild>
+                  <Button type="button" size="sm" variant="outline" asChild>
                     <Link href={examPreview.examUrl} target="_blank">
                       {tr('Mở trên máy này', 'Open on this device', '在本机打开', 'この端末で開く', '이 기기에서 열기')}
                     </Link>
                   </Button>
+                  {!examPreview.forHomework ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          openDetachedTeacherSlideWindow(
+                            `/giao-trinh/giao-vien/de-thi/${encodeURIComponent(examPreview.code)}?t=${Date.now()}`
+                          )
+                        }
+                      >
+                        {examPageCopy.review}
+                      </Button>
+                      <Button type="button" size="sm" asChild>
+                        <Link
+                          href={`/giao-trinh/giao-vien/mo-de/${encodeURIComponent(examPreview.code)}`}
+                          target="_blank"
+                        >
+                          {examPageCopy.teacherOpenExam}
+                        </Link>
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
