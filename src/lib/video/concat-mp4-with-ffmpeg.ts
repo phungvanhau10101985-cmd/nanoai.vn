@@ -1,15 +1,21 @@
-import { spawn } from 'child_process'
+import { spawn, spawnSync } from 'child_process'
+import { existsSync } from 'fs'
 import { writeFile, mkdtemp, rm } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import ffmpegStatic from 'ffmpeg-static'
 
+/** ffmpeg có sẵn trên máy. Không tải binary lúc npm install. */
 function ffmpegPath(): string {
-  const p = ffmpegStatic
-  if (!p || typeof p !== 'string') {
-    throw new Error('FFMPEG_NOT_AVAILABLE')
-  }
-  return p
+  const fromEnv = process.env.FFMPEG_BIN?.trim()
+  if (fromEnv && existsSync(fromEnv)) return fromEnv
+  const lookup = process.platform === 'win32' ? 'where' : 'which'
+  const found = spawnSync(lookup, ['ffmpeg'], { encoding: 'utf8', windowsHide: true })
+  const line = found.stdout
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .find((item) => item.length > 0 && existsSync(item))
+  if (found.status === 0 && line) return line
+  throw new Error('FFMPEG_NOT_AVAILABLE')
 }
 
 /** Đường dẫn tuyệt đối tới từng MP4; thử `-c copy`, lỗi thì re-encode nhẹ. */

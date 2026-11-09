@@ -21,7 +21,7 @@ APP_NAME="thu-do-online"
 
 echo "[1/10] Update apt and install base packages"
 apt update
-apt install -y build-essential python3 python3-pip git curl nginx
+apt install -y build-essential python3 python3-pip git curl nginx ffmpeg
 
 echo "[2/10] Install Python packages (rembg, pillow) for sticker & xoa-nen-png"
 pip3 install "rembg[cpu,cli]" pillow || true

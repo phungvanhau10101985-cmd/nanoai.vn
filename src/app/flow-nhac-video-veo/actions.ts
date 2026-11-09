@@ -598,7 +598,7 @@ function isUserTryOnResultMp4Url(url: string, userId: string): boolean {
 
 /**
  * Ghép các MP4 đã tạo (cùng user, URL public legacy hoặc Bunny) thành một file — không trừ credits.
- * Cần ffmpeg (gói `ffmpeg-static` trên server).
+ * Cần lệnh `ffmpeg` trên máy chủ, hoặc biến `FFMPEG_BIN`.
  */
 export async function mergeFlowMusicVeoClips(formData: FormData) {
   const raw = String(formData.get('clipUrlsJson') ?? '').trim()

@@ -261,6 +261,10 @@ echo "  NanoAI + 188 sẽ start lại sau build (188 sau health OK)."
 echo "  DONE [4/15]"
 
 echo "[5/15] Install dependencies (lockfile-first)"
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "  Cài ffmpeg hệ thống để ghép video. npm không tải binary từ GitHub."
+  apt-get update -qq && apt-get install -y ffmpeg || echo "  Cảnh báo: chưa cài được ffmpeg. Ghép video sẽ báo thiếu ffmpeg."
+fi
 if [[ -f "package-lock.json" ]]; then
   npm ci
 else
