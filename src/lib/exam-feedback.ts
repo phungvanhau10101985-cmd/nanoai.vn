@@ -33,6 +33,8 @@ export type ExamGradingMeta = {
   essayImageUrlsExpireAt?: string
   /** Hệ thống nộp/chấm khi hết giờ server (HS không bấm nộp) */
   submittedByServerDeadline?: boolean
+  /** Nộp tự động: hết giờ, ẩn trang, hoặc mất tín hiệu. */
+  autoSubmitReason?: 'deadline' | 'hidden' | 'signal_lost'
 }
 
 function feedbackFromQuizPct(pct: number, grade10: number): {
@@ -121,6 +123,11 @@ export function parseExamGradingMeta(raw: unknown): ExamGradingMeta | null {
   }
   if (o.submittedByServerDeadline === true) {
     base.submittedByServerDeadline = true
+  }
+  if (o.autoSubmitReason === 'deadline' || o.autoSubmitReason === 'hidden' || o.autoSubmitReason === 'signal_lost') {
+    base.autoSubmitReason = o.autoSubmitReason
+  } else if (o.submittedByServerDeadline === true) {
+    base.autoSubmitReason = 'deadline'
   }
   return base
 }

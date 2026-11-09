@@ -6,7 +6,7 @@ import { markExamTeacher } from '@/lib/exam-teacher-mark'
 import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -576,15 +576,10 @@ export default function TaoGiaoTrinhClientPage({
   const lessonTrimTimeoutRef = useRef<number | null>(null)
   const lessonTrimIdleRef = useRef<number | null>(null)
   const { toast } = useToast()
-  const router = useRouter()
   useHubPrefill('/tao-giao-trinh', setTopic)
   const handleCreationToolShellBack = useCallback(() => {
-    if (featureSection !== 'create') {
-      setFeatureSection('create')
-      return
-    }
-    router.back()
-  }, [featureSection, router])
+    goToPreviousPage('/')
+  }, [])
   useSetCreationToolBackHandler(handleCreationToolShellBack)
   useEffect(() => {
     if (typeof window === 'undefined') return

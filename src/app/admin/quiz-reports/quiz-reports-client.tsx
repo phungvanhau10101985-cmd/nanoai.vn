@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
@@ -28,7 +28,6 @@ type Report = {
 }
 
 export function QuizReportsClient() {
-  const router = useRouter()
   const { toast } = useToast()
   const { ensureStepUp } = useStepUpOtp()
   const [items, setItems] = useState<Report[]>([])
@@ -171,7 +170,7 @@ export function QuizReportsClient() {
         </div>
       )}
 
-      <Button variant="outline" type="button" onClick={() => router.back()}>
+      <Button variant="outline" type="button" onClick={() => goToPreviousPage('/admin')}>
         ← Quay lại Admin
       </Button>
       <Toaster />

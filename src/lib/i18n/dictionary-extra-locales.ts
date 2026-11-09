@@ -3353,6 +3353,14 @@ const EN_DICTIONARY: Dictionary = {
     examSubmittedSavedEarlier: 'You already submitted this test. Your saved result is below.',
     examSubmittedDueToDeadlineHint:
       'The server time limit has ended — your attempt was submitted automatically using your saved answers. Your result is below.',
+    examSubmittedDueToHiddenHint:
+      'The exam page was hidden or you left it — your attempt was submitted automatically from the saved answers. Your result is below.',
+    examSubmittedDueToSignalLostHint:
+      'The connection was lost for more than 25 seconds — your attempt was submitted automatically from the saved answers. Your result is below.',
+    examProctorBeforeStartHint:
+      'This is a scored exam. If you leave the page, switch tabs, minimize, or lock the device for more than 3 seconds, the attempt is submitted from your saved answers. Losing the connection for more than 25 seconds does the same. Reopening the link only shows the result. The questions cannot be copied.',
+    examProctorDuringHint:
+      'Exam in progress: switching tabs, minimizing, or locking the device for more than 3 seconds submits your attempt. Losing the connection for more than 25 seconds does the same. Questions cannot be copied.',
     homeworkSubmittedTitle: 'Homework submitted',
     homeworkSubmittedSavedEarlier: 'You already submitted this homework. Your saved info is below.',
     homeworkSubmittedBody:
@@ -3374,6 +3382,19 @@ const EN_DICTIONARY: Dictionary = {
       'MC: {correct}/{total} correct, {wrong} wrong · MC grade {grade10}/10 · Provisional {score}/{max} (essay max {essayMax}) · {time}',
     examTeacherAttemptEssayOnlySummary: 'Submitted · Provisional {score}/{max} (essay only, max {essayMax}) · {time}',
     examShareDone: 'Shared!',
+    examReviewSubmittedWork: 'Review your answers',
+    examReviewSubmittedWorkHide: 'Hide answers',
+    examReviewSubmittedReadonlyHint:
+      'Submitted work. Review what you filled in, the result, and the solution for each question. You cannot change it.',
+    examReviewNoChoice: 'Not answered',
+    examReviewNoEssay: 'Not filled in',
+    examReviewAnswerCorrect: 'Correct',
+    examReviewAnswerWrong: 'Incorrect',
+    examReviewCorrectAnswerLine: 'Correct answer: {letter}',
+    examReviewEssayPending: 'Essay not graded yet',
+    examReviewSolutionLabel: 'Solution',
+    examReviewSolutionMissing: 'No detailed solution for this question.',
+    examResultBack: 'Back',
     showStudentsAction: 'Show students',
     hideStudentsAction: 'Hide list',
     examReviewAction: 'Review',
@@ -7900,6 +7921,14 @@ const ZH_DICTIONARY: Dictionary = {
     examSubmittedSavedEarlier: '您已提交过本场测验。以下是已保存的成绩。',
     examSubmittedDueToDeadlineHint:
       '系统作答时间已结束——已根据已保存的答案自动提交。以下为结果。',
+    examSubmittedDueToHiddenHint:
+      '答题页被隐藏或你已离开页面——已按已保存的答案自动提交。以下为结果。',
+    examSubmittedDueToSignalLostHint:
+      '连接中断超过 25 秒——已按已保存的答案自动提交。以下为结果。',
+    examProctorBeforeStartHint:
+      '这是计分考试。离开页面、切换标签、最小化或锁屏超过 3 秒，将按已保存的答案提交。断网超过 25 秒同样会提交。再次打开链接只能查看结果。题目不能复制。',
+    examProctorDuringHint:
+      '考试中：切换标签、最小化或锁屏超过 3 秒将提交答卷。断网超过 25 秒同样会提交。题目不能复制。',
     homeworkSubmittedTitle: '家庭作业已提交',
     homeworkSubmittedSavedEarlier: '您已提交过这份作业。以下是已保存的信息。',
     homeworkSubmittedBody: '此为练习型作业，不向学生显示分数或评分量表。教师仍可在课堂中查看与点评。',
@@ -7920,6 +7949,18 @@ const ZH_DICTIONARY: Dictionary = {
       '选择题 {correct}/{total} 对、{wrong} 错 · 选择题折合 {grade10}/10 · 暂计 {score}/{max}（主观题最高 {essayMax}）· {time}',
     examTeacherAttemptEssayOnlySummary: '已提交 · 暂计 {score}/{max}（仅主观题，最高 {essayMax}）· {time}',
     examShareDone: '已分享！',
+    examReviewSubmittedWork: '查看已填答卷',
+    examReviewSubmittedWorkHide: '收起答卷',
+    examReviewSubmittedReadonlyHint: '已提交的答卷。可查看已填写的内容、每题结果和详解，不能修改。',
+    examReviewNoChoice: '未选择',
+    examReviewNoEssay: '未填写',
+    examReviewAnswerCorrect: '正确',
+    examReviewAnswerWrong: '错误',
+    examReviewCorrectAnswerLine: '正确答案：{letter}',
+    examReviewEssayPending: '主观题尚未批改',
+    examReviewSolutionLabel: '详解',
+    examReviewSolutionMissing: '本题还没有详细解答。',
+    examResultBack: '返回',
     showStudentsAction: '查看作答学生',
     hideStudentsAction: '收起列表',
     examReviewAction: '讲评',
@@ -12485,6 +12526,14 @@ const JA_DICTIONARY: Dictionary = {
     examSubmittedSavedEarlier: 'このテストはすでに提出済みです。保存された結果は以下のとおりです。',
     examSubmittedDueToDeadlineHint:
       'サーバー上の制限時間が終了しました。保存された解答で自動提出されました。結果は以下です。',
+    examSubmittedDueToHiddenHint:
+      '解答ページが隠れたか、ページを離れたため、保存済みの解答で自動提出されました。結果は以下です。',
+    examSubmittedDueToSignalLostHint:
+      '接続が25秒を超えて切れたため、保存済みの解答で自動提出されました。結果は以下です。',
+    examProctorBeforeStartHint:
+      'これは採点ありの試験です。ページを離れる、タブを切り替える、最小化、または画面ロックが3秒を超えると、保存済みの解答で提出されます。通信が25秒を超えて切れた場合も同じです。リンクを開き直しても結果の閲覧のみです。問題文はコピーできません。',
+    examProctorDuringHint:
+      '試験中：タブの切り替え、最小化、画面ロックが3秒を超えると提出されます。通信が25秒を超えて切れた場合も同じです。問題文はコピーできません。',
     homeworkSubmittedTitle: '宿題を提出しました',
     homeworkSubmittedSavedEarlier: 'この宿題はすでに提出済みです。保存された情報は以下のとおりです。',
     homeworkSubmittedBody:
@@ -12506,6 +12555,18 @@ const JA_DICTIONARY: Dictionary = {
       '選択 {correct}/{total} 正解・{wrong} 不正解 · 選択 {grade10}/10 · 仮 {score}/{max}（記述上限 {essayMax}）· {time}',
     examTeacherAttemptEssayOnlySummary: '提出済み · 仮 {score}/{max}（記述のみ、上限 {essayMax}）· {time}',
     examShareDone: '共有しました！',
+    examReviewSubmittedWork: '提出した答案を見る',
+    examReviewSubmittedWorkHide: '答案を隠す',
+    examReviewSubmittedReadonlyHint: '提出済みの答案です。記入内容、各問の結果と解説を見られますが、変更はできません。',
+    examReviewNoChoice: '未選択',
+    examReviewNoEssay: '未記入',
+    examReviewAnswerCorrect: '正解',
+    examReviewAnswerWrong: '不正解',
+    examReviewCorrectAnswerLine: '正解：{letter}',
+    examReviewEssayPending: '記述は未採点です',
+    examReviewSolutionLabel: '解説',
+    examReviewSolutionMissing: 'この問題の詳しい解説はまだありません。',
+    examResultBack: '戻る',
     showStudentsAction: '受験した生徒を表示',
     hideStudentsAction: 'リストを隠す',
     examReviewAction: '解説',
@@ -17089,6 +17150,14 @@ const KO_DICTIONARY: Dictionary = {
     examSubmittedSavedEarlier: '이미 이 시험을 제출했습니다. 아래는 저장된 결과입니다.',
     examSubmittedDueToDeadlineHint:
       '서버 제한 시간이 종료되어 저장된 답안으로 자동 제출되었습니다. 아래는 결과입니다.',
+    examSubmittedDueToHiddenHint:
+      '시험 화면이 가려졌거나 페이지를 떠나 저장된 답안으로 자동 제출되었습니다. 아래는 결과입니다.',
+    examSubmittedDueToSignalLostHint:
+      '연결이 25초를 넘어 끊겨 저장된 답안으로 자동 제출되었습니다. 아래는 결과입니다.',
+    examProctorBeforeStartHint:
+      '점수가 있는 시험입니다. 페이지를 떠나거나, 탭을 바꾸거나, 창을 줄이거나, 기기를 잠근 상태가 3초를 넘으면 저장된 답안으로 제출됩니다. 네트워크가 25초를 넘어 끊겨도 같습니다. 링크를 다시 열면 결과만 봅니다. 문제 내용은 복사할 수 없습니다.',
+    examProctorDuringHint:
+      '시험 중: 탭 전환, 창 최소화, 기기 잠금이 3초를 넘으면 제출됩니다. 네트워크가 25초를 넘어 끊겨도 같습니다. 문제는 복사할 수 없습니다.',
     homeworkSubmittedTitle: '숙제 제출 완료',
     homeworkSubmittedSavedEarlier: '이미 이 숙제를 제출했습니다. 아래는 저장된 정보입니다.',
     homeworkSubmittedBody:
@@ -17110,6 +17179,18 @@ const KO_DICTIONARY: Dictionary = {
       '객관식 {correct}/{total} 정답, {wrong} 오답 · 객관식 {grade10}/10 · 임시 {score}/{max} (서술 최대 {essayMax}) · {time}',
     examTeacherAttemptEssayOnlySummary: '제출됨 · 임시 {score}/{max} (서술만, 최대 {essayMax}) · {time}',
     examShareDone: '공유했습니다!',
+    examReviewSubmittedWork: '제출한 답안 보기',
+    examReviewSubmittedWorkHide: '답안 숨기기',
+    examReviewSubmittedReadonlyHint: '제출한 답안입니다. 작성한 내용, 문항별 결과와 해설을 볼 수 있고, 수정할 수는 없습니다.',
+    examReviewNoChoice: '선택 안 함',
+    examReviewNoEssay: '작성 안 함',
+    examReviewAnswerCorrect: '정답',
+    examReviewAnswerWrong: '오답',
+    examReviewCorrectAnswerLine: '정답: {letter}',
+    examReviewEssayPending: '서술은 아직 채점되지 않았습니다',
+    examReviewSolutionLabel: '해설',
+    examReviewSolutionMissing: '이 문항의 자세한 해설이 아직 없습니다.',
+    examResultBack: '뒤로',
     showStudentsAction: '응시 학생 보기',
     hideStudentsAction: '목록 숨기기',
     examReviewAction: '해설',

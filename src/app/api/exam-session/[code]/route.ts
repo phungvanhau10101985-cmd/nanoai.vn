@@ -10,6 +10,7 @@ import {
   fetchExamAttemptFullForUserGetRoutePg,
   fetchExamQuestionsFullOrderedForSessionPg,
   fetchExamSessionActiveForGetRoutePg,
+  touchExamAttemptLastSeenPg,
 } from '@/lib/db/exam-session-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { resolveWebLocaleFromAcceptLanguage } from '@/lib/i18n/config'
@@ -24,10 +25,15 @@ import {
 import { buildActiveAttemptSessionJson } from '@/lib/exam-session/student-exam-session-payload'
 import {
   tryFinalizeOverdueExamAttemptPg,
+  tryFinalizeOpenExamAttemptPg,
+  tryFinalizeSignalLostExamAttemptPg,
+  finalizedAttemptClientJson,
   isServerDeadlinePassed,
   resolveDeadlineEndMs,
   fetchAlreadySubmittedPayloadForAttemptPg,
 } from '@/lib/exam-session/finalize-overdue-exam-attempt'
+import { isExamSignalLost } from '@/lib/exam-session/exam-presence'
+import { loadSubmittedWorkReviewPg } from '@/lib/exam-session/submitted-work-review'
 
 const NO_STORE_HEADERS = {
   'Cache-Control': 'no-store, max-age=0, must-revalidate',
@@ -99,6 +105,12 @@ export async function GET(
       const meta = parseExamGradingMeta(attemptRow.grading_meta)
       const feedback = getExamAttemptFeedbackWithMeta(sc, mx, meta)
       const durationMin = session.duration_minutes
+      const submittedWork = await loadSubmittedWorkReviewPg(
+        String(session.id),
+        attemptRow.layout_snapshot,
+        attemptRow.answers,
+        attemptRow.essay_submission
+      )
       return NextResponse.json(
         {
           alreadySubmitted: true,
@@ -112,7 +124,11 @@ export async function GET(
           comment: feedback.comment,
           shareHint: feedback.shareHint,
           scoringBreakdown: meta ?? undefined,
-          submittedDueToServerDeadline: meta?.submittedByServerDeadline === true,
+          autoSubmitReason: meta?.autoSubmitReason ?? (meta?.submittedByServerDeadline ? 'deadline' : null),
+          submittedDueToServerDeadline:
+            meta?.autoSubmitReason === 'deadline' || meta?.submittedByServerDeadline === true,
+          submittedWork,
+          classId: session.class_id ?? null,
         },
         { headers: NO_STORE_HEADERS }
       )
@@ -185,7 +201,10 @@ export async function GET(
                 comment: finalized.comment,
                 shareHint: finalized.shareHint,
                 scoringBreakdown: finalized.scoringBreakdown,
-                submittedDueToServerDeadline: true,
+                autoSubmitReason: finalized.autoSubmitReason,
+                submittedDueToServerDeadline: finalized.submittedDueToServerDeadline,
+                submittedWork: finalized.submittedWork,
+                classId: session.class_id ?? null,
               },
               { headers: NO_STORE_HEADERS }
             )
@@ -197,7 +216,10 @@ export async function GET(
             durationMin
           )
           if (reopened) {
-            return NextResponse.json(reopened, { headers: NO_STORE_HEADERS })
+            return NextResponse.json(
+              { ...reopened, classId: session.class_id ?? null },
+              { headers: NO_STORE_HEADERS }
+            )
           }
           return NextResponse.json(
             {
@@ -206,6 +228,83 @@ export async function GET(
             },
             { status: 503, headers: NO_STORE_HEADERS }
           )
+        }
+
+        if (!practiceHomework && isExamSignalLost(attemptRow.last_seen_at, serverNowMs)) {
+          const lost = await tryFinalizeSignalLostExamAttemptPg({
+            sessionId: String(session.id),
+            sessionTitle: resolvedSessionTitle,
+            durationMinutes: durationMin,
+            practiceHomework,
+            attemptId: String(attemptRow.id),
+            layoutSnapshot: attemptRow.layout_snapshot,
+            answers: attemptRow.answers,
+            essaySubmission: attemptRow.essay_submission,
+            lastSeenAt: attemptRow.last_seen_at,
+            serverNowMs,
+          })
+          if (lost) {
+            return NextResponse.json(finalizedAttemptClientJson(lost, session.class_id ?? null), {
+              headers: NO_STORE_HEADERS,
+            })
+          }
+          const lostSaved = await fetchAlreadySubmittedPayloadForAttemptPg(
+            String(attemptRow.id),
+            practiceHomework,
+            resolvedSessionTitle,
+            durationMin
+          )
+          if (lostSaved) {
+            return NextResponse.json(
+              { ...lostSaved, classId: session.class_id ?? null },
+              { headers: NO_STORE_HEADERS }
+            )
+          }
+          return NextResponse.json(
+            {
+              error:
+                'Bài thi đã mất tín hiệu và hệ thống chưa ghi nhận xong. Vui lòng tải lại trang sau vài giây.',
+            },
+            { status: 503, headers: NO_STORE_HEADERS }
+          )
+        }
+
+        if (!practiceHomework) {
+          const touched = await touchExamAttemptLastSeenPg(String(attemptRow.id), user.id)
+          if (touched === 'stale' || touched === 'closed') {
+            const lost =
+              touched === 'stale'
+                ? await tryFinalizeOpenExamAttemptPg({
+                    sessionId: String(session.id),
+                    sessionTitle: resolvedSessionTitle,
+                    durationMinutes: durationMin,
+                    practiceHomework,
+                    attemptId: String(attemptRow.id),
+                    layoutSnapshot: attemptRow.layout_snapshot,
+                    answers: attemptRow.answers,
+                    essaySubmission: attemptRow.essay_submission,
+                    serverNowMs: Date.now(),
+                    reason: 'signal_lost',
+                  })
+                : null
+            if (lost) {
+              return NextResponse.json(finalizedAttemptClientJson(lost, session.class_id ?? null), {
+                headers: NO_STORE_HEADERS,
+              })
+            }
+            const lostSaved = await fetchAlreadySubmittedPayloadForAttemptPg(
+              String(attemptRow.id),
+              practiceHomework,
+              resolvedSessionTitle,
+              durationMin
+            )
+            if (lostSaved) {
+              return NextResponse.json(
+                { ...lostSaved, classId: session.class_id ?? null },
+                { headers: NO_STORE_HEADERS }
+              )
+            }
+          }
         }
 
         const questions = await fetchExamQuestionsFullOrderedForSessionPg(session.id)

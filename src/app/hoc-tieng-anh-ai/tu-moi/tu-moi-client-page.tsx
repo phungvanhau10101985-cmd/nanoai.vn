@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { getAllWords, deleteWordById } from '../services/english-coach-api'
@@ -118,7 +119,7 @@ export default function TuMoiClientPage() {
       <Toaster />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" type="button" onClick={() => router.back()} aria-label={localText('Quay lại', 'Back')}>
+          <Button variant="ghost" size="icon" type="button" onClick={() => goToPreviousPage('/hoc-tieng-anh-ai')} aria-label={localText('Quay lại', 'Back')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>

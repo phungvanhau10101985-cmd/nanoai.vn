@@ -13,6 +13,7 @@ import { fillI18nTemplate } from '@/lib/i18n/fill-template'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
 import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { BookOpen, Copy, ExternalLink, Link2, RefreshCw, Trash2 } from 'lucide-react'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 import { createFromClassHref } from '@/lib/lop/create-from-class-href'
 
@@ -47,8 +48,8 @@ export default function GanPhieuClient({
   const router = useRouter()
   const { toast } = useToast()
   const goBack = useCallback(() => {
-    router.push(backHref)
-  }, [backHref, router])
+    goToPreviousPage(backHref)
+  }, [backHref])
   useSetCreationToolBackHandler(goBack)
   const createHomeworkHref = createFromClassHref('/tao-bai-tap-ve-nha', { classId, subjectId })
   const [attachOpen, setAttachOpen] = useState(false)

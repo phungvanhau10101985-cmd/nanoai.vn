@@ -5,6 +5,14 @@ import {
 } from '@/lib/exam-feedback'
 import { parseLayoutSnapshot } from '@/lib/exam-session/student-exam-layout'
 import { gradeExamFromStoredAnswers, type ExamQuestionGradeRow } from '@/lib/exam-session/grade-exam-from-sources'
+import {
+  loadSubmittedWorkReviewPg,
+  type SubmittedWorkReview,
+} from '@/lib/exam-session/submitted-work-review'
+import {
+  isExamSignalLost,
+  type ExamAutoSubmitReason,
+} from '@/lib/exam-session/exam-presence'
 
 export type FinalizedExamSummary = {
   practiceHomework: boolean
@@ -17,7 +25,9 @@ export type FinalizedExamSummary = {
   comment: string
   shareHint: string
   scoringBreakdown: ExamGradingMeta
-  submittedDueToServerDeadline: true
+  autoSubmitReason: ExamAutoSubmitReason
+  submittedDueToServerDeadline: boolean
+  submittedWork: SubmittedWorkReview | null
 }
 
 export function resolveDeadlineEndMs(
@@ -49,10 +59,10 @@ export function isServerDeadlinePassed(
 }
 
 /**
- * Chấm và nộp attempt đang mở khi đã quá deadline. Idempotent (chỉ cập nhật khi submitted_at null).
- * Trả về payload hiển thị kết quả hoặc null nếu không xử lý được.
+ * Chấm và nộp attempt đang mở. Idempotent (chỉ cập nhật khi submitted_at null).
+ * `deadline` = hết giờ. `signal_lost` = quá ngưỡng không thấy trang.
  */
-export async function tryFinalizeOverdueExamAttemptPg(params: {
+export async function tryFinalizeOpenExamAttemptPg(params: {
   sessionId: string
   sessionTitle: string
   durationMinutes: number
@@ -62,6 +72,7 @@ export async function tryFinalizeOverdueExamAttemptPg(params: {
   answers: unknown
   essaySubmission: unknown
   serverNowMs: number
+  reason: Extract<ExamAutoSubmitReason, 'deadline' | 'signal_lost'>
 }): Promise<FinalizedExamSummary | null> {
   const {
     fetchExamQuestionsForGradingPg,
@@ -86,13 +97,14 @@ export async function tryFinalizeOverdueExamAttemptPg(params: {
     params.essaySubmission
   )
   if ('error' in graded) {
-    console.error('[finalize-overdue-pg]', graded.error)
+    console.error('[finalize-open-exam-pg]', graded.error)
     return null
   }
 
   const metaWithFlag: ExamGradingMeta = {
     ...graded.gradingMeta,
-    submittedByServerDeadline: true,
+    autoSubmitReason: params.reason,
+    submittedByServerDeadline: params.reason === 'deadline',
   }
 
   const feedback = getExamAttemptFeedbackWithMeta(graded.finalScore, graded.maxScore, metaWithFlag)
@@ -113,6 +125,13 @@ export async function tryFinalizeOverdueExamAttemptPg(params: {
     return null
   }
 
+  const submittedWork = await loadSubmittedWorkReviewPg(
+    params.sessionId,
+    params.layoutSnapshot,
+    answersObj,
+    graded.essaySubmission
+  )
+
   return {
     practiceHomework: params.practiceHomework,
     title: params.sessionTitle,
@@ -124,8 +143,66 @@ export async function tryFinalizeOverdueExamAttemptPg(params: {
     comment: feedback.comment,
     shareHint: feedback.shareHint,
     scoringBreakdown: metaWithFlag,
-    submittedDueToServerDeadline: true,
+    autoSubmitReason: params.reason,
+    submittedDueToServerDeadline: params.reason === 'deadline',
+    submittedWork,
   }
+}
+
+/** Chấm và nộp attempt đang mở khi đã quá deadline. */
+export async function tryFinalizeOverdueExamAttemptPg(params: {
+  sessionId: string
+  sessionTitle: string
+  durationMinutes: number
+  practiceHomework: boolean
+  attemptId: string
+  layoutSnapshot: unknown
+  answers: unknown
+  essaySubmission: unknown
+  serverNowMs: number
+}): Promise<FinalizedExamSummary | null> {
+  return tryFinalizeOpenExamAttemptPg({ ...params, reason: 'deadline' })
+}
+
+export function finalizedAttemptClientJson(
+  finalized: FinalizedExamSummary,
+  classId: string | null
+): Record<string, unknown> {
+  return {
+    alreadySubmitted: true,
+    practiceHomework: finalized.practiceHomework,
+    title: finalized.title,
+    durationMinutes: finalized.durationMinutes,
+    score: finalized.score,
+    maxScore: finalized.maxScore,
+    grade10: finalized.grade10,
+    scoreOn100: finalized.scoreOn100,
+    comment: finalized.comment,
+    shareHint: finalized.shareHint,
+    scoringBreakdown: finalized.scoringBreakdown,
+    autoSubmitReason: finalized.autoSubmitReason,
+    submittedDueToServerDeadline: finalized.submittedDueToServerDeadline,
+    submittedWork: finalized.submittedWork,
+    classId,
+  }
+}
+
+/** Bài thi tính điểm: không thấy tín hiệu quá ngưỡng thì nộp nháp đã lưu. */
+export async function tryFinalizeSignalLostExamAttemptPg(params: {
+  sessionId: string
+  sessionTitle: string
+  durationMinutes: number
+  practiceHomework: boolean
+  attemptId: string
+  layoutSnapshot: unknown
+  answers: unknown
+  essaySubmission: unknown
+  lastSeenAt: string | null
+  serverNowMs: number
+}): Promise<FinalizedExamSummary | null> {
+  if (params.practiceHomework) return null
+  if (!isExamSignalLost(params.lastSeenAt, params.serverNowMs)) return null
+  return tryFinalizeOpenExamAttemptPg({ ...params, reason: 'signal_lost' })
 }
 
 export async function fetchAlreadySubmittedPayloadForAttemptPg(
@@ -141,6 +218,12 @@ export async function fetchAlreadySubmittedPayloadForAttemptPg(
   const mx = Number(data.max_score ?? 0)
   const meta = parseExamGradingMeta(data.grading_meta)
   const feedback = getExamAttemptFeedbackWithMeta(sc, mx, meta)
+  const submittedWork = await loadSubmittedWorkReviewPg(
+    data.session_id,
+    data.layout_snapshot,
+    data.answers,
+    data.essay_submission
+  )
   return {
     alreadySubmitted: true,
     practiceHomework,
@@ -153,6 +236,9 @@ export async function fetchAlreadySubmittedPayloadForAttemptPg(
     comment: feedback.comment,
     shareHint: feedback.shareHint,
     scoringBreakdown: meta ?? undefined,
-    submittedDueToServerDeadline: meta?.submittedByServerDeadline === true,
+    autoSubmitReason: meta?.autoSubmitReason ?? (meta?.submittedByServerDeadline ? 'deadline' : null),
+    submittedDueToServerDeadline:
+      meta?.autoSubmitReason === 'deadline' || meta?.submittedByServerDeadline === true,
+    submittedWork,
   }
 }

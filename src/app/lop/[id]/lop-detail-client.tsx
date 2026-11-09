@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -648,22 +649,8 @@ export default function LopDetailClient({
     )
   }, [classSubjects, focusSubject])
   const backFromClassPage = useCallback(() => {
-    if (focusSubject && pageMode === 'exam-session') {
-      router.push(`/lop/${cls.id}/bai-thi?${subjectScopeSearch(focusSubject)}`)
-      return
-    }
-    if (focusSubject && pageMode !== 'hub') {
-      router.push(`/lop/${cls.id}?${subjectScopeSearch(focusSubject)}`)
-      return
-    }
-    if (pageMode === 'hub' && openedClassSubject) {
-      router.push(`/lop/${cls.id}`)
-      return
-    }
-    if (pageMode === 'hub') {
-      router.push('/lop')
-    }
-  }, [cls.id, focusSubject, openedClassSubject, pageMode, router])
+    goToPreviousPage('/lop')
+  }, [])
   useSetCreationToolBackHandler(pageMode === 'hub' || Boolean(focusSubject) ? backFromClassPage : null)
   const { toast } = useToast()
   const sortedExamAttempts = useMemo(
@@ -1351,13 +1338,14 @@ export default function LopDetailClient({
                 const openedTeacher = opened.teacherDisplayName?.trim() || t.memberRoleTeacher
                 return (
                   <section className="space-y-1">
-                    <Link
-                      href={`/lop/${cls.id}`}
+                    <button
+                      type="button"
                       className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                      onClick={() => goToPreviousPage(`/lop/${cls.id}`)}
                     >
                       <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
                       {t.classSubjectBack}
-                    </Link>
+                    </button>
                     <h2 className="text-base font-semibold text-foreground">{openedLabel}</h2>
                     <p className="text-sm text-muted-foreground">{openedTeacher}</p>
                   </section>
@@ -1369,13 +1357,14 @@ export default function LopDetailClient({
                 const openedTeacher = opened.teacherDisplayName?.trim() || t.memberRoleTeacher
                 return (
                   <section className="mt-3 space-y-3">
-                    <Link
-                      href={`/lop/${cls.id}`}
+                    <button
+                      type="button"
                       className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                      onClick={() => goToPreviousPage(`/lop/${cls.id}`)}
                     >
                       <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
                       {t.classSubjectBack}
-                    </Link>
+                    </button>
                     <div className="rounded-xl border border-border/70 bg-background/50 p-3">
                       <h2 className="text-base font-semibold text-foreground">{openedLabel}</h2>
                       <p className="mt-0.5 text-sm text-muted-foreground">{openedTeacher}</p>
@@ -1432,12 +1421,13 @@ export default function LopDetailClient({
               return (
                 <>
                 {!isTeacher ? (
-                  <Link
-                    href="/lop"
+                  <button
+                    type="button"
                     className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                    onClick={() => goToPreviousPage('/lop')}
                   >
                     ← {t.classSubjectBack}
-                  </Link>
+                  </button>
                 ) : null}
                 <section className="mt-3 rounded-xl border border-border/70 bg-background/50 p-3">
                   <h2 className="text-sm font-semibold text-foreground">{t.classSubjectsTitle}</h2>
@@ -1644,19 +1634,23 @@ export default function LopDetailClient({
 
       {showClassHomeLink ? (
         <div className="mb-6">
-          <Button variant="ghost" size="sm" className="h-9 gap-1 px-2" asChild>
-            <Link
-              href={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 gap-1 px-2"
+            onClick={() =>
+              goToPreviousPage(
                 focusSubject
                   ? pageMode === 'exam-session'
                     ? `/lop/${cls.id}/bai-thi?${subjectScopeSearch(focusSubject)}`
                     : `/lop/${cls.id}?${subjectScopeSearch(focusSubject)}`
                   : `/lop/${cls.id}`
-              }
-            >
-              <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
-              {focusSubject ? t.classSubjectBack : t.classPageBackToClass}
-            </Link>
+              )
+            }
+          >
+            <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
+            {focusSubject ? t.classSubjectBack : t.classPageBackToClass}
           </Button>
         </div>
       ) : null}

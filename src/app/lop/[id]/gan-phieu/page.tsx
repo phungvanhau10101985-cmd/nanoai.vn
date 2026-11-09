@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { BrowserBackTextButton } from '@/components/navigation/browser-back-control'
 import { ChevronRight } from 'lucide-react'
 import { notFound, redirect } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
@@ -78,13 +78,13 @@ export default async function GanPhieuPage({
         relatedLinks={GAN_PHIEU_RELATED}
       >
         <div className="mx-auto max-w-2xl px-4 py-8">
-          <Link
-            href={backHref}
+          <BrowserBackTextButton
+            fallbackHref={backHref}
             className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronRight className="h-4 w-4 shrink-0 rotate-180" aria-hidden />
             {focusSubject ? t.classes.classSubjectBack : t.classes.classPageBackToClass}
-          </Link>
+          </BrowserBackTextButton>
           <h1 className="text-xl font-bold text-foreground mb-2">{t.classes.assignWorksheet}</h1>
           <p className="text-sm text-muted-foreground mb-6">{cls.name}</p>
           <GanPhieuClient

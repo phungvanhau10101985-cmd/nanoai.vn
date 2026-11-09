@@ -4,6 +4,7 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -147,7 +148,7 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
               {tr('Thử lại', 'Retry', '重试', '再試行', '다시 시도')}
             </Button>
             {!embedded && (
-              <Button variant="outline" onClick={() => router.back()}>
+              <Button variant="outline" onClick={() => goToPreviousPage('/dich-anh-tai-lieu')}>
                 {tr('Quay lại dịch ảnh', 'Back to translator', '返回翻译页', '翻訳ページへ戻る', '번역 페이지로 돌아가기')}
               </Button>
             )}

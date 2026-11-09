@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { RefreshCw, CheckCircle, Clock, Share2, Play, Camera } from 'lucide-react'
+import { RefreshCw, CheckCircle, Clock, Share2, Play, Camera, ArrowLeft } from 'lucide-react'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import { StudentBirthDateSelects } from '@/components/student-birth-date-selects'
 import { StudentIdentityForm, studentIdentityLabels } from '@/components/lop/student-identity-form'
@@ -19,7 +20,14 @@ import { computeExamScoresOn100And10 } from '@/lib/exam-feedback'
 import { ImageRegionPicker } from '@/components/media/image-region-picker'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { EXAM_ESSAY_IMAGE_RETENTION_DAYS, formatExamEssayImageExpireAtForUi } from '@/lib/exam-essay-config'
+import { SITE_HEADER_BACK_SLOT_ID } from '@/components/layout/site-header-back-slot'
 import { cn } from '@/lib/utils'
+import {
+  EXAM_HEARTBEAT_INTERVAL_MS,
+  EXAM_HIDDEN_GRACE_MS,
+  parseExamAutoSubmitReason,
+  type ExamAutoSubmitReason,
+} from '@/lib/exam-session/exam-presence'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,8 +48,22 @@ type Question = {
   type?: 'quiz' | 'essay'
   question_text: string
   options: string[]
+  correctDisplayIndex?: number | null
+  solution?: string
 }
 const STUDENT_PROFILE_STORAGE_KEY = 'exam-session:student-profile:v1'
+
+function examResultInterruptHint(
+  t: Dictionary['classes'],
+  result: { autoSubmitReason?: ExamAutoSubmitReason | null; submittedDueToServerDeadline?: boolean }
+): string | null {
+  if (result.autoSubmitReason === 'hidden') return t.examSubmittedDueToHiddenHint
+  if (result.autoSubmitReason === 'signal_lost') return t.examSubmittedDueToSignalLostHint
+  if (result.autoSubmitReason === 'deadline' || result.submittedDueToServerDeadline) {
+    return t.examSubmittedDueToDeadlineHint
+  }
+  return null
+}
 
 function fillExamTemplate(template: string, vars: Record<string, string | number>) {
   let out = template
@@ -206,6 +228,258 @@ function parseScoringBreakdown(raw: unknown): ExamScoringBreakdown | null {
   }
 }
 
+type SubmittedWorkReview = {
+  questions: Question[]
+  savedAnswers: Record<string, number | string>
+  essaySubmission: Record<string, { text: string; imageUrls: string[] }>
+}
+
+function quizChoiceIndex(value: number | string | undefined): number | null {
+  if (typeof value === 'number' && Number.isInteger(value)) return value
+  if (typeof value === 'string' && /^-?\d+$/.test(value.trim())) return Number(value)
+  return null
+}
+
+function parseSubmittedWorkReview(raw: unknown): SubmittedWorkReview | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const questionsRaw = Array.isArray(o.questions) ? o.questions : []
+  const questions: Question[] = []
+  for (const item of questionsRaw) {
+    if (!item || typeof item !== 'object') continue
+    const q = item as Record<string, unknown>
+    const id = typeof q.id === 'string' ? q.id : ''
+    if (!id) continue
+    const options = Array.isArray(q.options) ? q.options.map((opt) => String(opt ?? '')) : []
+    const type = q.type === 'essay' || options.length < 2 ? 'essay' : 'quiz'
+    const correctRaw = q.correctDisplayIndex
+    const correctDisplayIndex =
+      typeof correctRaw === 'number' && Number.isInteger(correctRaw) ? correctRaw : null
+    questions.push({
+      id,
+      index: typeof q.index === 'number' && Number.isFinite(q.index) ? q.index : questions.length + 1,
+      type,
+      question_text: typeof q.question_text === 'string' ? q.question_text : '',
+      options,
+      correctDisplayIndex,
+      solution: typeof q.solution === 'string' ? q.solution.trim() : '',
+    })
+  }
+  if (questions.length === 0) return null
+  const savedAnswers: Record<string, number | string> = {}
+  if (o.savedAnswers && typeof o.savedAnswers === 'object' && !Array.isArray(o.savedAnswers)) {
+    for (const [k, v] of Object.entries(o.savedAnswers as Record<string, unknown>)) {
+      if (typeof v === 'number' && Number.isFinite(v)) savedAnswers[k] = v
+      else if (typeof v === 'string') savedAnswers[k] = v
+    }
+  }
+  const essaySubmission: SubmittedWorkReview['essaySubmission'] = {}
+  if (o.essaySubmission && typeof o.essaySubmission === 'object' && !Array.isArray(o.essaySubmission)) {
+    for (const [qid, rec] of Object.entries(o.essaySubmission as Record<string, unknown>)) {
+      if (!rec || typeof rec !== 'object') continue
+      const row = rec as Record<string, unknown>
+      essaySubmission[qid] = {
+        text: typeof row.text === 'string' ? row.text : '',
+        imageUrls: Array.isArray(row.imageUrls)
+          ? row.imageUrls.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+          : [],
+      }
+    }
+  }
+  return { questions, savedAnswers, essaySubmission }
+}
+
+function submittedWorkFromLocal(
+  questions: Question[],
+  answers: Record<string, number | string>,
+  essayImageUrls: Record<string, string[]>
+): SubmittedWorkReview | null {
+  if (questions.length === 0) return null
+  const essaySubmission: SubmittedWorkReview['essaySubmission'] = {}
+  const publicQuestions: Question[] = questions.map((q) => {
+    const isEssay = q.type === 'essay' || !q.options || q.options.length < 2
+    if (isEssay) {
+      essaySubmission[q.id] = {
+        text: typeof answers[q.id] === 'string' ? String(answers[q.id]) : '',
+        imageUrls: essayImageUrls[q.id] ?? [],
+      }
+    }
+    return {
+      id: q.id,
+      index: q.index,
+      type: isEssay ? 'essay' : 'quiz',
+      question_text: q.question_text,
+      options: q.options ?? [],
+    }
+  })
+  return { questions: publicQuestions, savedAnswers: { ...answers }, essaySubmission }
+}
+
+function ExamReviewSolution({
+  solution,
+  t,
+}: {
+  solution: string | undefined
+  t: Dictionary['classes']
+}) {
+  const text = (solution ?? '').trim()
+  const readable = text ? latexToReadable(text) : ''
+  const boxed = /[┌┐└┘│├┤┬┴┼─]/.test(readable)
+  return (
+    <div className="mt-3 space-y-1 rounded-lg border bg-muted/30 px-3 py-2">
+      <p className="text-xs font-medium text-foreground">{t.examReviewSolutionLabel}</p>
+      {readable ? (
+        <p className={`text-sm leading-relaxed whitespace-pre-wrap ${boxed ? 'font-sans' : ''}`}>{readable}</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t.examReviewSolutionMissing}</p>
+      )}
+    </div>
+  )
+}
+
+function SubmittedAnswersReadonly({
+  work,
+  t,
+}: {
+  work: SubmittedWorkReview
+  t: Dictionary['classes']
+}) {
+  return (
+    <div className="max-w-2xl w-full space-y-4">
+      <p className="text-sm text-muted-foreground leading-relaxed">{t.examReviewSubmittedReadonlyHint}</p>
+      {work.questions.map((q) => {
+        const isQuiz = q.type !== 'essay' && q.options.length >= 2
+        const selected = work.savedAnswers[q.id]
+        const choice = isQuiz ? quizChoiceIndex(selected) : null
+        const correct =
+          isQuiz && typeof q.correctDisplayIndex === 'number' ? q.correctDisplayIndex : null
+        const isCorrect = correct != null && choice === correct
+        const isWrong = correct != null && choice !== correct
+        const essay = work.essaySubmission[q.id]
+        const essayText = (
+          essay?.text || (typeof selected === 'string' && choice == null ? selected : '')
+        ).trim()
+        const images = essay?.imageUrls ?? []
+        return (
+          <Card
+            key={q.id}
+            className={
+              isCorrect
+                ? 'border-emerald-400/70'
+                : isWrong
+                  ? 'border-red-400/70'
+                  : undefined
+            }
+          >
+            <CardHeader className="pb-2">
+              <CardTitle
+                className={`text-base ${/[┌┐└┘│├┤┬┴┼─]/.test(latexToReadable(q.question_text)) ? 'whitespace-pre-wrap font-sans' : ''}`}
+              >
+                {fillExamTemplate(t.lamBaiQuestionLabel, { index: String(q.index) })}{' '}
+                {latexToReadable(q.question_text)}
+              </CardTitle>
+              {isQuiz && correct != null ? (
+                <p
+                  className={`text-sm font-medium ${
+                    isCorrect
+                      ? 'text-emerald-700 dark:text-emerald-300'
+                      : 'text-red-700 dark:text-red-300'
+                  }`}
+                >
+                  {isCorrect ? t.examReviewAnswerCorrect : t.examReviewAnswerWrong}
+                  {isWrong ? (
+                    <span className="font-normal text-emerald-700 dark:text-emerald-300">
+                      {' · '}
+                      {fillExamTemplate(t.examReviewCorrectAnswerLine, {
+                        letter: String.fromCharCode(65 + correct),
+                      })}
+                    </span>
+                  ) : null}
+                </p>
+              ) : !isQuiz ? (
+                <p className="text-sm font-medium text-muted-foreground">{t.examReviewEssayPending}</p>
+              ) : null}
+            </CardHeader>
+            <CardContent>
+              {isQuiz ? (
+                <div className="flex flex-col gap-2" aria-readonly="true">
+                  {q.options.map((opt, i) => {
+                    const picked = choice === i
+                    const isKey = correct === i
+                    const tone = isKey
+                      ? 'bg-emerald-500/10 border border-emerald-500/40'
+                      : picked
+                        ? 'bg-red-500/10 border border-red-500/40'
+                        : ''
+                    return (
+                      <label
+                        key={i}
+                        className={`flex items-center gap-2 p-2 rounded-lg cursor-default ${tone}`}
+                      >
+                        <input
+                          type="radio"
+                          name={`review-${q.id}`}
+                          checked={picked}
+                          readOnly
+                          disabled
+                          tabIndex={-1}
+                          className="h-4 w-4 disabled:opacity-100"
+                        />
+                        <span
+                          className={`flex-1 ${/[┌┐└┘│├┤┬┴┼─]/.test(latexToReadable(opt)) ? 'whitespace-pre-wrap block' : ''}`}
+                        >
+                          {String.fromCharCode(65 + i)}. {latexToReadable(opt)}
+                        </span>
+                        {isKey ? (
+                          <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 shrink-0">
+                            {t.examReviewAnswerCorrect}
+                          </span>
+                        ) : null}
+                      </label>
+                    )
+                  })}
+                  {choice == null ? (
+                    <p className="text-sm text-muted-foreground">{t.examReviewNoChoice}</p>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="space-y-3" aria-readonly="true">
+                  {essayText ? (
+                    <Textarea
+                      value={essayText}
+                      readOnly
+                      disabled
+                      className="min-h-24 disabled:opacity-100 disabled:cursor-default text-foreground"
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground rounded-md border bg-muted/30 px-3 py-2">
+                      {t.examReviewNoEssay}
+                    </p>
+                  )}
+                  {images.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {images.map((url) => (
+                        <div
+                          key={url}
+                          className="h-24 w-24 shrink-0 overflow-hidden rounded-md border bg-muted/30"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt="" className="h-full w-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+              <ExamReviewSolution solution={q.solution} t={t} />
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
 function playBell() {
   try {
     const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)()
@@ -283,9 +557,14 @@ export default function LamBaiClientPage({
     scoringBreakdown: ExamScoringBreakdown | null
     practiceHomework?: boolean
     submittedDueToServerDeadline?: boolean
+    autoSubmitReason?: ExamAutoSubmitReason | null
   } | null>(null)
   /** Kết quả tải từ server (đã nộp trước đó, ví dụ thiết bị khác) — hiển thị thông báo kèm kết quả */
   const [priorSubmissionResult, setPriorSubmissionResult] = useState(false)
+  /** Bài đã điền — chỉ xem sau khi nộp */
+  const [submittedWork, setSubmittedWork] = useState<SubmittedWorkReview | null>(null)
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const reviewPanelRef = useRef<HTMLDivElement>(null)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [shared, setShared] = useState(false)
   const [now, setNow] = useState(Date.now())
@@ -303,6 +582,23 @@ export default function LamBaiClientPage({
   /** HS bấm Quay lại / popstate — bắt xác nhận nộp bài */
   const [exitSubmitDialogOpen, setExitSubmitDialogOpen] = useState(false)
   const examHistoryTrapPushedRef = useRef(false)
+  /** Số lần pushState cùng URL để chặn Back lúc đang làm. Giữ sau khi nộp để Quay lại nhảy qua các mục đó. */
+  const examHistoryTrapCountRef = useRef(0)
+  const handleSubmitRef = useRef<(reason?: 'hidden') => Promise<void>>(async () => {})
+  const submitLockRef = useRef(false)
+  const answersRef = useRef<Record<string, number | string>>({})
+  const layoutTokenRef = useRef<string | null>(null)
+  const studentNameRef = useRef('')
+  const studentDobRef = useRef('')
+  const examRef = useRef<{
+    title: string
+    durationMinutes: number
+    questions: Question[]
+    practiceHomework: boolean
+  } | null>(null)
+  const resultRef = useRef<{ practiceHomework?: boolean } | null>(null)
+  const examPaperRef = useRef<HTMLDivElement>(null)
+  const leaveBeaconArmRef = useRef(0)
   /** Đếm ngược theo mốc `deadline_at` server */
   const examDeadlineAtMsRef = useRef<number | null>(null)
   const timeSyncOffsetMsRef = useRef(0)
@@ -332,6 +628,9 @@ export default function LamBaiClientPage({
           ? data.durationMinutes
           : 15
       setExam({ title, durationMinutes, questions: [], practiceHomework: practiceHw })
+      const work = parseSubmittedWorkReview(data.submittedWork)
+      setSubmittedWork(work)
+      setReviewOpen(work != null)
       const sc = typeof data.score === 'number' ? data.score : Number(data.score ?? 0)
       const mx = typeof data.maxScore === 'number' ? data.maxScore : Number(data.maxScore ?? 0)
       const scN = Number.isFinite(sc) ? sc : 0
@@ -345,7 +644,11 @@ export default function LamBaiClientPage({
         shareHint: typeof data.shareHint === 'string' ? data.shareHint : '',
         scoringBreakdown: parseScoringBreakdown(data.scoringBreakdown),
         practiceHomework: practiceHw,
-        submittedDueToServerDeadline: data.submittedDueToServerDeadline === true,
+        submittedDueToServerDeadline:
+          data.submittedDueToServerDeadline === true || data.autoSubmitReason === 'deadline',
+        autoSubmitReason:
+          parseExamAutoSubmitReason(data.autoSubmitReason) ??
+          (data.submittedDueToServerDeadline === true ? 'deadline' : null),
       })
       setPriorSubmissionResult(priorSavedEarlier)
       setExamStarted(false)
@@ -411,6 +714,8 @@ export default function LamBaiClientPage({
     setLoading(true)
     setError(null)
     setPriorSubmissionResult(false)
+    setSubmittedWork(null)
+    setReviewOpen(false)
     examDeadlineAtMsRef.current = null
     timeSyncOffsetMsRef.current = 0
     const sessionUrl = `/api/exam-session/${encodeURIComponent(code)}?_=${Date.now()}`
@@ -621,6 +926,11 @@ export default function LamBaiClientPage({
     }
   }, [code, reloadNonce, applyAlreadySubmittedPayload])
 
+  useEffect(() => {
+    if (!reviewOpen) return
+    reviewPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [reviewOpen])
+
   /** Chặn nút Back: bắt HS xác nhận nộp bài (hộp thoại). */
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -630,6 +940,7 @@ export default function LamBaiClientPage({
     }
     const trap = () => {
       window.history.pushState({ lamBaiExamLock: true }, '', window.location.href)
+      examHistoryTrapCountRef.current += 1
     }
     if (!examHistoryTrapPushedRef.current) {
       trap()
@@ -637,7 +948,8 @@ export default function LamBaiClientPage({
     }
     const onPopState = () => {
       trap()
-      setExitSubmitDialogOpen(true)
+      if (exam.practiceHomework) setExitSubmitDialogOpen(true)
+      else void handleSubmitRef.current('hidden')
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
@@ -782,9 +1094,11 @@ export default function LamBaiClientPage({
     [essayCrop, uploadEssayImage]
   )
 
-  const handleSubmit = useCallback(async () => {
-    if (!exam || submitting) return
+  const handleSubmit = useCallback(async (reason?: 'hidden') => {
+    if (!exam || submitting || submitLockRef.current) return
+    submitLockRef.current = true
     if (!layoutToken?.trim()) {
+      submitLockRef.current = false
       setError(t.examLayoutTokenMissingSubmit)
       return
     }
@@ -810,24 +1124,33 @@ export default function LamBaiClientPage({
           layoutToken,
           answers,
           essaySubmission,
+          ...(reason === 'hidden' && !exam.practiceHomework ? { autoSubmitReason: 'hidden' } : {}),
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (
+          res.status === 409 ||
           (data as { errorCode?: string })?.errorCode === 'exam_deadline_passed'
         ) {
           setReloadNonce((n) => n + 1)
           return
         }
+        submitLockRef.current = false
         setError(typeof data?.error === 'string' ? data.error : t.examSubmitFailed)
         return
       }
       setPriorSubmissionResult(false)
+      const work =
+        parseSubmittedWorkReview(data.submittedWork) ??
+        submittedWorkFromLocal(exam.questions, answers, essayImageUrls)
+      setSubmittedWork(work)
+      setReviewOpen(work != null)
       const sc = typeof data.score === 'number' ? data.score : Number(data.score ?? 0)
       const mx = typeof data.maxScore === 'number' ? data.maxScore : Number(data.maxScore ?? 0)
       const scN = Number.isFinite(sc) ? sc : 0
       const mxN = Number.isFinite(mx) ? mx : 0
+      const fromApi = parseExamAutoSubmitReason(data.autoSubmitReason)
       setResult({
         score: scN,
         maxScore: mxN,
@@ -837,14 +1160,209 @@ export default function LamBaiClientPage({
         shareHint: data.shareHint ?? '',
         scoringBreakdown: parseScoringBreakdown(data.scoringBreakdown),
         practiceHomework: Boolean(exam.practiceHomework),
-        submittedDueToServerDeadline: false,
+        submittedDueToServerDeadline: fromApi === 'deadline',
+        autoSubmitReason: fromApi ?? (reason === 'hidden' && !exam.practiceHomework ? 'hidden' : null),
       })
     } catch (e) {
+      submitLockRef.current = false
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSubmitting(false)
     }
   }, [exam, code, studentName, studentDob, answers, essayImageUrls, submitting, layoutToken, t])
+  handleSubmitRef.current = handleSubmit
+  answersRef.current = answers
+  layoutTokenRef.current = layoutToken
+  studentNameRef.current = studentName
+  studentDobRef.current = studentDob
+  examRef.current = exam
+  resultRef.current = result
+
+  useEffect(() => {
+    if (!examStarted || result || !exam || exam.practiceHomework) return
+    const flushDraft = () => {
+      const token = layoutTokenRef.current
+      const current = examRef.current
+      if (!token || !current) return
+      const essaySubmission: Record<string, { text: string; imageUrls: string[] }> = {}
+      for (const q of current.questions) {
+        const isEssay = q.type === 'essay' || !q.options || q.options.length < 2
+        if (!isEssay) continue
+        const raw = answersRef.current[q.id]
+        essaySubmission[q.id] = {
+          text: typeof raw === 'string' ? raw.trim() : '',
+          imageUrls: essayImageUrlsRef.current[q.id] ?? [],
+        }
+      }
+      void fetch(`/api/exam-session/${encodeURIComponent(code)}/draft`, {
+        method: 'PATCH',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          layoutToken: token,
+          answers: answersRef.current,
+          essaySubmission,
+        }),
+      }).catch(() => {})
+    }
+    const submitHidden = () => {
+      if (resultRef.current) return
+      if (document.visibilityState === 'visible') return
+      void handleSubmitRef.current('hidden')
+    }
+    let hideTimer: number | null = null
+    const clearHideTimer = () => {
+      if (hideTimer != null) {
+        window.clearTimeout(hideTimer)
+        hideTimer = null
+      }
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        flushDraft()
+        clearHideTimer()
+        hideTimer = window.setTimeout(submitHidden, EXAM_HIDDEN_GRACE_MS)
+        return
+      }
+      clearHideTimer()
+    }
+    const onPageHide = (event: PageTransitionEvent) => {
+      if (event.persisted || resultRef.current) return
+      flushDraft()
+      const token = layoutTokenRef.current
+      const current = examRef.current
+      if (!token || !current || current.practiceHomework) return
+      const essaySubmission: Record<string, { text: string; imageUrls: string[] }> = {}
+      for (const q of current.questions) {
+        const isEssay = q.type === 'essay' || !q.options || q.options.length < 2
+        if (!isEssay) continue
+        const raw = answersRef.current[q.id]
+        essaySubmission[q.id] = {
+          text: typeof raw === 'string' ? raw.trim() : '',
+          imageUrls: essayImageUrlsRef.current[q.id] ?? [],
+        }
+      }
+      const blob = new Blob(
+        [
+          JSON.stringify({
+            studentName: normalizeName(studentNameRef.current),
+            studentDob: studentDobRef.current,
+            layoutToken: token,
+            answers: answersRef.current,
+            essaySubmission,
+            autoSubmitReason: 'hidden',
+          }),
+        ],
+        { type: 'application/json' }
+      )
+      navigator.sendBeacon(`/api/exam-session/${encodeURIComponent(code)}/submit`, blob)
+    }
+    const beat = () => {
+      if (document.visibilityState === 'hidden' || resultRef.current) return
+      const token = layoutTokenRef.current
+      if (!token) return
+      void fetch(`/api/exam-session/${encodeURIComponent(code)}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layoutToken: token }),
+      })
+        .then(async (res) => {
+          const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+          if (data.alreadySubmitted === true) applyAlreadySubmittedPayload(data, false)
+        })
+        .catch(() => {})
+    }
+    const beatTimer = window.setInterval(beat, EXAM_HEARTBEAT_INTERVAL_MS)
+    beat()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      clearHideTimer()
+      window.clearInterval(beatTimer)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pagehide', onPageHide)
+    }
+  }, [examStarted, result, exam, code, applyAlreadySubmittedPayload])
+
+  /** Rời trang bằng link trên site (không pagehide): nộp nháp. Trễ một nhịp để Strict Mode không nộp lúc vừa vào bài. */
+  useEffect(() => {
+    if (!examStarted || result || !exam || exam.practiceHomework) return
+    const armId = ++leaveBeaconArmRef.current
+    return () => {
+      window.setTimeout(() => {
+        if (leaveBeaconArmRef.current !== armId) return
+        if (resultRef.current || examRef.current?.practiceHomework) return
+        const token = layoutTokenRef.current
+        const current = examRef.current
+        if (!token || !current) return
+        const essaySubmission: Record<string, { text: string; imageUrls: string[] }> = {}
+        for (const q of current.questions) {
+          const isEssay = q.type === 'essay' || !q.options || q.options.length < 2
+          if (!isEssay) continue
+          const raw = answersRef.current[q.id]
+          essaySubmission[q.id] = {
+            text: typeof raw === 'string' ? raw.trim() : '',
+            imageUrls: essayImageUrlsRef.current[q.id] ?? [],
+          }
+        }
+        const blob = new Blob(
+          [
+            JSON.stringify({
+              studentName: normalizeName(studentNameRef.current),
+              studentDob: studentDobRef.current,
+              layoutToken: token,
+              answers: answersRef.current,
+              essaySubmission,
+              autoSubmitReason: 'hidden',
+            }),
+          ],
+          { type: 'application/json' }
+        )
+        navigator.sendBeacon(`/api/exam-session/${encodeURIComponent(code)}/submit`, blob)
+      }, 0)
+    }
+  }, [examStarted, result, exam, code])
+
+  useEffect(() => {
+    if (!examStarted || result || !exam || exam.practiceHomework) return
+    const inEditable = (target: EventTarget | null) => {
+      const el = target instanceof Element ? target : target instanceof Node ? target.parentElement : null
+      return !!el?.closest('textarea, input, [contenteditable="true"]')
+    }
+    const selectionInPaper = () => {
+      const paper = examPaperRef.current
+      const sel = document.getSelection()
+      if (!paper || !sel || sel.isCollapsed) return false
+      return sel.anchorNode ? paper.contains(sel.anchorNode) : false
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (inEditable(event.target)) return
+      const key = event.key.toLowerCase()
+      if ((event.ctrlKey || event.metaKey) && (key === 'c' || key === 'x' || key === 'a' || key === 'p' || key === 's')) {
+        event.preventDefault()
+      }
+    }
+    const onCopy = (event: ClipboardEvent) => {
+      if (inEditable(event.target)) return
+      if (!selectionInPaper() && !(event.target instanceof Node && examPaperRef.current?.contains(event.target))) return
+      event.preventDefault()
+    }
+    const onMenu = (event: MouseEvent) => {
+      if (inEditable(event.target)) return
+      if (!(event.target instanceof Node) || !examPaperRef.current?.contains(event.target)) return
+      event.preventDefault()
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('copy', onCopy)
+    document.addEventListener('cut', onCopy)
+    document.addEventListener('contextmenu', onMenu)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('copy', onCopy)
+      document.removeEventListener('cut', onCopy)
+      document.removeEventListener('contextmenu', onMenu)
+    }
+  }, [examStarted, result, exam])
 
   const handleStartExam = useCallback(async () => {
     const normalized = normalizeName(studentName)
@@ -985,6 +1503,26 @@ export default function LamBaiClientPage({
       submitResultRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
     })
     return () => window.cancelAnimationFrame(id)
+  }, [result])
+
+  const leaveSubmittedExamPage = useCallback(() => {
+    const extra = examHistoryTrapCountRef.current
+    examHistoryTrapCountRef.current = 0
+    const steps = extra > 0 ? extra + 1 : 1
+    if (window.history.length > steps) {
+      window.history.go(-steps)
+      return
+    }
+    if (window.history.length > 1) window.history.back()
+  }, [])
+
+  const [headerBackSlot, setHeaderBackSlot] = useState<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    if (!result) {
+      setHeaderBackSlot(null)
+      return
+    }
+    setHeaderBackSlot(document.getElementById(SITE_HEADER_BACK_SLOT_ID))
   }, [result])
 
   if (loading) {
@@ -1151,24 +1689,69 @@ export default function LamBaiClientPage({
         })
       }
     }
+    const reviewToggle = submittedWork ? (
+      <Button
+        type="button"
+        className="w-full"
+        onClick={() => setReviewOpen((open) => !open)}
+      >
+        {reviewOpen ? t.examReviewSubmittedWorkHide : t.examReviewSubmittedWork}
+      </Button>
+    ) : null
+    const reviewPanel =
+      reviewOpen && submittedWork ? (
+        <div ref={reviewPanelRef} className="w-full max-w-2xl">
+          <SubmittedAnswersReadonly work={submittedWork} t={t} />
+        </div>
+      ) : null
+    const resultShellClass = `w-full min-h-[min(70dvh,32rem)] flex flex-col items-center gap-4 px-4 pb-6 ${
+      reviewOpen ? 'justify-start pt-2' : 'justify-center'
+    }`
+    const headerBack = headerBackSlot
+      ? createPortal(
+          <button
+            type="button"
+            data-creation-tool-back=""
+            aria-label={t.examResultBack}
+            title={t.examResultBack}
+            className="inline-flex h-8 w-8 shrink-0 touch-manipulation items-center justify-center gap-1.5 rounded-lg border border-border/70 bg-background text-sm font-medium text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto sm:px-2.5"
+            onClick={leaveSubmittedExamPage}
+          >
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="hidden sm:inline" aria-hidden>
+              {t.examResultBack}
+            </span>
+          </button>,
+          headerBackSlot
+        )
+      : null
+    const backButton = (
+      <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={leaveSubmittedExamPage}>
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        {t.examResultBack}
+      </Button>
+    )
     if (result.practiceHomework) {
       return (
         <div
           ref={submitResultRef}
-          className="w-full min-h-[min(75dvh,36rem)] flex items-center justify-center p-4"
+          className="w-full"
           id="exam-submit-result"
           role="status"
           aria-live="polite"
         >
+          {headerBack}
+          <div className="px-4 pt-4">{backButton}</div>
+          <div className={resultShellClass}>
           <Card className="max-w-md w-full border-sky-200 dark:border-sky-800">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sky-700 dark:text-sky-300">
                 <CheckCircle className="h-6 w-6" />
                 {t.homeworkSubmittedTitle}
               </CardTitle>
-              {result.submittedDueToServerDeadline ? (
+              {examResultInterruptHint(t, result) ? (
                 <CardDescription className="text-sm leading-relaxed pt-1">
-                  {t.examSubmittedDueToDeadlineHint}
+                  {examResultInterruptHint(t, result)}
                 </CardDescription>
               ) : priorSubmissionResult ? (
                 <CardDescription className="text-sm leading-relaxed pt-1">
@@ -1204,32 +1787,38 @@ export default function LamBaiClientPage({
               {result.comment ? (
                 <p className="text-sm leading-relaxed">{result.comment}</p>
               ) : null}
+              {reviewToggle}
               <Button variant="outline" size="sm" onClick={handleShare} className="w-full" disabled={shared}>
                 <Share2 className="h-4 w-4 mr-2" />
                 {shared ? t.examShareDone : result.shareHint || t.examShareDone}
               </Button>
             </CardContent>
           </Card>
+          {reviewPanel}
+          </div>
         </div>
       )
     }
     return (
-      <div
+        <div
         ref={submitResultRef}
-        className="w-full min-h-[min(75dvh,36rem)] flex items-center justify-center p-4"
+        className="w-full"
         id="exam-submit-result"
         role="status"
         aria-live="polite"
       >
+        {headerBack}
+        <div className="px-4 pt-4">{backButton}</div>
+        <div className={resultShellClass}>
         <Card className="max-w-md w-full border-emerald-200 dark:border-emerald-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
               <CheckCircle className="h-6 w-6" />
               {t.examSubmittedTitle}
             </CardTitle>
-            {result.submittedDueToServerDeadline ? (
+            {examResultInterruptHint(t, result) ? (
               <CardDescription className="text-sm leading-relaxed pt-1">
-                {t.examSubmittedDueToDeadlineHint}
+                {examResultInterruptHint(t, result)}
               </CardDescription>
             ) : priorSubmissionResult ? (
               <CardDescription className="text-sm leading-relaxed pt-1">
@@ -1303,6 +1892,7 @@ export default function LamBaiClientPage({
               )}
             </div>
             <p className="text-sm leading-relaxed">{result.comment}</p>
+            {reviewToggle}
             {result.shareHint && (
               <Button variant="outline" size="sm" onClick={handleShare} className="w-full" disabled={shared}>
                 <Share2 className="h-4 w-4 mr-2" />
@@ -1311,6 +1901,8 @@ export default function LamBaiClientPage({
             )}
           </CardContent>
         </Card>
+        {reviewPanel}
+        </div>
       </div>
     )
   }
@@ -1390,7 +1982,7 @@ export default function LamBaiClientPage({
             )}
             <p className="text-xs text-muted-foreground">{t.examOneAttemptNote}</p>
             <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-              {t.lamBaiExitBlockedBeforeStartHint}
+              {isHw ? t.lamBaiExitBlockedBeforeStartHint : t.examProctorBeforeStartHint}
             </p>
             <Button
               onClick={() => void handleStartExam()}
@@ -1456,7 +2048,7 @@ export default function LamBaiClientPage({
         ) : null}
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="py-3 text-sm text-amber-950 dark:text-amber-100 leading-relaxed">
-            {t.lamBaiExitBlockedBanner}
+            {isHw ? t.lamBaiExitBlockedBanner : t.examProctorDuringHint}
           </CardContent>
         </Card>
         {fiveMinuteWarning && !isTimeUp && (
@@ -1476,7 +2068,11 @@ export default function LamBaiClientPage({
           </Card>
         )}
 
-        <div className="space-y-4">
+        <div
+          ref={examPaperRef}
+          className={isHw ? 'space-y-4' : 'space-y-4 select-none [&_input]:select-text [&_textarea]:select-text'}
+          onDragStart={isHw ? undefined : (event) => event.preventDefault()}
+        >
           {exam.questions.map((q) => (
             <Card key={q.id}>
               <CardHeader className="pb-2">
@@ -1621,7 +2217,7 @@ export default function LamBaiClientPage({
         <Card>
           <CardContent className="pt-6">
             <Button
-              onClick={handleSubmit}
+              onClick={() => void handleSubmit()}
               disabled={submitting}
               className="w-full"
             >

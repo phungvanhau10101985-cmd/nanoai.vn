@@ -3,7 +3,7 @@ import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
-import Link from 'next/link'
+import { BrowserBackTextButton } from '@/components/navigation/browser-back-control'
 import EnterClassForm from '../enter-class-form'
 import { TeacherIdentityGate } from '@/components/lop/teacher-identity-form'
 import { fetchTeacherIdentity } from '@/lib/db/teacher-identity-pg'
@@ -26,12 +26,12 @@ export default async function TaoLopPage() {
       <div className="app-shell min-h-screen">
         <CreationToolPageShell currentHref="/lop/tao">
           <div className="mx-auto max-w-md px-4 py-8">
-            <Link
-              href="/lop"
+            <BrowserBackTextButton
+              fallbackHref="/lop"
               className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
             >
               ← {t.creationSidebar.back}
-            </Link>
+            </BrowserBackTextButton>
             <TeacherIdentityGate t={t.classes} initialName={identity.givenName} initialGender={identity.gender} />
           </div>
         </CreationToolPageShell>
@@ -43,12 +43,12 @@ export default async function TaoLopPage() {
     <div className="app-shell min-h-screen">
       <CreationToolPageShell currentHref="/lop/tao">
         <div className="mx-auto max-w-md px-4 py-8">
-          <Link
-            href="/lop"
+          <BrowserBackTextButton
+            fallbackHref="/lop"
             className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
           >
             ← {t.creationSidebar.back}
-          </Link>
+          </BrowserBackTextButton>
           <h1 className="text-xl font-bold text-foreground mb-2">{t.classes.createClass}</h1>
           <p className="mb-6 text-sm text-muted-foreground">
             {t.classes.teacherIdentityShownAs.replace('{name}', identity.publicName)}

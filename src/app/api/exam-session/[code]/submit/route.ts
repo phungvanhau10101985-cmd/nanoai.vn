@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import { hasCompleteClassMemberProfileForExamPg } from '@/lib/db/classes-pg'
 import {
+  fetchExamAttemptFullForUserGetRoutePg,
   fetchExamAttemptOpenForDraftPg,
   fetchExamQuestionsForGradingPg,
   fetchExamSessionActiveForStudentFlowPg,
@@ -9,7 +10,7 @@ import {
 } from '@/lib/db/exam-session-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { verifyExamLayoutToken } from '@/lib/exam-layout-token'
-import { getExamAttemptFeedbackWithMeta } from '@/lib/exam-feedback'
+import { getExamAttemptFeedbackWithMeta, type ExamGradingMeta } from '@/lib/exam-feedback'
 import { CLASS_ENROLLMENT_ERROR_VI } from '@/lib/lop/require-class-enrollment'
 import { isValidStudentDobIso } from '@/lib/student-dob'
 import type { ExamLayoutSnapshotV1 } from '@/lib/exam-session/student-exam-layout'
@@ -18,6 +19,7 @@ import {
   type ExamQuestionGradeRow,
 } from '@/lib/exam-session/grade-exam-from-sources'
 import { isServerDeadlinePassed } from '@/lib/exam-session/finalize-overdue-exam-attempt'
+import { loadSubmittedWorkReviewPg } from '@/lib/exam-session/submitted-work-review'
 
 /** Nộp bài – điểm TN theo trọng số; TL chưa chấm. Một attempt / user; hết giờ server thì từ chối (tải lại để hệ thống nộp tự động). */
 export async function POST(
@@ -151,7 +153,12 @@ export async function POST(
       return NextResponse.json({ error: graded.error }, { status: 400 })
     }
 
-    const feedback = getExamAttemptFeedbackWithMeta(graded.finalScore, graded.maxScore, graded.gradingMeta)
+    const autoSubmitReason: 'hidden' | undefined =
+      body?.autoSubmitReason === 'hidden' && !practiceHomework ? 'hidden' : undefined
+    const gradingMeta: ExamGradingMeta = autoSubmitReason
+      ? { ...graded.gradingMeta, autoSubmitReason }
+      : graded.gradingMeta
+    const feedback = getExamAttemptFeedbackWithMeta(graded.finalScore, graded.maxScore, gradingMeta)
 
     const submittedIso = new Date().toISOString()
     const updated = await finalizeSubmitExamAttemptPg({
@@ -162,7 +169,7 @@ export async function POST(
       essaySubmission: graded.essaySubmission,
       score: graded.finalScore,
       maxScore: graded.maxScore,
-      gradingMeta: graded.gradingMeta,
+      gradingMeta,
       submittedIso,
     })
     if (updated === null) {
@@ -175,6 +182,16 @@ export async function POST(
       )
     }
 
+    const saved = await fetchExamAttemptFullForUserGetRoutePg(sessionRow.id, user.id)
+    const submittedWork = saved
+      ? await loadSubmittedWorkReviewPg(
+          String(sessionRow.id),
+          saved.layout_snapshot,
+          saved.answers,
+          saved.essay_submission
+        )
+      : null
+
     return NextResponse.json({
       success: true,
       practiceHomework,
@@ -184,7 +201,10 @@ export async function POST(
       scoreOn100: feedback.scoreOn100,
       comment: feedback.comment,
       shareHint: feedback.shareHint,
-      scoringBreakdown: graded.gradingMeta,
+      scoringBreakdown: gradingMeta,
+      autoSubmitReason: autoSubmitReason ?? null,
+      submittedWork,
+      classId: sessionRow.class_id ?? null,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

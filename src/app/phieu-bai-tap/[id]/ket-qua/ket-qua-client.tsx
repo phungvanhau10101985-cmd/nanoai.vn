@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useLayoutEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { parseWorksheetMarkdown } from '@/lib/parse-worksheet-markdown'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import WorksheetView from '../worksheet-view'
@@ -45,7 +45,6 @@ export default function KetQuaClient({
   t: Dictionary['classes']
   questionBadge: string
 }) {
-  const router = useRouter()
   const parsed = useMemo(() => parseWorksheetMarkdown(worksheet.content_markdown), [worksheet.content_markdown])
   const quizAnswers = submission.answers_json?.quiz ?? {}
   const essayAnswers = submission.answers_json?.essay ?? {}
@@ -114,7 +113,7 @@ export default function KetQuaClient({
       </div>
 
       <div className="mt-8">
-        <button type="button" className="text-sm text-primary hover:underline" onClick={() => router.back()}>
+        <button type="button" className="text-sm text-primary hover:underline" onClick={() => goToPreviousPage()}>
           ← Về lớp
         </button>
       </div>

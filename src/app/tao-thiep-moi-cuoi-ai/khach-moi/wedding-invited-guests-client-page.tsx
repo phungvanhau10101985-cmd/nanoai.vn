@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   Copy,
   ExternalLink,
@@ -53,6 +52,7 @@ import {
   saveWeddingAttendanceNotifySettings,
   saveWeddingInvitedGuest,
 } from './actions'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 
 const AUTO_SAVE_DEBOUNCE_MS = 800
@@ -284,7 +284,6 @@ function statsForRows(rows: GuestRow[]) {
 }
 
 export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: string }) {
-  const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [card, setCard] = useState<WeddingCard | null>(null)
@@ -319,8 +318,8 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const occasionCopy = useMemo(() => invitationEditorCopy(card?.occasionKey), [card?.occasionKey])
 
   const backToEditor = useCallback(() => {
-    router.push(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(cardId)}`)
-  }, [cardId, router])
+    goToPreviousPage(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(cardId)}`)
+  }, [cardId])
 
   useSetCreationToolBackHandler(backToEditor)
 

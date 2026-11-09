@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -37,7 +37,6 @@ type Review = {
 }
 
 export function CurriculumEditReviewsClient() {
-  const router = useRouter()
   const { toast } = useToast()
   const { runWithStepUp } = useStepUpOtp()
   const [items, setItems] = useState<Review[]>([])
@@ -203,7 +202,7 @@ export function CurriculumEditReviewsClient() {
         </div>
       )}
 
-      <Button variant="outline" type="button" onClick={() => router.back()}>
+      <Button variant="outline" type="button" onClick={() => goToPreviousPage('/admin')}>
         ← Quay lại Admin
       </Button>
     </div>

@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { parseWorksheetMarkdown } from '@/lib/parse-worksheet-markdown'
@@ -154,8 +154,14 @@ export default function LamBaiClient({
         <Button onClick={handleSubmit} disabled={!canSubmit || submitting || submitted}>
           {submitting ? '...' : t.submit}
         </Button>
-        <Button variant="ghost" size="sm" className="h-auto px-2 hover:text-foreground" asChild>
-          <Link href={`/lop/${classId}/phieu-bai-tap`}>{t.worksheetLamBaiBackToClassWorksheets}</Link>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-auto px-2 hover:text-foreground"
+          onClick={() => goToPreviousPage(`/lop/${classId}/phieu-bai-tap`)}
+        >
+          {t.worksheetLamBaiBackToClassWorksheets}
         </Button>
       </div>
     </div>

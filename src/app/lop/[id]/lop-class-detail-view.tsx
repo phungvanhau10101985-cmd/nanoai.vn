@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { BrowserBackTextButton } from '@/components/navigation/browser-back-control'
 import { redirect } from 'next/navigation'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { getServerDictionary } from '@/lib/i18n/server'
@@ -61,12 +61,12 @@ export function LopClassDetailView({
       <CreationToolPageShell currentHref={currentHref}>
         <div className="mx-auto w-full max-w-2xl pb-8 lg:max-w-3xl lg:pb-10">
           {pageMode === 'hub' && isTeacher && !focusSubject ? (
-            <Link
-              href="/lop"
+            <BrowserBackTextButton
+              fallbackHref="/lop"
               className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
             >
               ← {t.creationSidebar.back}
-            </Link>
+            </BrowserBackTextButton>
           ) : null}
           <LopDetailClient
             cls={{

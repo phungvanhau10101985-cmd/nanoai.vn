@@ -1,4 +1,5 @@
 import { isPgConfigured } from '@/lib/db/pool'
+import { EXAM_SIGNAL_LOST_MS } from '@/lib/exam-session/exam-presence'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
 /**
@@ -95,6 +96,7 @@ export type ExamAttemptDraftRowPg = {
   submitted_at: string | null
   deadline_at: string | null
   started_at: string | null
+  last_seen_at: string | null
 }
 
 function isoOrNull(v: unknown): string | null {
@@ -115,8 +117,9 @@ export async function fetchExamAttemptOpenForDraftPg(
       submitted_at: unknown
       deadline_at: unknown
       started_at: unknown
+      last_seen_at: unknown
     }>(
-      `select id::text, submitted_at, deadline_at, started_at
+      `select id::text, submitted_at, deadline_at, started_at, last_seen_at
        from public.exam_attempts
        where session_id = $1::uuid and user_id = $2::uuid
        limit 1`,
@@ -129,6 +132,7 @@ export async function fetchExamAttemptOpenForDraftPg(
       submitted_at: isoOrNull(row.submitted_at),
       deadline_at: isoOrNull(row.deadline_at),
       started_at: isoOrNull(row.started_at),
+      last_seen_at: isoOrNull(row.last_seen_at),
     }
   } catch (e) {
     console.error('[exam-session-pg] fetchExamAttemptOpenForDraftPg', e)
@@ -176,12 +180,49 @@ export async function updateExamAttemptDraftAnswersPg(
   }
 }
 
+/** Gia hạn tín hiệu sống nếu còn trong ngưỡng. `stale` = quá ngưỡng, chưa nộp. */
+export async function touchExamAttemptLastSeenPg(
+  attemptId: string,
+  userId: string
+): Promise<'ok' | 'stale' | 'closed' | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const fresh = await pgQueryOne<{ id: string }>(
+      `update public.exam_attempts
+       set last_seen_at = now()
+       where id = $1::uuid
+         and user_id = $2::uuid
+         and submitted_at is null
+         and (
+           last_seen_at is null
+           or last_seen_at >= now() - ($3::int * interval '1 millisecond')
+         )
+       returning id::text as id`,
+      [attemptId, userId, EXAM_SIGNAL_LOST_MS]
+    )
+    if (fresh) return 'ok'
+    const row = await pgQueryOne<{ submitted_at: unknown }>(
+      `select submitted_at
+       from public.exam_attempts
+       where id = $1::uuid and user_id = $2::uuid
+       limit 1`,
+      [attemptId, userId]
+    )
+    if (!row || row.submitted_at != null) return 'closed'
+    return 'stale'
+  } catch (err) {
+    console.error('[exam-session-pg] touchExamAttemptLastSeenPg', err)
+    return null
+  }
+}
+
 export type ExamSessionStudentFlowPg = {
   id: string
   class_id: string | null
   school_id: string | null
   is_practice_homework: boolean
   duration_minutes: number
+  title: string
 }
 
 /** Phiên `active` cho luồng HS (nộp bài / ảnh TL). */
@@ -196,8 +237,9 @@ export async function fetchExamSessionActiveForStudentFlowPg(
       school_id: string | null
       is_practice_homework: boolean | null
       duration_minutes: number | null
+      title: string | null
     }>(
-      `select id::text, class_id::text, school_id::text, is_practice_homework, duration_minutes
+      `select id::text, class_id::text, school_id::text, is_practice_homework, duration_minutes, title
        from public.exam_sessions
        where code = $1 and status = 'active'
        limit 1`,
@@ -210,6 +252,7 @@ export async function fetchExamSessionActiveForStudentFlowPg(
       school_id: row.school_id,
       is_practice_homework: Boolean(row.is_practice_homework),
       duration_minutes: typeof row.duration_minutes === 'number' ? row.duration_minutes : 15,
+      title: String(row.title ?? ''),
     }
   } catch (e) {
     console.error('[exam-session-pg] fetchExamSessionActiveForStudentFlowPg', e)
@@ -463,6 +506,7 @@ export type ExamAttemptFullGetRowPg = {
   student_code: string | null
   started_at: string | null
   deadline_at: string | null
+  last_seen_at: string | null
 }
 
 function mapExamAttemptFullRow(row: Record<string, unknown>): ExamAttemptFullGetRowPg {
@@ -479,6 +523,7 @@ function mapExamAttemptFullRow(row: Record<string, unknown>): ExamAttemptFullGet
     student_code: row.student_code != null ? String(row.student_code) : null,
     started_at: row.started_at != null ? isoOrNull(row.started_at) : null,
     deadline_at: row.deadline_at != null ? isoOrNull(row.deadline_at) : null,
+    last_seen_at: row.last_seen_at != null ? isoOrNull(row.last_seen_at) : null,
   }
 }
 
@@ -490,7 +535,7 @@ export async function fetchExamAttemptFullForUserGetRoutePg(
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select id::text, submitted_at, score, max_score, grading_meta, layout_snapshot, answers, essay_submission,
-              student_name, student_code, started_at, deadline_at
+              student_name, student_code, started_at, deadline_at, last_seen_at
        from public.exam_attempts
        where session_id = $1::uuid and user_id = $2::uuid
        limit 1`,
@@ -513,7 +558,7 @@ export async function fetchExamAttemptForBeginPg(
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select id::text, submitted_at, score, max_score, grading_meta, layout_snapshot, answers, essay_submission,
-              student_name, student_code, started_at, deadline_at
+              student_name, student_code, started_at, deadline_at, last_seen_at
        from public.exam_attempts
        where session_id = $1::uuid and user_id = $2::uuid
        limit 1`,
@@ -552,10 +597,10 @@ export async function insertExamAttemptBeginPg(
     await pgQuery(
       `insert into public.exam_attempts (
         session_id, user_id, class_id, school_id, student_name, student_code,
-        answers, essay_submission, score, max_score, started_at, submitted_at, deadline_at, layout_snapshot
+        answers, essay_submission, score, max_score, started_at, submitted_at, deadline_at, layout_snapshot, last_seen_at
       ) values (
         $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6,
-        $7::jsonb, $8::jsonb, $9, $10, $11::timestamptz, null, $12::timestamptz, $13::jsonb
+        $7::jsonb, $8::jsonb, $9, $10, $11::timestamptz, null, $12::timestamptz, $13::jsonb, $11::timestamptz
       )`,
       [
         p.sessionId,
@@ -697,6 +742,10 @@ export async function fetchExamAttemptSubmittedSummaryRowPg(attemptId: string): 
   score: number
   max_score: number
   grading_meta: unknown
+  session_id: string
+  layout_snapshot: unknown
+  answers: unknown
+  essay_submission: unknown
 } | null> {
   if (!isPgConfigured()) return null
   try {
@@ -705,19 +754,28 @@ export async function fetchExamAttemptSubmittedSummaryRowPg(attemptId: string): 
       score: unknown
       max_score: unknown
       grading_meta: unknown
+      session_id: string
+      layout_snapshot: unknown
+      answers: unknown
+      essay_submission: unknown
     }>(
-      `select submitted_at, score, max_score, grading_meta
+      `select submitted_at, score, max_score, grading_meta, session_id::text,
+              layout_snapshot, answers, essay_submission
        from public.exam_attempts
        where id = $1::uuid
        limit 1`,
       [attemptId]
     )
-    if (!row?.submitted_at) return null
+    if (!row?.submitted_at || !row.session_id) return null
     return {
       submitted_at: isoOrNull(row.submitted_at) ?? '',
       score: Number(row.score ?? 0),
       max_score: Number(row.max_score ?? 0),
       grading_meta: row.grading_meta,
+      session_id: String(row.session_id),
+      layout_snapshot: row.layout_snapshot,
+      answers: row.answers,
+      essay_submission: row.essay_submission,
     }
   } catch (e) {
     console.error('[exam-session-pg] fetchExamAttemptSubmittedSummaryRowPg', e)

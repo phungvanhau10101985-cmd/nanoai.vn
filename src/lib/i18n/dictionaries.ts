@@ -3338,6 +3338,14 @@ export type Dictionary = {
     examSubmittedSavedEarlier: string
     /** Kết quả sau khi hết giờ server (tự nộp) */
     examSubmittedDueToDeadlineHint: string
+    /** Bài thi bị ẩn / rời trang nên nộp */
+    examSubmittedDueToHiddenHint: string
+    /** Mất tín hiệu quá ngưỡng nên nộp */
+    examSubmittedDueToSignalLostHint: string
+    /** Cảnh báo trước khi bấm Bắt đầu bài thi tính điểm */
+    examProctorBeforeStartHint: string
+    /** Nhắc khi đang làm bài thi tính điểm */
+    examProctorDuringHint: string
     /** Bài tập về nhà (không hiển thị điểm cho HS) */
     homeworkSubmittedTitle: string
     homeworkSubmittedSavedEarlier: string
@@ -3373,6 +3381,21 @@ export type Dictionary = {
     /** Chỉ tự luận: {score}, {max}, {essayMax}, {time} */
     examTeacherAttemptEssayOnlySummary: string
     examShareDone: string
+    /** Nút trên màn đã nộp — mở bài đã điền, không sửa */
+    examReviewSubmittedWork: string
+    examReviewSubmittedWorkHide: string
+    examReviewSubmittedReadonlyHint: string
+    examReviewNoChoice: string
+    examReviewNoEssay: string
+    examReviewAnswerCorrect: string
+    examReviewAnswerWrong: string
+    /** {letter} */
+    examReviewCorrectAnswerLine: string
+    examReviewEssayPending: string
+    examReviewSolutionLabel: string
+    examReviewSolutionMissing: string
+    /** Nút trên màn đã nộp — về trang lớp */
+    examResultBack: string
     showStudentsAction: string
     hideStudentsAction: string
     examReviewAction: string
@@ -8062,6 +8085,14 @@ export const VI_DICTIONARY: Dictionary = {
     examSubmittedSavedEarlier: 'Bạn đã nộp bài thi này. Dưới đây là kết quả đã lưu.',
     examSubmittedDueToDeadlineHint:
       'Thời gian làm bài trên hệ thống đã hết — bài được nộp tự động theo đáp án đã lưu. Dưới đây là kết quả.',
+    examSubmittedDueToHiddenHint:
+      'Trang làm bài bị ẩn hoặc bạn đã rời trang — bài được nộp tự động theo phần đã lưu. Dưới đây là kết quả.',
+    examSubmittedDueToSignalLostHint:
+      'Mất kết nối quá 25 giây — bài được nộp tự động theo phần đã lưu. Dưới đây là kết quả.',
+    examProctorBeforeStartHint:
+      'Đây là bài thi tính điểm. Rời trang, chuyển tab, thu nhỏ hoặc khóa máy quá 3 giây thì bài được nộp bằng phần đã lưu. Mất mạng quá 25 giây cũng nộp. Mở lại link chỉ xem kết quả. Không sao chép được nội dung đề.',
+    examProctorDuringHint:
+      'Đang thi: chuyển tab, thu nhỏ hoặc khóa máy quá 3 giây thì bài được nộp. Mất mạng quá 25 giây cũng nộp. Không sao chép được đề.',
     homeworkSubmittedTitle: 'Đã nộp bài tập về nhà',
     homeworkSubmittedSavedEarlier: 'Bạn đã nộp bài tập này. Thông tin đã lưu bên dưới.',
     homeworkSubmittedBody:
@@ -8083,6 +8114,19 @@ export const VI_DICTIONARY: Dictionary = {
       'TN: {correct}/{total} đúng, {wrong} sai · Điểm TN {grade10}/10 · Tạm {score}/{max} (TL tối đa {essayMax}) · {time}',
     examTeacherAttemptEssayOnlySummary: 'Đã nộp · Tạm {score}/{max} (tự luận, tối đa {essayMax}) · {time}',
     examShareDone: 'Đã chia sẻ!',
+    examReviewSubmittedWork: 'Xem lại bài làm',
+    examReviewSubmittedWorkHide: 'Ẩn bài làm',
+    examReviewSubmittedReadonlyHint:
+      'Bài đã nộp. Xem lại phần đã điền, kết quả và lời giải từng câu. Không sửa được.',
+    examReviewNoChoice: 'Chưa chọn',
+    examReviewNoEssay: 'Chưa điền',
+    examReviewAnswerCorrect: 'Đúng',
+    examReviewAnswerWrong: 'Sai',
+    examReviewCorrectAnswerLine: 'Đáp án đúng: {letter}',
+    examReviewEssayPending: 'Tự luận chưa chấm',
+    examReviewSolutionLabel: 'Lời giải',
+    examReviewSolutionMissing: 'Chưa có lời giải chi tiết cho câu này.',
+    examResultBack: 'Quay lại',
     showStudentsAction: 'Xem học sinh làm bài',
     hideStudentsAction: 'Ẩn danh sách',
     examReviewAction: 'Chữa bài',

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { BrowserBackTextButton } from '@/components/navigation/browser-back-control'
 import { ChevronRight } from 'lucide-react'
 import { notFound, redirect } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
@@ -53,13 +54,13 @@ export default async function ClassReviewLessonsPage({
     <div className="app-shell min-h-screen">
       <CreationToolPageShell currentHref={`/lop/${classId}/on-bai`} relatedLinks={GAN_PHIEU_RELATED}>
         <div className="mx-auto max-w-2xl px-4 py-8">
-          <Link
-            href={backHref}
+          <BrowserBackTextButton
+            fallbackHref={backHref}
             className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronRight className="h-4 w-4 shrink-0 rotate-180" aria-hidden />
             {t.classes.classSubjectBack}
-          </Link>
+          </BrowserBackTextButton>
           <h1 className="mb-2 text-xl font-bold text-foreground">{t.classes.classReviewTitle}</h1>
           <p className="mb-1 text-sm text-muted-foreground">{access.payload.cls.name}</p>
           <p className="mb-6 text-sm text-muted-foreground">{t.classes.classReviewLead}</p>

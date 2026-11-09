@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -364,7 +364,6 @@ export default function TaoBaiThiClientPage({
   initialWebLocale = DEFAULT_WEB_LOCALE,
 }: { variant?: 'exam' | 'homework'; initialWebLocale?: WebLocale } = {}) {
   const isHomework = variant === 'homework'
-  const router = useRouter()
   const formDefaultsPrimary = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK : EXAM_FORM_DEFAULTS_KEY_EXAM
   const formDefaultsLegacy = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK_LEGACY : EXAM_FORM_DEFAULTS_KEY_EXAM_LEGACY
   const [uiLocale, setUiLocale] = useState<WebLocale>(initialWebLocale)
@@ -1617,7 +1616,7 @@ export default function TaoBaiThiClientPage({
           variant="ghost"
           size="sm"
           className="-ml-2 h-9 gap-1 px-2"
-          onClick={() => router.back()}
+          onClick={() => goToPreviousPage()}
         >
           <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
           {dict.creationSidebar.back}

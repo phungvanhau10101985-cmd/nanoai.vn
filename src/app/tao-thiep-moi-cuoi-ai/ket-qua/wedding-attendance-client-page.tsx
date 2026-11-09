@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Mail } from 'lucide-react'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/hooks/use-toast'
-import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { WeddingAttendanceBucket, WeddingAttendanceSummary } from '@/lib/wedding/wedding-attendance-summary'
 import { saveWeddingAttendanceNotifySettings } from './actions'
@@ -102,7 +102,6 @@ export default function WeddingAttendanceClientPage({
   brideEmail,
   notify,
 }: Props) {
-  const router = useRouter()
   const { toast } = useToast()
   const [groom, setGroom] = useState(groomEmail)
   const [bride, setBride] = useState(brideEmail)
@@ -113,8 +112,8 @@ export default function WeddingAttendanceClientPage({
   const saveTimerRef = useRef<number | null>(null)
 
   const backToEditor = useCallback(() => {
-    router.push(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(cardId)}`)
-  }, [cardId, router])
+    goToPreviousPage(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(cardId)}`)
+  }, [cardId])
   useSetCreationToolBackHandler(backToEditor)
 
   const persistNotify = useCallback(async (next: { groom: string; bride: string; notify: boolean }) => {

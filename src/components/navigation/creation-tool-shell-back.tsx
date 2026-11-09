@@ -12,9 +12,9 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { SITE_HEADER_BACK_SLOT_ID } from '@/components/layout/site-header-back-slot'
+import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { cn } from '@/lib/utils'
 
 const BackHandlerRefContext = createContext<MutableRefObject<(() => void) | null> | null>(null)
@@ -44,14 +44,13 @@ export function CreationToolShellBackButton({
   label: ReactNode
   className?: string
 }) {
-  const router = useRouter()
   const handlerRef = useContext(BackHandlerRefContext)
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const onClick = useCallback(() => {
     const fn = handlerRef?.current
     if (fn) fn()
-    else router.back()
-  }, [handlerRef, router])
+    else goToPreviousPage()
+  }, [handlerRef])
   useLayoutEffect(() => {
     setSlot(document.getElementById(SITE_HEADER_BACK_SLOT_ID))
   }, [])
