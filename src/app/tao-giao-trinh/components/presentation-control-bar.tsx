@@ -97,6 +97,8 @@ export interface PresentationControlBarProps {
   phoneStudent?: boolean
   /** Giáo viên, cửa sổ dưới 768px: một hàng cuộn ngang. Desktop không bật. */
   phoneTeacher?: boolean
+  /** MacBook: thanh điều khiển cuộn ngang khi không đủ chỗ. Windows không truyền prop này. */
+  appleMacBar?: boolean
 }
 
 export function PresentationControlBar({
@@ -145,6 +147,7 @@ export function PresentationControlBar({
   printHidden = false,
   phoneStudent = false,
   phoneTeacher = false,
+  appleMacBar = false,
 }: PresentationControlBarProps) {
   const isStudent = variant === 'student'
   const isTeacher = variant === 'teacher'
@@ -204,6 +207,7 @@ export function PresentationControlBar({
         theme.text,
         // Keep right controls visible by pinning content to the right.
         !phoneStudent && !phoneTeacher && prioritizeRightControls && 'justify-end flex-nowrap overflow-x-hidden',
+        appleMacBar && !phoneStudent && !phoneTeacher && '!flex-nowrap overflow-x-auto overflow-y-hidden [scrollbar-width:thin]',
         // Giao diện học sinh slide-interaction: toàn bộ control bar (visua, cài đặt...) phải click được.
         shareButtonClickableWhenParentDisabled && 'pointer-events-auto'
       )}
@@ -218,7 +222,7 @@ export function PresentationControlBar({
           {currentIndex + 1}/{totalSlides}
         </span>
       )}
-      <div className={cn(SHARED_LAYOUT.rightGroup, phoneStudent ? 'min-w-0 flex-1 !flex-nowrap justify-start gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : phoneTeacher ? 'w-max shrink-0 !flex-nowrap justify-start gap-1.5' : prioritizeRightControls && 'ml-auto w-full md:w-max justify-end')}>
+      <div className={cn(SHARED_LAYOUT.rightGroup, phoneStudent ? 'min-w-0 flex-1 !flex-nowrap justify-start gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : phoneTeacher ? 'w-max shrink-0 !flex-nowrap justify-start gap-1.5' : prioritizeRightControls && 'ml-auto w-full md:w-max justify-end', appleMacBar && !phoneStudent && !phoneTeacher && 'ml-0 w-max max-w-none shrink-0 justify-start')}>
         {onOpenTeacherView && (
           <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
             <button

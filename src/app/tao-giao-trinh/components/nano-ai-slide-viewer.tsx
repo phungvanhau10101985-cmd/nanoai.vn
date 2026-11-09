@@ -46,6 +46,7 @@ import {
 import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName, LEGACY_PRESENTATION_BROADCAST_CHANNEL } from '../lib/presentation-broadcast'
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, moveWindowToExternalScreen, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
+import { detectAppleSlideDevice, useAppleSlideShell } from '../lib/apple-slide-shell'
 
 /** Phần tử đang fullscreen (Fullscreen API, kể cả webkit). */
 function readFullscreenElement(): Element | null {
@@ -1636,17 +1637,29 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [isTeacherView])
 
   useEffect(() => {
-    const onResize = () => setViewportW(typeof window !== 'undefined' ? window.innerWidth : 1280)
+    const onResize = () => {
+      setViewportW(detectAppleSlideDevice() === 'other'
+        ? window.innerWidth
+        : Math.round(window.visualViewport?.width || window.innerWidth))
+    }
     onResize()
     window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    window.visualViewport?.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.visualViewport?.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onResize)
+    }
   }, [])
   useEffect(() => {
     setStableLayoutWidth((prev) => (viewportW > prev ? viewportW : prev))
   }, [viewportW])
+  /** iPhone/iPad dùng layout chạm. Windows giữ mốc 768. */
+  const apple = useAppleSlideShell()
   /** Dưới 768px: visual + nội dung xếp dọc full width; từ md: giữ neo phải + minWidth như desktop */
-  const narrowSlideLayout = viewportW < 768
-  /** Học sinh trên điện thoại. Desktop và giáo viên không vào nhánh này. */
+  const narrowSlideLayout = viewportW < 768 || apple.ios
+  /** Học sinh trên điện thoại hoặc iPad. Desktop Windows và giáo viên không vào nhánh này. */
   const studentPhone = narrowSlideLayout && !isTeacherView
 
   const virtualMouseRef = useRef<VirtualMouseController | null>(null)
@@ -2795,6 +2808,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           if (fsEl) {
             const exitFs = (document.exitFullscreen ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen)?.bind(document)
             try { void exitFs?.()?.catch(() => {}) } catch { /* ignore */ }
+            setProjectorPromptVisible(false)
+          } else if (detectAppleSlideDevice() === 'ios') {
             setProjectorPromptVisible(false)
           } else {
             const root = document.documentElement
@@ -4449,7 +4464,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     if (isTeacherView) return
     const root = studentSlideContentLayoutRef.current
     if (!root) return
-    if (narrowSlideLayout) {
+    if (narrowSlideLayout || apple.mac) {
       root.style.width = ''
       root.style.maxWidth = ''
       root.style.flex = ''
@@ -4478,7 +4493,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       node.style.minWidth = px
       node.style.maxWidth = px
     })
-  }, [isTeacherView, narrowSlideLayout, syncedTeacherSlideLayoutW, syncedTeacherProseW, slides, currentIndex, studentCurriculumRightMode])
+  }, [isTeacherView, narrowSlideLayout, apple.mac, syncedTeacherSlideLayoutW, syncedTeacherProseW, slides, currentIndex, studentCurriculumRightMode])
 
   /** Chuỗi slide (HS): thêm vùng cuộn dưới cùng ~½ chiều cao slide hiện tại để slide không dính sát đáy khung. */
   useLayoutEffect(() => {
@@ -4550,16 +4565,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     : gradient
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col overflow-hidden">
+    <div key={apple.ios ? 'apple-ios' : apple.mac ? 'apple-mac' : 'win'} {...apple.shellProps} className="fixed inset-0 z-[100] bg-black flex flex-col overflow-hidden">
       <div
         className={cn(
           'print:hidden box-border',
-          studentPhone ? 'overflow-hidden' : 'overflow-hidden [direction:rtl] pr-3 md:pr-0',
+          studentPhone || apple.mac ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden [direction:rtl] pr-3 md:pr-0',
           presentationMode === 'slide-interaction' && 'border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm',
           presentationMode === 'slide-interaction' && 'pointer-events-auto'
         )}
       >
-        <div className={cn(studentPhone ? 'w-full min-w-0' : '[direction:ltr] w-full md:w-max')}>
+        <div className={cn(studentPhone || apple.mac ? 'w-full min-w-0' : '[direction:ltr] w-full md:w-max')}>
           <PresentationControlBar
             variant={isWorksheetTeacher || presentationMode === 'slide-interaction' ? 'teacher' : 'student'}
             tr={tr}
@@ -4598,6 +4613,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             hideIndex={presentationMode === 'slide-interaction'}
             printHidden={false}
             phoneStudent={studentPhone && presentationMode !== 'slide-interaction'}
+            appleMacBar={apple.mac && !studentPhone}
           />
         </div>
         {presentationMode === 'slide-interaction' && (
@@ -5100,15 +5116,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         <div
           className={cn(
             'shrink-0 flex min-h-0 h-full flex-nowrap',
-            narrowSlideLayout ? 'w-full flex-col' : 'flex-row',
+            narrowSlideLayout ? 'w-full flex-col' : apple.mac ? 'w-full min-w-0 flex-row' : 'flex-row',
           )}
           style={
             narrowSlideLayout
               ? undefined
-              : {
-                  width: stableLayoutWidth,
-                  minWidth: Math.max(stableLayoutWidth, !isTeacherView && !worksheetPresentation ? 1280 : 1200),
-                }
+              : apple.mac
+                ? { width: '100%', minWidth: 0, maxWidth: '100%' }
+                : {
+                    width: stableLayoutWidth,
+                    minWidth: Math.max(stableLayoutWidth, !isTeacherView && !worksheetPresentation ? 1280 : 1200),
+                  }
           }
         >
         {/* Visual: GV desktop 45%; HS desktop 50%. Mobile có chiều cao thật — con absolute nếu không sẽ co về 0. */}
@@ -5120,11 +5138,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   'w-full border-b border-slate-200',
                   studentPhone && studentPhonePane === 'lesson' && 'hidden',
                   studentPhone && studentPhonePane === 'visual' && 'min-h-0 flex-1 border-b-0',
-                  (!studentPhone || studentPhonePane === 'both') && 'h-[min(32vh,260px)] min-h-[160px]'
+                  (!studentPhone || studentPhonePane === 'both') && (apple.ios ? 'h-[min(30dvh,220px)] min-h-[140px]' : 'h-[min(32vh,260px)] min-h-[160px]')
                 )
-              : isTeacherView
-                ? 'w-[45%]'
-                : 'w-1/2',
+              : cn(apple.mac && 'min-w-0', isTeacherView ? 'w-[45%]' : 'w-1/2'),
           )}
           style={{ background: visualPaneBackground }}
         >
@@ -5617,7 +5633,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             'flex min-h-0 flex-col bg-white',
             narrowSlideLayout
               ? cn('w-full min-h-0', studentPhone && studentPhonePane === 'visual' ? 'hidden' : 'flex-1')
-              : cn('shrink-0', isTeacherView ? 'w-[55%]' : 'w-1/2'),
+              : cn('shrink-0', apple.mac && 'min-w-0', isTeacherView ? 'w-[55%]' : 'w-1/2'),
           )}
         >
           {!isTeacherView && !worksheetPresentation && slides.length > 0 && (
@@ -5688,17 +5704,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             ref={studentMdRightColumnScrollRef}
             className={cn(
               'min-h-0 flex-1 overflow-y-auto pb-8',
-              !isTeacherView && !worksheetPresentation ? 'px-3 py-3' : 'p-3 pb-6 md:p-8 lg:p-12 landscape:p-8'
+              !isTeacherView && !worksheetPresentation ? 'px-3 py-3' : !isTeacherView && apple.mac ? 'p-4 pb-6 md:p-5' : 'p-3 pb-6 md:p-8 lg:p-12 landscape:p-8'
             )}
           >
           <div
             ref={studentSlideContentLayoutRef}
             className={cn(
               'min-w-0',
-              !isTeacherView && !narrowSlideLayout && syncedTeacherSlideLayoutW != null && 'mx-auto',
+              !isTeacherView && !narrowSlideLayout && !apple.mac && syncedTeacherSlideLayoutW != null && 'mx-auto',
             )}
             style={
-              !isTeacherView && !narrowSlideLayout && syncedTeacherSlideLayoutW != null
+              !isTeacherView && !narrowSlideLayout && !apple.mac && syncedTeacherSlideLayoutW != null
                 ? {
                     width: syncedTeacherSlideLayoutW,
                     maxWidth: 'none',

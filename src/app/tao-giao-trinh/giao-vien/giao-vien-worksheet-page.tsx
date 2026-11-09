@@ -4,7 +4,7 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams, useParams } from 'next/navigation'
-import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
+import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -44,6 +44,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { detectAppleSlideDevice, useAppleSlideShell } from '../lib/apple-slide-shell'
 
 type VisualCell = { visualEmbed?: string; imageUrl?: string }
 type SlideItem = {
@@ -963,18 +964,30 @@ export default function GiaoVienWorksheetPage() {
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   useEffect(() => {
     const sync = () => {
-      setViewportW(window.innerWidth)
+      const next = detectAppleSlideDevice() === 'other'
+        ? window.innerWidth
+        : Math.round(window.visualViewport?.width || window.innerWidth)
+      setViewportW(next)
     }
     sync()
     window.addEventListener('resize', sync)
-    return () => window.removeEventListener('resize', sync)
+    window.visualViewport?.addEventListener('resize', sync)
+    window.addEventListener('orientationchange', sync)
+    return () => {
+      window.removeEventListener('resize', sync)
+      window.visualViewport?.removeEventListener('resize', sync)
+      window.removeEventListener('orientationchange', sync)
+    }
   }, [])
   useEffect(() => {
     // Keep the widest seen width so shrinking only clips the left side.
     setStableLayoutWidth((prev) => (viewportW > prev ? viewportW : prev))
   }, [viewportW])
+  /** iPhone/iPad: layout chạm. Windows giữ mốc 768 và neo phải. */
+  const apple = useAppleSlideShell()
   /** Dưới 768px: hai cột xếp dọc full width; từ md: giữ layout neo phải + minWidth như cũ */
-  const narrowTeacherLayout = viewportW < 768
+  const narrowTeacherLayout = viewportW < 768 || apple.ios
+  const [teacherPhonePane, setTeacherPhonePane] = useState<'curriculum' | 'both' | 'slide'>('slide')
   // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
   const currentVisualHasAny = useMemo(() => {
     const s = slides[currentIndex]
@@ -3257,7 +3270,7 @@ export default function GiaoVienWorksheetPage() {
   }, [visualFullscreenOpen, closeTeacherVisualFullscreen])
 
   return (
-    <div className="fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col items-stretch">
+    <div key={apple.ios ? 'apple-ios' : apple.mac ? 'apple-mac' : 'win'} {...apple.shellProps} className={cn('fixed inset-0 z-50 flex h-screen w-screen flex-col items-stretch overflow-x-hidden bg-slate-950 text-white', apple.ios || apple.mac ? 'overflow-hidden' : 'overflow-y-auto')}>
       {worksheetId && !worksheetLoading && worksheetMarkdownSource.trim() ? (
         <WorksheetTeacherReviewGate
           worksheetId={worksheetId}
@@ -3299,13 +3312,15 @@ export default function GiaoVienWorksheetPage() {
           hideIndex
           hideInsert
           hideTeacherLeftButtons
+          phoneTeacher={apple.ios}
+          appleMacBar={apple.mac}
         />
       </div>
 
       <header className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex flex-col">
         {/* Hàng thông tin – mobile: wrap, desktop: flex-nowrap */}
-        <div className="px-3 md:px-5 py-2 flex items-center justify-end gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap min-w-0 overflow-x-auto">
-          <div className="flex items-center gap-2 md:gap-3 flex-wrap md:flex-nowrap landscape:flex-nowrap shrink-0 min-w-max">
+        <div className={cn('px-3 md:px-5 py-2 flex items-center justify-end gap-2 md:gap-3 min-w-0 overflow-x-auto', apple.ios ? 'flex-nowrap py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'flex-wrap md:flex-nowrap landscape:flex-nowrap')}>
+          <div className={cn('flex items-center gap-2 md:gap-3 shrink-0 min-w-max', apple.ios ? 'flex-nowrap' : 'flex-wrap md:flex-nowrap landscape:flex-nowrap')}>
             <span className="text-xs md:text-sm font-medium tabular-nums shrink-0 text-slate-300">{currentIndex + 1}/{slideTitles.length || slides.length}</span>
             <h1 className="text-sm md:text-base font-semibold text-amber-400/95 tracking-tight">
               {worksheetId
@@ -3385,6 +3400,31 @@ export default function GiaoVienWorksheetPage() {
         </div>
       </header>
 
+      {apple.ios && content ? (
+        <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-700 bg-slate-900 p-1.5">
+          {(
+            [
+              ['curriculum', examCode ? tr('Đề thi', 'Exam', '试卷', '試験', '시험') : tr('Phiếu', 'Sheet', '练习', '用紙', '학습지')],
+              ['both', tr('Cả hai', 'Both', '同时', '両方', '함께')],
+              ['slide', tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTeacherPhonePane(id)}
+              className={cn(
+                'h-11 rounded-lg text-xs font-semibold',
+                teacherPhonePane === id ? 'bg-amber-400 text-slate-900' : 'text-slate-300'
+              )}
+              aria-pressed={teacherPhonePane === id}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {!content ? (
         <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-slate-900/30">
           <div className="text-center space-y-4 md:space-y-6 max-w-sm px-2">
@@ -3412,25 +3452,43 @@ export default function GiaoVienWorksheetPage() {
         <div
           className={cn(
             'flex-1 flex min-h-0 isolate shrink-0 w-full',
-            narrowTeacherLayout ? 'flex-col justify-start overflow-y-auto overflow-x-hidden' : 'flex-row justify-end overflow-hidden'
+            narrowTeacherLayout
+              ? apple.ios
+                ? 'flex-col overflow-hidden'
+                : 'flex-col justify-start overflow-y-auto overflow-x-hidden'
+              : apple.mac
+                ? 'w-full min-w-0 flex-row overflow-hidden'
+                : 'flex-row justify-end overflow-hidden'
           )}
         >
           <div
-            className={cn('shrink-0 flex min-h-0', narrowTeacherLayout ? 'w-full flex-1 min-h-0 flex flex-col' : 'h-full')}
+            className={cn('shrink-0 flex min-h-0', narrowTeacherLayout ? 'w-full flex-1 min-h-0 flex flex-col' : apple.mac ? 'h-full w-full min-w-0' : 'h-full')}
             style={
               narrowTeacherLayout
                 ? undefined
-                : {
-                    width: stableLayoutWidth,
-                    minWidth: Math.max(stableLayoutWidth, leftPanelMode === 'visual' ? 1200 : 1280),
-                  }
+                : apple.mac
+                  ? { width: '100%', minWidth: 0, maxWidth: '100%' }
+                  : {
+                      width: stableLayoutWidth,
+                      minWidth: Math.max(stableLayoutWidth, leftPanelMode === 'visual' ? 1200 : 1280),
+                    }
             }
           >
           <div
             className={cn(
               'shrink-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-slate-700/60',
-              narrowTeacherLayout ? 'w-full max-h-[min(48vh,380px)] border-b border-r-0 flex-shrink-0' : 'border-r',
-              !narrowTeacherLayout && (leftPanelMode === 'visual' ? 'w-[45%]' : 'w-1/2')
+              narrowTeacherLayout
+                ? apple.ios
+                  ? cn(
+                      'w-full min-h-0 border-b border-r-0',
+                      teacherPhonePane === 'slide' && 'hidden',
+                      teacherPhonePane === 'curriculum' && 'flex-1',
+                      teacherPhonePane === 'both' && 'h-[min(30dvh,220px)] shrink-0'
+                    )
+                  : 'w-full max-h-[min(48vh,380px)] border-b border-r-0 flex-shrink-0'
+                : 'border-r',
+              !narrowTeacherLayout && (leftPanelMode === 'visual' ? 'w-[45%]' : 'w-1/2'),
+              apple.mac && 'min-w-0'
             )}
           >
             <div className="h-12 px-3 md:px-4 text-slate-400 text-xs font-medium uppercase tracking-wider border-b border-slate-700/60 bg-slate-900/30 shrink-0 flex items-center justify-between gap-2 overflow-x-auto overflow-y-hidden">
@@ -3620,10 +3678,15 @@ export default function GiaoVienWorksheetPage() {
           <div
             className={cn(
               'shrink-0 flex flex-col overflow-hidden isolate',
-              narrowTeacherLayout ? 'w-full flex-1 min-h-[min(52vh,480px)]' : leftPanelMode === 'visual' ? 'w-[55%]' : 'w-1/2'
+              narrowTeacherLayout
+                ? apple.ios
+                  ? cn('w-full min-h-0', teacherPhonePane === 'curriculum' ? 'hidden' : 'flex-1')
+                  : 'w-full flex-1 min-h-[min(52vh,480px)]'
+                : leftPanelMode === 'visual' ? 'w-[55%]' : 'w-1/2',
+              apple.mac && 'min-w-0'
             )}
           >
-            <div className="flex h-12 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-slate-700/60 bg-slate-900/30 px-3 text-xs font-medium uppercase tracking-wider text-slate-400 md:h-14 md:px-4">
+            <div className={cn('flex shrink-0 items-center justify-between gap-2 border-b border-slate-700/60 bg-slate-900/30 text-xs font-medium uppercase tracking-wider text-slate-400', apple.ios ? 'h-auto flex-col items-stretch gap-1.5 overflow-visible px-2 py-1.5' : 'h-12 overflow-hidden px-3 md:h-14 md:px-4')}>
               <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
                 {!worksheetId && !examCode && slides.length > 0 ? (
                   <div className="flex shrink-0 items-center gap-1 md:gap-1.5" data-control="gv-remote-student-curriculum-mode">
@@ -3681,7 +3744,7 @@ export default function GiaoVienWorksheetPage() {
                     : tr('3 slide: trước · hiện tại · sau', '3 slides: prev · current · next', '3张: 前·当前·后', '3枚: 前·現在·次', '3장: 이전·현재·다음')}
                 </span>
               </div>
-              <div data-control="slide-mode-xem-hoc-sinh" className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50 shrink-0">
+              <div data-control="slide-mode-xem-hoc-sinh" className={cn('flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50 shrink-0', apple.ios && 'w-full')}>
                 <button type="button" onClick={() => setSlideViewMode('single')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'single' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="1 slide"><Square className="h-3.5 w-3.5 inline mr-1" />1</button>
                 <button type="button" onClick={() => setSlideViewMode('triple')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'triple' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="3 slide"><LayoutGrid className="h-3.5 w-3.5 inline mr-1" />3</button>
                 <button
@@ -3701,9 +3764,11 @@ export default function GiaoVienWorksheetPage() {
                     : tr('Mở giao diện học sinh', 'Open student interface', '打开学生界面', '生徒画面を開く', '학생 인터페이스 열기')}
                 >
                   <Presentation className="h-4 w-4" />
-                  {studentViewOpened
-                    ? tr('Xem giao diện học sinh', 'View student interface', '查看学生界面', '生徒画面を見る', '학생 인터페이스 보기')
-                    : tr('Mở giao diện học sinh', 'Open student interface', '打开学生界面', '生徒画面を開く', '학생 인터페이스 열기')}
+                  {apple.ios
+                    ? tr('Học sinh', 'Students', '学生', '生徒', '학생')
+                    : studentViewOpened
+                      ? tr('Xem giao diện học sinh', 'View student interface', '查看学生界面', '生徒画面を見る', '학생 인터페이스 보기')
+                      : tr('Mở giao diện học sinh', 'Open student interface', '打开学生界面', '生徒画面を開く', '학생 인터페이스 열기')}
                 </button>
               </div>
             </div>
@@ -4675,6 +4740,39 @@ export default function GiaoVienWorksheetPage() {
         </div>
         </div>
       )}
+      {apple.ios && content ? (
+        <div className="flex shrink-0 items-center gap-2 border-t border-slate-700 bg-slate-950 px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => sendSlideControl('slide-prev')}
+            disabled={currentIndex <= 0}
+            className="flex h-11 shrink-0 items-center justify-center gap-1 rounded-xl bg-amber-400 px-3 text-sm font-semibold text-slate-900 disabled:opacity-35"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            {tr('Trước', 'Back', '上一张', '前へ', '이전')}
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="text-center text-xs font-semibold tabular-nums text-slate-200">
+              {tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')} {currentIndex + 1}/{slideTitles.length || slides.length}
+            </p>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-700" aria-hidden>
+              <div
+                className="h-full rounded-full bg-amber-400"
+                style={{ width: `${(slideTitles.length || slides.length) ? ((currentIndex + 1) / (slideTitles.length || slides.length)) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => sendSlideControl('slide-next')}
+            disabled={currentIndex >= (slideTitles.length || slides.length) - 1}
+            className="flex h-11 shrink-0 items-center justify-center gap-1 rounded-xl bg-amber-400 px-3 text-sm font-semibold text-slate-900 disabled:opacity-35"
+          >
+            {tr('Tiếp', 'Next', '下一张', '次へ', '다음')}
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
       </div>
       {proposalDialog && curriculumId && (
         <SlideProposalDialog

@@ -75,6 +75,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { getCurriculumSlidesByLessonCachedAction, markTeacherReviewedLessonAction, saveCurriculumLessonInfographicAction, saveReviewedLessonMarkdownAction, teacherHasReviewedLessonAction } from '../lesson-actions'
 import { replaceCurriculumExercise } from '@/app/tao-giao-trinh/lib/curriculum-math-check'
 import { LessonExampleReviewDialog, patchSlidesWithReviewedExercise } from './lesson-example-review-dialog'
+import { detectAppleSlideDevice, useAppleSlideShell } from '../lib/apple-slide-shell'
 
 const TEACHER_CURRICULUM_RUNTIME_CACHE_KEY = 'tao-giao-trinh:teacher-curriculum-runtime:v1'
 
@@ -1463,18 +1464,29 @@ export default function CurriculumViewPage() {
   const [stableLayoutWidth, setStableLayoutWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280))
   useEffect(() => {
     const sync = () => {
-      setViewportW(window.innerWidth)
+      const next = detectAppleSlideDevice() === 'other'
+        ? window.innerWidth
+        : Math.round(window.visualViewport?.width || window.innerWidth)
+      setViewportW(next)
     }
     sync()
     window.addEventListener('resize', sync)
-    return () => window.removeEventListener('resize', sync)
+    window.visualViewport?.addEventListener('resize', sync)
+    window.addEventListener('orientationchange', sync)
+    return () => {
+      window.removeEventListener('resize', sync)
+      window.visualViewport?.removeEventListener('resize', sync)
+      window.removeEventListener('orientationchange', sync)
+    }
   }, [])
   useEffect(() => {
     // Keep the widest seen width so shrinking only clips the left side.
     setStableLayoutWidth((prev) => (viewportW > prev ? viewportW : prev))
   }, [viewportW])
+  /** iPhone/iPad: layout chạm. Windows giữ mốc 768 và neo phải. */
+  const apple = useAppleSlideShell()
   /** Dưới 768px: hai cột xếp dọc full width; từ md: giữ layout neo phải + minWidth như cũ */
-  const narrowTeacherLayout = viewportW < 768
+  const narrowTeacherLayout = viewportW < 768 || apple.ios
   /** Điện thoại: giáo trình, slide, hoặc cả hai. Desktop không đọc state này. */
   const [teacherPhonePane, setTeacherPhonePane] = useState<'curriculum' | 'both' | 'slide'>('slide')
   // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
@@ -5901,7 +5913,7 @@ export default function CurriculumViewPage() {
   const quizPopupSlideIndex = quizFocusSlideIndex ?? currentIndex
 
   return (
-    <div className={cn('fixed inset-0 z-50 flex h-screen w-screen flex-col items-stretch overflow-x-hidden bg-slate-950 text-white', narrowTeacherLayout ? 'overflow-hidden' : 'overflow-y-auto')}>
+    <div key={apple.ios ? 'apple-ios' : apple.mac ? 'apple-mac' : 'win'} {...apple.shellProps} className={cn('fixed inset-0 z-50 flex h-screen w-screen flex-col items-stretch overflow-x-hidden bg-slate-950 text-white', narrowTeacherLayout || apple.mac ? 'overflow-hidden' : 'overflow-y-auto')}>
       {exampleReviewOpen ? (
         <LessonExampleReviewDialog
           markdown={content}
@@ -5999,6 +6011,7 @@ export default function CurriculumViewPage() {
           hideInsert
           hideTeacherLeftButtons
           phoneTeacher={narrowTeacherLayout}
+          appleMacBar={apple.mac}
         />
       </div>
 
@@ -6122,22 +6135,24 @@ export default function CurriculumViewPage() {
         <div
           className={cn(
             'flex-1 flex min-h-0 isolate w-full',
-            narrowTeacherLayout ? 'flex-col overflow-hidden' : 'shrink-0 flex-row justify-end overflow-hidden'
+            narrowTeacherLayout ? 'flex-col overflow-hidden' : apple.mac ? 'w-full min-w-0 flex-row overflow-hidden' : 'shrink-0 flex-row justify-end overflow-hidden'
           )}
         >
           <div
             className={cn(
               'flex min-h-0 min-w-0',
-              narrowTeacherLayout ? 'h-full w-full min-h-0 flex-1 flex-col' : 'h-full shrink-0'
+              narrowTeacherLayout ? 'h-full w-full min-h-0 flex-1 flex-col' : apple.mac ? 'h-full w-full min-w-0' : 'h-full shrink-0'
             )}
             style={
               narrowTeacherLayout
                 ? undefined
-                : {
-                    width: stableLayoutWidth,
-                    /* Cố định minWidth theo tab — tránh đổi khi leftWidePanel để cột không giật */
-                    minWidth: Math.max(stableLayoutWidth, 1280),
-                  }
+                : apple.mac
+                  ? { width: '100%', minWidth: 0, maxWidth: '100%' }
+                  : {
+                      width: stableLayoutWidth,
+                      /* Cố định minWidth theo tab — tránh đổi khi leftWidePanel để cột không giật */
+                      minWidth: Math.max(stableLayoutWidth, 1280),
+                    }
             }
           >
           <div
@@ -6148,7 +6163,7 @@ export default function CurriculumViewPage() {
                     'w-full min-h-0 border-b border-r-0',
                     teacherPhonePane === 'slide' && 'hidden',
                     teacherPhonePane === 'curriculum' && 'flex-1',
-                    teacherPhonePane === 'both' && 'h-[min(32vh,240px)] shrink-0'
+                    teacherPhonePane === 'both' && (apple.ios ? 'h-[min(30dvh,220px)] shrink-0' : 'h-[min(32vh,240px)] shrink-0')
                   )
                 : 'shrink-0 border-r',
               /* Luôn 50% — không đổi 45%/50% theo tab (nguyên nhân cụm Giáo trình|Infographic|Visual bị nhảy) */
