@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { appNameFromGeoGebraPath, geoGebraAppForEmbed, geogebraCommandIsSpatial } from '../lib/geogebra-spatial'
 
 /**
  * Vẽ đồ thị bằng GeoGebra Apps API (div), không iframe trang /calculator.
@@ -13,6 +14,8 @@ type GeoAppName = 'classic' | 'graphing' | 'geometry' | '3d' | 'suite'
 export type GeoGebraEmbedSpec = {
   appName: GeoAppName
   materialId: string | null
+  /** File .ggb mã hóa sẵn trong link chia sẻ. */
+  ggbBase64?: string | null
   commands: string[]
   /** Công thức cần vẽ: chỉ khung đồ thị, không bàn phím. */
   plotMode: boolean
@@ -119,22 +122,32 @@ export function parseGeoGebraEmbed(rawInput: string): GeoGebraEmbedSpec {
       const command = url.searchParams.get('command')
       const path = url.pathname
       const idMatch = path.match(/\/(?:calculator|classic|graphing|geometry|3d|m)\/([A-Za-z0-9]+)\/?$/)
-      const materialId = idMatch?.[1] ?? null
-      if (command?.trim()) {
+      const hashMaterial = url.hash.match(/material\/([A-Za-z0-9]+)/i)?.[1] ?? null
+      const materialId = idMatch?.[1] ?? hashMaterial
+      const ggbBase64 = url.searchParams.get('ggbBase64')?.trim() || null
+      if (ggbBase64) {
         return {
-          appName: 'classic',
+          appName: appNameFromGeoGebraPath(path),
           materialId: null,
-          commands: splitGeoGebraCommands(command).map(normalizeGeoGebraCommand).filter(Boolean),
+          ggbBase64,
+          commands: [],
+          plotMode: false,
+        }
+      }
+      if (command?.trim()) {
+        const commands = splitGeoGebraCommands(command).map(normalizeGeoGebraCommand).filter(Boolean)
+        return {
+          appName: geoGebraAppForEmbed(path, commands.join(';')),
+          materialId: null,
+          commands,
           plotMode: true,
         }
       }
       if (materialId) {
-        let appName: GeoAppName = 'classic'
-        if (path.includes('/graphing/')) appName = 'graphing'
-        else if (path.includes('/geometry/')) appName = 'geometry'
-        else if (path.includes('/3d/')) appName = '3d'
-        else if (path.includes('/calculator/')) appName = 'suite'
-        return { appName, materialId, commands: [], plotMode: false }
+        return { appName: appNameFromGeoGebraPath(path), materialId, commands: [], plotMode: false }
+      }
+      if (appNameFromGeoGebraPath(path) === '3d') {
+        return { appName: '3d', materialId: null, commands: [], plotMode: true }
       }
       return axesOnly
     } catch {
@@ -146,10 +159,11 @@ export function parseGeoGebraEmbed(rawInput: string): GeoGebraEmbedSpec {
     return { appName: 'classic', materialId: raw, commands: [], plotMode: false }
   }
 
+  const commands = splitGeoGebraCommands(raw).map(normalizeGeoGebraCommand).filter(Boolean)
   return {
-    appName: 'classic',
+    appName: geogebraCommandIsSpatial(commands.join(';')) ? '3d' : 'classic',
     materialId: null,
-    commands: splitGeoGebraCommands(raw).map(normalizeGeoGebraCommand).filter(Boolean),
+    commands,
     plotMode: true,
   }
 }
@@ -215,6 +229,13 @@ export function GeoGebraApplet({
           borderColor: '#FFFFFF',
           appletOnLoad: (api: GgbApi) => {
             if (cancelled) return
+            if (spec.appName === '3d' && spec.plotMode && !spec.materialId && !spec.ggbBase64) {
+              try {
+                api.setPerspective?.('T')
+              } catch {
+                /* app 3d đã mở phối cảnh không gian */
+              }
+            }
             const runCommands = () => {
               let failed = 0
               for (const cmd of spec.commands) {
@@ -238,16 +259,25 @@ export function GeoGebraApplet({
                 /* khung vừa có số đo */
               }
             }
-            const failed = runCommands()
-            if (spec.commands.length > 0 && failed === spec.commands.length) {
-              window.setTimeout(() => finish(runCommands()), 500)
-              return
+            const retryDelays = spec.appName === '3d' ? [700, 1600] : [500]
+            const attempt = (left: number[]) => {
+              if (cancelled) return
+              const failed = runCommands()
+              if (spec.commands.length > 0 && failed === spec.commands.length && left.length > 0) {
+                const wait = left[0] ?? 500
+                window.setTimeout(() => attempt(left.slice(1)), wait)
+                return
+              }
+              finish(failed)
             }
-            finish(failed)
+            attempt(retryDelays)
           },
         }
         if (spec.materialId) params.material_id = spec.materialId
-        if (spec.plotMode && !spec.materialId) params.perspective = 'G'
+        if (spec.ggbBase64) params.ggbBase64 = spec.ggbBase64
+        if (spec.plotMode && !spec.materialId && !spec.ggbBase64) {
+          params.perspective = spec.appName === '3d' ? 'T' : 'G'
+        }
         applet = new Ctor(params, true)
         applet.inject(mountId)
       } catch {

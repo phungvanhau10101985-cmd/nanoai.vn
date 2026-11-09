@@ -12,6 +12,7 @@ import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBou
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
 import { parseWorksheetToSlides, questionsToSlides } from '@/lib/worksheet-to-slides'
 import { latexToReadable } from '../lib/latex-to-readable'
+import { buildSpatialGeoGebraUrl } from '../lib/geogebra-spatial'
 import { SlideProposalDialog } from '../components/slide-proposal-dialog'
 import { SlideProposalVote } from '../components/slide-proposal-vote'
 import { PersonalHistorySheet } from '../components/personal-history-sheet'
@@ -228,6 +229,9 @@ function buildVisualMarkerFromRawInput(rawInput: string, domainConstraint?: stri
     if (/(google\.[^/]+\/maps|goo\.gl\/maps)/i.test(u)) return `[maps:${u}]`
     return `[maps:${u}]`
   }
+
+  const spatialUrl = buildSpatialGeoGebraUrl(raw)
+  if (spatialUrl) return `[geogebra:${spatialUrl}]`
 
   const items = extractMultiplePlotExpressions(raw)
   if (items.length === 0) return null
@@ -7355,11 +7359,11 @@ export default function CurriculumViewPage() {
                           <div data-teacher-chrome className="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 p-2.5 space-y-2">
                             <div className="text-[11px] text-cyan-200/90">
                               {tr(
-                                'Dữ liệu Visual theo slide (4 ô): dán công thức (y=x^2 hoặc y=f(x), y=g(x) nhiều đồ thị), link GeoGebra/YouTube/Desmos/PhET/Maps, link ảnh/audio, markdown ảnh ![](url), marker [geogebra:], [youtube:], [image:]... hoặc dán trực tiếp ảnh chụp màn hình bằng Ctrl+V.',
-                                'Per-slide visual data (4 fields): paste formula (y=x^2 or y=f(x), y=g(x) for multiple graphs), GeoGebra/YouTube/Desmos/PhET/Maps links, image/audio links, markdown image ![](url), markers like [geogebra:], [youtube:], [image:]... or paste screenshots directly with Ctrl+V.',
-                                '每张幻灯片可视化数据（4项）：可粘贴公式 (y=x^2)、GeoGebra/YouTube/Desmos/PhET/Maps 链接、图片/音频链接、Markdown 图片 ![](url)、[geogebra:]、[youtube:]、[image:] 等标记，或使用 Ctrl+V 直接粘贴截图。',
-                                'スライド別Visualデータ（4項目）：式 (y=x^2)、GeoGebra/YouTube/Desmos/PhET/Maps のURL、画像/音声URL、Markdown画像 ![](url)、[geogebra:] [youtube:] [image:] などのマーカーに加え、Ctrl+V でスクリーンショットを直接貼り付けできます。',
-                                '슬라이드별 비주얼 데이터(4칸): 수식(y=x^2), GeoGebra/YouTube/Desmos/PhET/Maps 링크, 이미지/오디오 링크, 마크다운 이미지 ![](url), [geogebra:] [youtube:] [image:] 마커 또는 Ctrl+V로 스크린샷을 직접 붙여넣을 수 있습니다.'
+                                'Dữ liệu Visual theo slide (4 ô): dán công thức 2D (y=x^2 hoặc y=f(x), y=g(x) nhiều đồ thị) hoặc hình 3D (z=x^2+y^2, x^2+y^2+z^2=1, điểm (1,2,3), link geogebra.org/3d và geogebra.org/calculator), link YouTube/Desmos/PhET/Maps, link ảnh/audio, markdown ảnh ![](url), marker [geogebra:], [youtube:], [image:]... hoặc dán trực tiếp ảnh chụp màn hình bằng Ctrl+V.',
+                                'Per-slide visual data (4 fields): paste a 2D formula (y=x^2 or y=f(x), y=g(x) for multiple graphs) or a 3D figure (z=x^2+y^2, x^2+y^2+z^2=1, point (1,2,3), geogebra.org/3d and geogebra.org/calculator links), YouTube/Desmos/PhET/Maps links, image/audio links, markdown image ![](url), markers like [geogebra:], [youtube:], [image:]... or paste screenshots directly with Ctrl+V.',
+                                '每张幻灯片可视化数据（4项）：可粘贴二维公式 (y=x^2) 或三维图形 (z=x^2+y^2、x^2+y^2+z^2=1、点 (1,2,3)、geogebra.org/3d 与 geogebra.org/calculator 链接)、YouTube/Desmos/PhET/Maps 链接、图片/音频链接、Markdown 图片 ![](url)、[geogebra:]、[youtube:]、[image:] 等标记，或使用 Ctrl+V 直接粘贴截图。',
+                                'スライド別Visualデータ（4項目）：2Dの式 (y=x^2) または3D図 (z=x^2+y^2、x^2+y^2+z^2=1、点 (1,2,3)、geogebra.org/3d と geogebra.org/calculator のURL)、YouTube/Desmos/PhET/Maps のURL、画像/音声URL、Markdown画像 ![](url)、[geogebra:] [youtube:] [image:] などのマーカーに加え、Ctrl+V でスクリーンショットを直接貼り付けできます。',
+                                '슬라이드별 비주얼 데이터(4칸): 2D 수식(y=x^2) 또는 3D 도형(z=x^2+y^2, x^2+y^2+z^2=1, 점 (1,2,3), geogebra.org/3d 및 geogebra.org/calculator 링크), YouTube/Desmos/PhET/Maps 링크, 이미지/오디오 링크, 마크다운 이미지 ![](url), [geogebra:] [youtube:] [image:] 마커 또는 Ctrl+V로 스크린샷을 직접 붙여넣을 수 있습니다.'
                               )}
                             </div>
                             <div className="grid grid-cols-2 gap-2">

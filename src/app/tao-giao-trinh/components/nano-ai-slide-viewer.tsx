@@ -11,6 +11,7 @@ import QRCode from 'qrcode'
 import { cn } from '@/lib/utils'
 import { parseCurriculumToSlides, parseContentToBlocks, type AISlideData } from '../lib/curriculum-to-slides'
 import { latexToReadable } from '../lib/latex-to-readable'
+import { buildSpatialGeoGebraUrl } from '../lib/geogebra-spatial'
 import { ContentEmbed, parseContentEmbeds, splitBlockContentAtQuizBoundary } from './content-embed'
 import { AnimatedCharReveal } from './animated-char-reveal'
 import { CurriculumBlockContentWithEmbeds } from './curriculum-block-content-with-embeds'
@@ -1019,6 +1020,8 @@ function buildVisualMarkerFromRawInput(rawInput: string, domainConstraint?: stri
     if (/(google\.[^/]+\/maps|goo\.gl\/maps)/i.test(u)) return `[maps:${u}]`
     return `[maps:${u}]`
   }
+  const spatialUrl = buildSpatialGeoGebraUrl(raw)
+  if (spatialUrl) return `[geogebra:${spatialUrl}]`
   const items = extractMultiplePlotExpressions(raw)
   if (items.length === 0) return null
   if (items.length === 1) return `[geogebra:${buildGeoGebraUrl(items[0].expr, items[0].domain ?? domainConstraint)}]`
