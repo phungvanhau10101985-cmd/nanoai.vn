@@ -2,7 +2,7 @@ import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-in
 import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 import { decodeHtmlEntitiesLite } from '@/lib/tracking/decode-html-entities-lite'
 import { parseVndAmountFromPriceHint } from '@/lib/tracking/parse-vnd-from-price-hint'
-import { buildMetaCapiUserData } from '@/lib/tracking/meta-capi-user-data'
+import { buildMetaCapiUserData, type MetaCapiCustomerInfo } from '@/lib/tracking/meta-capi-user-data'
 
 export type MetaViewContentClientPayload = {
   eventId: string
@@ -101,6 +101,7 @@ export async function sendMetaConversionsApiBatch(params: {
   customerPhone?: string | null
   /** ID khách thô. Meta không bắt buộc băm. */
   externalId?: string | null
+  customerInfo?: MetaCapiCustomerInfo | null
   events: Array<{
     event_name: 'ViewContent' | 'AddToCart' | 'InitiateCheckout' | 'Purchase'
     event_id: string
@@ -155,6 +156,7 @@ export async function sendMetaConversionsApiBatchWithOutbox(params: {
   customerEmail?: string | null
   customerPhone?: string | null
   externalId?: string | null
+  customerInfo?: MetaCapiCustomerInfo | null
   events: Array<{
     event_name: 'ViewContent' | 'AddToCart' | 'InitiateCheckout' | 'Purchase'
     event_id: string
@@ -183,6 +185,7 @@ export async function sendMetaConversionsApiBatchWithOutbox(params: {
           customerEmail: params.customerEmail ?? null,
           customerPhone: params.customerPhone ?? null,
           externalId: params.externalId ?? null,
+          customerInfo: params.customerInfo ?? null,
           event: ev,
         },
         lastError: result.error,

@@ -1,6 +1,7 @@
 import { loadAdminIntegrationsValueJsonByKey } from '@/lib/db/admin-integrations-settings-pg'
 import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
+import { metaClientIpFromHeaders } from '@/lib/tracking/meta-client-ip'
 import { normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
 import { sendMetaPurchaseConversionsApi } from '@/lib/tracking/meta-purchase-events'
 import { weddingPackPaymentCustomData, weddingPurchaseEventId } from '@/lib/wedding/wedding-commerce-events'
@@ -24,14 +25,7 @@ function cookieFromRequest(request: Request, name: string): string | null {
 }
 
 function clientIpFromRequest(request: Request): string | null {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first && /^[\d.:a-fA-Fx]+$/.test(first)) return first
-  }
-  const xr = request.headers.get('x-real-ip')?.trim()
-  if (xr && /^[\d.:a-fA-Fx]+$/.test(xr)) return xr
-  return null
+  return metaClientIpFromHeaders(request.headers)
 }
 
 /**

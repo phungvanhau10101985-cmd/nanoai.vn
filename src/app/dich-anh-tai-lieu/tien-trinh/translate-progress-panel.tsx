@@ -73,7 +73,8 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [zipLoading, setZipLoading] = useState(false)
   const [originalZipLoading, setOriginalZipLoading] = useState(false)
-  const [cachedUrls, setCachedUrls] = useState<{ zipUrl?: string; originalZipUrl?: string } | null>(null)
+  const [cachedUrls, setCachedUrls] = useState<{ zipUrl?: string; pdfUrl?: string; originalZipUrl?: string } | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
   const dataRef = useRef(data)
   dataRef.current = data
 
@@ -148,7 +149,7 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
               {tr('Thử lại', 'Retry', '重试', '再試行', '다시 시도')}
             </Button>
             {!embedded && (
-              <Button variant="outline" onClick={() => goToPreviousPage('/dich-anh-tai-lieu')}>
+              <Button variant="outline" onClick={() => goToPreviousPage('/dich-anh-tai-lieu/xu-ly')}>
                 {tr('Quay lại dịch ảnh', 'Back to translator', '返回翻译页', '翻訳ページへ戻る', '번역 페이지로 돌아가기')}
               </Button>
             )}
@@ -201,7 +202,7 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
               <Button variant="outline" size="sm" onClick={onClose}>{tr('Ẩn tiến trình', 'Hide progress', '隐藏进度', '進捗を隠す', '진행 숨기기')}</Button>
             )}
             {!embedded && (
-              <Button variant="outline" size="sm" onClick={() => router.push('/dich-anh-tai-lieu')}>
+              <Button variant="outline" size="sm" onClick={() => router.push('/dich-anh-tai-lieu/xu-ly')}>
                 {tr('Dịch ảnh mới', 'New translation', '新建翻译', '新しい翻訳', '새 번역')}
               </Button>
             )}
@@ -214,9 +215,39 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
 
           {isComplete && done > 0 && (
             <div className="flex flex-wrap gap-2">
+              {items.some((x) => x.batch_type === 'pdf') && (
+                <Button
+                  size="sm"
+                  disabled={zipLoading || pdfLoading || originalZipLoading}
+                  onClick={async () => {
+                    if (cachedUrls?.pdfUrl) {
+                      downloadFile(cachedUrls.pdfUrl, 'dich-tai-lieu.pdf')
+                      return
+                    }
+                    setPdfLoading(true)
+                    try {
+                      const r = await fetch(`/api/dich-anh-tai-lieu/batch-download?batchId=${encodeURIComponent(batchId)}&format=pdf`)
+                      const res = await r.json()
+                      if (!r.ok || res.error) {
+                        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error || tr('Không tạo được file.', 'Cannot create file.', '无法创建文件。', 'ファイルを作成できません。', '파일을 생성할 수 없습니다.'), variant: 'destructive' })
+                        return
+                      }
+                      if (res.pdfUrl) {
+                        setCachedUrls((p) => ({ ...p, pdfUrl: res.pdfUrl, originalZipUrl: res.originalZipUrl || p?.originalZipUrl }))
+                        downloadFile(res.pdfUrl, 'dich-tai-lieu.pdf')
+                      }
+                    } finally {
+                      setPdfLoading(false)
+                    }
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" /> {pdfLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : tr('Tải file PDF', 'Download PDF', '下载 PDF', 'PDFをダウンロード', 'PDF 다운로드')}
+                </Button>
+              )}
               <Button
                 size="sm"
-                disabled={zipLoading || originalZipLoading}
+                variant={items.some((x) => x.batch_type === 'pdf') ? 'outline' : 'default'}
+                disabled={zipLoading || pdfLoading || originalZipLoading}
                 onClick={async () => {
                   if (cachedUrls?.zipUrl) {
                     downloadFile(cachedUrls.zipUrl, items.some((x) => x.batch_type === 'pdf') ? 'dich-tai-lieu.zip' : 'dich-anh.zip')
@@ -231,7 +262,7 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
                       return
                     }
                     if (res.zipUrl) {
-                      setCachedUrls((p) => ({ ...p, zipUrl: res.zipUrl, originalZipUrl: res.originalZipUrl }))
+                      setCachedUrls((p) => ({ ...p, zipUrl: res.zipUrl, originalZipUrl: res.originalZipUrl || p?.originalZipUrl }))
                       downloadFile(res.zipUrl, items.some((x) => x.batch_type === 'pdf') ? 'dich-tai-lieu.zip' : 'dich-anh.zip')
                     }
                   } finally {
@@ -239,7 +270,7 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
                   }
                 }}
               >
-                <Download className="mr-2 h-4 w-4" /> {zipLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : tr('Tải ảnh kết quả', 'Download results', '下载结果图片', '結果画像をダウンロード', '결과 이미지 다운로드')}
+                <Download className="mr-2 h-4 w-4" /> {zipLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : items.some((x) => x.batch_type === 'pdf') ? tr('Tải ZIP từng trang', 'Download page ZIP', '下载逐页 ZIP', 'ページごとのZIP', '페이지 ZIP 다운로드') : tr('Tải ảnh kết quả', 'Download results', '下载结果图片', '結果画像をダウンロード', '결과 이미지 다운로드')}
               </Button>
               <Button
                 size="sm"

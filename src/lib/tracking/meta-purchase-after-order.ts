@@ -6,8 +6,11 @@ import {
   fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg,
 } from '@/lib/db/messaging-partners-pg'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
+import { readPartnerOrderMetaMatch, savePartnerOrderMetaMatch } from '@/lib/db/messaging-partner-order-meta-match-pg'
 import { normalizePartnerShopCurrency } from '@/lib/partner-website/shop/partner-shop-currency'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { metaCapiCustomerFromPartner } from '@/lib/tracking/meta-capi-customer-match'
+import { metaClientIpFromHeaders } from '@/lib/tracking/meta-client-ip'
 import { normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
 import {
   buildMetaPurchaseCustomDataFromOrder,
@@ -35,14 +38,7 @@ async function purchaseLineItems(partnerId: string, order: PartnerOrderRow) {
 }
 
 function clientIpFromRequest(request: NextRequest): string | null {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first && /^[\d.:a-fA-Fx]+$/.test(first)) return first
-  }
-  const xr = request.headers.get('x-real-ip')?.trim()
-  if (xr && /^[\d.:a-fA-Fx]+$/.test(xr)) return xr
-  return null
+  return metaClientIpFromHeaders(request.headers)
 }
 
 function eventSourceUrlFromRequest(request: NextRequest): string {
@@ -100,19 +96,41 @@ export async function runMetaPurchaseAfterOrderComplete(params: {
   const eventSourceUrl = eventSourceUrlFromRequest(params.request)
 
   const capi = secrets?.facebook_capi_access_token?.trim() ?? ''
+  const clientIp = clientIpFromRequest(params.request)
+  const userAgent = params.request.headers.get('user-agent')
+  const fbc = normalizeFbc(params.request.cookies.get('_fbc')?.value)
+  const fbp = normalizeFbp(params.request.cookies.get('_fbp')?.value)
+  const customer = await metaCapiCustomerFromPartner({
+    partnerId: params.partnerId,
+    email: params.order.customer_email,
+    phone: params.order.customer_phone,
+    fullName: params.order.customer_name,
+    shippingAddress: params.order.shipping_address,
+    externalId: params.externalId,
+  })
+  await savePartnerOrderMetaMatch({
+    orderId: params.order.id,
+    partnerId: params.partnerId,
+    clientIp,
+    userAgent,
+    fbp,
+    fbc,
+    externalId: customer.externalId,
+  })
   if (capi && eventSourceUrl) {
     void sendMetaPurchaseConversionsApi({
       pixelId,
       accessToken: capi,
       eventId,
       eventSourceUrl,
-      clientIp: clientIpFromRequest(params.request),
-      userAgent: params.request.headers.get('user-agent'),
-      fbc: normalizeFbc(params.request.cookies.get('_fbc')?.value),
-      fbp: normalizeFbp(params.request.cookies.get('_fbp')?.value),
-      customerEmail: params.order.customer_email,
-      customerPhone: params.order.customer_phone,
-      externalId: params.externalId,
+      clientIp,
+      userAgent,
+      fbc,
+      fbp,
+      customerEmail: customer.customerEmail,
+      customerPhone: customer.customerPhone,
+      externalId: customer.externalId,
+      customerInfo: customer.customerInfo,
       customData: base,
     }).then((r) => {
       if (!r.ok) console.warn('[Meta CAPI Purchase]', r.error)
@@ -170,18 +188,28 @@ export async function sendPartnerMetaPurchaseCapiOnPaymentConfirmed(params: {
     eventSourceUrl = site?.siteSlug ? `${defaultPublicOrigin()}/site/${site.siteSlug}` : defaultPublicOrigin()
   }
 
+  const saved = await readPartnerOrderMetaMatch(params.order.id)
+  const customer = await metaCapiCustomerFromPartner({
+    partnerId: params.partnerId,
+    email: params.order.customer_email,
+    phone: params.order.customer_phone,
+    fullName: params.order.customer_name,
+    shippingAddress: params.order.shipping_address,
+    externalId: params.externalId || saved?.externalId,
+  })
   return sendMetaPurchaseConversionsApi({
     pixelId,
     accessToken: capi,
     eventId,
     eventSourceUrl,
-    clientIp: params.clientIp ?? null,
-    userAgent: params.userAgent ?? null,
-    fbc: normalizeFbc(params.fbc),
-    fbp: normalizeFbp(params.fbp),
-    customerEmail: params.order.customer_email,
-    customerPhone: params.order.customer_phone,
-    externalId: params.externalId,
+    clientIp: params.clientIp || saved?.clientIp || null,
+    userAgent: params.userAgent || saved?.userAgent || null,
+    fbc: normalizeFbc(params.fbc) || normalizeFbc(saved?.fbc),
+    fbp: normalizeFbp(params.fbp) || normalizeFbp(saved?.fbp),
+    customerEmail: customer.customerEmail,
+    customerPhone: customer.customerPhone,
+    externalId: customer.externalId,
+    customerInfo: customer.customerInfo,
     customData,
   })
 }

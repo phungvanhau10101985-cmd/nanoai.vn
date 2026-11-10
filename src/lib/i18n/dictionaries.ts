@@ -3620,6 +3620,10 @@ export type Dictionary = {
     studentMyScoresNotSubmitted: string
     studentMyScoresSubmitted: string
     studentMyScoresPoints: string
+    /** Nhãn bài trong môn mà học sinh chưa mở */
+    subjectItemNew: string
+    /** {n} — số bài chưa mở, gắn trên mục menu môn */
+    subjectItemUnreadAria: string
     /** Trang lam-bai: không parse được TN/TL */
     worksheetLamBaiNoInteractiveHint: string
     /** Trang lam-bai: nút về danh sách phiếu trong lớp */
@@ -8330,6 +8334,8 @@ export const VI_DICTIONARY: Dictionary = {
     studentMyScoresNotSubmitted: 'Chưa làm',
     studentMyScoresSubmitted: 'Đã nộp',
     studentMyScoresPoints: '{score}/10',
+    subjectItemNew: 'Mới',
+    subjectItemUnreadAria: '{n} chưa mở',
     worksheetLamBaiNoInteractiveHint:
       'Phiếu chưa có phần trắc nghiệm hoặc tự luận làm được trên web (giáo viên cần gắn câu hỏi vào phiếu trong Tạo giáo trình). Bạn chưa thể nộp bài ở đây.',
     worksheetLamBaiBackToClassWorksheets: 'Về danh sách phiếu lớp',

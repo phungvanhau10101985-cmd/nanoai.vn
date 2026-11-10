@@ -7,6 +7,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy, shopPromoErrorMessage } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { shouldRenderPartnerSiteAccountShell } from '@/lib/partner-website/shop/partner-site-account-nav'
+import { rememberPartnerSiteMetaCustomer } from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import { shouldPartnerSiteShopSkipAuthSync } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import { hasPendingPartnerSiteGoogleAuthHandoff } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
 import {
@@ -480,6 +481,17 @@ export function PartnerSiteShopAccountClient({
         }
         return
       }
+      rememberPartnerSiteMetaCustomer(
+        {
+          email: json.profile?.email || profile?.email,
+          phone: customerPhone.trim(),
+          fullName: customerName.trim(),
+          gender,
+          dateOfBirth: dobToSave,
+          shippingAddress: contactAddress.trim(),
+        },
+        siteSlug
+      )
       if (json.profile) {
         setProfile(json.profile)
         applyProfileFields(json.profile, {
@@ -715,18 +727,33 @@ export function PartnerSiteShopAccountClient({
                   {profile?.email ? (
                     <label data-pw-el={PW_EL.label}>
                       {t.accountEmailLabel}
-                      <input value={profile.email} readOnly data-pw-el={PW_EL.field} />
+                      <input
+                        value={profile.email}
+                        readOnly
+                        type="email"
+                        name="email"
+                        autoComplete="email"
+                        data-pw-el={PW_EL.field}
+                      />
                     </label>
                   ) : null}
                   <label data-pw-el={PW_EL.label}>
                     {t.checkoutPhone}
-                    <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} data-pw-el={PW_EL.field} />
+                    <input
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      type="tel"
+                      name="tel"
+                      autoComplete="tel"
+                      data-pw-el={PW_EL.field}
+                    />
                   </label>
                   <label data-pw-el={PW_EL.label}>
                     {t.accountFullName}
                     <input
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
+                      name="name"
                       autoComplete="name"
                       data-pw-el={PW_EL.field}
                     />
@@ -736,6 +763,8 @@ export function PartnerSiteShopAccountClient({
                     <select
                       value={gender}
                       onChange={(e) => setGender(parsePartnerShopGender(e.target.value) ?? '')}
+                      name="sex"
+                      autoComplete="sex"
                       data-pw-el={PW_EL.field}
                     >
                       <option value="">{t.accountGenderPlaceholder}</option>
@@ -776,6 +805,8 @@ export function PartnerSiteShopAccountClient({
                         type="date"
                         value={dob}
                         onChange={(e) => setDob(e.target.value)}
+                        name="bday"
+                        autoComplete="bday"
                         data-pw-el={PW_EL.field}
                       />
                     )}
@@ -790,6 +821,8 @@ export function PartnerSiteShopAccountClient({
                       value={contactAddress}
                       onChange={(e) => setContactAddress(e.target.value)}
                       placeholder={t.accountContactAddressPh}
+                      name="street-address"
+                      autoComplete="street-address"
                       data-pw-el={PW_EL.field}
                     />
                   </label>

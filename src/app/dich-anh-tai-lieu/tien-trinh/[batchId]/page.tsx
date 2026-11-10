@@ -6,5 +6,5 @@ export default async function TranslateProgressPage({
   params: { batchId: string }
 }) {
   const { batchId } = params
-  redirect(`/dich-anh-tai-lieu?batchId=${encodeURIComponent(batchId)}`)
+  redirect(`/dich-anh-tai-lieu/xu-ly?batchId=${encodeURIComponent(batchId)}`)
 }

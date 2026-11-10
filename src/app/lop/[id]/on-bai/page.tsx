@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { BrowserBackTextButton } from '@/components/navigation/browser-back-control'
 import { ChevronRight } from 'lucide-react'
 import { notFound, redirect } from 'next/navigation'
@@ -8,8 +7,11 @@ import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { GAN_PHIEU_RELATED } from '@/lib/creation-tool-sidebar-config'
+import { ReviewLessonRow } from '@/components/lop/review-lesson-open-link'
 import { listTaughtLessonsPg } from '@/lib/db/class-taught-lessons-pg'
+import { listSubjectItemOpenedAt } from '@/lib/lop/class-subject-item-opens'
 import { loadClassReviewAccess } from '@/lib/lop/class-review-access'
+import { isSubjectItemUnopened, reviewLessonItemId, subjectItemKey } from '@/lib/lop/subject-item-open'
 import { classSubjectScopeFromSearch } from '../lop-class-detail-view'
 
 export async function generateMetadata({
@@ -47,6 +49,7 @@ export default async function ClassReviewLessonsPage({
     teacherId: focus.teacherId,
     subjectId: focus.subjectId,
   })
+  const openedAtByKey = access.payload.isTeacher ? {} : await listSubjectItemOpenedAt(user.id, classId)
   const { t } = getServerDictionary()
   const backHref = `/lop/${classId}?subject=${encodeURIComponent(focus.subjectId)}&teacher=${encodeURIComponent(focus.teacherId)}`
 
@@ -69,25 +72,34 @@ export default async function ClassReviewLessonsPage({
               {t.classes.classReviewEmpty}
             </p>
           ) : (
-            <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+            <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
               {lessons.map((lesson) => {
                 const href = `/lop/${classId}/on-bai/xem?subject=${encodeURIComponent(focus.subjectId)}&teacher=${encodeURIComponent(focus.teacherId)}&curriculum=${encodeURIComponent(lesson.curriculumId)}&lesson=${lesson.lessonNo}`
                 const name = lesson.title || lesson.topic
+                const itemId = reviewLessonItemId(lesson.curriculumId, lesson.lessonNo)
+                const unopened =
+                  !access.payload.isTeacher &&
+                  isSubjectItemUnopened(openedAtByKey[subjectItemKey('review', itemId)], lesson.taughtAt)
                 return (
-                  <li key={`${lesson.curriculumId}:${lesson.lessonNo}`} className="flex items-center gap-3 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {t.classes.classReviewLesson.replace('{n}', String(lesson.lessonNo))}
-                        {name ? ` · ${name}` : ''}
-                      </p>
-                    </div>
-                    <Link
-                      href={href}
-                      className="shrink-0 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/40"
-                    >
-                      {t.classes.classReviewOpen}
-                    </Link>
-                  </li>
+                  <ReviewLessonRow
+                    key={itemId}
+                    href={href}
+                    title={`${t.classes.classReviewLesson.replace('{n}', String(lesson.lessonNo))}${name ? ` · ${name}` : ''}`}
+                    openLabel={t.classes.classReviewOpen}
+                    newLabel={t.classes.subjectItemNew}
+                    unopened={unopened}
+                    mark={
+                      unopened
+                        ? {
+                            classId,
+                            subjectId: focus.subjectId,
+                            teacherId: focus.teacherId,
+                            kind: 'review',
+                            itemId,
+                          }
+                        : null
+                    }
+                  />
                 )
               })}
             </ul>

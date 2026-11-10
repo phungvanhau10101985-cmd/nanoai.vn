@@ -527,7 +527,7 @@ export default async function RootLayout({
         ga4MeasurementId: ids.ga4MeasurementId,
         googleAdsId: ids.googleAdsId,
       })
-      shopMetaPixel = buildPartnerShopMetaPixelInstall(ids.facebookPixelId)
+      shopMetaPixel = buildPartnerShopMetaPixelInstall(ids.facebookPixelId, shopGoogleTagSlug)
       shopTiktokPixel = buildPartnerShopTiktokPixelInstall(ids.tiktokPixelId)
       shopGtm = buildPartnerShopGtmInstall(ids.gtmContainerId)
     }

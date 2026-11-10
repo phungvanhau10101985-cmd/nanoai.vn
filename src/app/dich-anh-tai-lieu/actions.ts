@@ -25,12 +25,21 @@ import {
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
+import { DOCUMENT_TRANSLATE_GEMINI_CREDITS } from '@/lib/document-translate-pricing'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { uploadTryOnImagePublic, downloadTryOnObject } from '@/lib/storage/try-on-public-upload'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
-const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
+const TRANSLATE_COSTS = DOCUMENT_TRANSLATE_GEMINI_CREDITS
+
+function translateCharge(formData: FormData, imageQuality: '2K' | '4K') {
+  const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
+  if (!charge.error && charge.engine === 'gpt' && charge.gptQuality === 'low') {
+    return { ...charge, cost: 0, error: 'Trang này không dùng GPT low. Chọn medium hoặc high.' }
+  }
+  return charge
+}
 const MAX_PDF_PAGES = 50
 const POPPLER_DPI = 300
 const PDF_EXTRACT_CACHE_TTL_MS = 15 * 60 * 1000 // 15 phút
@@ -166,7 +175,7 @@ export async function translateDocumentImage(formData: FormData) {
   if (!targetLang) return { error: 'Bắt buộc chọn Ngôn ngữ đích.' }
   if (!image || image.size === 0) return { error: 'Cần tải lên ảnh tài liệu.' }
 
-  const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
+  const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST = charge.cost
   const result = await getUserForCreditAction()
@@ -337,7 +346,7 @@ export async function translatePdfDocument(
   if (pageCount === 0) return { error: 'File PDF không có trang nào.' }
   if (pageCount > MAX_PDF_PAGES) return { error: `Tối đa ${MAX_PDF_PAGES} trang. File có ${pageCount} trang.` }
 
-  const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
+  const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST_PER_PAGE = charge.cost
   const TOTAL_COST = pageCount * COST_PER_PAGE
@@ -459,7 +468,7 @@ export async function startTranslatePdfBatch(formData: FormData): Promise<{ batc
   if (pageCount === 0) return { error: 'File PDF không có trang nào.' }
   if (pageCount > MAX_PDF_PAGES) return { error: `Tối đa ${MAX_PDF_PAGES} trang. File có ${pageCount} trang.` }
 
-  const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
+  const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST_PER_PAGE = charge.cost
   const TOTAL_COST = pageCount * COST_PER_PAGE
@@ -559,7 +568,7 @@ export async function translateOneImageFromBatch(
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
   if (!image || image.size === 0) return { error: 'Cần ảnh.' }
 
-  const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
+  const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST = charge.cost
   const result = await getUserForCreditAction()
@@ -637,7 +646,7 @@ export async function translateOneImageFromUrl(
   const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
   if (!url || !/^https?:\/\//i.test(url)) return { error: 'Link ảnh không hợp lệ.' }
 
-  const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
+  const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST = charge.cost
   const result = await getUserForCreditAction()
@@ -775,7 +784,7 @@ export async function translateDocumentImageBatch(
   if (images.length === 0) return { error: 'Cần tải lên ít nhất 1 ảnh.' }
   if (images.length > MAX_BATCH_IMAGES) return { error: `Tối đa ${MAX_BATCH_IMAGES} ảnh.` }
 
-  const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
+  const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST_PER_IMAGE = charge.cost
   const TOTAL_COST = images.length * COST_PER_IMAGE
@@ -899,7 +908,7 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
+  const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST_PER_IMAGE = charge.cost
   const items: Array<{ originalUrl: string; name?: string }> = []
@@ -1157,7 +1166,7 @@ export async function translateFromExcel(
   if (urls.length === 0) return { error: 'File Excel không có link ảnh hợp lệ ở cột A.' }
   if (urls.length > MAX_BATCH_IMAGES) return { error: `Tối đa ${MAX_BATCH_IMAGES} link.` }
 
-  const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
+  const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST_PER_IMAGE = charge.cost
   const estimatedCost = urls.length * COST_PER_IMAGE

@@ -7,6 +7,8 @@ import { getServerDictionary } from '@/lib/i18n/server'
 import { fetchReviewSlidesJsonPg, lessonIsTaughtInClassPg } from '@/lib/db/class-taught-lessons-pg'
 import { loadClassReviewAccess } from '@/lib/lop/class-review-access'
 import { reviewMarkdownFromSlides, reviewSlidesFromStoredJson } from '@/lib/lop/review-lesson-slides'
+import { markSubjectItemOpenedForUser } from '@/lib/lop/class-subject-item-opens'
+import { reviewLessonItemId } from '@/lib/lop/subject-item-open'
 import { classSubjectScopeFromSearch } from '../../lop-class-detail-view'
 import { ReviewSlideClient } from '../review-slide-client'
 
@@ -50,6 +52,17 @@ export default async function ClassReviewSlidePage({
     lessonNo,
   })
   if (!taught) notFound()
+  if (!access.payload.isTeacher) {
+    await markSubjectItemOpenedForUser(user.id, {
+      classId,
+      subjectId: focus.subjectId,
+      teacherId: focus.teacherId,
+      kind: 'review',
+      itemId: reviewLessonItemId(curriculumId, lessonNo),
+    }).catch((error) => {
+      console.error('[on-bai/xem] mark opened', error)
+    })
+  }
 
   const stored = await fetchReviewSlidesJsonPg(curriculumId, lessonNo)
   const slides = reviewSlidesFromStoredJson(stored.slidesJson)

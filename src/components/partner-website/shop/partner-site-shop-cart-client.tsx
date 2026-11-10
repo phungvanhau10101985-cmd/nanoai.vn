@@ -645,6 +645,19 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   }, [selectedAddress])
 
   useEffect(() => {
+    rememberPartnerSiteMetaCustomer(
+      {
+        fullName: selectedAddress?.full_name || orderName,
+        phone: selectedAddress?.phone || orderPhone,
+        state: selectedAddress?.province || orderProvince,
+        city: selectedAddress?.district,
+        shippingAddress: selectedAddress ? formatPartnerSiteAddressLine(selectedAddress) : orderAddress,
+      },
+      siteSlug
+    )
+  }, [orderAddress, orderName, orderPhone, orderProvince, selectedAddress, siteSlug])
+
+  useEffect(() => {
     if (!siteSlug) return
     const timer = window.setTimeout(() => {
       void fetch(`/api/site/${encodeURIComponent(siteSlug)}/shop-config`, { credentials: 'same-origin' })
@@ -1104,7 +1117,16 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     setCheckoutBusy(true)
     setStatus('')
     setNeedsAuth(false)
-    rememberPartnerSiteMetaCustomer({ phone: orderPhone.trim() })
+    rememberPartnerSiteMetaCustomer(
+      {
+        fullName: orderName.trim(),
+        phone: orderPhone.trim(),
+        state: checkoutProvince,
+        city: selectedAddress?.district,
+        shippingAddress: orderAddress.trim(),
+      },
+      siteSlug
+    )
     const quoteByLineId = new Map((quote?.lines ?? []).map((line) => [line.lineId, line]))
     const checkoutLines = selectedItems.map((item) => ({
       itemId: item.card.inventory_id || item.id,
@@ -1916,21 +1938,43 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               <>
                 <label data-pw-el={PW_EL.label}>
                   {t.checkoutName}
-                  <input value={orderName} onChange={(e) => setOrderName(e.target.value)} data-pw-el={PW_EL.field} />
+                  <input
+                    value={orderName}
+                    onChange={(e) => setOrderName(e.target.value)}
+                    name="name"
+                    autoComplete="name"
+                    data-pw-el={PW_EL.field}
+                  />
                 </label>
                 <label data-pw-el={PW_EL.label}>
                   {t.checkoutPhone}
-                  <input value={orderPhone} onChange={(e) => setOrderPhone(e.target.value)} data-pw-el={PW_EL.field} />
+                  <input
+                    value={orderPhone}
+                    onChange={(e) => setOrderPhone(e.target.value)}
+                    type="tel"
+                    name="tel"
+                    autoComplete="tel"
+                    data-pw-el={PW_EL.field}
+                  />
                 </label>
                 <label data-pw-el={PW_EL.label}>
                   {t.checkoutAddress}
-                  <textarea rows={4} value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} data-pw-el={PW_EL.field} />
+                  <textarea
+                    rows={4}
+                    value={orderAddress}
+                    onChange={(e) => setOrderAddress(e.target.value)}
+                    name="street-address"
+                    autoComplete="street-address"
+                    data-pw-el={PW_EL.field}
+                  />
                 </label>
                 <label data-pw-el={PW_EL.label}>
                   {t.checkoutProvince}
                   <select
                     value={orderProvince}
                     onChange={(e) => setOrderProvince(e.target.value)}
+                    name="address-level1"
+                    autoComplete="address-level1"
                     data-pw-el={PW_EL.field}
                   >
                     <option value="">{t.checkoutProvincePlaceholder}</option>

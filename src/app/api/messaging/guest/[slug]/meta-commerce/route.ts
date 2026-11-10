@@ -7,6 +7,7 @@ import {
 import { fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg } from '@/lib/db/messaging-partners-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+import { metaClientIpFromHeaders } from '@/lib/tracking/meta-client-ip'
 import {
   buildMetaCommerceCustomDataFromInventoryRow,
   sendMetaConversionsApiBatch,
@@ -16,14 +17,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function clientIpFromRequest(request: NextRequest): string | null {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first && /^[\d.:a-fA-Fx]+$/.test(first)) return first
-  }
-  const xr = request.headers.get('x-real-ip')?.trim()
-  if (xr && /^[\d.:a-fA-Fx]+$/.test(xr)) return xr
-  return null
+  return metaClientIpFromHeaders(request.headers)
 }
 
 export const dynamic = 'force-dynamic'

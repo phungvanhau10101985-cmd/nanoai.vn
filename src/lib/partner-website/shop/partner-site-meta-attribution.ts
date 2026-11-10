@@ -1,6 +1,23 @@
 'use client'
 
 import { metaClickSubdomainIndex, normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
+import {
+  partnerSiteMetaAmStorageKey,
+  partnerSiteMetaMatchingParams,
+  pickMetaAdvancedMatching,
+  type PartnerSiteMetaAdvancedMatching,
+} from '@/lib/partner-website/shop/partner-site-meta-advanced-matching'
+
+export {
+  partnerSiteMetaMatchingParams,
+  type PartnerSiteMetaAdvancedMatching,
+} from '@/lib/partner-website/shop/partner-site-meta-advanced-matching'
+
+declare global {
+  interface Window {
+    __nanoShopMetaAm?: Record<string, string>
+  }
+}
 
 const COOKIE_MAX_AGE_SEC = 90 * 24 * 60 * 60
 const META_CLICK_ID_MAX_AGE_MS = COOKIE_MAX_AGE_SEC * 1000
@@ -130,7 +147,17 @@ export function readPartnerSiteMetaClickIds(siteSlug?: string | null): { fbp?: s
   }
 }
 
-const cachedCustomer: { email?: string; phone?: string; externalId?: string } = {}
+const cachedMatching: Record<string, string> = {}
+
+function readStoredMatching(siteSlug: string): Record<string, string> {
+  const key = partnerSiteMetaAmStorageKey(siteSlug)
+  if (!key) return {}
+  try {
+    return pickMetaAdvancedMatching(JSON.parse(lsGet(key) || 'null') as Record<string, unknown> | null)
+  } catch {
+    return {}
+  }
+}
 
 function readStoredAccountId(): string {
   return (
@@ -138,78 +165,52 @@ function readStoredAccountId(): string {
     lsGet('nanoai_guest_account_id') ||
     readCookie('app_guest_account_id') ||
     readCookie('app_guest_account_sync') ||
-    lsGet('app_guest_session_id') ||
-    lsGet('nanoai_guest_session_id') ||
-    readCookie('app_guest_session_id') ||
     ''
   )
 }
 
-/** Nhớ email / SĐT / ID khách để mọi sự kiện CAPI sau đó gửi kèm. */
-export function rememberPartnerSiteMetaCustomer(src: PartnerSiteMetaAdvancedMatching): void {
-  const email = (src.email || '').trim().toLowerCase()
-  const phone = (src.phone || '').trim()
-  const externalId = String(src.externalId ?? '').trim()
-  if (email.includes('@')) cachedCustomer.email = email
-  if (phone) cachedCustomer.phone = phone
-  if (externalId) cachedCustomer.externalId = externalId
+export type PartnerSiteMetaCustomer = {
+  email?: string
+  phone?: string
+  externalId?: string
+  matching: Record<string, string>
 }
 
-export function readPartnerSiteMetaCustomer(): { email?: string; phone?: string; externalId?: string } {
-  const externalId = cachedCustomer.externalId || readStoredAccountId()
-  return {
-    ...(cachedCustomer.email ? { email: cachedCustomer.email } : {}),
-    ...(cachedCustomer.phone ? { phone: cachedCustomer.phone } : {}),
-    ...(externalId ? { externalId } : {}),
-  }
-}
-
-export type PartnerSiteMetaAdvancedMatching = {
-  email?: string | null
-  phone?: string | null
-  fullName?: string | null
-  externalId?: string | null
-}
-
-function foldMetaText(raw: string): string {
-  return raw
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function splitVnName(fullName: string): { fn?: string; ln?: string } {
-  const folded = foldMetaText(fullName)
-  if (!folded) return {}
-  const parts = folded.split(' ')
-  if (parts.length === 1) return { fn: parts[0] }
-  return { ln: parts[0], fn: parts.slice(1).join(' ') }
-}
-
-function normalizePhoneVn(phone: string): string | undefined {
-  const digits = phone.replace(/\D/g, '')
-  if (!digits) return undefined
-  if (digits.startsWith('0')) return `84${digits.slice(1)}`
-  if (!digits.startsWith('84')) return `84${digits}`
-  return digits
-}
-
-export function partnerSiteMetaMatchingParams(
-  src: PartnerSiteMetaAdvancedMatching
+/** Nhớ dữ liệu khách (plaintext đã chuẩn hoá) để lần `fbq('init')` sau gửi so khớp nâng cao. */
+export function rememberPartnerSiteMetaCustomer(
+  src: PartnerSiteMetaAdvancedMatching,
+  siteSlug?: string | null
 ): Record<string, string> {
-  const out: Record<string, string> = {}
-  const email = (src.email || '').trim().toLowerCase()
-  if (email.includes('@')) out.em = email
-  const phone = normalizePhoneVn(src.phone || '')
-  if (phone) out.ph = phone
-  const names = splitVnName(src.fullName || '')
-  if (names.fn) out.fn = names.fn
-  if (names.ln) out.ln = names.ln
-  if (src.externalId != null && String(src.externalId).trim()) {
-    out.external_id = String(src.externalId).trim()
+  const params = partnerSiteMetaMatchingParams(src)
+  if (!Object.keys(params).length) {
+    return readPartnerSiteMetaCustomer(siteSlug).matching
   }
-  return out
+  Object.assign(cachedMatching, params)
+  const slug = (siteSlug ?? '').trim().toLowerCase()
+  if (slug) {
+    const next = { ...readStoredMatching(slug), ...params }
+    lsSet(partnerSiteMetaAmStorageKey(slug), JSON.stringify(next))
+  }
+  if (typeof window !== 'undefined') {
+    window.__nanoShopMetaAm = { ...(window.__nanoShopMetaAm || {}), ...params }
+  }
+  return { ...cachedMatching }
+}
+
+export function readPartnerSiteMetaCustomer(siteSlug?: string | null): PartnerSiteMetaCustomer {
+  const matching: Record<string, string> = {
+    ...readStoredMatching(siteSlug || ''),
+    ...(typeof window !== 'undefined' ? pickMetaAdvancedMatching(window.__nanoShopMetaAm) : {}),
+    ...cachedMatching,
+  }
+  const guestId = readStoredAccountId()
+  if (guestId && !matching.external_id && guestId.length >= 2 && guestId.length <= 128 && !guestId.includes('@')) {
+    matching.external_id = guestId
+  }
+  return {
+    ...(matching.em ? { email: matching.em } : {}),
+    ...(matching.ph ? { phone: matching.ph } : {}),
+    ...(matching.external_id ? { externalId: matching.external_id } : {}),
+    matching,
+  }
 }

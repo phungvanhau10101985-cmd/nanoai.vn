@@ -2,7 +2,7 @@ import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-in
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 import { decodeHtmlEntitiesLite } from '@/lib/tracking/decode-html-entities-lite'
-import { buildMetaCapiUserData } from '@/lib/tracking/meta-capi-user-data'
+import { buildMetaCapiUserData, type MetaCapiCustomerInfo } from '@/lib/tracking/meta-capi-user-data'
 
 const GRAPH_VERSION = 'v21.0'
 
@@ -105,6 +105,7 @@ export async function sendMetaPurchaseConversionsApi(params: {
   customerPhone?: string | null
   /** ID khách thô. Meta không bắt buộc băm. */
   externalId?: string | null
+  customerInfo?: MetaCapiCustomerInfo | null
   customData: Omit<MetaPurchaseClientPayload, 'pixelId' | 'eventId'>
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const token = params.accessToken.trim()

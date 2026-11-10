@@ -53,6 +53,16 @@ export async function POST(req: NextRequest) {
       customerEmail: (p.customerEmail as string | null) ?? null,
       customerPhone: (p.customerPhone as string | null) ?? null,
       externalId: (p.externalId as string | null) ?? null,
+      customerInfo: (p.customerInfo as {
+        fn?: string | null
+        ln?: string | null
+        ge?: string | null
+        db?: string | null
+        ct?: string | null
+        st?: string | null
+        zp?: string | null
+        country?: string | null
+      } | null) ?? null,
       events: [
         {
           event_name: ev.event_name,

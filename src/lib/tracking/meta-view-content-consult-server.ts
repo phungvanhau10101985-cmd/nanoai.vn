@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { cookies, headers } from 'next/headers'
 import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg } from '@/lib/db/messaging-partners-pg'
+import { metaClientIpFromHeaders } from '@/lib/tracking/meta-client-ip'
 import { normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
 import {
   buildMetaCommerceCustomDataFromInventoryRow,
@@ -21,15 +22,7 @@ function buildEventSourceUrlFromHeaders(pathWithLeadingSlash: string): string {
 }
 
 function getClientIpFromHeaders(): string | null {
-  const h = headers()
-  const xff = h.get('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first && /^[\d.:a-fA-Fx]+$/.test(first)) return first
-  }
-  const xr = h.get('x-real-ip')?.trim()
-  if (xr && /^[\d.:a-fA-Fx]+$/.test(xr)) return xr
-  return null
+  return metaClientIpFromHeaders(headers())
 }
 
 function normalizeFbc(raw: string | null | undefined): string | null {

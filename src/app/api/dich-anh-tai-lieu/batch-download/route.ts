@@ -8,6 +8,77 @@ import { fetchTryOnHistoryBatchDownloadRowsPg } from '@/lib/db/translate-process
 /** Route Handler cho tải PDF/zip – timeout 120s (Server Action chỉ 15s trên Vercel) */
 export const maxDuration = 120
 
+type TryOnRow = { result_image_url?: string | null; batch_type?: string | null; original_image_url?: string | null }
+
+function pageIndex(url: string | null | undefined): number | null {
+  const match = /_page_(\d+)\./.exec(url || '')
+  return match ? Number(match[1]) : null
+}
+
+function orderPages(rows: TryOnRow[]): TryOnRow[] {
+  return rows
+    .map((row, index) => ({ row, index, page: pageIndex(row.original_image_url) }))
+    .sort((a, b) => {
+      if (a.page == null && b.page == null) return a.index - b.index
+      if (a.page == null) return 1
+      if (b.page == null) return -1
+      return a.page - b.page
+    })
+    .map((item) => item.row)
+}
+
+async function zipBuffers(entries: Array<{ name: string; buffer: Buffer }>): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const archive = archiver('zip', { zlib: { level: 9 } })
+    const chunks: Buffer[] = []
+    archive.on('data', (chunk: Buffer) => chunks.push(chunk))
+    archive.on('end', () => resolve(Buffer.concat(chunks)))
+    archive.on('error', reject)
+    for (const entry of entries) archive.append(entry.buffer, { name: entry.name })
+    archive.finalize()
+  })
+}
+
+async function pagesToPdfUrl(userId: string, pages: Buffer[]): Promise<string> {
+  const sharp = (await import('sharp')).default
+  const { PDFDocument } = await import('pdf-lib')
+  const pdfDoc = await PDFDocument.create()
+  for (const pageBuffer of pages) {
+    const png = await sharp(pageBuffer).png().toBuffer()
+    const image = await pdfDoc.embedPng(png)
+    const page = pdfDoc.addPage([image.width, image.height])
+    page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height })
+  }
+  const out = Buffer.from(await pdfDoc.save())
+  const { publicUrl } = await uploadTryOnImagePublic(`results/${userId}/dich_tai_lieu_${Date.now()}.pdf`, out, {
+    contentType: 'application/pdf',
+    upsert: true,
+  })
+  return publicUrl
+}
+
+async function zipOriginalPages(userId: string, rows: TryOnRow[], pagePrefix: string): Promise<string | undefined> {
+  const entries: Array<{ name: string; buffer: Buffer }> = []
+  for (let i = 0; i < rows.length; i++) {
+    const origUrl = rows[i].original_image_url
+    if (!origUrl) continue
+    try {
+      const res = await fetch(origUrl, { signal: AbortSignal.timeout(30000) })
+      if (!res.ok) continue
+      entries.push({ name: `${pagePrefix}_${i + 1}_goc.png`, buffer: Buffer.from(await res.arrayBuffer()) })
+    } catch {
+      /* bỏ trang gốc lỗi */
+    }
+  }
+  if (entries.length === 0) return undefined
+  const zip = await zipBuffers(entries)
+  const { publicUrl } = await uploadTryOnImagePublic(`results/${userId}/dich_tai_lieu_goc_${Date.now()}.zip`, zip, {
+    contentType: 'application/zip',
+    upsert: true,
+  })
+  return publicUrl
+}
+
 export async function GET(request: NextRequest) {
   const batchId = request.nextUrl.searchParams.get('batchId')
   if (!batchId) {
@@ -28,85 +99,42 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Không đọc được dữ liệu lô.' }, { status: 500 })
   }
 
-  type TryOnRow = { result_image_url?: string | null; batch_type?: string | null; original_image_url?: string | null }
   const rows = items as TryOnRow[]
-  const completed = rows.filter((x) => x.result_image_url)
+  const completed = rows.filter((row) => row.result_image_url)
   if (completed.length === 0) {
     return NextResponse.json({ error: 'Không có ảnh đã xử lý xong để tải.' }, { status: 400 })
   }
 
-  const isPdfBatch = rows.some((x) => x.batch_type === 'pdf')
+  const isPdfBatch = rows.some((row) => row.batch_type === 'pdf')
+  const wantPdf = request.nextUrl.searchParams.get('format') === 'pdf'
   const pagePrefix = isPdfBatch ? 'trang' : 'image'
+  const ordered = orderPages(completed)
 
   try {
-    // Zip ảnh kết quả (đã dịch)
-    const resultZipEntries: Array<{ name: string; buffer: Buffer }> = []
-    for (let i = 0; i < completed.length; i++) {
+    const resultEntries: Array<{ name: string; buffer: Buffer }> = []
+    for (let i = 0; i < ordered.length; i++) {
       try {
-        const res = await fetch(completed[i].result_image_url!, { signal: AbortSignal.timeout(30000) })
+        const res = await fetch(ordered[i].result_image_url!, { signal: AbortSignal.timeout(30000) })
         if (!res.ok) continue
-        const buf = Buffer.from(await res.arrayBuffer())
-        resultZipEntries.push({ name: `${pagePrefix}_${i + 1}_dich.png`, buffer: buf })
+        resultEntries.push({ name: `${pagePrefix}_${i + 1}_dich.png`, buffer: Buffer.from(await res.arrayBuffer()) })
       } catch {
-        // skip
+        /* bỏ trang lỗi */
       }
     }
-    if (resultZipEntries.length === 0) {
+    if (resultEntries.length === 0) {
       return NextResponse.json({ error: 'Không tải được ảnh kết quả để nén.' }, { status: 500 })
     }
-    const resultZipBuffer = await new Promise<Buffer>((resolve, reject) => {
-      const archive = archiver('zip', { zlib: { level: 9 } })
-      const chunks: Buffer[] = []
-      archive.on('data', (chunk: Buffer) => chunks.push(chunk))
-      archive.on('end', () => resolve(Buffer.concat(chunks)))
-      archive.on('error', reject)
-      for (const e of resultZipEntries) {
-        archive.append(e.buffer, { name: e.name })
-      }
-      archive.finalize()
-    })
-    const resultZipPath = `results/${user.id}/dich_tai_lieu_${Date.now()}.zip`
-    const { publicUrl: resultZipPublicUrl } = await uploadTryOnImagePublic(resultZipPath, resultZipBuffer, {
+    const originalZipUrl = await zipOriginalPages(user.id, ordered, pagePrefix)
+    if (wantPdf) {
+      const pdfUrl = await pagesToPdfUrl(user.id, resultEntries.map((entry) => entry.buffer))
+      return NextResponse.json({ pdfUrl, originalZipUrl })
+    }
+    const resultZip = await zipBuffers(resultEntries)
+    const { publicUrl: zipUrl } = await uploadTryOnImagePublic(`results/${user.id}/dich_tai_lieu_${Date.now()}.zip`, resultZip, {
       contentType: 'application/zip',
       upsert: true,
     })
-
-    // Zip ảnh gốc
-    const originalZipEntries: Array<{ name: string; buffer: Buffer }> = []
-    for (let i = 0; i < completed.length; i++) {
-      const origUrl = (completed[i] as { original_image_url?: string }).original_image_url
-      if (!origUrl) continue
-      try {
-        const res = await fetch(origUrl, { signal: AbortSignal.timeout(30000) })
-        if (!res.ok) continue
-        const buf = Buffer.from(await res.arrayBuffer())
-        originalZipEntries.push({ name: `${pagePrefix}_${i + 1}_goc.png`, buffer: buf })
-      } catch {
-        // skip
-      }
-    }
-    let originalZipUrl: string | undefined
-    if (originalZipEntries.length > 0) {
-      const originalZipBuffer = await new Promise<Buffer>((resolve, reject) => {
-        const archive = archiver('zip', { zlib: { level: 9 } })
-        const chunks: Buffer[] = []
-        archive.on('data', (chunk: Buffer) => chunks.push(chunk))
-        archive.on('end', () => resolve(Buffer.concat(chunks)))
-        archive.on('error', reject)
-        for (const e of originalZipEntries) {
-          archive.append(e.buffer, { name: e.name })
-        }
-        archive.finalize()
-      })
-      const originalZipPath = `results/${user.id}/dich_tai_lieu_goc_${Date.now()}.zip`
-      const { publicUrl: originalZipPublicUrl } = await uploadTryOnImagePublic(originalZipPath, originalZipBuffer, {
-        contentType: 'application/zip',
-        upsert: true,
-      })
-      originalZipUrl = originalZipPublicUrl
-    }
-
-    return NextResponse.json({ zipUrl: resultZipPublicUrl, originalZipUrl })
+    return NextResponse.json({ zipUrl, originalZipUrl })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[batch-download] Lỗi:', msg)

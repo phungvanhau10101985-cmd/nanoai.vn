@@ -12,7 +12,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import {
   persistPartnerSiteMetaClickIds,
-  partnerSiteMetaMatchingParams,
+  readPartnerSiteMetaCustomer,
   rememberPartnerSiteMetaCustomer,
 } from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import { PW_SHOP_SOFT_NAV_EVENT } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
@@ -153,17 +153,24 @@ async function applyAdvancedMatching(siteSlug: string, pixelId: string): Promise
         customer_name?: string | null
         greeting_name?: string | null
         customer_phone?: string | null
+        gender?: string | null
+        date_of_birth?: string | null
+        shipping_address?: string | null
       } | null
     }
     const profile = json.profile
-    const customer = {
-      email: profile?.email,
-      phone: profile?.customer_phone,
-      fullName: profile?.customer_name || profile?.greeting_name,
-      externalId: json.external_id,
-    }
-    rememberPartnerSiteMetaCustomer(customer)
-    const params = partnerSiteMetaMatchingParams(customer)
+    const params = rememberPartnerSiteMetaCustomer(
+      {
+        email: profile?.email,
+        phone: profile?.customer_phone,
+        fullName: profile?.customer_name || profile?.greeting_name,
+        externalId: json.external_id,
+        gender: profile?.gender,
+        dateOfBirth: profile?.date_of_birth,
+        shippingAddress: profile?.shipping_address,
+      },
+      siteSlug
+    )
     if (Object.keys(params).length) ensureFbqPixelInitialized(pixelId, params)
   } catch {
     /* ignore */
@@ -211,8 +218,9 @@ export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
 
     const meta = (tracking.facebookPixelId ?? '').trim()
     if (meta) {
-      ensureFbqPixelInitialized(meta)
       const slug = (tracking.siteSlug ?? '').trim()
+      const stored = slug ? readPartnerSiteMetaCustomer(slug).matching : undefined
+      ensureFbqPixelInitialized(meta, stored && Object.keys(stored).length ? stored : undefined)
       if (slug) void applyAdvancedMatching(slug, meta)
     }
 

@@ -4,56 +4,12 @@ import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import type { GptImageQuality, ImageEngine } from '@/lib/ai/image-engine'
 import { runImageContent } from '@/lib/ai/gpt-image'
-
-const TARGET_LANGUAGES: Record<string, string> = {
-  vi: 'Vietnamese (Tiếng Việt)',
-  en: 'English',
-  ja: 'Japanese (Tiếng Nhật)',
-  ko: 'Korean (Tiếng Hàn)',
-  zh: 'Chinese (Tiếng Trung)',
-  'zh-tw': 'Chinese Traditional (Tiếng Trung phồn thể)',
-  th: 'Thai (Tiếng Thái)',
-  id: 'Indonesian (Tiếng Indonesia)',
-  ms: 'Malay (Tiếng Mã Lai)',
-  fr: 'French (Tiếng Pháp)',
-  de: 'German (Tiếng Đức)',
-  es: 'Spanish (Tiếng Tây Ban Nha)',
-  it: 'Italian (Tiếng Ý)',
-  pt: 'Portuguese (Tiếng Bồ Đào Nha)',
-  ru: 'Russian (Tiếng Nga)',
-  ar: 'Arabic (Tiếng Ả Rập)',
-  hi: 'Hindi (Tiếng Hindi)',
-}
+import { buildTranslatePrompt } from '@/lib/document-translate-prompt'
 
 /** Định dạng JSON: danh sách từ/cụm từ và tọa độ bbox (x, y, width, height) theo pixel */
 export interface WordWithBbox {
   text: string
   bbox: { x: number; y: number; width: number; height: number }
-}
-
-function buildTranslatePrompt(sourceLang: string, sourceLang2: string | null, targetLang: string): string {
-  const targetName = TARGET_LANGUAGES[targetLang] || targetLang
-  const isAuto = sourceLang === 'auto' || !sourceLang
-  const sourceDesc = isAuto
-    ? 'Detect the source language(s) in the document automatically.'
-    : sourceLang2
-      ? `${TARGET_LANGUAGES[sourceLang] || sourceLang} and ${TARGET_LANGUAGES[sourceLang2] || sourceLang2}`
-      : TARGET_LANGUAGES[sourceLang] || sourceLang
-  const translateRule = isAuto
-    ? `Translate slowly and carefully. Translate 100% of all source text to ${targetName}. Do not skip or omit any text.`
-    : `Translate slowly and carefully. Translate 100% of all text from ${sourceDesc} to ${targetName}. Do not skip or omit any text.`
-  return `Translate the document image: replace all text from ${sourceDesc} to ${targetName}. Do NOT modify graphics, layout, logos, or images.
-
-SOURCE: ${sourceDesc}. TARGET: ${targetName}.
-
-Requirements: Output the translated image in PNG format.
-
-Rules:
-- ${translateRule} Never translate brand/company names (SANY, Caterpillar, Toyota, etc.).
-- Keep numbers, units (mm, kg, °C), formulas, and codes unchanged.
-- Preserve font style, size, and relative position.
-
-OUTPUT: PNG image only.`
 }
 
 export async function translateOneImage(

@@ -35,4 +35,28 @@ test('CAPI user_data hashes email and phone and sends fbc plus raw external_id',
   assert.deepEqual(userData.ph, [hashMetaCapiPhone('0912345678')])
   assert.deepEqual(userData.external_id, ['11111111-1111-4111-8111-111111111111'])
   assert.equal(userData.client_ip_address, '1.2.3.4')
+  assert.equal(userData.fn, undefined)
+})
+
+test('CAPI user_data hashes name, gender, birthday, and address', () => {
+  const userData = buildMetaCapiUserData({
+    customerEmail: 'buyer@example.com',
+    customerInfo: {
+      fn: 'van a',
+      ln: 'nguyen',
+      ge: 'f',
+      db: '19910526',
+      ct: 'hanoi',
+      st: 'hanoi',
+      country: 'vn',
+    },
+  })
+  assert.equal((userData.fn as string[])[0]?.length, 64)
+  assert.equal((userData.ln as string[])[0]?.length, 64)
+  assert.equal((userData.ge as string[])[0]?.length, 64)
+  assert.equal((userData.db as string[])[0]?.length, 64)
+  assert.equal((userData.country as string[])[0]?.length, 64)
+  assert.equal((userData.ct as string[])[0], (userData.st as string[])[0])
+  assert.equal(JSON.stringify(userData).includes('nguyen'), false)
+  assert.equal(JSON.stringify(userData).includes('buyer@example.com'), false)
 })

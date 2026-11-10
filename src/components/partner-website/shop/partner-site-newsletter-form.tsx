@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
+import { rememberPartnerSiteMetaCustomer } from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export function PartnerSiteNewsletterForm({
@@ -21,6 +22,7 @@ export function PartnerSiteNewsletterForm({
     ev.preventDefault()
     setPending(true)
     setStatus('idle')
+    rememberPartnerSiteMetaCustomer({ email: email.trim() }, siteSlug)
     try {
       const res = await fetch(`/api/site/${encodeURIComponent(siteSlug)}/newsletter`, {
         method: 'POST',

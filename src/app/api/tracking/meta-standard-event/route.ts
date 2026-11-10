@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getJwtUserFromRequest } from '@/lib/auth/email-jwt-middleware'
 import { loadAdminIntegrationsValueJsonByKey } from '@/lib/db/admin-integrations-settings-pg'
 import { buildMetaCapiUserData } from '@/lib/tracking/meta-capi-user-data'
+import { metaClientIpFromHeaders } from '@/lib/tracking/meta-client-ip'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,14 +32,7 @@ type AdminIntegrationsSettings = {
 }
 
 function clientIpFromRequest(request: NextRequest): string | null {
-  const xff = request.headers.get('x-forwarded-for')
-  if (xff) {
-    const first = xff.split(',')[0]?.trim()
-    if (first && /^[\d.:a-fA-Fx]+$/.test(first)) return first
-  }
-  const xr = request.headers.get('x-real-ip')?.trim()
-  if (xr && /^[\d.:a-fA-Fx]+$/.test(xr)) return xr
-  return null
+  return metaClientIpFromHeaders(request.headers)
 }
 
 function sanitizeScalar(raw: unknown, maxLen: number): CustomScalar | null {

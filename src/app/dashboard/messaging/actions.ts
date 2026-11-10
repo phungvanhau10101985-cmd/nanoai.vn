@@ -115,6 +115,7 @@ import {
 } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import {
   fetchMessagingPartnerEmbedKeyForOwnerFromPg,
+  fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg,
   fetchMessagingPartnersForDashboardFromPg,
   insertMessagingPartnerForOwnerFromPg,
   updateMessagingPartnerFacebookMetaForOwnerFromPg,
@@ -644,6 +645,16 @@ export async function savePartnerMessagingFacebookMeta(partnerId: string, input:
     facebook_capi_access_token: updateCapi ? capiTok : null,
   })
   if (!ok) return { error: 'Không lưu được Pixel / Conversions API.' }
+  const secrets = await fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg(partnerId)
+  const amToken = (updateCapi ? capiTok : secrets?.facebook_capi_access_token || '').trim()
+  const amPixel = pixel || secrets?.facebook_pixel_id || ''
+  if (amPixel && amToken) {
+    const { ensureMetaPixelAutomaticMatching } = await import('@/lib/tracking/meta-pixel-automatic-matching')
+    await Promise.race([
+      ensureMetaPixelAutomaticMatching(amPixel, amToken, { force: true }),
+      new Promise((resolve) => setTimeout(resolve, 4000)),
+    ])
+  }
   await bumpPartnerShopSiteCacheAfterTrackingSave(partnerId)
   revalidateMessagingDashboard()
   return { ok: true as const, pixelId: pixel }

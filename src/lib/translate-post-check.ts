@@ -10,13 +10,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { documentOcrWithScale } from './vision-ocr'
 import { hasVisionConfig } from './vision-api'
 import { overlayTranslatedText } from './translate-overlay'
-
-const TARGET_LANGUAGES: Record<string, string> = {
-  vi: 'Vietnamese', en: 'English', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
-  'zh-tw': 'Chinese Traditional', th: 'Thai', id: 'Indonesian', ms: 'Malay',
-  fr: 'French', de: 'German', es: 'Spanish', it: 'Italian', pt: 'Portuguese',
-  ru: 'Russian', ar: 'Arabic', hi: 'Hindi',
-}
+import { documentTranslatePromptName } from '@/lib/document-translate-languages'
 
 export interface PostCheckOptions {
   sourceLang: string
@@ -52,9 +46,9 @@ export async function applyPostCheckOcr(
     if (textList.length === 0) return resultBuffer
 
     const sourceNames = sourceLang2
-      ? `${TARGET_LANGUAGES[sourceLang] || sourceLang} and ${TARGET_LANGUAGES[sourceLang2] || sourceLang2}`
-      : TARGET_LANGUAGES[sourceLang] || sourceLang
-    const targetName = TARGET_LANGUAGES[targetLang] || targetLang
+      ? `${documentTranslatePromptName(sourceLang)} and ${documentTranslatePromptName(sourceLang2)}`
+      : documentTranslatePromptName(sourceLang)
+    const targetName = documentTranslatePromptName(targetLang)
 
     const verifyPrompt = `This image was translated from ${sourceNames} to ${targetName}. Which segments are STILL in the source language(s)? Return JSON: {"missed":["exact text 1","exact text 2"]}. If none: {"missed":[]}. Ignore: numbers, codes, units, brand names.`
     const flashModel = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)

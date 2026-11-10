@@ -35,6 +35,7 @@ import {
 import { getStableEmailTrustedBrowserId } from '@/lib/auth/email-trusted-browser-client'
 import { markPartnerSiteFreshLoginSession } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt-session'
 import { getWebmailInfo } from '@/lib/auth/email-webmail-helper'
+import { rememberPartnerSiteMetaCustomer } from '@/lib/partner-website/shop/partner-site-meta-attribution'
 
 type Props = {
   partnerSlug: string
@@ -242,6 +243,7 @@ export function PartnerSiteShopAuthPanel({
     }
     setBusy(true)
     setMessage('')
+    rememberPartnerSiteMetaCustomer({ email: em }, siteSlug)
     beginGoogleLogin()
     const browserId = getStableEmailTrustedBrowserId()
     try {

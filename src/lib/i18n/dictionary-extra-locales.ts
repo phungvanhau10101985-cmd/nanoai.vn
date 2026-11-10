@@ -3598,6 +3598,8 @@ const EN_DICTIONARY: Dictionary = {
     studentMyScoresNotSubmitted: 'Not started',
     studentMyScoresSubmitted: 'Submitted',
     studentMyScoresPoints: '{score}/10',
+    subjectItemNew: 'New',
+    subjectItemUnreadAria: '{n} unopened',
     worksheetLamBaiNoInteractiveHint:
       'This worksheet has no supported multiple-choice or essay section for the web yet (your teacher needs to attach questions in the curriculum tool). You cannot submit here yet.',
     worksheetLamBaiBackToClassWorksheets: 'Back to class worksheets',
@@ -8155,6 +8157,8 @@ const ZH_DICTIONARY: Dictionary = {
     studentMyScoresNotSubmitted: '未做',
     studentMyScoresSubmitted: '已提交',
     studentMyScoresPoints: '{score}/10',
+    subjectItemNew: '新',
+    subjectItemUnreadAria: '{n} 项未打开',
     worksheetLamBaiNoInteractiveHint:
       '本作业单暂无可在线完成的选择题或主观题（教师需先在课程工具中关联题目）。您暂时无法在此提交。',
     worksheetLamBaiBackToClassWorksheets: '返回班级作业单列表',
@@ -12768,6 +12772,8 @@ const JA_DICTIONARY: Dictionary = {
     studentMyScoresNotSubmitted: '未提出',
     studentMyScoresSubmitted: '提出済み',
     studentMyScoresPoints: '{score}/10',
+    subjectItemNew: '新着',
+    subjectItemUnreadAria: '{n} 件未開',
     worksheetLamBaiNoInteractiveHint:
       'このワークシートには、Web上で解答できる選択・記述形式の設問がありません（教師が教材ツールで設問を紐付ける必要があります）。ここでは提出できません。',
     worksheetLamBaiBackToClassWorksheets: 'クラスのワークシート一覧へ',
@@ -17392,6 +17398,8 @@ const KO_DICTIONARY: Dictionary = {
     studentMyScoresNotSubmitted: '미제출',
     studentMyScoresSubmitted: '제출함',
     studentMyScoresPoints: '{score}/10',
+    subjectItemNew: '새',
+    subjectItemUnreadAria: '{n}개 아직 안 열림',
     worksheetLamBaiNoInteractiveHint:
       '이 워크시트에는 웹에서 풀 수 있는 객관식·서술형 문항이 없습니다(교사가 교재 도구에서 문항을 연결해야 합니다). 여기서는 제출할 수 없습니다.',
     worksheetLamBaiBackToClassWorksheets: '반 워크시트 목록으로',

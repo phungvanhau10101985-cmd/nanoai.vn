@@ -8,6 +8,7 @@ import { resolveWebLocaleFromCookieStore, type WebLocale } from '@/lib/i18n/conf
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { buildMetadata } from '@/lib/seo'
 import { loadExamSessionForLamBaiMetadata } from '@/lib/exam-session/load-session-for-lam-bai-metadata'
+import { markLamBaiOpenedForMember } from '@/lib/lop/class-subject-item-opens'
 
 function splitSeoKeywords(raw: string): string[] {
   return raw.split(',').map((k) => k.trim()).filter(Boolean)
@@ -75,5 +76,6 @@ export default async function LamBaiPage({ params }: { params: Promise<{ code: s
     redirect(`/auth/force-login?next=${encodeURIComponent(`/lam-bai/${code}`)}`)
   }
   const { t } = await getServerDictionary()
+  await markLamBaiOpenedForMember(auth.user.id, code)
   return <LamBaiClientPage code={code} t={t.classes} />
 }

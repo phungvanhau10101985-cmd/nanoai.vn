@@ -28,13 +28,13 @@ export default function TranslateProgressLandingPage() {
     try {
       const batchId = localStorage.getItem(STORAGE_KEY)
       if (batchId) {
-        router.replace(`/dich-anh-tai-lieu?batchId=${encodeURIComponent(batchId)}`)
+        router.replace(`/dich-anh-tai-lieu/xu-ly?batchId=${encodeURIComponent(batchId)}`)
         return
       }
     } catch {
       //
     }
-    router.replace('/dich-anh-tai-lieu')
+    router.replace('/dich-anh-tai-lieu/xu-ly')
     return () => {
       window.removeEventListener('focus', syncLocale)
       document.removeEventListener('visibilitychange', syncLocale)

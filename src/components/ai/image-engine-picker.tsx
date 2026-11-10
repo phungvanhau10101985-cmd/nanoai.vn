@@ -19,6 +19,40 @@ function chipClass(active: boolean): string {
   )
 }
 
+function QualityChoice({
+  active,
+  label,
+  purpose,
+  onClick,
+}: {
+  active: boolean
+  label: string
+  purpose?: string
+  onClick: () => void
+}) {
+  if (!purpose) {
+    return (
+      <button type="button" onClick={onClick} className={chipClass(active)} aria-pressed={active}>
+        {label}
+      </button>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'w-full rounded-md px-2 py-1.5 text-left transition-colors',
+        active ? 'bg-violet-600 text-white' : 'bg-muted/60 text-foreground hover:bg-white'
+      )}
+    >
+      <span className="block text-xs font-medium">{label}</span>
+      <span className={cn('mt-0.5 block text-[10px] leading-snug', active ? 'text-violet-100' : 'text-muted-foreground')}>{purpose}</span>
+    </button>
+  )
+}
+
 export function ImageEnginePicker({
   locale,
   engine,
@@ -31,6 +65,7 @@ export function ImageEnginePicker({
   geminiCost2k = 1,
   geminiCost4k,
   engines = ['gemini', 'gpt'],
+  qualityPurpose,
 }: {
   locale: string
   engine: ImageEngine
@@ -46,6 +81,8 @@ export function ImageEnginePicker({
   geminiCost4k?: number | null
   /** Engine được chọn. Một phần tử thì ẩn hàng đổi model. */
   engines?: readonly ImageEngine[]
+  /** Một dòng mục đích dưới từng mức. Tool không truyền thì hộp giữ nút cũ. */
+  qualityPurpose?: Partial<Record<GptImageQuality | 'gemini2k' | 'gemini4k', string>>
 }) {
   const webLocale: WebLocale = locale === 'en' || locale === 'zh' || locale === 'ja' || locale === 'ko' ? locale : 'vi'
   const t = getDictionary(webLocale).imageGenerationClient
@@ -75,6 +112,9 @@ export function ImageEnginePicker({
       : 'grid-cols-1'
   const geminiQualityChosen = !qualityPending && engine === 'gemini'
   const gptQualityChosen = !qualityPending && engine === 'gpt'
+  const purposeForShown = shownEngine === 'gemini'
+    ? [qualityPurpose?.gemini2k, geminiCost4k != null ? qualityPurpose?.gemini4k : undefined].some(Boolean)
+    : gptQualities.some((quality) => Boolean(qualityPurpose?.[quality]))
 
   function handleOpenChange(next: boolean) {
     if (!next && qualityPending) return
@@ -124,7 +164,7 @@ export function ImageEnginePicker({
         align="end"
         side="top"
         collisionPadding={12}
-        className="z-[2147483647] w-[17rem] p-3"
+        className={cn('z-[2147483647] p-3', purposeForShown ? 'w-[22rem]' : 'w-[17rem]')}
         onPointerDownOutside={(event) => {
           if (qualityPending) event.preventDefault()
         }}
@@ -167,38 +207,32 @@ export function ImageEnginePicker({
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t.imageEngineQuality}</p>
             {qualityPending ? <p className="text-[11px] leading-snug text-amber-700">{t.imageEnginePickQuality}</p> : null}
             {shownEngine === 'gemini' ? (
-              <div className={cn('grid gap-1 rounded-lg bg-muted/60 p-1', qualityCols)}>
-                <button
-                  type="button"
+              <div className={cn(purposeForShown ? 'space-y-1' : cn('grid gap-1 rounded-lg bg-muted/60 p-1', qualityCols))}>
+                <QualityChoice
+                  active={geminiQualityChosen && shownGeminiQuality === '2K'}
+                  label={`2K (${formatCredit(geminiCost2k, webLocale)})`}
+                  purpose={qualityPurpose?.gemini2k}
                   onClick={() => chooseGeminiQuality('2K')}
-                  className={chipClass(geminiQualityChosen && shownGeminiQuality === '2K')}
-                  aria-pressed={geminiQualityChosen && shownGeminiQuality === '2K'}
-                >
-                  2K ({formatCredit(geminiCost2k, webLocale)})
-                </button>
+                />
                 {geminiCost4k != null ? (
-                  <button
-                    type="button"
+                  <QualityChoice
+                    active={geminiQualityChosen && geminiQuality === '4K'}
+                    label={`4K (${formatCredit(geminiCost4k, webLocale)})`}
+                    purpose={qualityPurpose?.gemini4k}
                     onClick={() => chooseGeminiQuality('4K')}
-                    className={chipClass(geminiQualityChosen && geminiQuality === '4K')}
-                    aria-pressed={geminiQualityChosen && geminiQuality === '4K'}
-                  >
-                    4K ({formatCredit(geminiCost4k, webLocale)})
-                  </button>
+                  />
                 ) : null}
               </div>
             ) : (
-              <div className={cn('grid gap-1 rounded-lg bg-muted/60 p-1', qualityCols)}>
+              <div className={cn(purposeForShown ? 'space-y-1' : cn('grid gap-1 rounded-lg bg-muted/60 p-1', qualityCols))}>
                 {gptQualities.map((quality) => (
-                  <button
+                  <QualityChoice
                     key={quality}
-                    type="button"
+                    active={gptQualityChosen && gptQuality === quality}
+                    label={`${quality} (${formatCredit(GPT_IMAGE_CREDITS[quality], webLocale)})`}
+                    purpose={qualityPurpose?.[quality]}
                     onClick={() => chooseGptQuality(quality)}
-                    className={chipClass(gptQualityChosen && gptQuality === quality)}
-                    aria-pressed={gptQualityChosen && gptQuality === quality}
-                  >
-                    {quality} ({formatCredit(GPT_IMAGE_CREDITS[quality], webLocale)})
-                  </button>
+                  />
                 ))}
               </div>
             )}

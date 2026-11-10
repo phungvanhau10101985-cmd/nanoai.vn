@@ -3,6 +3,7 @@
  * cấm import `pg` / `pool` ở đây. Đọc DB nằm ở `load-partner-shop-google-tag-ids.ts`.
  */
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
+import { metaPixelInitArgsJs } from '@/lib/partner-website/shop/partner-site-meta-advanced-matching'
 import { metaClickIdHeadBootstrapJs } from '@/lib/tracking/meta-click-ids'
 import { buildPartnerShopChatWidgetsHtml } from '@/lib/partner-website/shop/partner-shop-chat-widgets'
 import {
@@ -78,7 +79,7 @@ export function buildShopTrackingHeadSnippets(config: PartnerSiteShopTrackingCon
   if (meta) {
     const pid = escapeScriptString(meta)
     snippets.push(`<!-- Meta Pixel -->
-<script>${metaClickIdHeadBootstrapJs()}!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('set','autoConfig',false,'${pid}');fbq('init','${pid}');</script>`)
+<script>${metaClickIdHeadBootstrapJs()}!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('set','autoConfig',false,'${pid}');fbq('init','${pid}',${metaPixelInitArgsJs(meta, config.siteSlug)});</script>`)
   }
 
   const tiktok = (config.tiktokPixelId ?? '').trim()
@@ -117,7 +118,8 @@ export type PartnerShopMetaPixelInstall = {
  * `autoConfig:false` tránh PageView kép; cờ `__nanoShopMetaPageViewTracked` để React bỏ lần PageView đầu.
  */
 export function buildPartnerShopMetaPixelInstall(
-  pixelId?: string | null
+  pixelId?: string | null,
+  siteSlug?: string | null
 ): PartnerShopMetaPixelInstall | null {
   const id = String(pixelId ?? '').trim()
   if (!META_PIXEL_ID_RE.test(id)) return null
@@ -127,7 +129,7 @@ export function buildPartnerShopMetaPixelInstall(
       metaClickIdHeadBootstrapJs(),
       `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');`,
       `fbq('set','autoConfig',false,'${id}');`,
-      `fbq('init','${id}');`,
+      `fbq('init','${id}',${metaPixelInitArgsJs(id, siteSlug)});`,
       `if(!window.__nanoShopMetaPageViewTracked){fbq('track','PageView');window.__nanoShopMetaPageViewTracked=true;}`,
     ].join(''),
   }

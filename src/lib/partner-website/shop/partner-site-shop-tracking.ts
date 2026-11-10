@@ -22,6 +22,7 @@ import {
   trackShopGa4PurchaseEvent,
 } from '@/app/messaging/p/[slug]/shop-ga4-ecommerce'
 import { ensureFbqPixelInitialized } from '@/app/messaging/p/[slug]/meta-pixel-session'
+import { partnerSiteMetaCapiCustomerInfo } from '@/lib/partner-website/shop/partner-site-meta-advanced-matching'
 import {
   partnerSiteMetaMatchingParams,
   readPartnerSiteMetaClickIds,
@@ -226,7 +227,7 @@ function sendPartnerSiteMetaCapi(
   const slug = (siteSlug ?? '').trim()
   if (!slug || typeof window === 'undefined') return
   const clicks = readPartnerSiteMetaClickIds(slug)
-  const customer = readPartnerSiteMetaCustomer()
+  const customer = readPartnerSiteMetaCustomer(slug)
   const url = `/api/site/${encodeURIComponent(slug)}/tracking/meta-capi`
   const payload = JSON.stringify({
     eventName,
@@ -236,6 +237,7 @@ function sendPartnerSiteMetaCapi(
     customerEmail: options?.customerEmail || customer.email,
     customerPhone: options?.customerPhone || customer.phone,
     externalId: options?.externalId || customer.externalId,
+    customerInfo: partnerSiteMetaCapiCustomerInfo(customer.matching),
     fbc: clicks.fbc,
     fbp: clicks.fbp,
   })
@@ -269,12 +271,15 @@ function trackMetaEvent(
   if (!pid) return
   if (eventName === 'ViewContent' && shouldDedupeViewContent(custom)) return
   const eventId = options?.eventId ?? randomEventId(eventName)
-  const customer = readPartnerSiteMetaCustomer()
-  const matching = partnerSiteMetaMatchingParams({
-    email: options?.customerEmail || customer.email,
-    phone: options?.customerPhone || customer.phone,
-    externalId: options?.externalId || customer.externalId,
-  })
+  const customer = readPartnerSiteMetaCustomer(config.siteSlug)
+  const matching = {
+    ...customer.matching,
+    ...partnerSiteMetaMatchingParams({
+      email: options?.customerEmail || customer.email,
+      phone: options?.customerPhone || customer.phone,
+      externalId: options?.externalId || customer.externalId,
+    }),
+  }
   const firePixel = () => {
     if (!ensureFbqPixelInitialized(pid, Object.keys(matching).length ? matching : undefined) || typeof window.fbq !== 'function') {
       return

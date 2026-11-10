@@ -12,55 +12,21 @@ import { useSearchParams } from 'next/navigation'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
 import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { DOCUMENT_TRANSLATE_GEMINI_CREDITS } from '@/lib/document-translate-pricing'
+import { documentTranslateLanguagesByGroup } from '@/lib/document-translate-languages'
+import { useToast } from '@/hooks/use-toast'
 import {
   finalizeStandardImageGenerationResult,
   waitForNextPaintClient,
 } from '@/lib/client/finalize-standard-image-generation-result'
 
-const LANG_VI = { vi: 'Tiếng Việt' }
-const LANG_OTHERS: Record<string, string> = {
-  en: 'English',
-  ja: 'Japanese (Tiếng Nhật)',
-  ko: 'Korean (Tiếng Hàn)',
-  zh: 'Chinese (Tiếng Trung)',
-  'zh-tw': 'Chinese Traditional (Tiếng Trung phồn thể)',
-  th: 'Thai (Tiếng Thái)',
-  id: 'Indonesian (Tiếng Indonesia)',
-  ms: 'Malay (Tiếng Mã Lai)',
-  fr: 'French (Tiếng Pháp)',
-  de: 'German (Tiếng Đức)',
-  es: 'Spanish (Tiếng Tây Ban Nha)',
-  it: 'Italian (Tiếng Ý)',
-  pt: 'Portuguese (Tiếng Bồ Đào Nha)',
-  ru: 'Russian (Tiếng Nga)',
-  ar: 'Arabic (Tiếng Ả Rập)',
-  hi: 'Hindi (Tiếng Hindi)',
-}
+const TRANSLATE_LANG_GROUPS = documentTranslateLanguagesByGroup()
 
-const SOURCE_LANG_VI = { vi: 'Tiếng Việt' }
-const SOURCE_LANG_OTHERS: Record<string, string> = {
-  en: 'English',
-  ja: 'Japanese (Tiếng Nhật)',
-  ko: 'Korean (Tiếng Hàn)',
-  zh: 'Chinese (Tiếng Trung)',
-  'zh-tw': 'Chinese Traditional (Tiếng Trung phồn thể)',
-  th: 'Thai (Tiếng Thái)',
-  id: 'Indonesian (Tiếng Indonesia)',
-  ms: 'Malay (Tiếng Mã Lai)',
-  fr: 'French (Tiếng Pháp)',
-  de: 'German (Tiếng Đức)',
-  es: 'Spanish (Tiếng Tây Ban Nha)',
-  it: 'Italian (Tiếng Ý)',
-  pt: 'Portuguese (Tiếng Bồ Đào Nha)',
-  ru: 'Russian (Tiếng Nga)',
-  ar: 'Arabic (Tiếng Ả Rập)',
-  hi: 'Hindi (Tiếng Hindi)',
-}
-
-import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Input } from '@/components/ui/input'
 import { Upload, Sparkles, RefreshCw, Link2, FileText, Plus, X, FolderOpen, FileSpreadsheet, FileArchive, FileDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { ImagePreview } from '@/components/ui/image-preview'
@@ -85,6 +51,55 @@ function tr(uiLocale: UiLocale, vi: string, en: string, zh: string, ja: string, 
   if (uiLocale === 'ja') return ja
   if (uiLocale === 'ko') return ko
   return vi
+}
+
+function vnd(amount: number, uiLocale: UiLocale): string {
+  const n = Math.round(amount).toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US')
+  return uiLocale === 'vi' ? `${n}đ` : `${n} VND`
+}
+
+function translateModelNotes(uiLocale: UiLocale): Array<{
+  key: string
+  engine: ImageEngine
+  gpt?: GptImageQuality
+  gemini?: '2K' | '4K'
+  title: string
+  purpose: string
+}> {
+  const gptMedium = vnd(CREDIT_UNIT_PRICE_VND, uiLocale)
+  const gptHigh = vnd(CREDIT_UNIT_PRICE_VND * 2, uiLocale)
+  const gemini2k = vnd(CREDIT_UNIT_PRICE_VND * DOCUMENT_TRANSLATE_GEMINI_CREDITS['2K'], uiLocale)
+  const gemini4k = vnd(CREDIT_UNIT_PRICE_VND * DOCUMENT_TRANSLATE_GEMINI_CREDITS['4K'], uiLocale)
+  return [
+    {
+      key: 'gpt-medium',
+      engine: 'gpt',
+      gpt: 'medium',
+      title: `GPT medium · ${gptMedium}`,
+      purpose: tr(uiLocale, 'Chữ trang tài liệu. Nên dùng.', 'Document text. The one to use.', '文档文字。建议用这个。', '文書の文字。これを使う。', '문서 글자. 이것을 쓰세요.'),
+    },
+    {
+      key: 'gpt-high',
+      engine: 'gpt',
+      gpt: 'high',
+      title: `GPT high · ${gptHigh}`,
+      purpose: tr(uiLocale, 'Chữ nhỏ, bản vẽ dày. Cùng cỡ ảnh medium.', 'Small type and dense drawings. Same image size as medium.', '小字、密图。画面尺寸与 medium 相同。', '小さい文字、密な図面。画像サイズは medium と同じ。', '작은 글자, 빽빽한 도면. 화면 크기는 medium과 같음.'),
+    },
+    {
+      key: 'gemini-2k',
+      engine: 'gemini',
+      gemini: '2K',
+      title: `Gemini 2K · ${gemini2k}`,
+      purpose: tr(uiLocale, 'Trang nét hơn, xem trên màn hình và in vừa.', 'Sharper page, for screen and modest print.', '页面更清晰，适合屏幕和普通打印。', 'より鮮明。画面と小さめの印刷向け。', '더 선명. 화면과 보통 인쇄용.'),
+    },
+    {
+      key: 'gemini-4k',
+      engine: 'gemini',
+      gemini: '4K',
+      title: `Gemini 4K · ${gemini4k}`,
+      purpose: tr(uiLocale, 'Nét nhất, in lớn. Chữ không chắc hơn medium.', 'Sharpest, for large print. Text is not more reliable than medium.', '最清晰，适合大幅印刷。文字不一定比 medium 更准。', '最も鮮明、大判印刷向け。文字は medium より正確とは限らない。', '가장 선명, 큰 인쇄용. 글자는 medium보다 더 정확하다고 보기 어렵습니다.'),
+    },
+  ]
 }
 
 type BatchModeType = 'single' | 'batch' | 'excel' | 'pdf'
@@ -113,8 +128,11 @@ export default function DichAnhTaiLieuClientPage() {
   const [sourceLang, setSourceLang] = useState('')
   const [targetLang, setTargetLang] = useState('vi')
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
-  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gpt')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
+  useEffect(() => {
+    if (gptQuality === 'low') setGptQuality('medium')
+  }, [gptQuality])
   const [imageUrl, setImageUrl] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
@@ -128,7 +146,7 @@ export default function DichAnhTaiLieuClientPage() {
   const unitCost = imageEngineCredit({
     engine: imageEngine,
     gptQuality,
-    geminiCost: imageQuality === '2K' ? 3 : 6,
+    geminiCost: DOCUMENT_TRANSLATE_GEMINI_CREDITS[imageQuality],
   })
 
   const fetchCredits = async () => {
@@ -568,11 +586,11 @@ export default function DichAnhTaiLieuClientPage() {
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <FileText className="h-7 w-7 text-slate-600" /> {tr(uiLocale, 'Dịch ảnh tài liệu kỹ thuật', 'Translate technical document images', '翻译技术文档图片', '技術文書画像の翻訳', '기술 문서 이미지 번역')}
           </h1>
-          <p className="text-muted-foreground mt-1">{tr(uiLocale, 'Dịch ảnh tài liệu thành ảnh mới (bản vẽ, sơ đồ, spec). 3–6 credits/ảnh. Hỗ trợ dịch nhiều ảnh.', 'Translate document images to new images (drawings, diagrams, spec). 3–6 credits/image. Batch supported.', '将文档图片翻译为新图片（图纸、图表、规格）。3–6 积分/张。支持批量。', '文書画像を新画像に翻訳（図面、図表、仕様）。3〜6クレジット/枚。一括対応。', '문서 이미지를 새 이미지로 번역(도면, 다이어그램, 스펙). 3–6 크레딧/장. 일괄 지원.')}</p>
+          <p className="text-muted-foreground mt-1">{tr(uiLocale, 'Dịch trang tài liệu, giữ bố cục. Mặc định GPT medium, 1 credit/trang. PDF tải ra file PDF hoặc ZIP từng trang.', 'Translate a document page and keep the layout. Default is GPT medium, 1 credit/page. A PDF can download as one PDF or a ZIP of pages.', '翻译文档页并保留版式。默认 GPT medium，每页 1 积分。PDF 可下载为一个 PDF 或逐页 ZIP。', '文書ページを翻訳し、レイアウトを保ちます。初期設定は GPT medium、1クレジット/ページ。PDFは1つのPDFかページごとのZIPで受け取れます。', '문서 페이지를 번역하고 레이아웃을 유지합니다. 기본은 GPT medium, 페이지당 1크레딧. PDF는 PDF 한 파일 또는 페이지 ZIP으로 받습니다.')}</p>
         </div>
 
         {step === 'UPLOAD' && (
-          <div className="grid lg:grid-cols-[1fr_220px] gap-4 items-start">
+          <div className="grid lg:grid-cols-[1fr_280px] gap-4 items-start">
             <div className="min-w-0">
               <Card className="border shadow-sm bg-white/80 backdrop-blur border-slate-300/60">
                 <CardHeader className="p-4 pb-2">
@@ -584,7 +602,7 @@ export default function DichAnhTaiLieuClientPage() {
                 <CardContent className="p-4 pt-0 space-y-4">
                   {batchMode === 'pdf' ? (
                     <div className="space-y-3">
-                      <p className="text-xs text-muted-foreground">{tr(uiLocale, 'Tải file PDF lên. Mỗi trang sẽ được chuyển thành ảnh, dịch bằng AI, rồi ghép lại thành PDF mới.', 'Upload PDF. Each page will be converted to image, translated by AI, then merged into new PDF.', '上传 PDF。每页将转为图片、由 AI 翻译、再合并为新 PDF。', 'PDFをアップロード。各ページは画像に変換され、AIで翻訳され、新しいPDFに結合されます。', 'PDF 업로드. 각 페이지가 이미지로 변환되고 AI가 번역한 뒤 새 PDF로 병합됩니다.')}</p>
+                      <p className="text-xs text-muted-foreground">{tr(uiLocale, 'Tải PDF lên. Mỗi trang được dịch riêng. Xong thì chọn tải một file PDF hoặc ZIP ảnh từng trang.', 'Upload a PDF. Each page is translated on its own. When it finishes, download one PDF or a ZIP of page images.', '上传 PDF。每页单独翻译。完成后可下载一个 PDF，或逐页图片 ZIP。', 'PDFをアップロード。各ページを個別に翻訳します。完了後、1つのPDFかページ画像のZIPを選べます。', 'PDF를 올리면 페이지마다 따로 번역합니다. 끝나면 PDF 한 파일 또는 페이지 이미지 ZIP을 고릅니다.')}</p>
                       <label className="block">
                         <span className="sr-only">{tr(uiLocale, 'Chọn file PDF', 'Select PDF file', '选择 PDF 文件', 'PDFファイルを選択', 'PDF 파일 선택')}</span>
                         <input
@@ -757,7 +775,7 @@ export default function DichAnhTaiLieuClientPage() {
                 </CardContent>
               </Card>
             </div>
-            <div className="lg:w-[220px] lg:shrink-0">
+            <div className="lg:w-[280px] lg:shrink-0">
               <Card className="border shadow-sm bg-white/80 backdrop-blur border-slate-300/60 h-full">
                 <CardHeader className="p-4 pb-2">
                   <CardTitle className="text-base">{tr(uiLocale, 'Tùy chọn', 'Options', '选项', 'オプション', '옵션')}</CardTitle>
@@ -805,14 +823,15 @@ export default function DichAnhTaiLieuClientPage() {
                       className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm bg-slate-100 text-slate-800"
                     >
                       <option value="">{tr(uiLocale, 'Chọn ngôn ngữ nguồn...', 'Select source language...', '选择源语言...', 'ソース言語を選択...', '원본 언어 선택...')}</option>
-                      <optgroup label={tr(uiLocale, 'Tiếng Việt', 'Vietnamese', '越南语', 'ベトナム語', '베트남어')}>
-                        {Object.entries(SOURCE_LANG_VI).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
+                      <option value="auto">{tr(uiLocale, 'Tự nhận ngôn ngữ', 'Detect language', '自动识别语言', '言語を自動判定', '언어 자동 인식')}</option>
+                      <optgroup label={tr(uiLocale, 'Phổ biến', 'Common', '常用', 'よく使う', '자주 사용')}>
+                        {TRANSLATE_LANG_GROUPS.popular.map((lang) => (
+                          <option key={lang.code} value={lang.code}>{lang.label}</option>
                         ))}
                       </optgroup>
-                      <optgroup label={tr(uiLocale, 'Các ngôn ngữ khác', 'Other languages', '其他语言', 'その他の言語', '기타 언어')}>
-                        {Object.entries(SOURCE_LANG_OTHERS).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
+                      <optgroup label={tr(uiLocale, 'Thêm ngôn ngữ', 'More languages', '更多语言', 'その他の言語', '더 많은 언어')}>
+                        {TRANSLATE_LANG_GROUPS.other.map((lang) => (
+                          <option key={lang.code} value={lang.code}>{lang.label}</option>
                         ))}
                       </optgroup>
                     </select>
@@ -825,20 +844,31 @@ export default function DichAnhTaiLieuClientPage() {
                       className="w-full px-3 py-2 rounded-md border border-slate-300 text-sm bg-slate-100 text-slate-800"
                     >
                       <option value="">{tr(uiLocale, 'Chọn ngôn ngữ đích...', 'Select target language...', '选择目标语言...', 'ターゲット言語を選択...', '대상 언어 선택...')}</option>
-                      <optgroup label={tr(uiLocale, 'Dịch ra tiếng Việt', 'Translate to Vietnamese', '翻译成越南语', 'ベトナム語に翻訳', '베트남어로 번역')}>
-                        {Object.entries(LANG_VI).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
+                      <optgroup label={tr(uiLocale, 'Phổ biến', 'Common', '常用', 'よく使う', '자주 사용')}>
+                        {TRANSLATE_LANG_GROUPS.popular.map((lang) => (
+                          <option key={lang.code} value={lang.code}>{lang.label}</option>
                         ))}
                       </optgroup>
-                      <optgroup label={tr(uiLocale, 'Các ngôn ngữ khác', 'Other languages', '其他语言', 'その他の言語', '기타 언어')}>
-                        {Object.entries(LANG_OTHERS).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
+                      <optgroup label={tr(uiLocale, 'Thêm ngôn ngữ', 'More languages', '更多语言', 'その他の言語', '더 많은 언어')}>
+                        {TRANSLATE_LANG_GROUPS.other.map((lang) => (
+                          <option key={lang.code} value={lang.code}>{lang.label}</option>
                         ))}
                       </optgroup>
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-[10px] text-muted-foreground">{tr(uiLocale, 'PDF: ảnh đầu vào luôn tách độ phân giải cao để AI đọc đúng.', 'PDF: input pages are extracted at high resolution so AI can read accurately.', 'PDF：输入页始终以高分辨率拆分，便于 AI 准确识别。', 'PDF: 入力ページはAIが正確に読めるよう常に高解像度で分割します。', 'PDF: AI가 정확히 읽도록 입력 페이지를 항상 고해상도로 분리합니다.')}</p>
+                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr(uiLocale, 'Mức nào hợp việc nào', 'Which tier fits which job', '哪一档适合什么', 'どの段階がどの仕事向けか', '어느 단계가 어떤 일에 맞나')}</h4>
+                    <ul className="space-y-1.5">
+                      {translateModelNotes(uiLocale).map((row) => {
+                        const selected = row.engine === imageEngine && (row.engine === 'gemini' ? imageQuality === row.gemini : gptQuality === row.gpt)
+                        return (
+                          <li key={row.key} className={cn('rounded-md px-2 py-1.5 text-xs leading-snug', selected ? 'bg-violet-100 text-violet-950' : 'text-muted-foreground')}>
+                            <span className="font-medium">{row.title}</span>
+                            <span> — {row.purpose}</span>
+                          </li>
+                        )
+                      })}
+                    </ul>
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <p className="text-xs text-muted-foreground">{tr(uiLocale, 'Số dư', 'Balance', '余额', '残高', '잔액')}: <span className="font-medium text-foreground">{userCredits.toLocaleString('vi-VN')}</span> credits</p>
@@ -855,10 +885,17 @@ export default function DichAnhTaiLieuClientPage() {
                       onEngineChange={setImageEngine}
                       geminiQuality={imageQuality}
                       onGeminiQualityChange={setImageQuality}
-                      gptQuality={gptQuality}
+                      gptQuality={gptQuality === 'low' ? 'medium' : gptQuality}
                       onGptQualityChange={setGptQuality}
-                      geminiCost2k={3}
-                      geminiCost4k={6}
+                      gptQualities={['medium', 'high']}
+                      geminiCost2k={DOCUMENT_TRANSLATE_GEMINI_CREDITS['2K']}
+                      geminiCost4k={DOCUMENT_TRANSLATE_GEMINI_CREDITS['4K']}
+                      qualityPurpose={{
+                        medium: translateModelNotes(uiLocale).find((row) => row.key === 'gpt-medium')?.purpose,
+                        high: translateModelNotes(uiLocale).find((row) => row.key === 'gpt-high')?.purpose,
+                        gemini2k: translateModelNotes(uiLocale).find((row) => row.key === 'gemini-2k')?.purpose,
+                        gemini4k: translateModelNotes(uiLocale).find((row) => row.key === 'gemini-4k')?.purpose,
+                      }}
                     />
                     <Button
                       onClick={() => checkCreditsAndProceed(estimatedCost, handleSubmit)}
@@ -885,7 +922,12 @@ export default function DichAnhTaiLieuClientPage() {
                       )
                     </Button>
                     </div>
-                    <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr(uiLocale, 'Thời gian: 15–45 giây. Credits trừ khi xong từng ảnh/trang.', 'Time: 15–45 sec. Credits deducted per completed image/page.', '时间：15–45 秒。每完成一张图片/页扣除积分。', '所要時間：15〜45秒。画像/ページごとにクレジットが差し引かれます。', '소요 시간: 15–45초. 이미지/페이지당 완료 시 크레딧 차감.')}</p>
+                    {(() => {
+                      const selected = translateModelNotes(uiLocale).find((row) => row.engine === imageEngine && (row.engine === 'gemini' ? imageQuality === row.gemini : gptQuality === row.gpt))
+                      if (!selected) return null
+                      return <p className="text-xs text-center leading-snug text-foreground">{selected.title}. {selected.purpose}</p>
+                    })()}
+                    <p className="text-xs text-center text-muted-foreground mt-2">* {tr(uiLocale, 'Thời gian: 15–45 giây. Credits trừ khi xong từng ảnh/trang.', 'Time: 15–45 sec. Credits deducted per completed image/page.', '时间：15–45 秒。每完成一张图片/页扣除积分。', '所要時間：15〜45秒。画像/ページごとにクレジットが差し引かれます。', '소요 시간: 15–45초. 이미지/페이지당 완료 시 크레딧 차감.')}</p>
                   </div>
                 </CardContent>
               </Card>

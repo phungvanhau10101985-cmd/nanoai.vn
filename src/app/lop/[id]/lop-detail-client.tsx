@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
@@ -74,6 +74,15 @@ import { TeacherIdentityForm, type TeacherIdentityLabels } from '@/components/lo
 import type { TeacherGender } from '@/lib/lop/teacher-public-name'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
+import { SubjectNewTag, SubjectSectionLink, subjectUnreadRowClass } from '@/components/lop/subject-item-unread'
+import {
+  isScoreRowUnopened,
+  isSubjectItemUnopened,
+  markSubjectItemOpened,
+  subjectItemKey,
+  type StudentSubjectInbox,
+  type SubjectItemKind,
+} from '@/lib/lop/subject-item-open'
 
 function countClassExamSubmissionStats(
   attempts: ExamAttempt[],
@@ -273,12 +282,18 @@ function StudentClassExamOrHomeworkSessionRow({
   t,
   examStudentDoPath,
   webLocale,
+  unopened = false,
+  newLabel,
+  onMarkOpened,
 }: {
   session: ExamSessionRow
   attempt: ExamAttempt | null
   t: Dictionary['classes']
   examStudentDoPath: (code: string) => string
   webLocale: WebLocale
+  unopened?: boolean
+  newLabel?: string
+  onMarkOpened?: () => void
 }) {
   const isClosed = String(session.status ?? 'active').toLowerCase() !== 'active'
   const canOpenLamBai = Boolean(session.code?.trim()) && (!isClosed || Boolean(attempt))
@@ -294,10 +309,20 @@ function StudentClassExamOrHomeworkSessionRow({
   const timeStr = attempt ? formatSessionIsoDateTime(attempt.submittedAt, webLocale) : ''
   const sessionCreatedDisplay = formatSessionIsoDateTime(session.createdAt, webLocale)
   return (
-    <li className="px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+    <li
+      className={cn(
+        'flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4',
+        subjectUnreadRowClass(unopened),
+        unopened && !canOpenLamBai && 'cursor-pointer'
+      )}
+      onClick={() => {
+        if (unopened && !canOpenLamBai) onMarkOpened?.()
+      }}
+    >
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium text-sm leading-snug">{session.title}</p>
+          <p className={cn('text-sm leading-snug', unopened ? 'font-semibold' : 'font-medium')}>{session.title}</p>
+          {unopened && newLabel ? <SubjectNewTag label={newLabel} /> : null}
           {isHw ? (
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-200">
               {t.classSessionBadgeHomework}
@@ -346,7 +371,12 @@ function StudentClassExamOrHomeworkSessionRow({
       <div className="shrink-0 flex flex-wrap gap-2 sm:pt-0.5">
         {canOpenLamBai ? (
           <Button type="button" size="sm" variant={attempt ? 'outline' : 'default'} asChild>
-            <Link href={examStudentDoPath(session.code)}>
+            <Link
+              href={examStudentDoPath(session.code)}
+              onClick={() => {
+                if (unopened) onMarkOpened?.()
+              }}
+            >
               {attempt ? t.studentClassExamCtaViewResult : t.studentClassExamCtaStart}
             </Link>
           </Button>
@@ -545,6 +575,7 @@ export default function LopDetailClient({
   focusSessionId: focusSessionIdProp,
   showClassHomeLink = false,
   focusSubject = null,
+  subjectInbox = null,
   webLocale,
   t,
 }: {
@@ -578,10 +609,23 @@ export default function LopDetailClient({
   focusSessionId?: string
   showClassHomeLink?: boolean
   focusSubject?: { subjectId: string; teacherId: string } | null
+  subjectInbox?: StudentSubjectInbox | null
   webLocale: WebLocale
   t: Dictionary['classes']
 }) {
   const subjectNames = cls.subjectNames ?? []
+  const [openedAtByKey, setOpenedAtByKey] = useState<Record<string, string>>(
+    () => subjectInbox?.openedAtByKey ?? {}
+  )
+  const inboxOpenedKey = Object.entries(subjectInbox?.openedAtByKey ?? {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, at]) => `${key}=${at}`)
+    .join('|')
+  const inboxOpenedRef = useRef(subjectInbox?.openedAtByKey ?? {})
+  inboxOpenedRef.current = subjectInbox?.openedAtByKey ?? {}
+  useEffect(() => {
+    setOpenedAtByKey(inboxOpenedRef.current)
+  }, [inboxOpenedKey])
   const [membersList, setMembersList] = useState<Member[]>(members ?? [])
   const [leaveClassOpen, setLeaveClassOpen] = useState(false)
   const [leavingClass, setLeavingClass] = useState(false)
@@ -705,6 +749,35 @@ export default function LopDetailClient({
     () => studentClassExamRows.filter(({ session }) => Boolean(session.practiceHomework)),
     [studentClassExamRows]
   )
+  const subjectUnread = useMemo(() => {
+    if (isTeacher) return { review: 0, exam: 0, homework: 0, score: 0 }
+    const review = (subjectInbox?.reviewItems ?? []).filter((item) =>
+      isSubjectItemUnopened(openedAtByKey[subjectItemKey('review', item.id)], item.taughtAt)
+    ).length
+    let exam = 0
+    let homework = 0
+    let score = 0
+    const attemptBySession = new Map(examAttempts.map((attempt) => [attempt.sessionId, attempt]))
+    for (const session of examSessionsList) {
+      if (!sessionMatchesSubject(session, focusSubject)) continue
+      const kind: SubjectItemKind = session.practiceHomework ? 'homework' : 'exam'
+      if (isSubjectItemUnopened(openedAtByKey[subjectItemKey(kind, session.id)], session.createdAt)) {
+        if (kind === 'homework') homework += 1
+        else exam += 1
+      }
+      const attempt = attemptBySession.get(session.id)
+      if (
+        isScoreRowUnopened(
+          openedAtByKey[subjectItemKey('score', session.id)],
+          session.createdAt,
+          attempt?.submittedAt || null
+        )
+      ) {
+        score += 1
+      }
+    }
+    return { review, exam, homework, score }
+  }, [isTeacher, subjectInbox, openedAtByKey, examAttempts, examSessionsList, focusSubject])
   const focusedSubjectLine = useMemo(() => {
     if (!focusSubject) return ''
     const row = classSubjects.find(
@@ -895,6 +968,26 @@ export default function LopDetailClient({
 
   function examStudentDoPath(examCode: string) {
     return `/lam-bai/${encodeURIComponent(examCode.trim())}`
+  }
+
+  function rememberSubjectItem(
+    kind: SubjectItemKind,
+    itemId: string,
+    subjectId: string | undefined,
+    teacherId: string | undefined
+  ) {
+    if (!itemId || !subjectId || !teacherId) return
+    setOpenedAtByKey((prev) => ({
+      ...prev,
+      [subjectItemKey(kind, itemId)]: new Date().toISOString(),
+    }))
+    markSubjectItemOpened({
+      classId: cls.id,
+      subjectId,
+      teacherId,
+      kind,
+      itemId,
+    })
   }
 
   function examStudentDoAbsoluteUrl(examCode: string) {
@@ -1369,34 +1462,30 @@ export default function LopDetailClient({
                       <h2 className="text-base font-semibold text-foreground">{openedLabel}</h2>
                       <p className="mt-0.5 text-sm text-muted-foreground">{openedTeacher}</p>
                       <div className="mt-3 grid gap-2">
-                        <Link
+                        <SubjectSectionLink
                           href={`/lop/${cls.id}/on-bai?${scope}`}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-3 text-sm hover:bg-muted/40"
-                        >
-                          <span className="font-medium text-foreground">{t.classReviewTitle}</span>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                        </Link>
-                        <Link
+                          label={t.classReviewTitle}
+                          count={subjectUnread.review}
+                          unreadLabel={t.subjectItemUnreadAria.replace('{n}', String(subjectUnread.review))}
+                        />
+                        <SubjectSectionLink
                           href={`/lop/${cls.id}/bai-thi?${scope}`}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-3 text-sm hover:bg-muted/40"
-                        >
-                          <span className="font-medium text-foreground">{t.studentClassExamsTitle}</span>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                        </Link>
-                        <Link
+                          label={t.studentClassExamsTitle}
+                          count={subjectUnread.exam}
+                          unreadLabel={t.subjectItemUnreadAria.replace('{n}', String(subjectUnread.exam))}
+                        />
+                        <SubjectSectionLink
                           href={`/lop/${cls.id}/phieu-bai-tap?${scope}`}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-3 text-sm hover:bg-muted/40"
-                        >
-                          <span className="font-medium text-foreground">{t.assignWorksheet}</span>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                        </Link>
-                        <Link
+                          label={t.assignWorksheet}
+                          count={subjectUnread.homework}
+                          unreadLabel={t.subjectItemUnreadAria.replace('{n}', String(subjectUnread.homework))}
+                        />
+                        <SubjectSectionLink
                           href={`/lop/${cls.id}/diem?${scope}`}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-3 text-sm hover:bg-muted/40"
-                        >
-                          <span className="font-medium text-foreground">{t.studentMyScoresTitle}</span>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                        </Link>
+                          label={t.studentMyScoresTitle}
+                          count={subjectUnread.score}
+                          unreadLabel={t.subjectItemUnreadAria.replace('{n}', String(subjectUnread.score))}
+                        />
                         <Link
                           href={`/lop/${cls.id}/hoc-sinh?${scope}`}
                           className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-3 text-sm hover:bg-muted/40"
@@ -2193,6 +2282,14 @@ export default function LopDetailClient({
                   t={t}
                   webLocale={webLocale}
                   examStudentDoPath={examStudentDoPath}
+                  unopened={isSubjectItemUnopened(
+                    openedAtByKey[subjectItemKey('exam', session.id)],
+                    session.createdAt
+                  )}
+                  newLabel={t.subjectItemNew}
+                  onMarkOpened={() =>
+                    rememberSubjectItem('exam', session.id, session.subjectId, session.teacherId)
+                  }
                 />
               ))}
             </ul>
@@ -2227,6 +2324,14 @@ export default function LopDetailClient({
                       t={t}
                       webLocale={webLocale}
                       examStudentDoPath={examStudentDoPath}
+                      unopened={isSubjectItemUnopened(
+                        openedAtByKey[subjectItemKey('homework', session.id)],
+                        session.createdAt
+                      )}
+                      newLabel={t.subjectItemNew}
+                      onMarkOpened={() =>
+                        rememberSubjectItem('homework', session.id, session.subjectId, session.teacherId)
+                      }
                     />
                   ))}
                 </ul>

@@ -3992,7 +3992,14 @@ export function PartnerGuestChatClient({
       toast({ title: `Vui lòng điền: ${missing.join(', ')}`, variant: 'destructive' })
       return
     }
-    rememberPartnerSiteMetaCustomer({ phone: orderPhone.trim() })
+    rememberPartnerSiteMetaCustomer(
+      {
+        fullName: orderName.trim(),
+        phone: orderPhone.trim(),
+        shippingAddress: orderAddress.trim(),
+      },
+      slug
+    )
     trackPartnerSiteBeginCheckout(
       adsTracking,
       cartItems.map((item) => guestCardToTrackingProduct(item.card, item.quantity))
@@ -4487,7 +4494,14 @@ export function PartnerGuestChatClient({
     }
     const picked = buildCurrentOrderSelection()
     if (!picked) return
-    rememberPartnerSiteMetaCustomer({ phone: orderPhone.trim() })
+    rememberPartnerSiteMetaCustomer(
+      {
+        fullName: orderName.trim(),
+        phone: orderPhone.trim(),
+        shippingAddress: orderAddress.trim(),
+      },
+      slug
+    )
     if (activeOrderCard) {
       trackPartnerSiteBeginCheckout(adsTracking, [
         guestCardToTrackingProduct(activeOrderCard, picked.totalQty),

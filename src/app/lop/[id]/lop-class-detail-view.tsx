@@ -2,6 +2,7 @@ import { BrowserBackTextButton } from '@/components/navigation/browser-back-cont
 import { redirect } from 'next/navigation'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { getServerDictionary } from '@/lib/i18n/server'
+import { loadStudentSubjectInbox } from '@/lib/lop/class-subject-item-opens'
 import type { ClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
 import LopDetailClient from './lop-detail-client'
 
@@ -22,7 +23,7 @@ export function classSubjectScopeFromSearch(sp: { subject?: string; teacher?: st
   return { subjectId, teacherId }
 }
 
-export function LopClassDetailView({
+export async function LopClassDetailView({
   payload,
   currentHref,
   pageMode,
@@ -55,6 +56,18 @@ export function LopClassDetailView({
   if (isTeacher && focusSubject && focusSubject.teacherId !== viewerUserId) {
     redirect(`/lop/${cls.id}`)
   }
+
+  const subjectInbox =
+    !isTeacher &&
+    focusSubject &&
+    (pageMode === 'hub' || pageMode === 'exams-index' || pageMode === 'student-worksheets')
+      ? await loadStudentSubjectInbox({
+          userId: viewerUserId,
+          classId: cls.id,
+          teacherId: focusSubject.teacherId,
+          subjectId: focusSubject.subjectId,
+        })
+      : null
 
   return (
     <div className="app-shell min-h-screen">
@@ -93,6 +106,7 @@ export function LopClassDetailView({
             focusSessionId={focusSessionId}
             showClassHomeLink={pageMode !== 'hub'}
             focusSubject={focusSubject}
+            subjectInbox={subjectInbox}
             webLocale={locale}
             t={t.classes}
           />

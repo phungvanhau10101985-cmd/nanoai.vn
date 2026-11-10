@@ -7,6 +7,8 @@ import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { GAN_PHIEU_RELATED } from '@/lib/creation-tool-sidebar-config'
+import { StudentSubjectScoreList } from '@/components/lop/student-subject-score-list'
+import { listSubjectItemOpenedAt } from '@/lib/lop/class-subject-item-opens'
 import { loadClassReviewAccess } from '@/lib/lop/class-review-access'
 import { listStudentSubjectScoresPg } from '@/lib/lop/student-subject-scores'
 import { classSubjectScopeFromSearch } from '../lop-class-detail-view'
@@ -51,12 +53,15 @@ export default async function StudentSubjectScoresPage({
     )
   }
 
-  const rows = await listStudentSubjectScoresPg({
-    classId,
-    teacherId: focus.teacherId,
-    subjectId: focus.subjectId,
-    studentUserId: user.id,
-  })
+  const [rows, openedAtByKey] = await Promise.all([
+    listStudentSubjectScoresPg({
+      classId,
+      teacherId: focus.teacherId,
+      subjectId: focus.subjectId,
+      studentUserId: user.id,
+    }),
+    listSubjectItemOpenedAt(user.id, classId),
+  ])
   const { t } = getServerDictionary()
   const backHref = `/lop/${classId}?subject=${encodeURIComponent(focus.subjectId)}&teacher=${encodeURIComponent(focus.teacherId)}`
   const list = rows ?? []
@@ -80,28 +85,27 @@ export default async function StudentSubjectScoresPage({
               {t.classes.studentMyScoresEmpty}
             </p>
           ) : (
-            <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-              {list.map((row) => {
-                const status = row.homework
+            <StudentSubjectScoreList
+              classId={classId}
+              subjectId={focus.subjectId}
+              teacherId={focus.teacherId}
+              newLabel={t.classes.subjectItemNew}
+              openedAtByKey={openedAtByKey}
+              rows={list.map((row) => ({
+                id: row.id,
+                title: row.title,
+                kindLabel: row.homework ? t.classes.studentMyScoresHomework : t.classes.studentMyScoresExam,
+                status: row.homework
                   ? row.submitted
                     ? t.classes.studentMyScoresSubmitted
                     : t.classes.studentMyScoresNotSubmitted
                   : row.score10 == null
                     ? t.classes.studentMyScoresNotSubmitted
-                    : t.classes.studentMyScoresPoints.replace('{score}', formatScore10(row.score10))
-                return (
-                  <li key={row.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{row.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {row.homework ? t.classes.studentMyScoresHomework : t.classes.studentMyScoresExam}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-sm font-medium tabular-nums text-foreground">{status}</span>
-                  </li>
-                )
-              })}
-            </ul>
+                    : t.classes.studentMyScoresPoints.replace('{score}', formatScore10(row.score10)),
+                createdAt: row.createdAt,
+                submittedAt: row.submittedAt,
+              }))}
+            />
           )}
         </div>
       </CreationToolPageShell>
