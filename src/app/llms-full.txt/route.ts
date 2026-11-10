@@ -44,10 +44,10 @@ NanoAI (https://nanoai.vn) là hệ sinh thái AI đa năng dành cho cá nhân,
 
 - [Trợ lý luyện ngoại ngữ](https://nanoai.vn/hoc-tieng-anh-ai): Trợ lý AI luyện giao tiếp, chọn tiếng mẹ đẻ và tiếng đang học, câu sai được sửa trong hội thoại
 - [Học tiếng Việt cho người nước ngoài](https://nanoai.vn/hoc-tieng-viet): Tiếng đang học khóa ở tiếng Việt. Tiếng mẹ đẻ chọn Anh, Trung, Nhật, Hàn, Thái hoặc Hindi. Chú thích câu sửa viết bằng tiếng mẹ đẻ. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
-- [Học tiếng Trung với AI](https://nanoai.vn/hoc-tieng-trung): Tiếng đang học khóa ở tiếng Trung. Tiếng mẹ đẻ mặc định tiếng Việt. Phòng mở bằng đường dẫn có `hoc=zh`. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
-- [Học tiếng Nhật với AI](https://nanoai.vn/hoc-tieng-nhat): Tiếng đang học khóa ở tiếng Nhật. Tiếng mẹ đẻ mặc định tiếng Việt. Phòng mở bằng đường dẫn có `hoc=ja`. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
-- [Học tiếng Hàn với AI](https://nanoai.vn/hoc-tieng-han): Tiếng đang học khóa ở tiếng Hàn. Tiếng mẹ đẻ mặc định tiếng Việt. Phòng mở bằng đường dẫn có `hoc=ko`. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
-- Mô tả kỹ thuật: Trò chuyện tương tác hai chiều bằng giọng nói theo thời gian thực. Câu nói sai được thay bằng câu đúng hơn trong cùng lượt. Phòng tiếng Việt mở bằng đường dẫn có `hoc=vi`.
+- [Học tiếng Trung với AI](https://nanoai.vn/hoc-tieng-trung): Tiếng đang học khóa ở tiếng Trung. Tiếng mẹ đẻ mặc định tiếng Việt. Phòng mở bằng đường dẫn có hoc=zh. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
+- [Học tiếng Nhật với AI](https://nanoai.vn/hoc-tieng-nhat): Tiếng đang học khóa ở tiếng Nhật. Tiếng mẹ đẻ mặc định tiếng Việt. Phòng mở bằng đường dẫn có hoc=ja. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
+- [Học tiếng Hàn với AI](https://nanoai.vn/hoc-tieng-han): Tiếng đang học khóa ở tiếng Hàn. Tiếng mẹ đẻ mặc định tiếng Việt. Phòng mở bằng đường dẫn có hoc=ko. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
+- Mô tả kỹ thuật: Trò chuyện tương tác hai chiều bằng giọng nói theo thời gian thực. Câu nói sai được thay bằng câu đúng hơn trong cùng lượt. Phòng tiếng Việt mở bằng đường dẫn có hoc=vi.
 
 ## Tài nguyên cho Agent & WebMCP
 
