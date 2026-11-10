@@ -6202,7 +6202,7 @@ export default function HocBaiHocCoSanClientPage() {
     const now = Date.now()
     if (now < sessionNavLockUntilRef.current) return
     sessionNavLockUntilRef.current = now + SESSION_NAV_LOCK_MS
-    const targetPath = isPresetReplaySession ? '/hoc-bai-hoc-co-san' : '/hoc-tieng-anh-ai'
+    const targetPath = isPresetReplaySession ? '/hoc-bai-hoc-co-san' : '/hoc-tieng-anh-ai/luyen-noi'
     const currentPath = String(pathname || '').trim()
     const currentSessionIdInUrl = String(searchParams.get('sessionId') || '').trim()
     const sameUrlTarget = currentPath === targetPath && currentSessionIdInUrl === sid
@@ -7784,7 +7784,7 @@ export default function HocBaiHocCoSanClientPage() {
     } catch {
       // ignore sessionStorage failures
     }
-    router.replace('/hoc-tieng-anh-ai?autoStart=live')
+    router.replace('/hoc-tieng-anh-ai/luyen-noi?autoStart=live')
   }
 
   const startPresetLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {

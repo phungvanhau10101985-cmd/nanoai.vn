@@ -97,6 +97,7 @@ const FIXED_TTS_VOICE_BY_GENDER: Record<Gender, VoiceName> = {
 }
 const CROSS_PAGE_START_STORAGE_KEY = 'english-coach-cross-page-start-v1'
 const SESSION_NAV_LOCK_MS = 500
+const LIVE_LESSON_ROOM_PATH = '/hoc-tieng-anh-ai/luyen-noi'
 
 function computeTimelineCompletedSteps(stepCount: number, studentTurnCount: number): number {
   const safeStepCount = Math.max(0, Math.floor(Number(stepCount || 0) || 0))
@@ -5579,7 +5580,7 @@ export default function HocTiengAnhAiClientPage() {
     }
     setHistorySessions((prev) => prev.filter((s) => s.sessionId !== targetSessionId))
     if (sessionId === targetSessionId || openedHistorySessionId === targetSessionId) {
-      const basePath = '/hoc-tieng-anh-ai'
+      const basePath = LIVE_LESSON_ROOM_PATH
       routeOpenSessionHandledRef.current = ''
       setSessionId('')
       setOpenedHistorySessionId('')
@@ -6405,7 +6406,7 @@ export default function HocTiengAnhAiClientPage() {
       setOpenedHistorySessionId(targetSessionId)
       // Lock routing state to the exact opened session to avoid URL-effect reopening an older session.
       routeOpenSessionHandledRef.current = targetSessionId
-      const basePath = '/hoc-tieng-anh-ai'
+      const basePath = LIVE_LESSON_ROOM_PATH
       const currentSessionIdInUrl = String(searchParams.get('sessionId') || '').trim()
       const shouldReplaceUrl = pathname !== basePath || currentSessionIdInUrl !== targetSessionId
       if (shouldReplaceUrl) {
@@ -6471,7 +6472,7 @@ export default function HocTiengAnhAiClientPage() {
     const now = Date.now()
     if (now < sessionNavLockUntilRef.current) return
     sessionNavLockUntilRef.current = now + SESSION_NAV_LOCK_MS
-    const targetPath = isPresetReplaySession ? '/hoc-bai-hoc-co-san' : '/hoc-tieng-anh-ai'
+    const targetPath = isPresetReplaySession ? '/hoc-bai-hoc-co-san' : LIVE_LESSON_ROOM_PATH
     const currentPath = String(pathname || '').trim()
     const currentSessionIdInUrl = String(searchParams.get('sessionId') || '').trim()
     const sameUrlTarget = currentPath === targetPath && currentSessionIdInUrl === sid
@@ -6560,7 +6561,13 @@ export default function HocTiengAnhAiClientPage() {
             ),
       })
     })().finally(() => {
-      router.replace('/hoc-tieng-anh-ai')
+      const next = new URLSearchParams()
+      const hoc = String(searchParams.get('hoc') || '').trim()
+      const me = String(searchParams.get('me') || '').trim()
+      if (hoc) next.set('hoc', hoc)
+      if (me) next.set('me', me)
+      const q = next.toString()
+      router.replace(q ? `${LIVE_LESSON_ROOM_PATH}?${q}` : LIVE_LESSON_ROOM_PATH)
     })
   }, [
     searchParams,
