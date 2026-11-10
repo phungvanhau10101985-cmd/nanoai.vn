@@ -9,7 +9,7 @@ import { encodeJpeg, localBlocksNeedDraw, localDrawTranslated, ocrImageBlocks } 
 import { ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
 import { ImageLocalizationGptStopError, openaiApiAuth, openaiProcessImage } from './openai-adapter'
 import { imageLocSheetKinds } from './sheet-cache'
-import { chineseBlocksToRedraw } from './gpt-verify'
+import { chineseBlocksToRedraw, leftoverChineseNeedsRedraw } from './gpt-verify'
 import { detectInkBleed } from './ink-bleed-check'
 import { splitTallImageIfNeeded, vstackImageParts } from './split-tall-image'
 import { probeModelLabel } from './probe-report'
@@ -226,7 +226,7 @@ async function transformImageBytes(
         const detail = e instanceof Error ? e.message : String(e)
         throw new ImageLocalizationGptStopError(detail)
       }
-      if (!bleed && chineseBlocks.length === 0) {
+      if (!bleed && !leftoverChineseNeedsRedraw({ documentSheet: removeModel, chineseCount: chineseBlocks.length })) {
         const note = bleedRedraws > 0 ? `${message} (hậu kiểm sau ${bleedRedraws} lần vẽ lại)` : message
         return { kind: 'processed', bytes: current, message: note }
       }

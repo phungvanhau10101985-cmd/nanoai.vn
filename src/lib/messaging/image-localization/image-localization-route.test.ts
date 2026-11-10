@@ -2,7 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { selectLocalizationEngine } from './process-one'
 import { imageLocGptVerifyAttempts, imageLocOpenaiDefaultQuality, languagePrompt, normalizeOpenaiImageQuality } from './image-localization-config'
-import { chineseBlocksToRedraw, localizedImageFix, localizedImageProblem, parseInkBleedVerdict, remainingChineseOnLocalizedImage } from './gpt-verify'
+import { chineseBlocksToRedraw, leftoverChineseNeedsRedraw, localizedImageFix, localizedImageProblem, parseInkBleedVerdict, remainingChineseOnLocalizedImage } from './gpt-verify'
 import { ImageLocalizationGptStopError, isImageLocalizationGptStopError } from './openai-adapter'
 
 describe('image localization route', () => {
@@ -102,6 +102,11 @@ describe('image localization route', () => {
     const plain = languagePrompt('vi')
     const size = languagePrompt('vi', { removeModel: true })
     assert.equal(plain.includes('erase both the model'), false)
+    assert.equal(plain.includes('part of the photograph, not a document to translate'), true)
+    assert.equal(plain.includes('leave the plate unchanged'), true)
+    assert.equal(plain.includes('Translate every Chinese text element'), false)
+    assert.equal(size.includes('part of the photograph, not a document to translate'), false)
+    assert.equal(size.includes('Translate every Chinese text element'), true)
     assert.equal(size.includes('erase both the model'), true)
     assert.equal(size.includes('product photo'), true)
     assert.equal(size.includes('Keep the size chart'), true)
@@ -134,9 +139,13 @@ describe('image localization route', () => {
     assert.equal(localizedImageProblem({ bleed: false, chinese: ['胸围 82', '洗涤说明'] }).includes('胸围'), true)
   })
 
-  it('redraws ink bleed with GPT and leftover Chinese with DeepSeek', () => {
+  it('redraws ink bleed with GPT and leftover Chinese on a document sheet with DeepSeek', () => {
     assert.equal(localizedImageFix({ bleed: true, chineseCount: 2 }), 'gpt')
+    assert.equal(localizedImageFix({ bleed: false, chineseCount: 1, documentSheet: true }), 'deepseek')
     assert.equal(localizedImageFix({ bleed: false, chineseCount: 1 }), 'deepseek')
+    assert.equal(localizedImageFix({ bleed: false, chineseCount: 1, documentSheet: false }), 'ok')
+    assert.equal(leftoverChineseNeedsRedraw({ documentSheet: false, chineseCount: 2 }), false)
+    assert.equal(leftoverChineseNeedsRedraw({ documentSheet: true, chineseCount: 1 }), true)
     assert.equal(localizedImageFix({ bleed: false, chineseCount: 0 }), 'ok')
     assert.equal(parseInkBleedVerdict('{"bleed":true,"where":"size table"}')?.bleed, true)
     assert.equal(parseInkBleedVerdict('{"bleed":false,"where":""}')?.bleed, false)

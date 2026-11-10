@@ -15,10 +15,20 @@ export function remainingChineseOnLocalizedImage(texts: string[]): string[] {
   return left
 }
 
-/** Mực loang thì GPT vẽ lại cả ảnh. Chỉ còn chữ Trung thì DeepSeek vẽ đúng các ô đó. */
-export function localizedImageFix(opts: { bleed: boolean; chineseCount: number }): 'ok' | 'gpt' | 'deepseek' {
+/**
+ * Bảng size, hướng dẫn giặt, bảng thông số: chữ Trung còn sót là tài liệu, vẽ lại.
+ * Ảnh sản phẩm: chữ in trên thân máy là ảnh, prompt giữ nguyên; không vẽ đè.
+ */
+export function leftoverChineseNeedsRedraw(opts: { documentSheet: boolean; chineseCount: number }): boolean {
+  return opts.documentSheet && opts.chineseCount > 0
+}
+
+/** Mực loang thì GPT vẽ lại cả ảnh. Bảng tài liệu còn chữ Trung thì DeepSeek vẽ đúng các ô đó. */
+export function localizedImageFix(opts: { bleed: boolean; chineseCount: number; documentSheet?: boolean }): 'ok' | 'gpt' | 'deepseek' {
   if (opts.bleed) return 'gpt'
-  if (opts.chineseCount > 0) return 'deepseek'
+  if (leftoverChineseNeedsRedraw({ documentSheet: opts.documentSheet !== false, chineseCount: opts.chineseCount })) {
+    return 'deepseek'
+  }
   return 'ok'
 }
 
