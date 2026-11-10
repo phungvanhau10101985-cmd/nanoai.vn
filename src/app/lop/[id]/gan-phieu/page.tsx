@@ -12,6 +12,7 @@ import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { GAN_PHIEU_RELATED } from '@/lib/creation-tool-sidebar-config'
+import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 import { classSubjectScopeFromSearch } from '../lop-class-detail-view'
 import GanPhieuClient, { type ClassHomeworkSession } from './gan-phieu-client'
 
@@ -41,6 +42,9 @@ export default async function GanPhieuPage({
   const user = await getUserOrBypass()
   if (!user) redirectToLogin()
 
+  const featureBlock = await tutoringClassFeatureBlock(classId)
+  if (featureBlock === 'grace') redirect('/lop')
+  if (featureBlock === 'dissolved') notFound()
   const cls = await fetchClassGateForGanPhieuPg(classId)
   const canTeach = cls ? await teacherCanTeachInClassPg(classId, user.id) : false
   if (!cls || canTeach !== true) notFound()

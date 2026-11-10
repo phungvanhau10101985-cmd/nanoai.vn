@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import { fetchClassJoinPreviewByJoinCodeFromPg } from '@/lib/db/classes-pg'
+import { readTutoringJoinBlock } from '@/lib/db/tutoring-package-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 
 /** HS xem trước lớp (tên, môn, GV) trước khi gửi form tham gia — cần đăng nhập. */
@@ -19,6 +20,10 @@ export async function GET(req: NextRequest) {
 
   const fromPg = await fetchClassJoinPreviewByJoinCodeFromPg(code)
   if (fromPg) {
+    const joinBlock = await readTutoringJoinBlock(fromPg.id)
+    if (joinBlock === 'closed' || joinBlock === 'dissolved') {
+      return NextResponse.json({ found: false, reason: 'not_found' })
+    }
     return NextResponse.json({
       found: true,
       classId: fromPg.id,

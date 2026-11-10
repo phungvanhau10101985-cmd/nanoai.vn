@@ -55,6 +55,7 @@ export async function GET() {
       gradeLevelId: c.grade_level_id ?? '',
       subjectLabel: (c.subject_label ?? '').trim(),
       teacherDisplayName: (c.teacher_display_name ?? '').trim(),
+      classKind: c.class_kind,
       createdAt: c.created_at,
     })),
     defaultSchool,

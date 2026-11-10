@@ -435,6 +435,7 @@ export default function TaoBaiThiClientPage({
     gradeLevelId: string
     subjectLabel: string
     teacherDisplayName: string
+    classKind: 'school' | 'tutoring'
   }>>([])
   const [selectedClassId, setSelectedClassId] = useState('')
   /** Từ nút Tạo đề thi trong lớp: ?classId=&subject= */
@@ -636,6 +637,7 @@ export default function TaoBaiThiClientPage({
         gradeLevelId: string
         subjectLabel: string
         teacherDisplayName: string
+        classKind: 'school' | 'tutoring'
       }> = rawItems.map((c: Record<string, unknown>) => ({
         id: String(c.id ?? ''),
         name: String(c.name ?? ''),
@@ -645,6 +647,7 @@ export default function TaoBaiThiClientPage({
         gradeLevelId: String(c.gradeLevelId ?? ''),
         subjectLabel: String(c.subjectLabel ?? '').trim(),
         teacherDisplayName: String(c.teacherDisplayName ?? '').trim(),
+        classKind: c.classKind === 'tutoring' ? 'tutoring' : 'school',
       }))
       setTeacherClasses(classes)
       setSelectedClassId((prev) => {
@@ -1212,10 +1215,8 @@ export default function TaoBaiThiClientPage({
   const timeOkForCreate = isHomework || isExamMinutesExact
   const canCreateExam = pointsOkForCreate && timeOkForCreate
   const selectedExamTypeLabel = useMemo(() => examTypeButtonLabel(tx, examType), [tx, examType])
-  const classOptions = useMemo(
-    () => teacherClasses.filter((c) => !selectedSchoolId || c.schoolId === selectedSchoolId),
-    [teacherClasses, selectedSchoolId]
-  )
+  const classOptions = teacherClasses
+  const selectedExamClass = teacherClasses.find((row) => row.id === selectedClassId) ?? null
   useEffect(() => {
     if (classExamPresetAppliedRef.current || classesLoading) return
     const preset = classExamPresetRef.current
@@ -1259,12 +1260,8 @@ export default function TaoBaiThiClientPage({
     }
   }, [classOptions, selectedClassId, classesLoading])
   const handleSubmit = async () => {
-    if (!selectedSchoolId) {
-      toast({
-        title: tx.missingSchool,
-        description: tx.selectSchoolBeforeExam,
-        variant: 'destructive',
-      })
+    if (!subjectId.trim()) {
+      toast({ title: tx.subject, description: dict.classes.enterClassSubjectRequired, variant: 'destructive' })
       return
     }
     if (!selectedClassId) {
@@ -1336,7 +1333,7 @@ export default function TaoBaiThiClientPage({
           subjectId,
           gradeLevelId,
           classId: selectedClassId,
-          schoolId: selectedSchoolId,
+          schoolId: selectedExamClass?.classKind === 'tutoring' ? '' : selectedExamClass?.schoolId ?? '',
           title: title.trim() || (isHomework ? tx.defaultHomeworkTitle : tx.defaultExamTitle),
           locale: uiLocale,
           practiceHomework: isHomework,
@@ -1404,10 +1401,6 @@ export default function TaoBaiThiClientPage({
   )
 
   const applyPresetExam = async (sourceId: string, openReview: boolean) => {
-    if (!selectedSchoolId) {
-      toast({ title: tx.missingSchool, description: tx.selectSchoolBeforeExam, variant: 'destructive' })
-      return
-    }
     if (!selectedClassId) {
       toast({ title: tx.missingClass, description: tx.selectClassBeforeExam, variant: 'destructive' })
       return
@@ -1421,7 +1414,7 @@ export default function TaoBaiThiClientPage({
         body: JSON.stringify({
           sourceSessionId: sourceId,
           classId: selectedClassId,
-          schoolId: selectedSchoolId,
+          schoolId: selectedExamClass?.classKind === 'tutoring' ? '' : selectedExamClass?.schoolId ?? '',
           title: title.trim(),
         }),
       })
@@ -1795,7 +1788,9 @@ export default function TaoBaiThiClientPage({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tx.subject}</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {tx.subject} <span className="text-destructive">*</span>
+                  </label>
                   <ClassSubjectField
                     id="exam-subject"
                     t={dict.classes}
@@ -1805,7 +1800,9 @@ export default function TaoBaiThiClientPage({
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tx.gradeLevelLabel}</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {tx.gradeLevelLabel} <span className="text-destructive">*</span>
+                  </label>
                   <select
                     value={gradeLevelId}
                     onChange={(e) => setGradeLevelId(e.target.value)}
@@ -1827,76 +1824,9 @@ export default function TaoBaiThiClientPage({
                 <p className="text-sm font-semibold">{tx.targetSchoolAndClass}</p>
                 <p className="text-[11px] text-muted-foreground leading-snug">{tx.examFormRememberHint}</p>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tx.schoolLabel}</label>
-                  <div className="relative">
-                    <Input
-                      value={schoolSearch}
-                      onChange={(e) => {
-                        const next = e.target.value
-                        setSchoolSearch(next)
-                        setSchoolDropdownOpen(true)
-                        if (selectedSchoolName && next.trim() !== selectedSchoolName.trim()) {
-                          setSelectedSchoolId('')
-                          setSelectedSchoolName('')
-                        }
-                      }}
-                      onFocus={() => setSchoolDropdownOpen(true)}
-                      onBlur={() => {
-                        window.setTimeout(() => {
-                          if (schoolPanelRef.current?.contains(document.activeElement)) return
-                          setSchoolDropdownOpen(false)
-                        }, 180)
-                      }}
-                      placeholder={tx.schoolPlaceholder}
-                      className="text-sm"
-                      autoComplete="off"
-                    />
-                    {schoolDropdownOpen && schoolSearch.trim().length >= 2 && (
-                      <div
-                        ref={schoolPanelRef}
-                        className="absolute left-0 right-0 top-full mt-1 z-20 max-h-80 overflow-y-auto rounded-md border bg-background p-1 shadow-md"
-                        onMouseDown={(e) => {
-                          const target = e.target as HTMLElement
-                          if (target.closest('input, textarea')) return
-                          e.preventDefault()
-                        }}
-                      >
-                        <SchoolNameOptions
-                          items={schoolSearchItems}
-                          suggestions={schoolSuggestions}
-                          loading={schoolSearchLoading}
-                          suggesting={schoolSuggestLoading}
-                          query={schoolSearch.trim()}
-                          selectedId={selectedSchoolId}
-                          selectedName={selectedSchoolName}
-                          busy={savingSchool}
-                          minCharsHint={tx.schoolMinChars}
-                          labels={{
-                            searching: tx.searchingSchools,
-                            suggesting: dict.classes.createClassSchoolSuggesting,
-                            suggestions: dict.classes.createClassSchoolSuggestions,
-                            edit: dict.classes.createClassSchoolEdit,
-                            save: dict.classes.createClassSchoolEditSave,
-                            typeOwn: dict.classes.createClassSchoolTypeOwn,
-                            typeOwnPlaceholder: dict.classes.createClassSchoolTypeOwnPlaceholder,
-                          }}
-                          onPickSaved={(item) => void chooseSavedSchool(item)}
-                          onPickSuggestion={(name, siblingNames) => void pickSchoolName(name, siblingNames)}
-                          onTypeOwn={(name) => void pickSchoolName(name)}
-                          onRename={renameSchool}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  {selectedSchoolId && (
-                    <p className="text-xs text-muted-foreground">
-                      {tx.selectedPrefix}: <strong>{selectedSchoolName || schoolSearch}</strong>
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tx.classLabel}</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {tx.classLabel} <span className="text-destructive">*</span>
+                  </label>
                   <div className="flex gap-2">
                     <select
                       value={selectedClassId}
@@ -1913,42 +1843,30 @@ export default function TaoBaiThiClientPage({
                       ) : (
                         classOptions.map((item) => (
                           <option key={item.id} value={item.id}>
-                            {item.name}
+                            {item.classKind === 'tutoring'
+                              ? `${item.name} · ${dict.classes.classKindTutoringBadge}`
+                              : item.name}
                           </option>
                         ))
                       )}
                     </select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        if (!selectedSchoolId) {
-                          toast({
-                            title: tx.missingSchool,
-                            description: tx.selectSchoolBeforeNewClass,
-                            variant: 'destructive',
-                          })
-                          return
-                        }
-                        setNewClassSubject((s) => {
-                          const raw = (s.trim() || defaultsForNewClass.subject).trim()
-                          if (raw && raw !== 'khac' && (isClassSubjectId(raw) || !raw.includes(' '))) return raw
-                          const mapped = subjectIdFromFreeLabel(raw)
-                          return mapped === 'khac' ? '' : mapped
-                        })
-                        setNewClassTeacher((s) => s.trim() || defaultsForNewClass.teacher)
-                        setShowCreateClassModal(true)
-                      }}
-                    >
-                      {tx.createNew}
+                    <Button type="button" variant="outline" asChild>
+                      <Link href="/lop/tao">{dict.classes.createClass}</Link>
                     </Button>
                   </div>
+                  {selectedExamClass && selectedExamClass.classKind !== 'tutoring' && selectedExamClass.schoolName.trim() ? (
+                    <p className="text-xs text-muted-foreground">
+                      {tx.schoolLabel}: <span className="font-medium text-foreground">{selectedExamClass.schoolName}</span>
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
               {!isHomework ? (
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tx.examType}</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {tx.examType} <span className="text-destructive">*</span>
+                  </label>
                   <div className="flex flex-wrap gap-2">
                     {EXAM_TYPE_ORDER.map((id) => (
                       <button
@@ -1969,7 +1887,7 @@ export default function TaoBaiThiClientPage({
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <BookOpen className="h-3.5 w-3.5" />
-                  {tx.selectCurricula}
+                  {tx.selectCurricula} <span className="text-destructive">*</span>
                 </label>
                 {browseLoading ? (
                   <div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">

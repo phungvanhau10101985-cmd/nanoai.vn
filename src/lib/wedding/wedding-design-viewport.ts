@@ -16,9 +16,25 @@ export function weddingDesignDeviceFromWidth(width: number): WeddingDesignDevice
   return width >= WEDDING_DESKTOP_MIN_PX ? 'desktop' : 'mobile'
 }
 
+/**
+ * Điện thoại rộng hơn khổ giấy mà trình duyệt không tự phóng thì khổ 390 dồn sát trái,
+ * ảnh to bị cắt mép trái và còn khe bên phải. Phóng vừa bề ngang máy, không phóng màn hình máy tính.
+ */
+export function weddingDesignFillScale(designWidth: number, visualWidth: number, layoutWidth: number): number {
+  if (designWidth <= 0 || visualWidth <= 0) return 1
+  if (visualWidth <= designWidth * 1.01) return 1
+  if (visualWidth > designWidth * 1.35) return 1
+  if (layoutWidth > 0 && visualWidth <= layoutWidth + 1) return 1
+  const scale = visualWidth / designWidth
+  if (!Number.isFinite(scale) || scale <= 1) return 1
+  return Math.round(scale * 1000) / 1000
+}
+
 /** Meta viewport để media query và vw thấy đúng khổ giấy, giống iframe sửa. */
-export function weddingDesignViewportContent(device: WeddingDesignDevice): string {
-  return `width=${weddingDesignWidth(device)}, viewport-fit=cover`
+export function weddingDesignViewportContent(device: WeddingDesignDevice, scale = 1): string {
+  const width = weddingDesignWidth(device)
+  const zoom = scale > 1.01 ? `, initial-scale=${scale}` : ''
+  return `width=${width}${zoom}, viewport-fit=cover`
 }
 
 export function shouldLockWeddingDesignViewport(search: string): boolean {
@@ -42,7 +58,9 @@ export function weddingDesignDeviceFromSearch(search: string, fallbackWidth: num
 }
 
 export function weddingDesignViewportBootScript(): string {
-  return `(function(){try{var q=new URLSearchParams(location.search);if(q.get('layout')==='full')return;var desktop=q.get('device')==='desktop';var meta=document.querySelector('meta[name="viewport"]');if(!meta){meta=document.createElement('meta');meta.setAttribute('name','viewport');document.head.appendChild(meta)}if(q.get('demo')==='1'){meta.setAttribute('content','${weddingNaturalViewportContent()}');document.documentElement.setAttribute('data-wedding-design',desktop?'desktop':'mobile');return}var width=desktop?${WEDDING_DESKTOP_WIDTH}:${WEDDING_MOBILE_WIDTH};meta.setAttribute('content','width='+width+', viewport-fit=cover');document.documentElement.setAttribute('data-wedding-design',desktop?'desktop':'mobile')}catch(e){}})();`
+  // visualViewport, không innerWidth: bề ngang khổ giấy vẫn khóa, chỉ phóng cho vừa máy.
+  // Nhân thêm scale để script chạy lần hai (sau khi đã phóng) không xóa initial-scale.
+  return `(function(){try{var q=new URLSearchParams(location.search);if(q.get('layout')==='full')return;var desktop=q.get('device')==='desktop';var meta=document.querySelector('meta[name="viewport"]');if(!meta){meta=document.createElement('meta');meta.setAttribute('name','viewport');document.head.appendChild(meta)}if(q.get('demo')==='1'){meta.setAttribute('content','${weddingNaturalViewportContent()}');document.documentElement.setAttribute('data-wedding-design',desktop?'desktop':'mobile');return}var width=desktop?${WEDDING_DESKTOP_WIDTH}:${WEDDING_MOBILE_WIDTH};var device=0;try{var vv=window.visualViewport;if(vv&&vv.width){var pinch=vv.scale||1;device=vv.width*(pinch>0?pinch:1)}}catch(e){}var scale=1;if(!desktop&&width>0&&device>width*1.01&&device<=width*1.35){scale=Math.round(device/width*1000)/1000}var zoom=scale>1.01?', initial-scale='+scale:'';meta.setAttribute('content','width='+width+zoom+', viewport-fit=cover');document.documentElement.setAttribute('data-wedding-design',desktop?'desktop':'mobile')}catch(e){}})();`
 }
 
 /**
@@ -72,6 +90,16 @@ export function isIosWeddingWebKit(): boolean {
   return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1
 }
 
+function weddingFillVisualWidth(designWidth: number): number {
+  const cap = designWidth * 1.35
+  const viewport = window.visualViewport
+  const width = viewport?.width || window.innerWidth || 0
+  const pinch = viewport?.scale || 1
+  const visual = width * (pinch > 0 ? pinch : 1)
+  if (visual > designWidth && visual <= cap) return visual
+  return designWidth
+}
+
 export function applyWeddingDesignViewport(device: WeddingDesignDevice, options?: { natural?: boolean }) {
   if (typeof document === 'undefined') return
   let meta = document.querySelector('meta[name="viewport"]')
@@ -80,6 +108,12 @@ export function applyWeddingDesignViewport(device: WeddingDesignDevice, options?
     meta.setAttribute('name', 'viewport')
     document.head.appendChild(meta)
   }
-  meta.setAttribute('content', options?.natural ? weddingNaturalViewportContent() : weddingDesignViewportContent(device))
   document.documentElement.setAttribute('data-wedding-design', device)
+  const designWidth = weddingDesignWidth(device)
+  const scale = options?.natural ? 1 : weddingDesignFillScale(designWidth, weddingFillVisualWidth(designWidth), 0)
+  const next = options?.natural ? weddingNaturalViewportContent() : weddingDesignViewportContent(device, scale)
+  const current = meta.getAttribute('content') || ''
+  // Script đầu trang ghi meta trước khi trình duyệt chịu áp. Ghi lại một lần nếu khổ giấy chưa khớp.
+  const layoutMiss = !options?.natural && scale > 1.01 && Math.abs(document.documentElement.clientWidth - designWidth) > 1
+  if (current !== next || layoutMiss) meta.setAttribute('content', next)
 }

@@ -106,6 +106,7 @@ export type ClassMineListRow = {
   teacher_display_name: string | null
   created_at: string
   school_name: string | null
+  class_kind: 'school' | 'tutoring'
 }
 
 export async function fetchClassesMineListForTeacherPg(teacherId: string): Promise<ClassMineListRow[] | null> {
@@ -121,9 +122,10 @@ export async function fetchClassesMineListForTeacherPg(teacherId: string): Promi
       teacher_display_name: r.teacher_display_name != null ? String(r.teacher_display_name) : null,
       created_at: String(r.created_at ?? ''),
       school_name: r.school_name != null ? String(r.school_name) : null,
+      class_kind: r.class_kind === 'tutoring' ? 'tutoring' : 'school',
     }))
   const select = `select c.id::text, c.name, c.join_code, c.school_id::text, c.grade_level_id,
-              c.subject_label, c.teacher_display_name, c.created_at::text, sch.name as school_name
+              c.subject_label, c.teacher_display_name, c.created_at::text, c.class_kind, sch.name as school_name
        from public.classes c
        left join public.schools sch on sch.id = c.school_id`
   try {
@@ -137,14 +139,17 @@ export async function fetchClassesMineListForTeacherPg(teacherId: string): Promi
                 ),
                 c.subject_label
               ) as subject_label,
-              c.teacher_display_name, c.created_at::text, sch.name as school_name
+              c.teacher_display_name, c.created_at::text, c.class_kind, sch.name as school_name
        from public.classes c
        left join public.schools sch on sch.id = c.school_id
-       where c.teacher_id = $1::uuid
-          or exists (
-            select 1 from public.class_subjects cs
-            where cs.class_id = c.id and cs.teacher_id = $1::uuid
-          )
+       where c.dissolved_at is null
+         and (
+           c.teacher_id = $1::uuid
+           or exists (
+             select 1 from public.class_subjects cs
+             where cs.class_id = c.id and cs.teacher_id = $1::uuid
+           )
+         )
        order by c.created_at desc
        limit 200`,
       [teacherId]
@@ -156,6 +161,7 @@ export async function fetchClassesMineListForTeacherPg(teacherId: string): Promi
       const rows = await pgQuery<Record<string, unknown>>(
         `${select}
          where c.teacher_id = $1::uuid
+           and c.dissolved_at is null
          order by c.created_at desc
          limit 200`,
         [teacherId]
@@ -317,6 +323,32 @@ export async function fetchClassAtSchoolByNamePg(
     return row ? mapClassNameTakenRow(row) : null
   } catch (e) {
     console.error('[classes-pg] fetchClassAtSchoolByNamePg', e)
+    return null
+  }
+}
+
+/** Lớp học thêm cùng giáo viên, cùng tên. */
+export async function fetchTutoringClassByNameForTeacherPg(
+  teacherId: string,
+  name: string,
+  exceptClassId?: string
+): Promise<ClassNameTakenRow | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select c.id::text, c.name, c.join_code, '' as school_name
+       from public.classes c
+       where c.teacher_id = $1::uuid
+         and c.class_kind = 'tutoring'
+         and c.dissolved_at is null
+         and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
+         and ($3::uuid is null or c.id <> $3::uuid)
+       limit 1`,
+      [teacherId, name, exceptClassId ?? null]
+    )
+    return row ? mapClassNameTakenRow(row) : null
+  } catch (e) {
+    console.error('[classes-pg] fetchTutoringClassByNameForTeacherPg', e)
     return null
   }
 }
@@ -549,57 +581,100 @@ export async function insertClassMinePg(params: {
   teacherId: string
   name: string
   joinCode: string
-  schoolId: string
+  schoolId: string | null
   gradeLevelId: string | null
   subjectLabel: string | null
   teacherDisplayName: string | null
+  classKind?: 'school' | 'tutoring'
+  tuitionMonthlyVnd?: number | null
+  tuitionDueAfterDays?: number | null
+  tuitionBillingDay?: number | null
+  tuitionBankBin?: string | null
+  tuitionBankName?: string | null
+  tuitionAccountNo?: string | null
+  tuitionAccountName?: string | null
 }): Promise<InsertClassMineResult> {
   if (!isPgConfigured()) return { status: 'failed' }
+  const classKind = params.classKind === 'tutoring' ? 'tutoring' : 'school'
+  const schoolId = classKind === 'tutoring' ? null : params.schoolId
+  if (classKind === 'school' && !schoolId) return { status: 'failed' }
   const client = await getPgPool().connect()
   try {
     await client.query('BEGIN')
-    await client.query(
-      `select pg_advisory_xact_lock(hashtext($1::text || '|' || ${classNameKeySql('$2::text')})::bigint)`,
-      [params.schoolId, params.name]
-    )
-    const existing = await client.query<Record<string, unknown>>(
-      `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name
-       from public.classes c
-       left join public.schools sch on sch.id = c.school_id
-       where c.school_id = $1::uuid
-         and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
-       limit 1`,
-      [params.schoolId, params.name]
-    )
+    const existing = classKind === 'tutoring'
+      ? await (async () => {
+          await client.query(
+            `select pg_advisory_xact_lock(hashtext($1::text || '|' || ${classNameKeySql('$2::text')})::bigint)`,
+            [`tutoring:${params.teacherId}`, params.name]
+          )
+          return client.query<Record<string, unknown>>(
+            `select c.id::text, c.name, c.join_code, '' as school_name
+             from public.classes c
+             where c.teacher_id = $1::uuid
+               and c.class_kind = 'tutoring'
+               and c.dissolved_at is null
+               and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
+             limit 1`,
+            [params.teacherId, params.name]
+          )
+        })()
+      : await (async () => {
+          await client.query(
+            `select pg_advisory_xact_lock(hashtext($1::text || '|' || ${classNameKeySql('$2::text')})::bigint)`,
+            [schoolId, params.name]
+          )
+          return client.query<Record<string, unknown>>(
+            `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name
+             from public.classes c
+             left join public.schools sch on sch.id = c.school_id
+             where c.school_id = $1::uuid
+               and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
+             limit 1`,
+            [schoolId, params.name]
+          )
+        })()
     const taken = existing.rows[0]
     if (taken) {
       await client.query('COMMIT')
       return { status: 'name_taken', existing: mapClassNameTakenRow(taken) }
     }
     const inserted = await client.query<Record<string, unknown>>(
-      // Postgres chạy SELECT ngoài cùng snapshot với CTE INSERT, nên đọc lại public.classes sẽ không thấy dòng vừa ghi.
       `with ins as (
-         insert into public.classes (teacher_id, name, join_code, school_id, grade_level_id, subject_label, teacher_display_name)
+         insert into public.classes (
+           teacher_id, name, join_code, school_id, grade_level_id, subject_label, teacher_display_name,
+           class_kind, tuition_monthly_vnd, tuition_due_after_days, tuition_billing_day,
+           tuition_bank_bin, tuition_bank_name, tuition_account_no, tuition_account_name
+         )
          values (
            $1::uuid, $2, $3, $4::uuid,
            nullif(trim(coalesce($5::text, '')), ''),
            nullif(trim(coalesce($6::text, '')), ''),
-           nullif(trim(coalesce($7::text, '')), '')
+           nullif(trim(coalesce($7::text, '')), ''),
+           $8,
+           $9::int, $10::int, $11::int, $12, $13, $14, $15
          )
-         returning id, name, join_code, school_id, grade_level_id, subject_label, teacher_display_name, created_at
+         returning id, name, join_code, school_id, grade_level_id, subject_label, teacher_display_name, created_at, class_kind
        )
        select c.id::text, c.name, c.join_code, c.school_id::text, c.grade_level_id, c.subject_label, c.teacher_display_name,
-              c.created_at::text, sch.name as school_name
+              c.created_at::text, c.class_kind, sch.name as school_name
        from ins c
        left join public.schools sch on sch.id = c.school_id`,
       [
         params.teacherId,
         params.name,
         params.joinCode,
-        params.schoolId,
+        schoolId,
         params.gradeLevelId ?? '',
         params.subjectLabel ?? '',
         params.teacherDisplayName ?? '',
+        classKind,
+        classKind === 'tutoring' ? params.tuitionMonthlyVnd ?? null : null,
+        classKind === 'tutoring' ? params.tuitionDueAfterDays ?? null : null,
+        classKind === 'tutoring' ? params.tuitionBillingDay ?? null : null,
+        classKind === 'tutoring' ? params.tuitionBankBin ?? null : null,
+        classKind === 'tutoring' ? params.tuitionBankName ?? null : null,
+        classKind === 'tutoring' ? params.tuitionAccountNo ?? null : null,
+        classKind === 'tutoring' ? params.tuitionAccountName ?? null : null,
       ]
     )
     const row = inserted.rows[0]
@@ -620,6 +695,7 @@ export async function insertClassMinePg(params: {
         teacher_display_name: row.teacher_display_name != null ? String(row.teacher_display_name) : null,
         created_at: String(row.created_at ?? ''),
         school_name: row.school_name != null ? String(row.school_name) : null,
+        class_kind: row.class_kind === 'tutoring' ? 'tutoring' : 'school',
       },
     }
   } catch (e) {
@@ -840,6 +916,7 @@ export async function fetchClassForExamSessionCreatePg(classId: string): Promise
       name: string | null
       school_id: string | null
       grade_level_id: string | null
+      class_kind: string
     }
   | 'not_found'
   | null
@@ -852,8 +929,10 @@ export async function fetchClassForExamSessionCreatePg(classId: string): Promise
       name: string | null
       school_id: string | null
       grade_level_id: string | null
+      class_kind: string
     }>(
-      `select id::text, teacher_id::text, name, school_id::text, grade_level_id
+      `select id::text, teacher_id::text, name, school_id::text, grade_level_id,
+              coalesce(class_kind, 'school') as class_kind
        from public.classes where id = $1::uuid limit 1`,
       [classId]
     )
@@ -942,11 +1021,12 @@ export async function fetchClassesAsMemberForUserPg(userId: string): Promise<Cla
   try {
     const rows = await pgQuery<Record<string, unknown>>(
       `select c.id::text, c.name, c.join_code, c.school_id::text, c.grade_level_id, c.subject_label,
-              c.teacher_display_name, c.created_at::text, sch.name as school_name
+              c.teacher_display_name, c.created_at::text, c.class_kind, sch.name as school_name
        from public.class_members m
        join public.classes c on c.id = m.class_id
        left join public.schools sch on sch.id = c.school_id
        where m.user_id = $1::uuid
+         and c.dissolved_at is null
        order by c.created_at desc
        limit 200`,
       [userId]
@@ -961,6 +1041,7 @@ export async function fetchClassesAsMemberForUserPg(userId: string): Promise<Cla
       teacher_display_name: r.teacher_display_name != null ? String(r.teacher_display_name) : null,
       created_at: String(r.created_at ?? ''),
       school_name: r.school_name != null ? String(r.school_name) : null,
+      class_kind: r.class_kind === 'tutoring' ? 'tutoring' : 'school',
     }))
   } catch (e) {
     console.error('[classes-pg] fetchClassesAsMemberForUserPg', e)
@@ -972,7 +1053,10 @@ export async function fetchClassIdByJoinCodePg(joinCode: string): Promise<string
   if (!isPgConfigured()) return null
   try {
     const row = await pgQueryOne<{ id: string }>(
-      `select id::text from public.classes where upper(trim(join_code)) = upper(trim($1)) limit 1`,
+      `select id::text from public.classes
+       where upper(trim(join_code)) = upper(trim($1))
+         and dissolved_at is null
+       limit 1`,
       [joinCode]
     )
     return row?.id ?? null
@@ -1134,13 +1218,20 @@ export async function updateClassStudentFacingLabelsPg(params: {
 
 export async function fetchClassTeacherAndSchoolIdPg(
   classId: string
-): Promise<{ teacher_id: string; school_id: string | null } | null> {
+): Promise<{ teacher_id: string; school_id: string | null; class_kind: 'school' | 'tutoring' } | null> {
   if (!isPgConfigured()) return null
   try {
-    return await pgQueryOne<{ teacher_id: string; school_id: string | null }>(
-      `select teacher_id::text, school_id::text from public.classes where id = $1::uuid limit 1`,
+    const row = await pgQueryOne<{ teacher_id: string; school_id: string | null; class_kind: string | null }>(
+      `select teacher_id::text, school_id::text, coalesce(class_kind, 'school') as class_kind
+       from public.classes where id = $1::uuid limit 1`,
       [classId]
     )
+    if (!row) return null
+    return {
+      teacher_id: row.teacher_id,
+      school_id: row.school_id,
+      class_kind: row.class_kind === 'tutoring' ? 'tutoring' : 'school',
+    }
   } catch (e) {
     console.error('[classes-pg] fetchClassTeacherAndSchoolIdPg', e)
     return null

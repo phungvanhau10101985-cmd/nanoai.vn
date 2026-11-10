@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { getUserForAction } from '@/lib/auth'
+import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 import { fetchClassGradebookData } from '@/lib/lop/class-gradebook'
 import { getServerDictionary } from '@/lib/i18n/server'
 
@@ -30,6 +31,14 @@ export async function GET(
   const { id: classId } = await params
   const auth = await getUserForAction()
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+
+  const featureBlock = await tutoringClassFeatureBlock(classId)
+  if (featureBlock === 'grace') {
+    return NextResponse.json({ error: 'Gói lớp học thêm đã hết hạn. Chỉ xem được danh sách lớp.' }, { status: 403 })
+  }
+  if (featureBlock === 'dissolved') {
+    return NextResponse.json({ error: 'Lớp này đã giải tán.' }, { status: 404 })
+  }
 
   const result = await fetchClassGradebookData(classId, auth.user.id, gradebookScope(req))
   if (!result.ok) {

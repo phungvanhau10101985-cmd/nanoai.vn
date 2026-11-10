@@ -15,6 +15,7 @@ import {
 } from '@/lib/db/exam-session-admin-pg'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
 import { notifyClassStudentsOfAssignment } from '@/lib/lop/notify-class-assignment'
+import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -86,6 +87,14 @@ export async function POST(req: NextRequest) {
     const classId = String(body?.classId ?? '').trim()
     if (!sourceSessionId || !classId) {
       return NextResponse.json({ error: 'Thiếu phiên nguồn hoặc lớp.' }, { status: 400 })
+    }
+
+    const featureBlock = await tutoringClassFeatureBlock(classId)
+    if (featureBlock === 'grace') {
+      return NextResponse.json({ error: 'Gói lớp học thêm đã hết hạn. Chỉ xem được danh sách lớp.' }, { status: 403 })
+    }
+    if (featureBlock === 'dissolved') {
+      return NextResponse.json({ error: 'Lớp này đã giải tán.' }, { status: 404 })
     }
 
     const clsFetch = await fetchClassForAttachExamPg(classId, user.id)

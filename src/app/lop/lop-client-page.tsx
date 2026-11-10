@@ -11,7 +11,8 @@ export type ClassItem = {
   grade_level_id?: string | null
   subject_label?: string | null
   teacher_display_name?: string | null
-  schools?: { name?: string | null } | Array<{ name?: string | null }> | null
+    schools?: { name?: string | null } | Array<{ name?: string | null }> | null
+    classKind?: 'school' | 'tutoring'
 }
 
 function readSchoolName(item: ClassItem): string {
@@ -32,10 +33,14 @@ export default function LopClientPage({
   myClasses,
   memberClasses,
   t,
+  lockedClassIds = [],
+  unpaidByClassId = {},
 }: {
   myClasses: ClassItem[]
   memberClasses: ClassItem[]
   t: Dictionary['classes']
+  lockedClassIds?: string[]
+  unpaidByClassId?: Record<string, number>
 }) {
 
   const allClasses = [
@@ -56,14 +61,14 @@ export default function LopClientPage({
     )
   }
 
+  const locked = new Set(lockedClassIds)
   return (
     <ul className="space-y-3">
-      {allClasses.map((c) => (
-        <li key={c.id}>
-          <Link
-            href={`/lop/${c.id}`}
-            className="block rounded-xl border border-input bg-card p-4 hover:bg-accent/50 transition-colors"
-          >
+      {allClasses.map((c) => {
+        const viewOnly = c.isTeacher && locked.has(c.id)
+        const cardClass = 'block rounded-xl border border-input bg-card p-4'
+        const body = (
+          <>
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium text-foreground leading-snug min-w-0">
                 {!c.isTeacher && (c.subject_label?.trim() || c.teacher_display_name?.trim())
@@ -84,15 +89,35 @@ export default function LopClientPage({
             <p className="text-sm text-muted-foreground mt-1">
               {t.joinCode}: {c.join_code}
             </p>
-            {(readSchoolName(c) || c.grade_level_id) && (
+            {(c.classKind === 'tutoring' || readSchoolName(c) || c.grade_level_id) && (
               <p className="text-xs text-muted-foreground mt-1">
-                {readSchoolName(c) ? `${t.schoolLabel}: ${readSchoolName(c)}` : `${t.schoolLabel}: —`}
-                {c.grade_level_id ? ` • ${t.gradeLevelLabel}: ${c.grade_level_id}` : ''}
+                {c.classKind === 'tutoring'
+                  ? t.classKindTutoringBadge
+                  : readSchoolName(c)
+                    ? `${t.schoolLabel}: ${readSchoolName(c)}`
+                    : `${t.schoolLabel}: —`}
+                {c.classKind !== 'tutoring' && c.grade_level_id ? ` • ${t.gradeLevelLabel}: ${c.grade_level_id}` : ''}
               </p>
             )}
-          </Link>
-        </li>
-      ))}
+            {c.isTeacher && c.classKind === 'tutoring' && (unpaidByClassId[c.id] ?? 0) > 0 ? (
+              <p className="text-xs text-foreground mt-1">
+                {t.tutoringUnpaidStudents.replaceAll('{count}', String(unpaidByClassId[c.id]))}
+              </p>
+            ) : null}
+          </>
+        )
+        return (
+          <li key={c.id}>
+            {viewOnly ? (
+              <div className={cardClass}>{body}</div>
+            ) : (
+              <Link href={`/lop/${c.id}`} className={`${cardClass} transition-colors hover:bg-accent/50`}>
+                {body}
+              </Link>
+            )}
+          </li>
+        )
+      })}
     </ul>
   )
 }

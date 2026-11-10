@@ -19,6 +19,7 @@ import {
   updateClassSchoolAndGradeIfUnsetPg,
 } from '@/lib/db/classes-pg'
 import { fetchSchoolByIdPg } from '@/lib/db/schools-repo'
+import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 import { fetchCurriculumTopicTitlesPg } from '@/lib/db/exam-preset-pg'
 import {
   DEFAULT_WEB_LOCALE,
@@ -325,6 +326,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Vui lòng chọn lớp cho bài thi.' }, { status: 400 })
     }
 
+    const featureBlock = await tutoringClassFeatureBlock(classId)
+    if (featureBlock === 'grace') {
+      return NextResponse.json({ error: 'Gói lớp học thêm đã hết hạn. Chỉ xem được danh sách lớp.' }, { status: 403 })
+    }
+    if (featureBlock === 'dissolved') {
+      return NextResponse.json({ error: 'Lớp này đã giải tán.' }, { status: 404 })
+    }
+
     const clsFetch = await fetchClassForExamSessionCreatePg(classId)
     if (clsFetch === null) {
       return NextResponse.json({ error: 'Không thể đọc lớp.' }, { status: 503 })
@@ -341,18 +350,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Bạn không có quyền dùng lớp này.' }, { status: 403 })
     }
 
-    const finalSchoolId = requestedSchoolId || String(cls.school_id ?? '').trim()
-    if (!finalSchoolId) {
-      return NextResponse.json({ error: 'Vui lòng chọn trường trước khi tạo bài thi.' }, { status: 400 })
+    const isTutoring = cls.class_kind === 'tutoring'
+    let finalSchoolId = ''
+    let schoolName = ''
+    if (!isTutoring) {
+      finalSchoolId = requestedSchoolId || String(cls.school_id ?? '').trim()
+      if (!finalSchoolId) {
+        return NextResponse.json({ error: 'Vui lòng chọn trường trước khi tạo bài thi.' }, { status: 400 })
+      }
+      const schoolRow = await fetchSchoolByIdPg(finalSchoolId)
+      if (!schoolRow) {
+        return NextResponse.json({ error: 'Không tìm thấy trường đã chọn.' }, { status: 404 })
+      }
+      schoolName = String(schoolRow.name ?? '')
     }
-    const schoolRow = await fetchSchoolByIdPg(finalSchoolId)
-    if (!schoolRow) {
-      return NextResponse.json({ error: 'Không tìm thấy trường đã chọn.' }, { status: 404 })
-    }
-    if (String(cls.school_id ?? '').trim() && String(cls.school_id ?? '').trim() !== finalSchoolId) {
+    if (!isTutoring && String(cls.school_id ?? '').trim() && String(cls.school_id ?? '').trim() !== finalSchoolId) {
       return NextResponse.json({ error: 'Lớp đã gắn với trường khác. Vui lòng chọn đúng trường của lớp.' }, { status: 400 })
     }
-    if (!String(cls.school_id ?? '').trim()) {
+    if (!isTutoring && !String(cls.school_id ?? '').trim()) {
       const up = await updateClassSchoolAndGradeIfUnsetPg(
         classId,
         user.id,
@@ -595,7 +610,7 @@ export async function POST(req: NextRequest) {
       subjectId,
       gradeLevelId,
       classId,
-      schoolId: finalSchoolId,
+      schoolId: finalSchoolId || null,
       durationMinutes: finalDurationMinutes,
       minutesPerQuestion: calculatedMinutesPerQuestion,
       config: {
@@ -619,7 +634,7 @@ export async function POST(req: NextRequest) {
         calculatedDurationMinutes,
         finalDurationMinutes,
         classId,
-        schoolId: finalSchoolId,
+        schoolId: finalSchoolId || null,
         practiceHomework,
         scoring: {
           quizPointsMax,
@@ -682,9 +697,9 @@ export async function POST(req: NextRequest) {
       totalQuestions: inserts.length,
       durationMinutes: finalDurationMinutes,
       classId,
-      schoolId: finalSchoolId,
+      schoolId: finalSchoolId || null,
       className: String(cls.name ?? ''),
-      schoolName: String(schoolRow.name ?? ''),
+      schoolName,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

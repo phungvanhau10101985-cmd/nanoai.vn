@@ -3157,6 +3157,7 @@ export type Dictionary = {
     enterClassListEmpty: string
     enterClassExistingClasses: string
     enterClassSubject: string
+    enterClassSubjectRequired: string
     enterClassAddSubject: string
     enterClassAddSubjectPlaceholder: string
     enterClassAddSubjectSave: string
@@ -3521,6 +3522,87 @@ export type Dictionary = {
     createClassSchoolEdit: string
     createClassSchoolEditSave: string
     createClassSchoolTypeOwnPlaceholder: string
+    classKindSchool: string
+    classKindTutoring: string
+    classKindSchoolHint: string
+    classKindTutoringHint: string
+    classKindTutoringBadge: string
+    tutoringTuitionAmountLabel: string
+    tutoringTuitionAmountPlaceholder: string
+    tutoringTuitionAmountHint: string
+    tutoringDueAfterDaysLabel: string
+    tutoringDueAfterDaysHint: string
+    tutoringBillingDayLabel: string
+    tutoringBillingDayHint: string
+    /** {day} */
+    tutoringBillingDayLine: string
+    tutoringBankLabel: string
+    tutoringBankPlaceholder: string
+    tutoringBankLoading: string
+    tutoringAccountNoLabel: string
+    tutoringAccountNameLabel: string
+    tutoringAccountNamePlaceholder: string
+    tutoringSectionTitle: string
+    tutoringSettingsTitle: string
+    tutoringSettingsSave: string
+    tutoringSettingsSaved: string
+    tutoringSettingsFailed: string
+    tutoringPayTitle: string
+    /** {amount} */
+    tutoringPayAmount: string
+    tutoringPayContentLabel: string
+    tutoringPayContentHint: string
+    tutoringPayWaiting: string
+    /** {date} */
+    tutoringPayNotDue: string
+    /** {month} */
+    tutoringPayConfirmed: string
+    /** {month} */
+    tutoringPayUnpaid: string
+    /** {month} {amount} */
+    tutoringPayForMonth: string
+    tutoringCatchUp: string
+    tutoringConfirmButton: string
+    tutoringUnconfirmButton: string
+    tutoringConfirmFailed: string
+    tutoringNoStudents: string
+    tutoringQrAlt: string
+    /** {bank} {account} {name} */
+    tutoringAccountLine: string
+    /** {count} */
+    tutoringHubUnpaid: string
+    tutoringHubAllPaid: string
+    tutoringHubNoneDue: string
+    tutoringHubOpenRoster: string
+    /** {date} */
+    tutoringDueFrom: string
+    tutoringEarlyNote: string
+    /** {date} */
+    tutoringPayBy: string
+    tutoringLockedLead: string
+    /** {days} {total} {monthly} {amount} */
+    tutoringFirstShare: string
+    tutoringAmountInvalid: string
+    tutoringDaysInvalid: string
+    tutoringBillingDayInvalid: string
+    tutoringBankInvalid: string
+    /** {days} */
+    tutoringGraceBanner: string
+    tutoringGraceRenew: string
+    /** {days} */
+    tutoringPackageEnding: string
+    tutoringPackageEndingToday: string
+    /** {count} */
+    tutoringUnpaidStudents: string
+    tutoringGraceCreateBlocked: string
+    tutoringPackageRequired: string
+    /** {slots} */
+    tutoringSlotsFull: string
+    tutoringJoinClosed: string
+    tutoringClassDissolved: string
+    tutoringTrialLead: string
+    /** {slots} {count} */
+    tutoringPackageRoom: string
     joinStudentDisplayName: string
     joinStudentBirthDate: string
     joinDobDayPlaceholder: string
@@ -7929,6 +8011,7 @@ export const VI_DICTIONARY: Dictionary = {
     enterClassListEmpty: 'Trường này chưa có lớp.',
     enterClassExistingClasses: 'Lớp đã có ở trường này',
     enterClassSubject: 'Môn dạy',
+    enterClassSubjectRequired: 'Vui lòng chọn môn.',
     enterClassAddSubject: 'Thêm môn',
     enterClassAddSubjectPlaceholder: 'Gõ tên môn, ví dụ Giáo dục quốc phòng',
     enterClassAddSubjectSave: 'Tự điền',
@@ -8243,6 +8326,71 @@ export const VI_DICTIONARY: Dictionary = {
     createClassSchoolEdit: 'Sửa',
     createClassSchoolEditSave: 'Lưu',
     createClassSchoolTypeOwnPlaceholder: 'Tự điền tên trường',
+    classKindSchool: 'Lớp trên trường',
+    classKindTutoring: 'Lớp học thêm',
+    classKindSchoolHint: 'Lớp gắn với một trường. Chọn trường, rồi nhập tên lớp.',
+    classKindTutoringHint: 'Không cần chọn trường. Nhập tên lớp, chọn môn, học phí, hạn đóng và tài khoản nhận tiền.',
+    classKindTutoringBadge: 'Học thêm',
+    tutoringTuitionAmountLabel: 'Học phí mỗi tháng (đồng)',
+    tutoringTuitionAmountPlaceholder: 'VD: 500000',
+    tutoringTuitionAmountHint: 'Học phí cả tháng. Lần đầu chỉ tính số ngày còn lại trong tháng. Từ tháng sau đóng đủ số này.',
+    tutoringDueAfterDaysLabel: 'Lần đầu phải đóng sau (ngày)',
+    tutoringDueAfterDaysHint: 'Đếm theo ngày. Vào lớp ngày 15, nhập 2 thì ngày 17 phải đóng. Không đóng thì không vào lớp được.',
+    tutoringBillingDayLabel: 'Ngày đóng hàng tháng',
+    tutoringBillingDayHint: 'Từ tháng sau, đến ngày này phải đóng đủ học phí cả tháng thì mới vào lớp tiếp. Tháng không có ngày đó thì lấy ngày cuối tháng.',
+    tutoringBillingDayLine: 'Đóng đủ vào ngày {day} hàng tháng.',
+    tutoringBankLabel: 'Ngân hàng nhận học phí',
+    tutoringBankPlaceholder: 'Chọn ngân hàng',
+    tutoringBankLoading: 'Đang tải danh sách ngân hàng…',
+    tutoringAccountNoLabel: 'Số tài khoản',
+    tutoringAccountNameLabel: 'Tên chủ tài khoản',
+    tutoringAccountNamePlaceholder: 'VD: NGUYEN THI DUYEN',
+    tutoringSectionTitle: 'Học phí',
+    tutoringSettingsTitle: 'Cài đặt học phí',
+    tutoringSettingsSave: 'Lưu cài đặt',
+    tutoringSettingsSaved: 'Đã lưu cài đặt học phí.',
+    tutoringSettingsFailed: 'Không lưu được cài đặt học phí.',
+    tutoringPayTitle: 'Đóng học phí',
+    tutoringPayAmount: 'Số tiền: {amount}',
+    tutoringPayContentLabel: 'Nội dung chuyển khoản',
+    tutoringPayContentHint: 'Nội dung là tên lớp và tên học sinh. Cô đối chiếu khi nhận tiền, rồi tự xác nhận.',
+    tutoringPayWaiting: 'Chuyển khoản xong thì chờ cô xác nhận. Hệ thống không tự đối soát ngân hàng.',
+    tutoringPayNotDue: 'Chưa đến hạn. Học phí được yêu cầu từ ngày {date}.',
+    tutoringPayConfirmed: 'Đã đóng học phí tháng {month}.',
+    tutoringPayUnpaid: 'Chưa đóng học phí tháng {month}.',
+    tutoringPayForMonth: 'Mã QR này là {amount} cho tháng {month}.',
+    tutoringCatchUp: 'Còn kỳ trước chưa được cô xác nhận. Cần đóng kỳ đó thì mới vào lớp được.',
+    tutoringConfirmButton: 'Đã nhận tiền',
+    tutoringUnconfirmButton: 'Bỏ xác nhận',
+    tutoringConfirmFailed: 'Không xác nhận được học phí.',
+    tutoringNoStudents: 'Chưa có học sinh để xác nhận học phí.',
+    tutoringQrAlt: 'Mã QR đóng học phí',
+    tutoringAccountLine: '{bank} · {account} · {name}',
+    tutoringHubUnpaid: '{count} học sinh chưa đóng tháng đang mở.',
+    tutoringHubAllPaid: 'Học sinh đã đến hạn đều được xác nhận.',
+    tutoringHubNoneDue: 'Chưa có học sinh đến hạn đóng học phí.',
+    tutoringHubOpenRoster: 'Xác nhận học phí',
+    tutoringDueFrom: 'Yêu cầu đóng từ {date}',
+    tutoringEarlyNote: 'Có thể xác nhận sớm nếu đã nhận tiền.',
+    tutoringPayBy: 'Hạn đóng: {date}. Quá hạn mà cô chưa xác nhận thì không vào lớp được.',
+    tutoringLockedLead: 'Chưa đóng học phí nên không vào lớp được. Chuyển khoản rồi chờ cô xác nhận để mở lớp.',
+    tutoringFirstShare: 'Lần đầu: {days}/{total} ngày của tháng × {monthly} = {amount}',
+    tutoringAmountInvalid: 'Học phí phải là số nguyên từ 1.000 đến 100.000.000 đồng.',
+    tutoringDaysInvalid: 'Số ngày phải từ 0 đến 365.',
+    tutoringBillingDayInvalid: 'Ngày đóng hàng tháng phải từ 1 đến 31.',
+    tutoringBankInvalid: 'Chọn ngân hàng và nhập số tài khoản, tên chủ tài khoản.',
+    tutoringGraceBanner: 'Gói lớp học thêm đã hết hạn. Bạn chỉ xem được danh sách lớp. Lớp sẽ giải tán sau {days} ngày.',
+    tutoringGraceRenew: 'Gia hạn gói',
+    tutoringPackageEnding: 'Gói lớp học thêm còn {days} ngày. Gia hạn trước khi lớp bị khóa.',
+    tutoringPackageEndingToday: 'Gói lớp học thêm hết hạn trong hôm nay. Gia hạn trước khi lớp bị khóa.',
+    tutoringUnpaidStudents: '{count} học sinh chưa đóng',
+    tutoringGraceCreateBlocked: 'Gói đã hết hạn. Trong 30 ngày này chỉ xem được danh sách lớp. Gia hạn để tạo lớp và dùng lại các tính năng.',
+    tutoringPackageRequired: 'Cần mua gói lớp học thêm để tạo thêm lớp.',
+    tutoringSlotsFull: 'Gói đang cho {slots} lớp. Mua thêm chỗ để tạo lớp mới.',
+    tutoringJoinClosed: 'Lớp đang chờ cô gia hạn, chưa nhận học sinh mới.',
+    tutoringClassDissolved: 'Lớp này đã giải tán.',
+    tutoringTrialLead: 'Lần đầu được dùng thử 7 ngày, 1 lớp. Hết hạn mà không gia hạn thì 30 ngày chỉ xem danh sách lớp, rồi lớp giải tán. Gói tính theo số lớp: 60.000₫ một lớp một tháng.',
+    tutoringPackageRoom: 'Gói đang mở {slots} lớp, đã tạo {count}.',
     joinStudentDisplayName: 'Họ và tên học sinh',
     joinStudentBirthDate: 'Ngày sinh',
     joinDobDayPlaceholder: 'Ngày',
@@ -9198,13 +9346,13 @@ export const VI_DICTIONARY: Dictionary = {
     createAnotherExam: 'Tạo bài thi khác',
     cardExamInfo: 'Thông tin bài thi',
     cardExamInfoDesc:
-      'Chọn trường, lớp, loại bài thi, số câu và thời gian. Chọn giáo trình để lấy câu hỏi. Bấm tạo để có link và QR.',
+      'Chọn lớp, loại bài thi, số câu và thời gian. Chọn giáo trình để lấy câu hỏi. Bấm tạo để có link và QR.',
     titleOptional: 'Tiêu đề (tùy chọn)',
     titlePlaceholder: 'Bài thi Toán 15 phút',
     subject: 'Môn học',
-    targetSchoolAndClass: 'Trường và lớp áp dụng',
+    targetSchoolAndClass: 'Lớp áp dụng',
     examFormRememberHint:
-      'Trình duyệt ghi nhớ trường, lớp, môn/khối, loại đề và tiêu đề — lần sau mở trang sẽ tự điền.',
+      'Trường lấy từ lớp đã chọn. Trình duyệt ghi nhớ lớp, môn, khối, loại đề và tiêu đề.',
     school: 'Trường',
     schoolPlaceholder: 'Gõ tên trường',
     search: 'Tìm kiếm',
@@ -9213,7 +9361,7 @@ export const VI_DICTIONARY: Dictionary = {
     selectedPrefix: 'Đang chọn',
     class: 'Lớp',
     loadingClasses: 'Đang tải lớp...',
-    noClassClickNew: 'Chưa có lớp - bấm Tạo mới',
+    noClassClickNew: 'Chưa có lớp. Tạo lớp trước.',
     selectSchoolBeforeNewClass: 'Vui lòng chọn trường trước khi tạo lớp mới.',
     createNew: 'Tạo mới',
     studentFacingBlockTitle: 'Thông tin học sinh thấy (lớp đã chọn)',

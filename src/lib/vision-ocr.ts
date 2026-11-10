@@ -1,6 +1,6 @@
 /**
  * Google Cloud Vision API – Document OCR.
- * Dùng cho hậu kiểm dịch ảnh tài liệu: phát hiện chữ còn sót (ngôn ngữ nguồn).
+ * Dùng cho OCR bản địa hóa ảnh kho.
  * `fullTextAnnotation.boundingBox.vertices` của Vision REST đã là tọa độ pixel.
  */
 

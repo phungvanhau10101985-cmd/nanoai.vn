@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getUserOrBypass } from '@/lib/auth'
 import { teacherCanSaveCurriculumPg } from '@/lib/db/class-teacher-curricula-pg'
 import { attachTaughtLessonPg, listTeachClassesForSubjectPg, type TeachClassOption } from '@/lib/db/class-taught-lessons-pg'
+import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 
 export async function listClassesForTeaching(subjectId: string): Promise<TeachClassOption[]> {
   const user = await getUserOrBypass()
@@ -21,6 +22,7 @@ export async function attachLessonToClass(input: {
   if (!user) return { ok: false }
   const allowed = await teacherCanSaveCurriculumPg(user.id, input.curriculumId)
   if (!allowed) return { ok: false }
+  if ((await tutoringClassFeatureBlock(input.classId)) !== 'open') return { ok: false }
   const saved = await attachTaughtLessonPg({
     classId: input.classId,
     teacherId: user.id,

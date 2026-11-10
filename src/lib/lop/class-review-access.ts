@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { loadClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
 
 export async function loadClassReviewAccess(
@@ -8,6 +9,12 @@ export async function loadClassReviewAccess(
 ) {
   const payload = await loadClassDetailPayload(classId, userId)
   if (!payload) return null
+  if (
+    !payload.isTeacher &&
+    payload.tuition?.students.some((student) => student.userId === userId && student.locked)
+  ) {
+    redirect(`/lop/${classId}`)
+  }
   const subject = payload.classSubjects.find(
     (row) => row.subjectId === subjectId && row.teacherId === teacherId
   )

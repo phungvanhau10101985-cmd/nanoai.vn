@@ -4,6 +4,7 @@ import { CreationToolPageShell } from '@/components/layout/creation-tool-page-sh
 import { getServerDictionary } from '@/lib/i18n/server'
 import { loadStudentSubjectInbox } from '@/lib/lop/class-subject-item-opens'
 import type { ClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
+import { ClassTuitionPanel } from './class-tuition-panel'
 import LopDetailClient from './lop-detail-client'
 
 export type LopDetailPageMode =
@@ -51,7 +52,30 @@ export async function LopClassDetailView({
     initialExamSessions,
     schoolName,
     subjectNames,
+    tuition,
   } = payload
+
+  const tuitionLocked =
+    !isTeacher && Boolean(tuition?.students.some((student) => student.userId === viewerUserId && student.locked))
+
+  if (tuitionLocked && tuition) {
+    return (
+      <div className="app-shell min-h-screen">
+        <CreationToolPageShell currentHref={currentHref}>
+          <div className="mx-auto w-full max-w-2xl pb-8 lg:max-w-3xl lg:pb-10">
+            <BrowserBackTextButton
+              fallbackHref="/lop"
+              className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              ← {t.creationSidebar.back}
+            </BrowserBackTextButton>
+            <h1 className="mb-4 text-xl font-semibold text-foreground">{cls.name}</h1>
+            <ClassTuitionPanel classId={cls.id} view={tuition} isOwner={false} pageMode="hub" t={t.classes} />
+          </div>
+        </CreationToolPageShell>
+      </div>
+    )
+  }
 
   if (isTeacher && focusSubject && focusSubject.teacherId !== viewerUserId) {
     redirect(`/lop/${cls.id}`)
@@ -91,6 +115,7 @@ export async function LopClassDetailView({
               subjectNames,
               subjectLabel: cls.subject_label,
               teacherDisplayName: cls.teacher_display_name,
+              classKind: cls.class_kind,
             }}
             isTeacher={isTeacher}
             isOwner={isOwner}
@@ -108,6 +133,7 @@ export async function LopClassDetailView({
             focusSubject={focusSubject}
             subjectInbox={subjectInbox}
             webLocale={locale}
+            tuition={tuition}
             t={t.classes}
           />
         </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,7 +25,11 @@ import {
 import { SchoolNameOptions } from '@/components/school/school-name-options'
 import ClassSubjectField from './class-subject-field'
 import { subjectIdFromFreeLabel } from '@/lib/lop/class-subject'
+import { parseBillingDay, parseDueDays, parseTuitionAmount, readTutoringTuitionFields } from '@/lib/lop/class-tuition'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { cn } from '@/lib/utils'
+import { createClass } from './actions'
+import { TutoringTuitionFields, type TutoringTuitionFieldValues } from './tutoring-tuition-fields'
 
 type SchoolClassOption = { id: string; name: string; choice: 'original' | 'edited' | null }
 
@@ -87,6 +92,42 @@ export default function EnterClassForm({
   const [addingSchool, setAddingSchool] = useState(false)
   const [schoolClasses, setSchoolClasses] = useState<SchoolClassOption[]>([])
   const [classesLoading, setClassesLoading] = useState(false)
+  const [classKind, setClassKind] = useState<'school' | 'tutoring'>('school')
+  const [tutoringName, setTutoringName] = useState('')
+  const [tuitionFields, setTuitionFields] = useState<TutoringTuitionFieldValues>({
+    amount: '',
+    days: '',
+    billingDay: '',
+    bankBin: '',
+    bankName: '',
+    accountNo: '',
+    accountName: '',
+  })
+  const [tutoringPack, setTutoringPack] = useState<{
+    phase: string
+    slots: number
+    classCount: number
+    daysLeft: number | null
+  } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/account/tutoring-package', { credentials: 'include', cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data || data.ok !== true) return
+        setTutoringPack({
+          phase: String(data.phase ?? 'none'),
+          slots: Number(data.slots) || 0,
+          classCount: Number(data.classCount) || 0,
+          daysLeft: typeof data.daysLeft === 'number' ? data.daysLeft : null,
+        })
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -366,6 +407,75 @@ export default function EnterClassForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (loading) return
+    if (classKind === 'tutoring') {
+      const name = tutoringName.trim().replace(/\s+/g, ' ')
+      if (!name) return
+      const tuition = readTutoringTuitionFields(tuitionFields)
+      if (!subjectId.trim()) {
+        toast({ variant: 'destructive', description: t.enterClassSubjectRequired })
+        return
+      }
+      if (!tuition) {
+        toast({
+          variant: 'destructive',
+          description:
+            parseTuitionAmount(tuitionFields.amount) == null
+              ? t.tutoringAmountInvalid
+              : parseDueDays(tuitionFields.days) == null
+                ? t.tutoringDaysInvalid
+                : parseBillingDay(tuitionFields.billingDay) == null
+                  ? t.tutoringBillingDayInvalid
+                  : t.tutoringBankInvalid,
+        })
+        return
+      }
+      setLoading(true)
+      try {
+        const formData = new FormData()
+        formData.set('name', name)
+        formData.set('classKind', 'tutoring')
+        formData.set('subjectId', subjectId.trim())
+        formData.set('tuitionMonthlyVnd', String(tuition.monthlyVnd))
+        formData.set('tuitionDueAfterDays', String(tuition.dueAfterDays))
+        formData.set('tuitionBillingDay', String(tuition.billingDay))
+        formData.set('tuitionBankBin', tuition.bankBin)
+        formData.set('tuitionBankName', tuition.bankName)
+        formData.set('tuitionAccountNo', tuition.accountNo)
+        formData.set('tuitionAccountName', tuition.accountName)
+        const res = await createClass(formData)
+        if ('code' in res && res.code === 'class_exists' && res.existing) {
+          setResult({
+            status: 'already',
+            classId: res.existing.classId,
+            className: res.existing.name,
+            joinCode: res.existing.joinCode,
+          })
+          return
+        }
+        if (res.error || !res.classId || !res.joinCode) {
+          toast({
+            variant: 'destructive',
+            description: res.error === 'class_exists' ? t.tutoringSettingsFailed : res.error || t.enterClassFailed,
+          })
+          return
+        }
+        setResult({
+          status: 'created',
+          classId: res.classId,
+          className: name,
+          joinCode: res.joinCode,
+        })
+        router.refresh()
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          description: err instanceof Error ? err.message : String(err),
+        })
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
     if (!selectedSchoolId) {
       toast({ variant: 'destructive', description: t.createClassSchoolRequired })
       return
@@ -380,7 +490,7 @@ export default function EnterClassForm({
       existingAtSchool?.id ||
       (pickedClassId && classNameKey(className) === classNameKey(typedName) ? pickedClassId : '')
     if (!subjectId.trim()) {
-      toast({ variant: 'destructive', description: t.enterClassSubject })
+      toast({ variant: 'destructive', description: t.enterClassSubjectRequired })
       return
     }
     setLoading(true)
@@ -528,6 +638,12 @@ export default function EnterClassForm({
     )
   }
 
+  const tutoringNeedsPlan =
+    tutoringPack != null &&
+    (tutoringPack.phase === 'grace' ||
+      tutoringPack.phase === 'lapsed' ||
+      (tutoringPack.phase === 'active' && tutoringPack.classCount >= tutoringPack.slots) ||
+      (tutoringPack.phase === 'none' && tutoringPack.classCount > 0))
   const typedClassName = (className || classSearch).trim()
   const classAlreadyAtSchool = Boolean(
     findSchoolClass(typedClassName, schoolClasses) ||
@@ -538,7 +654,37 @@ export default function EnterClassForm({
     <>
       <Toaster />
       <form onSubmit={handleSubmit} className="mb-8 space-y-4 rounded-xl border border-border/80 bg-card p-4 sm:p-5">
-        <p className="text-sm text-muted-foreground leading-relaxed">{t.enterClassLead}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            aria-pressed={classKind === 'school'}
+            disabled={loading}
+            onClick={() => setClassKind('school')}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-left text-sm font-medium',
+              classKind === 'school' ? 'border-primary bg-primary/10 text-foreground' : 'border-input bg-background'
+            )}
+          >
+            {t.classKindSchool}
+          </button>
+          <button
+            type="button"
+            aria-pressed={classKind === 'tutoring'}
+            disabled={loading}
+            onClick={() => setClassKind('tutoring')}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-left text-sm font-medium',
+              classKind === 'tutoring' ? 'border-primary bg-primary/10 text-foreground' : 'border-input bg-background'
+            )}
+          >
+            {t.classKindTutoring}
+          </button>
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {classKind === 'tutoring' ? t.classKindTutoringHint : t.enterClassLead}
+        </p>
+        {classKind === 'school' ? (
+        <>
         <div className="space-y-2">
           <label htmlFor="enter-school" className="block text-sm font-medium text-foreground">
             {t.schoolLabel} <span className="text-destructive">*</span>
@@ -698,11 +844,81 @@ export default function EnterClassForm({
             disabled={loading}
           />
         </div>
+        </>
+        ) : (
+          <>
+            {tutoringPack?.phase === 'grace' ? (
+              <p className="text-sm text-foreground">
+                {t.tutoringGraceBanner.replaceAll('{days}', String(tutoringPack.daysLeft ?? 30))}
+              </p>
+            ) : tutoringPack?.phase === 'active' ? (
+              <p className="text-sm text-muted-foreground">
+                {t.tutoringPackageRoom
+                  .replaceAll('{slots}', String(tutoringPack.slots))
+                  .replaceAll('{count}', String(tutoringPack.classCount))}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">{t.tutoringTrialLead}</p>
+            )}
+            {tutoringNeedsPlan ? (
+              <Link href="/account/plan#goi-lop-hoc-them" className="inline-block text-sm font-medium text-foreground underline">
+                {t.tutoringGraceRenew}
+              </Link>
+            ) : null}
+            {tutoringPack?.phase === 'active' && tutoringPack.classCount >= tutoringPack.slots ? (
+              <p className="text-sm text-foreground">
+                {t.tutoringSlotsFull.replaceAll('{slots}', String(tutoringPack.slots))}
+              </p>
+            ) : null}
+            <div className="space-y-2">
+              <label htmlFor="tutoring-class-name" className="block text-sm font-medium text-foreground">
+                {t.className}
+              </label>
+              <Input
+                id="tutoring-class-name"
+                value={tutoringName}
+                onChange={(e) => setTutoringName(e.target.value)}
+                placeholder={t.enterClassTypeOwnPlaceholder}
+                disabled={loading || tutoringNeedsPlan}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="tutoring-subject" className="block text-sm font-medium text-foreground">
+                {t.enterClassSubject} <span className="text-destructive">*</span>
+              </label>
+              <ClassSubjectField
+                id="tutoring-subject"
+                t={t}
+                locale={locale}
+                value={subjectId}
+                onChange={setSubjectId}
+                disabled={loading || tutoringNeedsPlan}
+              />
+            </div>
+            <TutoringTuitionFields
+              idPrefix="enter-tutoring"
+              values={tuitionFields}
+              onChange={setTuitionFields}
+              disabled={loading || tutoringNeedsPlan}
+              t={t}
+            />
+          </>
+        )}
 
         <p className="text-sm text-muted-foreground">{t.teacherIdentityAccountNote}</p>
 
-        <Button type="submit" disabled={loading || !selectedSchoolId} className="w-full">
-          {loading ? '...' : classAlreadyAtSchool ? t.enterClassSubmit : t.createClass}
+        <Button
+          type="submit"
+          disabled={
+            loading ||
+            (classKind === 'school'
+              ? !selectedSchoolId
+              : tutoringNeedsPlan || !tutoringName.trim() || !subjectId.trim() || !readTutoringTuitionFields(tuitionFields))
+          }
+          className="w-full"
+        >
+          {loading ? '...' : classKind === 'school' && classAlreadyAtSchool ? t.enterClassSubmit : t.createClass}
         </Button>
       </form>
     </>

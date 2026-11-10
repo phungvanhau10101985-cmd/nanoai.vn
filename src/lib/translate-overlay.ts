@@ -1,6 +1,6 @@
 /**
  * Overlay dịch lên ảnh: xóa chữ cũ (cover bằng nền), vẽ chữ mới đã dịch.
- * Dùng cho hậu kiểm – dịch nốt những từ còn sót.
+ * Dùng khi vẽ chữ đã dịch lên ảnh kho.
  */
 
 import sharp from 'sharp'

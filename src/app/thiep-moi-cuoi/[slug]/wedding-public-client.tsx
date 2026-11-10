@@ -1465,6 +1465,14 @@ export default function WeddingPublicClient({
     applyWeddingDesignViewport(view, { natural: sampleDemo || params.get('demo') === '1' })
     setViewDevice(view)
     setCoverDesignWidth((sampleDemo || hostPreview) && view === 'desktop' ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH)
+    const refit = () => applyWeddingDesignViewport(view, { natural: sampleDemo || params.get('demo') === '1' })
+    const visual = window.visualViewport
+    visual?.addEventListener('resize', refit)
+    window.addEventListener('orientationchange', refit)
+    return () => {
+      visual?.removeEventListener('resize', refit)
+      window.removeEventListener('orientationchange', refit)
+    }
   }, [hostPreview, layoutPreview, sampleDemo])
   const markPreview = (kind: 'text' | 'shell' | 'frame') => {
     const current = previewKindRef.current

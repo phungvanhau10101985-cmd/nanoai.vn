@@ -17,6 +17,7 @@ import {
   studentStudyPlanLabel,
   type StudentStudyPlanId,
 } from '@/lib/student-study-package'
+import { TutoringPackageCard } from './tutoring-package-card'
 
 const NUMBER_LOCALE: Record<WebLocale, string> = {
   vi: 'vi-VN',
@@ -419,6 +420,8 @@ export function AccountPlanClientPage({
               {buyNote ? <p className="text-sm text-muted-foreground">{buyNote}</p> : null}
             </CardContent>
           </Card>
+
+          <TutoringPackageCard webLocale={webLocale} />
 
           <Card>
             <CardHeader>

@@ -4,9 +4,11 @@ import {
   fetchClassAtSchoolByNamePg,
   fetchClassTeacherAndSchoolIdPg,
   fetchClassTeacherIdFromPg,
+  fetchTutoringClassByNameForTeacherPg,
   updateClassNameForTeacherPg,
 } from '@/lib/db/classes-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 
 export async function PATCH(
   req: NextRequest,
@@ -18,6 +20,14 @@ export async function PATCH(
 
   if (!isPgConfigured()) {
     return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+  }
+
+  const featureBlock = await tutoringClassFeatureBlock(id)
+  if (featureBlock === 'grace') {
+    return NextResponse.json({ error: 'Gói lớp học thêm đã hết hạn. Chỉ xem được danh sách lớp.' }, { status: 403 })
+  }
+  if (featureBlock === 'dissolved') {
+    return NextResponse.json({ error: 'Lớp này đã giải tán.' }, { status: 404 })
   }
 
   const teacherId = await fetchClassTeacherIdFromPg(id)
@@ -33,7 +43,24 @@ export async function PATCH(
   if (!owned || owned.teacher_id !== auth.user.id) {
     return NextResponse.json({ error: 'Bạn không có quyền sửa lớp này.' }, { status: 403 })
   }
-  if (owned.school_id) {
+  if (owned.class_kind === 'tutoring') {
+    const taken = await fetchTutoringClassByNameForTeacherPg(auth.user.id, name, id)
+    if (taken) {
+      return NextResponse.json(
+        {
+          error: 'Bạn đã có lớp học thêm trùng tên.',
+          code: 'class_exists',
+          existing: {
+            id: taken.id,
+            name: taken.name,
+            joinCode: taken.join_code,
+            schoolName: '',
+          },
+        },
+        { status: 409 }
+      )
+    }
+  } else if (owned.school_id) {
     const taken = await fetchClassAtSchoolByNamePg(owned.school_id, name, id)
     if (taken) {
       return NextResponse.json(

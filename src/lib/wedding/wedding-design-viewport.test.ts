@@ -9,6 +9,7 @@ import {
   WEDDING_MOBILE_WIDTH,
   shouldLockWeddingDesignViewport,
   weddingDesignDeviceFromSearch,
+  weddingDesignFillScale,
   weddingDesignViewportBootScript,
   weddingDesignViewportContent,
   weddingIosCoverFitScale,
@@ -17,6 +18,12 @@ import {
 test('guest and host editor lock the viewport to the design sheet', () => {
   assert.equal(weddingDesignViewportContent('desktop'), 'width=1440, viewport-fit=cover')
   assert.equal(weddingDesignViewportContent('mobile'), 'width=390, viewport-fit=cover')
+  assert.equal(weddingDesignViewportContent('mobile', 1), 'width=390, viewport-fit=cover')
+  assert.equal(weddingDesignViewportContent('mobile', 1.077), 'width=390, initial-scale=1.077, viewport-fit=cover')
+  assert.equal(weddingDesignFillScale(390, 390, 390), 1)
+  assert.equal(weddingDesignFillScale(390, 420, 390), 1.077)
+  assert.equal(weddingDesignFillScale(390, 1400, 390), 1)
+  assert.equal(weddingDesignFillScale(390, 420, 420), 1)
   assert.equal(shouldLockWeddingDesignViewport(''), true)
   assert.equal(shouldLockWeddingDesignViewport('demo=1&view=groom'), false)
   assert.equal(shouldLockWeddingDesignViewport('layout=full&stack=cover'), false)
@@ -33,6 +40,8 @@ test('guest and host editor lock the viewport to the design sheet', () => {
   assert.match(script, /get\('device'\)==='desktop'/)
   assert.match(script, /1440/)
   assert.match(script, /390/)
+  assert.match(script, /visualViewport/)
+  assert.match(script, /initial-scale=/)
   assert.doesNotMatch(script, /innerWidth/)
 })
 

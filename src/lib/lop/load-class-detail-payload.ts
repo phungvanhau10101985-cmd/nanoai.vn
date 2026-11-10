@@ -1,4 +1,8 @@
+import { redirect } from 'next/navigation'
 import { fetchClassSubjectsPg } from '@/lib/db/classes-pg'
+import { dissolveLapsedTutoringClasses, readTutoringPackage, tutoringTeacherGrace } from '@/lib/db/tutoring-package-pg'
+import { tutoringPackagePhase } from '@/lib/lop/tutoring-package'
+import { loadClassTuitionViewPg } from '@/lib/db/class-tuition-pg'
 import { fetchTeacherIdentity, fetchTeacherPublicNames, saveTeacherIdentity } from '@/lib/db/teacher-identity-pg'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { fetchSubjectNameExtrasPg } from '@/lib/db/name-edit-votes'
@@ -6,6 +10,7 @@ import { SUBJECTS } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { parseExamGradingMeta } from '@/lib/exam-feedback'
+import type { ClassTuitionView } from '@/lib/lop/class-tuition'
 
 export type ClassMemberPayload = {
   userId: string
@@ -50,6 +55,7 @@ export type ClassDetailPayload = {
     grade_level_id: string | null
     subject_label: string | null
     teacher_display_name: string | null
+    class_kind: 'school' | 'tutoring'
   }
   isTeacher: boolean
   isOwner: boolean
@@ -70,6 +76,7 @@ export type ClassDetailPayload = {
   members: ClassMemberPayload[]
   initialExamAttempts: ExamAttemptPayload[]
   initialExamSessions: ExamSessionPayload[]
+  tuition: ClassTuitionView | null
 }
 
 function birthDateOnly(v: unknown): string | null {
@@ -102,13 +109,15 @@ export async function loadClassDetailPayload(
       grade_level_id: string | null
       subject_label: string | null
       teacher_display_name: string | null
+      class_kind: string | null
       school_name: string | null
     }>(
       `select c.id::text, c.name, c.join_code, c.teacher_id::text, c.grade_level_id, c.subject_label,
-              c.teacher_display_name, sch.name as school_name
+              c.teacher_display_name, coalesce(c.class_kind, 'school') as class_kind, sch.name as school_name
        from public.classes c
        left join public.schools sch on sch.id = c.school_id
        where c.id = $1::uuid
+         and c.dissolved_at is null
        limit 1`,
       [classId]
     )
@@ -119,6 +128,17 @@ export async function loadClassDetailPayload(
     const isOwner = cls.teacher_id === userId
     const isSubjectTeacher = classSubjects.some((s) => s.teacher_id === userId)
     const isTeacher = isOwner || isSubjectTeacher
+    if (cls.class_kind === 'tutoring') {
+      if (isTeacher) {
+        const grace = await tutoringTeacherGrace(cls.teacher_id)
+        if (grace.phase === 'lapsed') return null
+        if (grace.phase === 'grace') redirect('/lop')
+      } else {
+        await dissolveLapsedTutoringClasses(cls.teacher_id)
+        const pack = await readTutoringPackage(cls.teacher_id)
+        if (tutoringPackagePhase(pack?.accessEndsAt ?? null, new Date()) === 'lapsed') return null
+      }
+    }
     const schoolName = String(cls.school_name ?? '').trim()
 
     const subjectLabelMap = new Map<string, string>(SUBJECTS.map((s) => [s.id, s.labelVi]))
@@ -393,6 +413,16 @@ export async function loadClassDetailPayload(
       })
     }
 
+    const classKind = cls.class_kind === 'tutoring' ? 'tutoring' : 'school'
+    const tuition =
+      classKind === 'tutoring'
+        ? await loadClassTuitionViewPg({
+            classId,
+            viewerUserId: userId,
+            isOwner,
+          })
+        : null
+
     return {
       cls: {
         id: cls.id,
@@ -402,6 +432,7 @@ export async function loadClassDetailPayload(
         grade_level_id: cls.grade_level_id,
         subject_label: cls.subject_label,
         teacher_display_name: ownerPublicName ?? cls.teacher_display_name,
+        class_kind: classKind,
       },
       isTeacher,
       isOwner,
@@ -421,6 +452,7 @@ export async function loadClassDetailPayload(
       members: mergedMembers,
       initialExamAttempts,
       initialExamSessions,
+      tuition,
     }
   } catch (e) {
     console.error('[load-class-detail-payload]', e)

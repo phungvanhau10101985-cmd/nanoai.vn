@@ -6,7 +6,6 @@ import {
   DOCUMENT_TRANSLATE_GEMINI_CREDITS,
   documentTranslateJobPlan,
 } from '@/lib/document-translate-pricing'
-import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { notifyTranslateImageJobDone, notifyTranslateImageSuccessSmart } from '@/lib/notifications/notify-job-events'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
@@ -226,28 +225,8 @@ async function handleProcessTranslate(request: NextRequest) {
     return NextResponse.json({ error: translateError }, { status: 500 })
   }
 
-  if (engine === 'gpt' && !apiKey) {
-    const errText = 'Thiếu GOOGLE_API_KEY trong cấu hình server'
-    await markTranslateJobFailedPg(resolvedJobId, errText)
-    await notifyTranslateFailed(errText)
-    if (batchId) {
-      const h: Record<string, string> = {}
-      if (secret) h['x-process-secret'] = secret
-      fetch(`${getBaseUrl()}/api/process-translate?batchId=${batchId}`, { headers: h }).catch(() => {})
-    }
-    return NextResponse.json({ error: errText }, { status: 500 })
-  }
-  const ocrClient = apiKey ? new GoogleGenerativeAI(apiKey) : genAI
-  const finalBuffer = await applyPostCheckOcr(resultBuffer, ocrClient, {
-    sourceLang,
-    sourceLang2,
-    targetLang,
-    logPrefix: `[process-translate] job=${resolvedJobId}`,
-    userId,
-  })
-
   const resultPath = `results/${userId}/translate_bg_${Date.now()}.png`
-  const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
+  const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
     contentType: 'image/png',
     upsert: true,
   })

@@ -26,7 +26,6 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
 import { DOCUMENT_TRANSLATE_GEMINI_CREDITS } from '@/lib/document-translate-pricing'
-import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { uploadTryOnImagePublic, downloadTryOnObject } from '@/lib/storage/try-on-public-upload'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
@@ -226,9 +225,8 @@ export async function translateDocumentImage(formData: FormData) {
       return { error: translateError || 'AI không trả về ảnh hợp lệ.' }
     }
 
-    const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
     const resultPath = `results/${user.id}/translate_${Date.now()}.png`
-    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
+    const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
@@ -389,19 +387,12 @@ export async function translatePdfDocument(
       return { error: `Trang ${i + 1}/${pageCount} thất bại: ${translateError || 'AI không trả về ảnh.'}` }
     }
 
-    const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, {
-      sourceLang,
-      targetLang,
-      logPrefix: `[translatePdfDocument] trang ${i + 1}`,
-      userId: user.id,
-    })
-
     const dPage = await deductUserCredits(user.id, COST_PER_PAGE, 'dich-anh-tai-lieu')
     if (!dPage.ok) {
       return { error: dPage.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits trong quá trình xử lý.' : dPage.error }
     }
 
-    translatedBuffers.push(finalBuffer)
+    translatedBuffers.push(resultBuffer)
   }
 
   const { PDFDocument } = await import('pdf-lib')
@@ -609,9 +600,8 @@ export async function translateOneImageFromBatch(
     return { error: translateError || 'AI không trả về ảnh.' }
   }
 
-  const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
   const resultPath = `results/${user.id}/translate_batch_${timestamp}.png`
-  const { publicUrl: batchResultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
+  const { publicUrl: batchResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
     contentType: 'image/png',
     upsert: true,
   })
@@ -697,9 +687,8 @@ export async function translateOneImageFromUrl(
     return { error: translateError || 'AI không trả về ảnh.' }
   }
 
-  const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, { sourceLang, targetLang, userId: user.id })
   const resultPath = `results/${user.id}/translate_excel_${timestamp}.png`
-  const { publicUrl: excelResultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
+  const { publicUrl: excelResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
     contentType: 'image/png',
     upsert: true,
   })
@@ -833,14 +822,8 @@ export async function translateDocumentImageBatch(
       return { error: `Ảnh ${failed}/${images.length} thất bại: ${translateError || 'AI không trả về ảnh.'}` }
     }
 
-    const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, {
-      sourceLang,
-      targetLang,
-      logPrefix: `[translateDocumentImageBatch] ảnh ${i + 1}`,
-      userId: user.id,
-    })
     const resultPath = `results/${user.id}/translate_batch_${batchTimestamp}_${i}.png`
-    const { publicUrl: docBatchResultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
+    const { publicUrl: docBatchResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
@@ -859,7 +842,7 @@ export async function translateDocumentImageBatch(
     if (!insMulti) return { error: 'Không lưu được lịch sử.' }
 
     results.push({ originalUrl: docBatchOriginalPublicUrl, resultUrl: docBatchResultPublicUrl })
-    zipEntries.push({ name: safeZipName(image.name, i), buffer: finalBuffer })
+    zipEntries.push({ name: safeZipName(image.name, i), buffer: resultBuffer })
   }
 
   let zipUrl: string | undefined
@@ -1224,14 +1207,8 @@ export async function translateFromExcel(
       return { error: `Ảnh ${i + 1}/${urls.length} thất bại: ${translateError || 'AI không trả về ảnh.'}` }
     }
 
-    const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, {
-      sourceLang,
-      targetLang,
-      logPrefix: `[translateFromExcel] ảnh ${i + 1}`,
-      userId: user.id,
-    })
     const resultPath = `results/${user.id}/translate_excel_${batchTimestamp}_${i}.png`
-    const { publicUrl: fromExcelResultPublicUrl } = await uploadTryOnImagePublic(resultPath, finalBuffer, {
+    const { publicUrl: fromExcelResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
       upsert: true,
     })
@@ -1256,7 +1233,7 @@ export async function translateFromExcel(
     } catch {
       baseName = `image_${i + 1}`
     }
-    zipEntries.push({ name: safeZipName(baseName, i), buffer: finalBuffer })
+    zipEntries.push({ name: safeZipName(baseName, i), buffer: resultBuffer })
   }
 
   let zipUrl: string | undefined

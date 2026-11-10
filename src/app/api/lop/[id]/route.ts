@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import { deleteClassByOwnerPg } from '@/lib/db/classes-pg'
+import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export async function DELETE(
@@ -13,6 +14,14 @@ export async function DELETE(
 
   if (!isPgConfigured()) {
     return NextResponse.json({ error: 'Chưa cấu hình cơ sở dữ liệu.' }, { status: 503 })
+  }
+
+  const featureBlock = await tutoringClassFeatureBlock(id)
+  if (featureBlock === 'grace') {
+    return NextResponse.json({ error: 'Gói lớp học thêm đã hết hạn. Chỉ xem được danh sách lớp.' }, { status: 403 })
+  }
+  if (featureBlock === 'dissolved') {
+    return NextResponse.json({ error: 'Lớp này đã giải tán.' }, { status: 404 })
   }
 
   const result = await deleteClassByOwnerPg(id, auth.user.id)

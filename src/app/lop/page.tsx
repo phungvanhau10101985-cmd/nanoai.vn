@@ -2,6 +2,8 @@ import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-
 import { getUserOrBypass } from '@/lib/auth'
 import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { fetchClassesAsMemberForUserPg, fetchClassesMineListForTeacherPg } from '@/lib/db/classes-pg'
+import { countLockedTuitionStudentsByClassPg } from '@/lib/db/class-tuition-pg'
+import { listTutoringGraceClassIds } from '@/lib/db/tutoring-package-pg'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import Link from 'next/link'
@@ -26,6 +28,7 @@ function mapMineToClassItem(
     subject_label: c.subject_label,
     teacher_display_name: c.teacher_display_name,
     schools: c.school_name ? { name: c.school_name } : null,
+    classKind: c.class_kind,
   }
 }
 
@@ -39,8 +42,12 @@ export default async function LopPage() {
     )
   }
 
+  const tutoringGrace = await listTutoringGraceClassIds(user.id)
   const myRows = await fetchClassesMineListForTeacherPg(user.id)
   const memberRows = await fetchClassesAsMemberForUserPg(user.id)
+  const unpaidByClassId = await countLockedTuitionStudentsByClassPg(
+    (myRows ?? []).filter((row) => row.class_kind === 'tutoring').map((row) => row.id)
+  )
 
   const myClasses: ClassItem[] = (myRows ?? []).map(mapMineToClassItem)
   const memberClasses: ClassItem[] = (memberRows ?? []).map(mapMineToClassItem)
@@ -86,7 +93,35 @@ export default async function LopPage() {
             </div>
           ) : null}
 
-          <LopClientPage t={t.classes} myClasses={myClasses} memberClasses={memberClasses} />
+          {tutoringGrace.daysLeft != null ? (
+            <div className="mb-4 rounded-xl border border-input bg-card p-4">
+              <p className="text-sm text-foreground">
+                {t.classes.tutoringGraceBanner.replaceAll('{days}', String(tutoringGrace.daysLeft))}
+              </p>
+              <Link href="/account/plan#goi-lop-hoc-them" className="mt-2 inline-block text-sm font-medium text-foreground underline">
+                {t.classes.tutoringGraceRenew}
+              </Link>
+            </div>
+          ) : tutoringGrace.endingDaysLeft != null ? (
+            <div className="mb-4 rounded-xl border border-input bg-card p-4">
+              <p className="text-sm text-foreground">
+                {tutoringGrace.endingDaysLeft === 0
+                  ? t.classes.tutoringPackageEndingToday
+                  : t.classes.tutoringPackageEnding.replaceAll('{days}', String(tutoringGrace.endingDaysLeft))}
+              </p>
+              <Link href="/account/plan#goi-lop-hoc-them" className="mt-2 inline-block text-sm font-medium text-foreground underline">
+                {t.classes.tutoringGraceRenew}
+              </Link>
+            </div>
+          ) : null}
+
+          <LopClientPage
+            t={t.classes}
+            myClasses={myClasses}
+            memberClasses={memberClasses}
+            lockedClassIds={tutoringGrace.classIds}
+            unpaidByClassId={unpaidByClassId}
+          />
         </div>
       </CreationToolPageShell>
     </div>

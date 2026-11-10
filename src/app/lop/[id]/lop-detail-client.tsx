@@ -28,6 +28,8 @@ import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-loca
 import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { useToast } from '@/hooks/use-toast'
 import { classSubjectLabel } from '@/lib/lop/class-subject'
+import type { ClassTuitionView } from '@/lib/lop/class-tuition'
+import { ClassTuitionPanel } from './class-tuition-panel'
 import { createFromClassHref } from '@/lib/lop/create-from-class-href'
 import { Toaster } from '@/components/ui/toaster'
 import {
@@ -576,6 +578,7 @@ export default function LopDetailClient({
   showClassHomeLink = false,
   focusSubject = null,
   subjectInbox = null,
+  tuition = null,
   webLocale,
   t,
 }: {
@@ -588,6 +591,7 @@ export default function LopDetailClient({
     subjectNames?: string[]
     subjectLabel?: string | null
     teacherDisplayName?: string | null
+    classKind?: 'school' | 'tutoring'
   }
   isTeacher: boolean
   isOwner?: boolean
@@ -610,6 +614,7 @@ export default function LopDetailClient({
   showClassHomeLink?: boolean
   focusSubject?: { subjectId: string; teacherId: string } | null
   subjectInbox?: StudentSubjectInbox | null
+  tuition?: ClassTuitionView | null
   webLocale: WebLocale
   t: Dictionary['classes']
 }) {
@@ -1286,6 +1291,11 @@ export default function LopDetailClient({
               >
                 {isTeacher ? t.memberRoleTeacher : t.memberRoleStudent}
               </span>
+              {cls.classKind === 'tutoring' ? (
+                <span className="inline-flex shrink-0 items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-950 dark:text-amber-100">
+                  {t.classKindTutoringBadge}
+                </span>
+              ) : null}
               {!isTeacher ? (
                 <Button
                   type="button"
@@ -1742,6 +1752,16 @@ export default function LopDetailClient({
             {focusSubject ? t.classSubjectBack : t.classPageBackToClass}
           </Button>
         </div>
+      ) : null}
+
+      {tuition && (pageMode === 'hub' || pageMode === 'roster') && !subjectScreenOpen ? (
+        <ClassTuitionPanel
+          classId={cls.id}
+          view={tuition}
+          isOwner={isOwner}
+          pageMode={pageMode}
+          t={t}
+        />
       ) : null}
 
       {pageMode === 'hub' && isTeacher && openedClassSubject ? (

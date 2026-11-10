@@ -9,6 +9,9 @@ import { createClass } from '../actions'
 import { renameSavedSchool, savePickedSchool, useSchoolSearch, voteSavedSchool, type SchoolSearchHit } from '@/hooks/use-school-search'
 import { SchoolNameOptions } from '@/components/school/school-name-options'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { parseBillingDay, parseDueDays, parseTuitionAmount, readTutoringTuitionFields } from '@/lib/lop/class-tuition'
+import { TutoringTuitionFields, type TutoringTuitionFieldValues } from '../tutoring-tuition-fields'
+import { cn } from '@/lib/utils'
 
 export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   const [name, setName] = useState('')
@@ -30,6 +33,16 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   const [addingSchool, setAddingSchool] = useState(false)
   const [subjectFacing, setSubjectFacing] = useState('')
   const [teacherFacing, setTeacherFacing] = useState('')
+  const [classKind, setClassKind] = useState<'school' | 'tutoring'>('school')
+  const [tuitionFields, setTuitionFields] = useState<TutoringTuitionFieldValues>({
+    amount: '',
+    days: '',
+    billingDay: '',
+    bankBin: '',
+    bankName: '',
+    accountNo: '',
+    accountName: '',
+  })
   const { toast } = useToast()
 
   useEffect(() => {
@@ -134,14 +147,39 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
     e.preventDefault()
     if (loading) return
     if (!name.trim()) return
-    if (!selectedSchoolId) {
+    if (classKind === 'school' && !selectedSchoolId) {
       toast({ variant: 'destructive', description: t.createClassSchoolRequired })
+      return
+    }
+    const tuition = classKind === 'tutoring' ? readTutoringTuitionFields(tuitionFields) : null
+    if (classKind === 'tutoring' && !tuition) {
+      toast({
+        variant: 'destructive',
+        description:
+          parseTuitionAmount(tuitionFields.amount) == null
+            ? t.tutoringAmountInvalid
+            : parseDueDays(tuitionFields.days) == null
+              ? t.tutoringDaysInvalid
+              : parseBillingDay(tuitionFields.billingDay) == null
+                ? t.tutoringBillingDayInvalid
+                : t.tutoringBankInvalid,
+      })
       return
     }
     setLoading(true)
     const formData = new FormData()
     formData.set('name', name.trim())
-    formData.set('schoolId', selectedSchoolId)
+    formData.set('classKind', classKind)
+    if (classKind === 'school') formData.set('schoolId', selectedSchoolId)
+    if (tuition) {
+      formData.set('tuitionMonthlyVnd', String(tuition.monthlyVnd))
+      formData.set('tuitionDueAfterDays', String(tuition.dueAfterDays))
+      formData.set('tuitionBillingDay', String(tuition.billingDay))
+      formData.set('tuitionBankBin', tuition.bankBin)
+      formData.set('tuitionBankName', tuition.bankName)
+      formData.set('tuitionAccountNo', tuition.accountNo)
+      formData.set('tuitionAccountName', tuition.accountName)
+    }
     formData.set('subjectLabel', subjectFacing.trim())
     formData.set('teacherDisplayName', teacherFacing.trim())
     const res = await createClass(formData)
@@ -243,8 +281,37 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   return (
     <>
       <Toaster />
-      <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{t.createClassSchoolHint}</p>
+      <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+        {classKind === 'tutoring' ? t.classKindTutoringHint : t.classKindSchoolHint}
+      </p>
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            aria-pressed={classKind === 'school'}
+            disabled={loading}
+            onClick={() => setClassKind('school')}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-left text-sm font-medium',
+              classKind === 'school' ? 'border-primary bg-primary/10 text-foreground' : 'border-input bg-background'
+            )}
+          >
+            {t.classKindSchool}
+          </button>
+          <button
+            type="button"
+            aria-pressed={classKind === 'tutoring'}
+            disabled={loading}
+            onClick={() => setClassKind('tutoring')}
+            className={cn(
+              'rounded-lg border px-3 py-2 text-left text-sm font-medium',
+              classKind === 'tutoring' ? 'border-primary bg-primary/10 text-foreground' : 'border-input bg-background'
+            )}
+          >
+            {t.classKindTutoring}
+          </button>
+        </div>
+        {classKind === 'school' ? (
         <div className="space-y-2 rounded-xl border border-input bg-muted/20 p-4">
           <label htmlFor="school" className="block text-sm font-medium text-foreground">
             {t.schoolLabel} <span className="text-destructive">*</span>
@@ -317,6 +384,17 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
             </p>
           ) : null}
         </div>
+        ) : (
+          <div className="space-y-2 rounded-xl border border-input bg-muted/20 p-4">
+            <TutoringTuitionFields
+              idPrefix="create-class"
+              values={tuitionFields}
+              onChange={setTuitionFields}
+              disabled={loading}
+              t={t}
+            />
+          </div>
+        )}
 
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
@@ -362,7 +440,11 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
             className="w-full"
           />
         </div>
-        <Button type="submit" disabled={loading || !selectedSchoolId} className="w-full">
+        <Button
+          type="submit"
+          disabled={loading || (classKind === 'school' ? !selectedSchoolId : !readTutoringTuitionFields(tuitionFields))}
+          className="w-full"
+        >
           {loading ? '...' : t.createClass}
         </Button>
       </form>

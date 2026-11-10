@@ -43,6 +43,15 @@ export async function listTeachClassesForSubjectPg(
      left join public.schools sch on sch.id = c.school_id
      where cs.teacher_id = $1::uuid
        and cs.subject_id = $2
+       and c.dissolved_at is null
+       and (
+         coalesce(c.class_kind, 'school') <> 'tutoring'
+         or not exists (
+           select 1 from public.teacher_tutoring_packages p
+           where p.user_id = c.teacher_id
+             and p.access_ends_at <= now()
+         )
+       )
      order by c.name asc`,
     [teacherId, subject]
   )

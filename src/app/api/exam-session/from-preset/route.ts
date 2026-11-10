@@ -14,6 +14,7 @@ import {
 import { fetchExamPresetSourcePg, findTeacherExamCopyPg } from '@/lib/db/exam-preset-pg'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
 import { notifyClassStudentsOfAssignment } from '@/lib/lop/notify-class-assignment'
+import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ALLOWED_EXAM_TYPES = new Set(['15ph', '1tiet', 'hocky', 'totnghiep'])
@@ -56,6 +57,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu đề hoặc lớp.' }, { status: 400 })
     }
 
+    const featureBlock = await tutoringClassFeatureBlock(classId)
+    if (featureBlock === 'grace') {
+      return NextResponse.json({ error: 'Gói lớp học thêm đã hết hạn. Chỉ xem được danh sách lớp.' }, { status: 403 })
+    }
+    if (featureBlock === 'dissolved') {
+      return NextResponse.json({ error: 'Lớp này đã giải tán.' }, { status: 404 })
+    }
+
     const cls = await fetchClassForAttachExamPg(classId, user.id)
     if (cls === null) return NextResponse.json({ error: 'Không thể đọc lớp.' }, { status: 503 })
     if (cls === 'not_found') return NextResponse.json({ error: 'Không tìm thấy lớp.' }, { status: 404 })
@@ -71,7 +80,8 @@ export async function POST(req: NextRequest) {
       classId,
       lineageRootId,
     })
-    const schoolId = cls.school_id ? String(cls.school_id) : requestedSchoolId || null
+    const schoolId =
+      cls.class_kind === 'tutoring' ? null : cls.school_id ? String(cls.school_id) : requestedSchoolId || null
     if (existing?.code) {
       return NextResponse.json({
         success: true,

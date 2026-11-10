@@ -120,7 +120,7 @@ export async function insertExamSessionCreatePg(params: {
   subjectId: string
   gradeLevelId: string
   classId: string
-  schoolId: string
+  schoolId: string | null
   durationMinutes: number
   minutesPerQuestion: number
   config: Record<string, unknown>
@@ -239,6 +239,7 @@ export type ClassAttachRowPg = {
   school_id: string | null
   name: string | null
   school_name: string | null
+  class_kind: string
 }
 
 export async function fetchClassForAttachExamPg(
@@ -253,8 +254,10 @@ export async function fetchClassForAttachExamPg(
       school_id: string | null
       name: string | null
       school_name: string | null
+      class_kind: string
     }>(
-      `select c.id::text, c.teacher_id::text, c.school_id::text, c.name, sch.name as school_name
+      `select c.id::text, c.teacher_id::text, c.school_id::text, c.name, sch.name as school_name,
+              coalesce(c.class_kind, 'school') as class_kind
        from public.classes c
        left join public.schools sch on sch.id = c.school_id
        where c.id = $1::uuid
@@ -270,6 +273,7 @@ export async function fetchClassForAttachExamPg(
       school_id: row.school_id,
       name: row.name,
       school_name: row.school_name,
+      class_kind: row.class_kind,
     }
   } catch (e) {
     console.error('[exam-session-admin-pg] fetchClassForAttachExamPg', e)
