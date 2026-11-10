@@ -266,6 +266,7 @@ export async function processInventoryProduct(opts: {
   }
 
   const patched = applyImageLocResultsToRow(row, results)
+  const clearImageEmbedding = normalizeImageUrl(row.image_url) !== normalizeImageUrl(patched.image_url)
   const info = asInfoObject(row.product_info_json)
   const loc = asInfoObject(info.image_localization)
   loc.language = opts.ctx.language
@@ -335,6 +336,7 @@ export async function processInventoryProduct(opts: {
     productInfoJson: info,
     writeImageConsultContext,
     imageConsultContext,
+    clearImageEmbedding,
   }), 'Lưu ảnh bản địa hóa sau retry DB')
 
   return {

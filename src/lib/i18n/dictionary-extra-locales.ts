@@ -2334,7 +2334,7 @@ const EN_DICTIONARY: Dictionary = {
     inventoryEmbeddingSyncDoneTitle: 'Inventory embedding sync completed',
     inventoryEmbeddingSyncDoneBody: 'Processed {synced} item(s) (image + text). Failed {failed}.',
     inventoryEmbeddingAutoHint:
-      'In the browser: back-to-back batches while Messaging → AI settings stays open; closing the tab stops it. For 24/7 background runs: enable cron — on Vercel use vercel.json + CRON_SECRET and MESSAGING_INVENTORY_EMBED_CRON_SECRET; or use system crontab to POST /api/cron/messaging-inventory-embed-backfill. See .env.example.',
+      'In the browser: back-to-back batches while Messaging → AI settings stays open; closing the tab stops it. For 24/7 background runs: enable cron — on Vercel use vercel.json + CRON_SECRET and MESSAGING_INVENTORY_EMBED_CRON_SECRET; or use system crontab to POST /api/cron/messaging-inventory-embed-backfill. See .env.example. Image vectors are created only after the product is localized (localized or skipped).',
     inventoryTextEmbeddingTitle: 'Text embedding progress',
     inventoryTextEmbeddingSummary: 'Embedded {done}/{eligible}. Pending {pending}. Errors {failed}.',
     inventoryTextEmbeddingAutoHint:
@@ -6961,7 +6961,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryEmbeddingSyncDoneTitle: '库存向量同步已完成',
     inventoryEmbeddingSyncDoneBody: '已处理 {synced} 项（图片 + 文本）。失败 {failed}。',
     inventoryEmbeddingAutoHint:
-      '在「消息 → AI 设置」页保持打开时会自动连续分批同步（约每批 1200 张）；关闭标签即停止。若需后台持续处理：请配置 cron 定期 POST /api/cron/messaging-inventory-embed-backfill（Bearer MESSAGING_INVENTORY_EMBED_CRON_SECRET），见 .env.example。',
+      '在「消息 → AI 设置」页保持打开时会自动连续分批同步（约每批 1200 张）；关闭标签即停止。若需后台持续处理：请配置 cron 定期 POST /api/cron/messaging-inventory-embed-backfill（Bearer MESSAGING_INVENTORY_EMBED_CRON_SECRET），见 .env.example。图片向量仅在商品完成本地化后创建（localized 或 skipped）。',
     inventoryTextEmbeddingTitle: '文本向量进度',
     inventoryTextEmbeddingSummary: '已完成 {done}/{eligible}。待处理 {pending}。错误 {failed}。',
     inventoryTextEmbeddingAutoHint:
@@ -11545,7 +11545,7 @@ const JA_DICTIONARY: Dictionary = {
     inventoryEmbeddingSyncDoneTitle: '在庫ベクトル同期が完了しました',
     inventoryEmbeddingSyncDoneBody: '{synced}件を処理（画像+テキスト）。失敗 {failed}。',
     inventoryEmbeddingAutoHint:
-      'Messaging → AI 設定ページを開いている間、自動で連続バッチ（約1200件ずつ）が走ります。タブを閉じると止まります。常時バックグラウンドで処理する場合は、cron で POST /api/cron/messaging-inventory-embed-backfill（Bearer MESSAGING_INVENTORY_EMBED_CRON_SECRET）を用意してください。.env.example を参照。',
+      'Messaging → AI 設定ページを開いている間、自動で連続バッチ（約1200件ずつ）が走ります。タブを閉じると止まります。常時バックグラウンドで処理する場合は、cron で POST /api/cron/messaging-inventory-embed-backfill（Bearer MESSAGING_INVENTORY_EMBED_CRON_SECRET）を用意してください。.env.example を参照。画像ベクトルは現地化済み（localized または skipped）の商品だけ作成します。',
     inventoryTextEmbeddingTitle: 'テキストベクトル進捗',
     inventoryTextEmbeddingSummary: '完了 {done}/{eligible}。未処理 {pending}。エラー {failed}。',
     inventoryTextEmbeddingAutoHint:
@@ -16174,7 +16174,7 @@ const KO_DICTIONARY: Dictionary = {
     inventoryEmbeddingSyncDoneTitle: '재고 벡터 동기화 완료',
     inventoryEmbeddingSyncDoneBody: '{synced}개 처리(이미지+텍스트). 실패 {failed}.',
     inventoryEmbeddingAutoHint:
-      'Messaging → AI 설정 페이지를 연 상태에서 자동으로 연속 배치(약 1200개)가 실행됩니다. 탭을 닫으면 중지됩니다. 백그라운드 상시 처리는 cron으로 POST /api/cron/messaging-inventory-embed-backfill(Bearer MESSAGING_INVENTORY_EMBED_CRON_SECRET)을 구성하세요. .env.example 참고.',
+      'Messaging → AI 설정 페이지를 연 상태에서 자동으로 연속 배치(약 1200개)가 실행됩니다. 탭을 닫으면 중지됩니다. 백그라운드 상시 처리는 cron으로 POST /api/cron/messaging-inventory-embed-backfill(Bearer MESSAGING_INVENTORY_EMBED_CRON_SECRET)을 구성하세요. .env.example 참고. 이미지 벡터는 현지화가 끝난 상품(localized 또는 skipped)만 만듭니다.',
     inventoryTextEmbeddingTitle: '텍스트 벡터 진행률',
     inventoryTextEmbeddingSummary: '완료 {done}/{eligible}. 대기 {pending}. 오류 {failed}.',
     inventoryTextEmbeddingAutoHint:

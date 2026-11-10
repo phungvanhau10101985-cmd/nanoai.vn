@@ -13,6 +13,7 @@ import {
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { catalogContentId } from '@/lib/messaging/catalog-content-id'
+import { inventoryImageEmbedLocalizedSql } from '@/lib/messaging/inventory-image-embedding-gate'
 import {
   computePartnerCategoryFacetSnapshotFromPg,
   computePartnerDependentFacetsFromPg,
@@ -3570,7 +3571,8 @@ export async function fetchPartnerInventorySliceForEmbeddingSyncFromPg(
          and (
            trim(coalesce(mpi.image_url, '')) ~* '^https?://'
            or trim(coalesce(mpi.image_url, '')) like '//%'
-         )`
+         )
+         and ${inventoryImageEmbedLocalizedSql()}`
       : `and coalesce(mpi.is_active, true)
          and (
            trim(coalesce(mpi.name, '')) <> ''
@@ -4526,6 +4528,7 @@ export async function fetchPartnerInventoryEmbeddingStatsFromPg(
              trim(coalesce(image_url, '')) ~* '^https?://'
              or trim(coalesce(image_url, '')) like '//%'
            )
+           and ${inventoryImageEmbedLocalizedSql('')}
        )
        select
          (select count(*)::bigint from inv) as total,

@@ -10,6 +10,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { fetchRemoteImageForCatalog, sniffImageContentType } from '@/lib/fetch-image-1688'
 import type { Database } from '@/types/database.types'
 import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
+import { inventoryImageReadyForImageEmbedding } from '@/lib/messaging/inventory-image-embedding-gate'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 const DB_VECTOR_DIMS = 768
@@ -65,6 +66,7 @@ function rowAsEmbeddingComparable(
         | 'image_embedding_dims'
         | 'image_embedding_vec'
         | 'image_embedding_error'
+        | 'image_localization_status'
       >
     >
 ): InvRow {
@@ -100,6 +102,7 @@ function rowAsEmbeddingComparable(
     image_embedding_vec: row.image_embedding_vec ?? null,
     image_embedding_updated_at: null,
     image_embedding_error: row.image_embedding_error ?? null,
+    image_localization_status: row.image_localization_status ?? undefined,
     text_embedding_json: null,
     text_embedding_vec: null,
     text_embedding_model: null,
@@ -163,12 +166,14 @@ type EmbeddingComparableRow = Pick<
   | 'image_embedding_dims'
   | 'image_embedding_vec'
   | 'image_embedding_error'
+  | 'image_localization_status'
 >
 
 function needsEmbeddingSync(row: EmbeddingComparableRow, force = false): boolean {
   const imageUrl = normalizeImageUrl(row.image_url)
   if (!row.is_active) return false
   if (!isHttpImageUrl(imageUrl)) return false
+  if (!inventoryImageReadyForImageEmbedding(row.image_localization_status)) return false
   if (force) return true
   if (String(row.image_embedding_error ?? '').trim()) return true
   const nextFp = rowFingerprint(row)

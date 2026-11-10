@@ -370,6 +370,8 @@ export async function applyImageLocProductResultFromPg(opts: {
   productInfoJson?: unknown
   writeImageConsultContext?: boolean
   imageConsultContext?: unknown
+  /** Ảnh chính đổi sau bản địa hóa — xóa vector ảnh cũ để lần đồng bộ sau nhúng ảnh đã dịch. */
+  clearImageEmbedding?: boolean
 }): Promise<void> {
   if (!isPgConfigured()) return
   const params = [
@@ -384,6 +386,7 @@ export async function applyImageLocProductResultFromPg(opts: {
     opts.detailImageUrls != null ? JSON.stringify(opts.detailImageUrls) : null,
     opts.materialDetailImageUrl ?? null,
     opts.productInfoJson != null ? JSON.stringify(opts.productInfoJson) : null,
+    opts.clearImageEmbedding === true,
   ]
   const sql = `update public.messaging_partner_inventory set
        image_localization_status = $3,
@@ -396,6 +399,13 @@ export async function applyImageLocProductResultFromPg(opts: {
        detail_image_urls = coalesce($9::jsonb, detail_image_urls),
        material_detail_image_url = coalesce($10, material_detail_image_url),
        product_info_json = coalesce($11::jsonb, product_info_json),
+       image_embedding_json = case when $12::boolean then null else image_embedding_json end,
+       image_embedding_fingerprint = case when $12::boolean then null else image_embedding_fingerprint end,
+       image_embedding_model = case when $12::boolean then null else image_embedding_model end,
+       image_embedding_dims = case when $12::boolean then null else image_embedding_dims end,
+       image_embedding_vec = case when $12::boolean then null else image_embedding_vec end,
+       image_embedding_updated_at = case when $12::boolean then null else image_embedding_updated_at end,
+       image_embedding_error = case when $12::boolean then null else image_embedding_error end,
        updated_at = now()
      where partner_id = $1::uuid and id = $2::uuid`
   if (opts.writeImageConsultContext) {
@@ -404,7 +414,7 @@ export async function applyImageLocProductResultFromPg(opts: {
         sql.replace(
           'product_info_json = coalesce($11::jsonb, product_info_json),',
           `product_info_json = coalesce($11::jsonb, product_info_json),
-       image_consult_context = coalesce($12::jsonb, image_consult_context),`
+       image_consult_context = coalesce($13::jsonb, image_consult_context),`
         ),
         [...params, opts.imageConsultContext == null ? null : JSON.stringify(opts.imageConsultContext)]
       )

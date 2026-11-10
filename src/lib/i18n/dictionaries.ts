@@ -7071,7 +7071,7 @@ export const VI_DICTIONARY: Dictionary = {
     inventoryEmbeddingSyncDoneTitle: 'Đã chạy đồng bộ vector kho',
     inventoryEmbeddingSyncDoneBody: 'Đã xử lý {synced} mục (ảnh + văn bản). Lỗi {failed}.',
     inventoryEmbeddingAutoHint:
-      'Trên trình duyệt: tự chạy nối nhiều lô khi trang Messaging → Cài đặt AI đang mở; đóng tab thì dừng. Chạy ngầm 24/7: bật cron — deploy Vercel (file vercel.json, biến CRON_SECRET + MESSAGING_INVENTORY_EMBED_CRON_SECRET) hoặc crontab curl POST /api/cron/messaging-inventory-embed-backfill — chi tiết .env.example.',
+      'Trên trình duyệt: tự chạy nối nhiều lô khi trang Messaging → Cài đặt AI đang mở; đóng tab thì dừng. Chạy ngầm 24/7: bật cron — deploy Vercel (file vercel.json, biến CRON_SECRET + MESSAGING_INVENTORY_EMBED_CRON_SECRET) hoặc crontab curl POST /api/cron/messaging-inventory-embed-backfill — chi tiết .env.example. Vector ảnh chỉ tạo sau khi sản phẩm đã bản địa hóa (localized hoặc skipped).',
     inventoryTextEmbeddingTitle: 'Tiến độ tạo vector văn bản',
     inventoryTextEmbeddingSummary: 'Đã tạo {done}/{eligible}. Còn thiếu {pending}. Lỗi {failed}.',
     inventoryTextEmbeddingAutoHint:
