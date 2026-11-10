@@ -25,6 +25,7 @@ import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
 import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { publicGeminiImageName, publicGptImageName } from '@/lib/ai/nanoai-image-names'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GarmentUploader } from './garment-uploader'
 import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
@@ -41,12 +42,10 @@ type Gender = 'male' | 'female' | 'unknown'
 
 function tryOnModelLabel(
   engine: ImageEngine,
-  geminiName: string,
-  gptName: string,
   geminiQuality: '2K' | '4K',
   gptQuality: GptImageQuality,
 ): string {
-  return engine === 'gpt' ? `${gptName} · ${gptQuality}` : `${geminiName} · ${geminiQuality}`
+  return engine === 'gpt' ? publicGptImageName(gptQuality) : publicGeminiImageName(geminiQuality)
 }
 
 type TryOnMode = 'single' | 'couple' | 'group' | 'group4' | 'group5'
@@ -99,7 +98,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     return vi
   }
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
-  const modelLabel = tryOnModelLabel(imageEngine, genClient.imageEngineGemini, genClient.imageEngineGpt, imageQuality, gptQuality)
+  const modelLabel = tryOnModelLabel(imageEngine, imageQuality, gptQuality)
   const subtitle = {
     single: tr('Thử đồ 1 người với AI', 'AI try-on for 1 person', 'AI 单人试衣', 'AI 1人試着', 'AI 1인 가상피팅'),
     couple: tr('Thử đồ 2 người với AI', 'AI try-on for 2 people', 'AI 双人试衣', 'AI 2人試着', 'AI 2인 가상피팅'),

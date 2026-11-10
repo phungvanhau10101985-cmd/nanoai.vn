@@ -1,24 +1,32 @@
-import { Metadata } from 'next'
-import dynamic from 'next/dynamic'
-import { FeatureCatalogPriceLine } from '@/components/catalog/feature-catalog-price-line'
+import { LanguageLearningLanding } from '@/components/hoc-ngoai-ngu/language-landing'
+import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
+import { getUserOrBypass } from '@/lib/auth'
+import { listLanguageCoachReviews } from '@/lib/hoc-ngoai-ngu/reviews'
+import { getFeatureSeo } from '@/lib/feature-seo'
 import { buildMetadata } from '@/lib/seo'
+import type { Metadata } from 'next'
 
-const HocTiengAnhAiClientPage = dynamic(() => import('./hoc-tieng-anh-ai-client-page'), { ssr: false })
-
-export const metadata: Metadata = buildMetadata({
-  title: 'Học ngoại ngữ tương tác với giáo viên AI bản địa | NanoAI',
-  description:
-    'Luyện nói tiếng Anh tương tác trực tiếp với giáo viên AI bản địa (Anh/Mỹ, nam/nữ), sửa lỗi ngữ pháp và phát âm theo từng lượt hội thoại.',
-  path: '/hoc-tieng-anh-ai',
-  keywords: ['học tiếng anh ai', 'luyện nói tiếng anh', 'giáo viên ai bản địa', 'sửa phát âm tiếng anh'],
+const seo = getFeatureSeo('hoc-tieng-anh-ai')
+const pageMeta = buildMetadata({
+  title: seo.pageTitle,
+  description: seo.pageDescription,
+  path: seo.path,
+  keywords: seo.keywords,
 })
 
-export default function HocTiengAnhAiPage() {
+export const metadata: Metadata = {
+  ...pageMeta,
+  title: { absolute: `${seo.pageTitle} | NanoAI` },
+  openGraph: pageMeta.openGraph ? { ...pageMeta.openGraph, title: `${seo.pageTitle} | NanoAI` } : undefined,
+  twitter: pageMeta.twitter ? { ...pageMeta.twitter, title: `${seo.pageTitle} | NanoAI` } : undefined,
+}
+
+export default async function HocTiengAnhAiPage() {
+  const user = await getUserOrBypass()
+  const reviews = await listLanguageCoachReviews()
   return (
     <div className="app-shell">
-      <FeatureCatalogPriceLine path="/hoc-tieng-anh-ai" withSchema />
-      <HocTiengAnhAiClientPage />
+      <LanguageLearningLanding reviews={reviews} signedIn={isCatalogShopper(user)} />
     </div>
   )
 }
-

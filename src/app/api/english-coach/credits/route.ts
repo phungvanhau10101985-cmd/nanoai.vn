@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForCreditAction } from '@/lib/auth'
-import { spendCreditsIdempotent } from '@/lib/db/credits-balance'
+import { getCreditBalanceByUserId, spendCreditsIdempotent } from '@/lib/db/credits-balance'
+import {
+  pgCountFreeLiveStarts,
+  pgReadLiveStartAmount,
+  pgTryGrantFreeLiveStart,
+} from '@/lib/db/language-coach-free-live'
 import {
   pgCountLanguageCoachCreditEvents,
   pgCountLanguageCoachStudentTurns,
   pgHasLanguageCoachCreditEvent,
   pgReadTurnsUsedFromSessionMemory,
 } from '@/lib/db/language-coach-credits-read'
+import { FREE_LIVE_LESSON_LIMIT } from '@/lib/english-coach-free-lessons'
+import { isGuestTrialUser } from '@/lib/guest-credit-trial'
 
 const LIVE_SESSION_PRICE_CREDITS = 3.5
 const LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS = 1.75
@@ -60,24 +67,78 @@ export async function POST(request: NextRequest) {
     const turnsUsedFromMemory = await pgReadTurnsUsedFromSessionMemory(user.id, sessionId)
     const studentTurns = turnsUsedFromMemory ?? (await pgCountLanguageCoachStudentTurns(user.id, sessionId))
     const turnLimit = LIVE_SESSION_BASE_TURN_LIMIT + liveUnlockCount * LIVE_SESSION_EXTRA_TURN_STEP
+    const guestTrial = await isGuestTrialUser(user.id)
+    const freeLiveUsed = guestTrial ? 0 : await pgCountFreeLiveStarts(user.id)
+    const freeLiveRemaining = guestTrial ? 0 : Math.max(0, FREE_LIVE_LESSON_LIMIT - freeLiveUsed)
+    const liveStartAmount = liveStartCharged ? await pgReadLiveStartAmount(user.id, sessionId) : null
 
     if (action === 'status') {
       return NextResponse.json({
         ok: true,
         sessionId,
         liveStartCharged,
+        liveStartFree: liveStartAmount === 0,
         liveUnlockCount,
         studentTurns,
         turnLimit,
+        freeLiveRemaining,
+        freeLiveLoginRequired: guestTrial,
         prices: {
           liveStart: LIVE_SESSION_PRICE_CREDITS,
           liveUnlockStep: LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS,
           presetStart: PRESET_SESSION_PRICE_CREDITS,
+          freeLiveLessons: FREE_LIVE_LESSON_LIMIT,
         },
       })
     }
 
     if (action === 'charge_live_start') {
+      if (guestTrial) {
+        return NextResponse.json(
+          {
+            error: 'Đăng nhập để học 2 buổi live miễn phí.',
+            code: 'LOGIN_REQUIRED_FREE_LIVE',
+          },
+          { status: 401 }
+        )
+      }
+      const grant = await pgTryGrantFreeLiveStart({
+        userId: user.id,
+        sessionId,
+        eventKey: `english-coach:live:start:${sessionId}`,
+      })
+      const balance = await getCreditBalanceByUserId(user.id)
+      const remainingAfter = Math.max(0, FREE_LIVE_LESSON_LIMIT - grant.freeUsed)
+      if (grant.status === 'granted' || (grant.status === 'already' && grant.amount === 0)) {
+        return NextResponse.json({
+          ok: true,
+          charged: grant.status === 'granted',
+          alreadyCharged: grant.status === 'already',
+          free: true,
+          freeLiveRemaining: remainingAfter,
+          newBalance: balance,
+          liveStartCharged: true,
+          liveStartFree: true,
+          liveUnlockCount,
+          studentTurns,
+          turnLimit,
+        })
+      }
+      if (grant.status === 'already') {
+        return NextResponse.json({
+          ok: true,
+          charged: false,
+          alreadyCharged: true,
+          free: false,
+          freeLiveRemaining: remainingAfter,
+          newBalance: balance,
+          liveStartCharged: true,
+          liveStartFree: false,
+          liveUnlockCount,
+          studentTurns,
+          turnLimit,
+        })
+      }
       const charged = await chargeIdempotent({
         userId: user.id,
         amount: LIVE_SESSION_PRICE_CREDITS,
@@ -108,8 +169,11 @@ export async function POST(request: NextRequest) {
         ok: true,
         charged: !charged.alreadyApplied,
         alreadyCharged: charged.alreadyApplied,
+        free: false,
+        freeLiveRemaining: remainingAfter,
         newBalance: charged.newBalance,
         liveStartCharged: true,
+        liveStartFree: false,
         liveUnlockCount,
         studentTurns,
         turnLimit,

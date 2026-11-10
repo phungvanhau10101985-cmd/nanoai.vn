@@ -187,6 +187,38 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
     '과외',
   ],
   '/lop': ['lớp học', 'classroom'],
+  '/hoc-tieng-viet': [
+    'học tiếng việt',
+    'hoc tieng viet',
+    'learn vietnamese',
+    '学越南语',
+    'ベトナム語',
+    '베트남어',
+  ],
+  '/hoc-tieng-trung': [
+    'học tiếng trung',
+    'hoc tieng trung',
+    'learn chinese',
+    '学中文',
+    '中国語',
+    '중국어',
+  ],
+  '/hoc-tieng-nhat': [
+    'học tiếng nhật',
+    'hoc tieng nhat',
+    'learn japanese',
+    '学日语',
+    '日本語',
+    '일본어',
+  ],
+  '/hoc-tieng-han': [
+    'học tiếng hàn',
+    'hoc tieng han',
+    'learn korean',
+    '学韩语',
+    '韓国語',
+    '한국어',
+  ],
   '/hoc-tieng-anh-ai': [
     'học tiếng anh',
     'hoc tieng anh',
@@ -393,6 +425,102 @@ export function matchCatalogPhotoExportFlow(
 /** Teaching / curriculum topics — standalone «Tạo giáo trình» must match one of these (not bare «tạo …»). */
 const CURRICULUM_TOPIC_MARKERS =
   /giáo trình|giao trinh|giảng dạy|giang day|dạy học|day hoc|bài giảng|bai giang|lesson plan|curriculum|sgk|sách giáo khoa|sach giao khoa|môn học|mon hoc|tiết học|tiet hoc|phiếu bài tập|phieu bai tap|bài tập về nhà|bai tap ve nha|lớp học|lop hoc|worksheet|slide bài|slide bai/i
+
+/** Câu học tiếng Việt cho người nước ngoài → trang riêng, không mở trang ngoại ngữ chung. */
+export const LEARN_VIETNAMESE_TOPIC_MARKERS =
+  /học tiếng việt|hoc tieng viet|learn vietnamese|学越南语|ベトナム語|베트남어/i
+
+export function isLearnVietnameseIntent(message: string): boolean {
+  const text = message.trim()
+  if (!text || CURRICULUM_TOPIC_MARKERS.test(text)) return false
+  return LEARN_VIETNAMESE_TOPIC_MARKERS.test(text)
+}
+
+/** Câu học tiếng Trung → trang riêng, không mở trang ngoại ngữ chung. */
+export const LEARN_CHINESE_TOPIC_MARKERS =
+  /học tiếng trung|hoc tieng trung|learn chinese|学中文|中国語|중국어/i
+
+export function isLearnChineseIntent(message: string): boolean {
+  const text = message.trim()
+  if (!text || CURRICULUM_TOPIC_MARKERS.test(text)) return false
+  return LEARN_CHINESE_TOPIC_MARKERS.test(text)
+}
+
+export function matchLearnChineseFlow(
+  locale: WebLocale
+): Extract<HubFeatureFlowMatch, { kind: 'standalone' }> | null {
+  const entry = getStandaloneFeatureByHref(locale, '/hoc-tieng-trung')
+  if (!entry) return null
+  return {
+    kind: 'standalone',
+    href: entry.href,
+    labelKey: entry.labelKey as ToolKey,
+    label: entry.label,
+    score: 100,
+  }
+}
+
+/** Câu học tiếng Nhật → trang riêng, không mở trang ngoại ngữ chung. */
+export const LEARN_JAPANESE_TOPIC_MARKERS =
+  /học tiếng nhật|hoc tieng nhat|learn japanese|学日语|日本語|일본어/i
+
+export function isLearnJapaneseIntent(message: string): boolean {
+  const text = message.trim()
+  if (!text || CURRICULUM_TOPIC_MARKERS.test(text)) return false
+  return LEARN_JAPANESE_TOPIC_MARKERS.test(text)
+}
+
+/** Câu học tiếng Hàn → trang riêng, không mở trang ngoại ngữ chung. */
+export const LEARN_KOREAN_TOPIC_MARKERS =
+  /học tiếng hàn|hoc tieng han|learn korean|学韩语|韓国語|한국어/i
+
+export function isLearnKoreanIntent(message: string): boolean {
+  const text = message.trim()
+  if (!text || CURRICULUM_TOPIC_MARKERS.test(text)) return false
+  return LEARN_KOREAN_TOPIC_MARKERS.test(text)
+}
+
+export function matchLearnJapaneseFlow(
+  locale: WebLocale
+): Extract<HubFeatureFlowMatch, { kind: 'standalone' }> | null {
+  const entry = getStandaloneFeatureByHref(locale, '/hoc-tieng-nhat')
+  if (!entry) return null
+  return {
+    kind: 'standalone',
+    href: entry.href,
+    labelKey: entry.labelKey as ToolKey,
+    label: entry.label,
+    score: 100,
+  }
+}
+
+export function matchLearnKoreanFlow(
+  locale: WebLocale
+): Extract<HubFeatureFlowMatch, { kind: 'standalone' }> | null {
+  const entry = getStandaloneFeatureByHref(locale, '/hoc-tieng-han')
+  if (!entry) return null
+  return {
+    kind: 'standalone',
+    href: entry.href,
+    labelKey: entry.labelKey as ToolKey,
+    label: entry.label,
+    score: 100,
+  }
+}
+
+export function matchLearnVietnameseFlow(
+  locale: WebLocale
+): Extract<HubFeatureFlowMatch, { kind: 'standalone' }> | null {
+  const entry = getStandaloneFeatureByHref(locale, '/hoc-tieng-viet')
+  if (!entry) return null
+  return {
+    kind: 'standalone',
+    href: entry.href,
+    labelKey: entry.labelKey as ToolKey,
+    label: entry.label,
+    score: 100,
+  }
+}
 
 /** Câu «học ngoại ngữ» / học tiếng Anh → mở trang Học ngoại ngữ AI, không báo thiếu tính năng. */
 export const LANGUAGE_LEARNING_TOPIC_MARKERS =
@@ -628,6 +756,26 @@ export function matchFeatureFlowByMessage(
   if (isAiTutorIntent(trimmed)) {
     const tutor = matchAiTutorFlow(locale)
     if (tutor) return tutor
+  }
+
+  if (isLearnVietnameseIntent(trimmed)) {
+    const vietnamese = matchLearnVietnameseFlow(locale)
+    if (vietnamese) return vietnamese
+  }
+
+  if (isLearnChineseIntent(trimmed)) {
+    const chinese = matchLearnChineseFlow(locale)
+    if (chinese) return chinese
+  }
+
+  if (isLearnJapaneseIntent(trimmed)) {
+    const japanese = matchLearnJapaneseFlow(locale)
+    if (japanese) return japanese
+  }
+
+  if (isLearnKoreanIntent(trimmed)) {
+    const korean = matchLearnKoreanFlow(locale)
+    if (korean) return korean
   }
 
   if (isLanguageLearningIntent(trimmed)) {

@@ -153,7 +153,7 @@ async function handleProcessTranslate(request: NextRequest) {
   const cost = Number(job.cost) || TRANSLATE_COSTS[imageQuality]
   const { engine, gptQuality } = plan
   if (engine === 'gpt' && gptQuality === 'low') {
-    const errText = 'Trang này không dùng GPT low. Chọn medium hoặc high.'
+    const errText = 'Trang này không dùng NanoAI 2L. Chọn NanoAI 2M hoặc NanoAI 2H.'
     await markTranslateJobFailedPg(resolvedJobId, errText)
     await notifyTranslateFailed(errText)
     return NextResponse.json({ error: errText }, { status: 400 })

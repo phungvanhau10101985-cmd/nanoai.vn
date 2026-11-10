@@ -35,7 +35,7 @@ const TRANSLATE_COSTS = DOCUMENT_TRANSLATE_GEMINI_CREDITS
 function translateCharge(formData: FormData, imageQuality: '2K' | '4K') {
   const charge = imageChargeFromForm(formData, TRANSLATE_COSTS[imageQuality] ?? TRANSLATE_COSTS['2K'], 1)
   if (!charge.error && charge.engine === 'gpt' && charge.gptQuality === 'low') {
-    return { ...charge, cost: 0, error: 'Trang này không dùng GPT low. Chọn medium hoặc high.' }
+    return { ...charge, cost: 0, error: 'Trang này không dùng NanoAI 2L. Chọn NanoAI 2M hoặc NanoAI 2H.' }
   }
   return charge
 }

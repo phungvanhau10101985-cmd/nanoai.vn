@@ -78,7 +78,7 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
     let clear = 0
     const count = info.width * info.height
     for (let i = 3; i < data.length; i += 4) if (data[i] <= 16) clear += 1
-    if (count < 1 || clear / count < 0.01) throw new Error('GPT Image không tách được nền trong suốt.')
+    if (count < 1 || clear / count < 0.01) throw new Error('Không tách được nền trong suốt.')
 
     const resultPath = `results/${user.id}/remove_bg_${Date.now()}.png`
     const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, transparentPngBuffer, {

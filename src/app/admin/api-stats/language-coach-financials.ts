@@ -18,7 +18,11 @@ export function aggregateLanguageCoachCredits(rows: LanguageCoachCreditEventRow[
   let presetStartCount = 0
   for (const r of rows) {
     const a = Number(r.amount ?? 0)
-    if (!Number.isFinite(a) || a <= 0) continue
+    if (!Number.isFinite(a) || a < 0) continue
+    if (a === 0) {
+      if (r.charge_type === 'english_coach_live_start') liveStartCount += 1
+      continue
+    }
     if (r.charge_type === 'english_coach_live_start') {
       liveCredits += a
       liveStartCount += 1

@@ -73,7 +73,7 @@ export async function cheAnh(formData: FormData) {
   const rawEngine = String(formData.get('imageEngine') ?? '').trim().toLowerCase()
   const gptQuality = parseGptImageQuality(formData.get('gptQuality'))
   if (rawEngine !== 'gpt' || (gptQuality !== 'low' && gptQuality !== 'medium')) {
-    return { error: 'Ảnh chế chỉ dùng GPT low hoặc medium.' }
+    return { error: 'Ảnh chế chỉ dùng NanoAI 2L hoặc NanoAI 2M.' }
   }
   const COST = imageEngineCredit({ engine: 'gpt', gptQuality, geminiCost: 1 })
 

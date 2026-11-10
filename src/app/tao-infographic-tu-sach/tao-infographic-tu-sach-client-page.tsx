@@ -257,11 +257,11 @@ export default function TaoInfographicTuSachClientPage() {
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
             {tr(
-              'Đọc ảnh trang sách và chữ bạn nhập, rồi tạo ảnh tóm tắt 16:9. GPT medium 1 credit, high 2 credit.',
-              'Reads textbook photos and your text, then creates a 16:9 summary image. GPT medium is 1 credit, high is 2 credits.',
-              '读取教材照片与文字，再生成 16:9 总结图。GPT medium 1 积分，high 2 积分。',
-              '教科書の写真と文字を読み、16:9 の要約画像を作ります。GPT medium は 1 クレジット、high は 2 クレジット。',
-              '교과서 사진과 글을 읽고 16:9 요약 이미지를 만듭니다. GPT medium 1크레딧, high 2크레딧.'
+              'Đọc ảnh trang sách và chữ bạn nhập, rồi tạo ảnh tóm tắt 16:9. NanoAI 2M 1 credit, NanoAI 2H 2 credit.',
+              'Reads textbook photos and your text, then creates a 16:9 summary image. NanoAI 2M is 1 credit, NanoAI 2H is 2 credits.',
+              '读取教材照片与文字，再生成 16:9 总结图。NanoAI 2M 1 积分，NanoAI 2H 2 积分。',
+              '教科書の写真と文字を読み、16:9 の要約画像を作ります。NanoAI 2M は 1 クレジット、NanoAI 2H は 2 クレジット。',
+              '교과서 사진과 글을 읽고 16:9 요약 이미지를 만듭니다. NanoAI 2M 1크레딧, NanoAI 2H 2크레딧.'
             )}
           </p>
         </div>

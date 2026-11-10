@@ -210,7 +210,7 @@ export async function createInfographicFromBook(formData: FormData) {
   const rawEngine = String(formData.get('imageEngine') ?? '').trim().toLowerCase()
   const gptQuality = parseGptImageQuality(formData.get('gptQuality'))
   if (rawEngine !== 'gpt' || (gptQuality !== 'medium' && gptQuality !== 'high')) {
-    return { error: 'Ảnh tóm tắt chỉ tạo bằng GPT medium hoặc high.' }
+    return { error: 'Ảnh tóm tắt chỉ tạo bằng NanoAI 2M hoặc NanoAI 2H.' }
   }
   const imageCost = imageEngineCredit({ engine: 'gpt', gptQuality, geminiCost: 1 })
   if (toTenths(openBalance) < toTenths(imageCost)) {

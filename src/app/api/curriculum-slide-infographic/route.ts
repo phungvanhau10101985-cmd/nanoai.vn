@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
     const rawEngine = String(body.imageEngine ?? '').trim().toLowerCase()
     const gptQuality = parseGptImageQuality(body.gptQuality)
     if (rawEngine !== 'gpt' || (gptQuality !== 'medium' && gptQuality !== 'high')) {
-      return NextResponse.json({ error: 'Ảnh tóm tắt chỉ tạo bằng GPT medium hoặc high.' }, { status: 400 })
+      return NextResponse.json({ error: 'Ảnh tóm tắt chỉ tạo bằng NanoAI 2M hoặc NanoAI 2H.' }, { status: 400 })
     }
     const listPrice = imageEngineCredit({ engine: 'gpt', gptQuality, geminiCost: 1 })
     const infographicArtifactKey = buildInfographicArtifactKey(curriculumId, scope, lessonNo)

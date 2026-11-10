@@ -1358,10 +1358,10 @@ export async function generateWeddingCardImage(formData: FormData) {
   const priced = imageChargeFromForm(formData, COST)
   if (priced.error) return { error: priced.error }
   if (priced.engine !== 'gpt') {
-    return { error: 'Nền thiệp chỉ tạo bằng GPT Image.' }
+    return { error: 'Nền thiệp chỉ tạo bằng NanoAI 2M hoặc NanoAI 2H.' }
   }
   if (priced.gptQuality === 'low') {
-    return { error: 'Nền thiệp chỉ dùng GPT medium hoặc high.' }
+    return { error: 'Nền thiệp chỉ dùng NanoAI 2M hoặc NanoAI 2H.' }
   }
   const imageCost = priced.cost
   const balance = await getCreditBalanceByUserId(userId)
@@ -1418,7 +1418,7 @@ export async function generateWeddingCardImage(formData: FormData) {
       gptSize: WEDDING_GPT_BACKGROUND_SIZE,
       parts,
       gemini: async () => {
-        throw new Error('Nền thiệp chỉ tạo bằng GPT Image.')
+        throw new Error('Nền thiệp chỉ tạo bằng NanoAI 2M hoặc NanoAI 2H.')
       },
     })
     const response = genResult.response

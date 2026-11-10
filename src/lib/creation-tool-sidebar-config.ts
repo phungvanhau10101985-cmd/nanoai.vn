@@ -164,5 +164,9 @@ export const CREATION_SIDEBAR_POPULAR_LINKS: CreationRelatedItem[] = [
   { href: '/dich-anh-tai-lieu', labelKey: 'translate_document_image' },
   { href: '/cai-dat-hien-thi-ket-qua-anh', labelKey: 'image_result_display' },
   { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' },
+  { href: '/hoc-tieng-viet', labelKey: 'ai_learn_vietnamese' },
+  { href: '/hoc-tieng-trung', labelKey: 'ai_learn_chinese' },
+  { href: '/hoc-tieng-nhat', labelKey: 'ai_learn_japanese' },
+  { href: '/hoc-tieng-han', labelKey: 'ai_learn_korean' },
   { href: '/ghi-am-bao-cao-cuoc-hop', labelKey: 'meeting_recorder_report' },
 ]

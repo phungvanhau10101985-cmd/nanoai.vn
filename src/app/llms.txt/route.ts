@@ -16,7 +16,11 @@ NanoAI (https://nanoai.vn) là hệ sinh thái AI đa năng dành cho cá nhân,
 - [Thiết kế bao bì](https://nanoai.vn/thiet-ke-bao-bi): Tạo dieline bao bì hộp carton, nhãn chai lọ 2D/3D tự động theo kích thước chuẩn xác
 - [Thiết kế logo](https://nanoai.vn/thiet-ke-logo): Thiết kế bộ nhận diện thương hiệu và logo chuyên nghiệp với công cụ tách nền tự động
 - [Chuyển văn bản thành giọng nói (TTS)](https://nanoai.vn/text-to-speech): Tổng hợp giọng nói tiếng Việt tự nhiên, truyền cảm với đa dạng vùng miền
-- [Học ngoại ngữ AI](https://nanoai.vn/hoc-tieng-anh-ai): Trợ lý AI luyện giao tiếp tiếng Anh tương tác trực tiếp với phản hồi phát âm theo thời gian thực
+- [Học ngoại ngữ AI](https://nanoai.vn/hoc-tieng-anh-ai): Trợ lý AI luyện giao tiếp, chọn tiếng mẹ đẻ và tiếng đang học, câu sai được sửa trong hội thoại
+- [Học tiếng Việt cho người nước ngoài](https://nanoai.vn/hoc-tieng-viet): Người nước ngoài luyện nói tiếng Việt với giáo viên AI. Tiếng mẹ đẻ là Anh, Trung, Nhật, Hàn, Thái hoặc Hindi. Chú thích viết bằng tiếng mẹ đẻ
+- [Học tiếng Trung với AI](https://nanoai.vn/hoc-tieng-trung): Luyện nói tiếng Trung. Tiếng mẹ đẻ mặc định tiếng Việt, đổi được sang Anh, Nhật, Hàn, Thái hoặc Hindi. Câu thiếu 了 được sửa ngay. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
+- [Học tiếng Nhật với AI](https://nanoai.vn/hoc-tieng-nhat): Luyện nói tiếng Nhật. Tiếng mẹ đẻ mặc định tiếng Việt, đổi được sang Anh, Trung, Hàn, Thái hoặc Hindi. Câu 行きます được sửa thành 行きました. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
+- [Học tiếng Hàn với AI](https://nanoai.vn/hoc-tieng-han): Luyện nói tiếng Hàn. Tiếng mẹ đẻ mặc định tiếng Việt, đổi được sang Anh, Trung, Nhật, Thái hoặc Hindi. Câu 가요 được sửa thành 갔어요. Học thử miễn phí 2 bài live. Buổi sau 21.000đ. Bài có sẵn 12.000đ
 - [Tạo video Veo & Kling](https://nanoai.vn/tao-video-veo3): Khởi tạo video quảng cáo và hoạt họa chất lượng điện ảnh từ văn bản hoặc hình ảnh
 
 ## Tài liệu & Khám phá Agent

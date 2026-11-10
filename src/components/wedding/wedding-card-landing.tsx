@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { WeddingLandingStickyCta } from '@/components/wedding/wedding-landing-sticky-cta'
 import { WeddingLandingThemes } from '@/components/wedding/wedding-landing-themes'
+import { WeddingReviewRail } from '@/components/wedding/wedding-review-rail'
+import type { WeddingReview } from '@/lib/wedding/wedding-reviews'
 
 type Copy = Dictionary['weddingCardAiLanding']
 
@@ -26,6 +28,8 @@ export function WeddingCardLanding(props: {
   plates: string[]
   themes: { id: string; title: string; image: string; cover: string; occasionKey: string }[]
   locale: import('@/lib/i18n/config').WebLocale
+  reviews: WeddingReview[]
+  signedIn: boolean
 }) {
   const { copy, loginHref, plates } = props
   const hero = plates[0] ?? ''
@@ -181,6 +185,22 @@ export function WeddingCardLanding(props: {
         </div>
         <CreateCta href={loginHref} label={copy.cta} className="mt-5 w-full sm:w-auto" />
       </section>
+
+      <WeddingReviewRail
+        reviews={props.reviews}
+        signedIn={props.signedIn}
+        loginHref={loginHref}
+        locale={props.locale}
+        copy={{
+          title: copy.reviewTitle,
+          lead: copy.reviewLead,
+          placeholder: copy.reviewPlaceholder,
+          send: copy.reviewSend,
+          login: copy.reviewLogin,
+          thanks: copy.reviewThanks,
+          error: copy.reviewError,
+        }}
+      />
 
       <WeddingLandingStickyCta href={loginHref} label={copy.cta} />
     </div>

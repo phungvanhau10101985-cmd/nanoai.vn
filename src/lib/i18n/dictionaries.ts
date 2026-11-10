@@ -51,6 +51,10 @@ export type ToolKey =
   | 'lyria3_instrumental_song'
   | 'meeting_recorder_report'
   | 'ai_language_learning'
+  | 'ai_learn_vietnamese'
+  | 'ai_learn_chinese'
+  | 'ai_learn_japanese'
+  | 'ai_learn_korean'
   | 'create_curriculum'
   | 'my_curricula'
   | 'curriculum_plan'
@@ -4068,6 +4072,13 @@ export type Dictionary = {
     faq5a: string
     faq6q: string
     faq6a: string
+    reviewTitle: string
+    reviewLead: string
+    reviewPlaceholder: string
+    reviewSend: string
+    reviewLogin: string
+    reviewThanks: string
+    reviewError: string
   }
   weddingCardAiImage: {
     customReferenceLabel: string
@@ -7680,6 +7691,10 @@ export const VI_DICTIONARY: Dictionary = {
     lyria3_instrumental_song: 'Tạo bài nhạc (có lời / không lời)',
     meeting_recorder_report: 'Ghi âm & báo cáo cuộc họp',
     ai_language_learning: 'Học ngoại ngữ AI',
+    ai_learn_vietnamese: 'Học tiếng Việt',
+    ai_learn_chinese: 'Học tiếng Trung',
+    ai_learn_japanese: 'Học tiếng Nhật',
+    ai_learn_korean: 'Học tiếng Hàn',
     create_curriculum: 'Tạo giáo trình',
     my_curricula: 'Giáo trình của tôi',
     curriculum_plan: 'Gói giáo trình',
@@ -7719,8 +7734,8 @@ export const VI_DICTIONARY: Dictionary = {
     clientFault:
       'Lỗi kết nối hoặc hết thời gian chờ. Ảnh có thể đã được lưu — kiểm tra Ảnh đã xử lý hoặc thử lại.',
     imageEngineLabel: 'Model',
-    imageEngineGemini: 'Gemini',
-    imageEngineGpt: 'GPT Image 2',
+    imageEngineGemini: 'NanoAI 2K',
+    imageEngineGpt: 'NanoAI 2M',
     imageEngineQuality: 'Chất lượng',
     imageEnginePickQuality: 'Chưa chọn — chọn một mức',
   },
@@ -8853,6 +8868,13 @@ export const VI_DICTIONARY: Dictionary = {
     faq5a: 'Tên, lời mời, ngày giờ do hệ thống sắp chữ, không phụ thuộc chữ vẽ trong ảnh AI, nên tiếng Việt giữ dấu.',
     faq6q: 'Gửi Zalo hoặc Facebook được không?',
     faq6a: 'Được. Link thiệp là đường dẫn web, chia sẻ như mọi link khác.',
+    reviewTitle: 'Khách nói về thiệp',
+    reviewLead: 'Lướt ngang để đọc. Ai đã tạo thiệp có thể gửi đánh giá của mình.',
+    reviewPlaceholder: 'Thiệp bạn gửi ra sao, khách trả lời thế nào, chỗ nào phải sửa...',
+    reviewSend: 'Gửi đánh giá',
+    reviewLogin: 'Đăng nhập để đánh giá',
+    reviewThanks: 'Đã đăng đánh giá.',
+    reviewError: 'Chưa gửi được. Viết từ 12 đến 600 ký tự.',
   },
   weddingCardAiImage: {
     customReferenceLabel: 'Ảnh tham khảo tùy chỉnh (tùy chọn)',

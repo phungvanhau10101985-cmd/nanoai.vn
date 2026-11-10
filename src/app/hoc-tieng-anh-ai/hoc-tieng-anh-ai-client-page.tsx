@@ -1,6 +1,14 @@
 'use client'
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { readLessonLanguageQuery } from '@/lib/hoc-ngoai-ngu/lesson-query'
+import {
+  FREE_LIVE_LESSON_LIMIT,
+  freeLiveChoiceLabel,
+  freeLiveLoginMessage,
+  freeLiveStartToast,
+  freeLiveThisLessonLabel,
+} from '@/lib/english-coach-free-lessons'
 /* eslint-disable @typescript-eslint/no-unused-vars -- nhiều state/helper dự phòng; dọn dần khi refactor */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -621,10 +629,17 @@ const TOPIC_OPTIONS: TopicOption[] = [
   { id: 'kids-basic', label: 'Thiếu nhi: Chào hỏi và giới thiệu bản thân' },
   { id: 'kids-school', label: 'Thiếu nhi: Ở lớp học và bạn bè' },
   { id: 'kids-family', label: 'Thiếu nhi: Gia đình và hoạt động mỗi ngày' },
+  { id: 'kids-play', label: 'Thiếu nhi: Chơi, đồ chơi và sân chơi' },
+  { id: 'kids-food', label: 'Thiếu nhi: Đói, khát và đồ ăn' },
+  { id: 'kids-feelings', label: 'Thiếu nhi: Nói vui, buồn và xin lỗi' },
   { id: 'teens-social', label: 'Tuổi teen: Trò chuyện mạng xã hội văn minh' },
   { id: 'teens-hobbies', label: 'Tuổi teen: Sở thích, game, âm nhạc, phim ảnh' },
+  { id: 'teens-school', label: 'Tuổi teen: Lớp học, bài tập và điểm số' },
+  { id: 'teens-plans', label: 'Tuổi teen: Cuối tuần và hẹn bạn' },
   { id: 'teens-confidence', label: 'Tuổi teen: Tự tin thuyết trình ngắn' },
   { id: 'student-campus', label: 'Sinh viên: Giao tiếp trong trường học' },
+  { id: 'student-dorm', label: 'Sinh viên: Ký túc xá và bạn cùng phòng' },
+  { id: 'student-library', label: 'Sinh viên: Thư viện và mượn sách' },
   { id: 'student-groupwork', label: 'Sinh viên: Làm việc nhóm và thảo luận' },
   { id: 'student-study-abroad', label: 'Sinh viên: Chuẩn bị du học' },
   { id: 'job-interview', label: 'Phỏng vấn xin việc' },
@@ -633,11 +648,15 @@ const TOPIC_OPTIONS: TopicOption[] = [
   { id: 'work-customer-support', label: 'Người đi làm: Chăm sóc khách hàng' },
   { id: 'work-negotiation', label: 'Người đi làm: Đàm phán và thương lượng' },
   { id: 'startup-pitch', label: 'Người đi làm: Pitch ý tưởng sản phẩm' },
+  { id: 'work-hello', label: 'Người đi làm: Chào hỏi và giới thiệu bản thân' },
+  { id: 'work-late', label: 'Người đi làm: Xin nghỉ và báo đi muộn' },
   { id: 'coffee-shop', label: 'Gọi đồ tại quán cà phê' },
   { id: 'airport', label: 'Tình huống tại sân bay' },
   { id: 'hotel-checkin', label: 'Du lịch: Check-in khách sạn' },
   { id: 'restaurant-ordering', label: 'Du lịch: Gọi món ở nhà hàng' },
   { id: 'shopping-mall', label: 'Du lịch: Mua sắm và hỏi giá' },
+  { id: 'travel-money', label: 'Du lịch: Đổi tiền và hỏi ATM' },
+  { id: 'travel-rent', label: 'Du lịch: Thuê xe và trả xe' },
   { id: 'taxi-direction', label: 'Du lịch: Đi taxi và chỉ đường' },
   { id: 'doctor-pharmacy', label: 'Du lịch: Khám bệnh, mua thuốc cơ bản' },
   { id: 'immigration-customs', label: 'Du lịch: Hải quan và nhập cảnh' },
@@ -645,6 +664,10 @@ const TOPIC_OPTIONS: TopicOption[] = [
   { id: 'daily-hobbies', label: 'Nói về sở thích hằng ngày' },
   { id: 'daily-routine', label: 'Đời sống: Sinh hoạt hằng ngày' },
   { id: 'daily-food-health', label: 'Đời sống: Ăn uống và sức khỏe' },
+  { id: 'daily-weather', label: 'Đời sống: Thời tiết và kế hoạch hôm nay' },
+  { id: 'daily-market', label: 'Đời sống: Đi chợ và trả giá' },
+  { id: 'daily-phone', label: 'Đời sống: Gọi điện và nhắn tin' },
+  { id: 'daily-clothes', label: 'Đời sống: Mua quần áo và đổi cỡ' },
   { id: 'daily-parenting', label: 'Phụ huynh: Trao đổi chuyện học của con' },
   { id: 'daily-home-neighbor', label: 'Đời sống: Hàng xóm và khu dân cư' },
   { id: 'finance-basic', label: 'Tài chính cá nhân: Chi tiêu và tiết kiệm' },
@@ -662,10 +685,17 @@ const TOPIC_LABELS_EN: Record<string, string> = {
   'kids-basic': 'Kids: Greetings and self-introduction',
   'kids-school': 'Kids: Classroom and friends',
   'kids-family': 'Kids: Family and daily activities',
+  'kids-play': 'Kids: Play, toys, and the playground',
+  'kids-food': 'Kids: Hungry, thirsty, and food',
+  'kids-feelings': 'Kids: Happy, sad, and saying sorry',
   'teens-social': 'Teens: Healthy social media conversations',
   'teens-hobbies': 'Teens: Hobbies, games, music, and movies',
+  'teens-school': 'Teens: Class, homework, and grades',
+  'teens-plans': 'Teens: Weekends and making plans',
   'teens-confidence': 'Teens: Build confidence in short presentations',
   'student-campus': 'Students: Communication on campus',
+  'student-dorm': 'Students: Dorm life and roommates',
+  'student-library': 'Students: Library and borrowing books',
   'student-groupwork': 'Students: Group work and discussion',
   'student-study-abroad': 'Students: Study abroad preparation',
   'job-interview': 'Job interview practice',
@@ -674,11 +704,15 @@ const TOPIC_LABELS_EN: Record<string, string> = {
   'work-customer-support': 'Work: Customer support communication',
   'work-negotiation': 'Work: Negotiation and persuasion',
   'startup-pitch': 'Work: Product idea pitch',
+  'work-hello': 'Work: Greetings and introducing yourself',
+  'work-late': 'Work: Time off and saying you will be late',
   'coffee-shop': 'Ordering at a coffee shop',
   'airport': 'Airport situations',
   'hotel-checkin': 'Travel: Hotel check-in',
   'restaurant-ordering': 'Travel: Ordering at restaurants',
   'shopping-mall': 'Travel: Shopping and asking prices',
+  'travel-money': 'Travel: Changing money and finding an ATM',
+  'travel-rent': 'Travel: Renting and returning a vehicle',
   'taxi-direction': 'Travel: Taxi and directions',
   'doctor-pharmacy': 'Travel: Basic doctor and pharmacy situations',
   'immigration-customs': 'Travel: Immigration and customs',
@@ -686,6 +720,10 @@ const TOPIC_LABELS_EN: Record<string, string> = {
   'daily-hobbies': 'Daily life: Talking about hobbies',
   'daily-routine': 'Daily life: Daily routines',
   'daily-food-health': 'Daily life: Food and health',
+  'daily-weather': 'Daily life: Weather and today\'s plan',
+  'daily-market': 'Daily life: The market and asking the price',
+  'daily-phone': 'Daily life: Phone calls and messages',
+  'daily-clothes': 'Daily life: Buying clothes and changing size',
   'daily-parenting': 'Parenting: Talking about children learning',
   'daily-home-neighbor': 'Daily life: Neighborhood conversations',
   'finance-basic': 'Personal finance: Spending and saving',
@@ -706,10 +744,17 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'kids-basic': '儿童：问候与自我介绍',
     'kids-school': '儿童：课堂与朋友',
     'kids-family': '儿童：家庭与日常活动',
+    'kids-play': '儿童：玩耍、玩具和游乐场',
+    'kids-food': '儿童：饿了、渴了和食物',
+    'kids-feelings': '儿童：开心、难过和道歉',
     'teens-social': '青少年：健康社交媒体对话',
     'teens-hobbies': '青少年：兴趣、游戏、音乐和电影',
+    'teens-school': '青少年：课堂、作业和成绩',
+    'teens-plans': '青少年：周末和约朋友',
     'teens-confidence': '青少年：提升简短演讲自信',
     'student-campus': '学生：校园沟通',
+    'student-dorm': '学生：宿舍和室友',
+    'student-library': '学生：图书馆和借书',
     'student-groupwork': '学生：小组合作与讨论',
     'student-study-abroad': '学生：留学准备',
     'job-interview': '求职面试练习',
@@ -718,11 +763,15 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'work-customer-support': '职场：客户支持沟通',
     'work-negotiation': '职场：谈判与说服',
     'startup-pitch': '职场：产品想法路演',
+    'work-hello': '职场：问候和自我介绍',
+    'work-late': '职场：请假和说明迟到',
     'coffee-shop': '咖啡店点单',
     'airport': '机场场景',
     'hotel-checkin': '旅行：酒店入住',
     'restaurant-ordering': '旅行：餐厅点餐',
     'shopping-mall': '旅行：购物与询价',
+    'travel-money': '旅行：换钱和找自动取款机',
+    'travel-rent': '旅行：租车和还车',
     'taxi-direction': '旅行：打车与问路',
     'doctor-pharmacy': '旅行：基础就医与药店场景',
     'immigration-customs': '旅行：入境与海关',
@@ -730,6 +779,10 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'daily-hobbies': '日常：聊兴趣爱好',
     'daily-routine': '日常：日常作息',
     'daily-food-health': '日常：饮食与健康',
+    'daily-weather': '日常：天气和今天的计划',
+    'daily-market': '日常：菜市场和讲价',
+    'daily-phone': '日常：打电话和发消息',
+    'daily-clothes': '日常：买衣服和换尺码',
     'daily-parenting': '育儿：孩子学习交流',
     'daily-home-neighbor': '日常：邻里交流',
     'finance-basic': '个人财务：消费与储蓄',
@@ -746,10 +799,17 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'kids-basic': '子ども：あいさつと自己紹介',
     'kids-school': '子ども：教室と友だち',
     'kids-family': '子ども：家族と日常活動',
+    'kids-play': '子ども：遊び、おもちゃ、遊び場',
+    'kids-food': '子ども：おなかがすいた、のどが渇いた、食べ物',
+    'kids-feelings': '子ども：うれしい、悲しい、ごめんなさい',
     'teens-social': 'ティーン：健全なSNS会話',
     'teens-hobbies': 'ティーン：趣味・ゲーム・音楽・映画',
+    'teens-school': 'ティーン：授業、宿題、成績',
+    'teens-plans': 'ティーン：週末と友達との約束',
     'teens-confidence': 'ティーン：短い発表の自信をつける',
     'student-campus': '学生：キャンパスでのコミュニケーション',
+    'student-dorm': '学生：寮と同室の人',
+    'student-library': '学生：図書館と本を借りる',
     'student-groupwork': '学生：グループワークと議論',
     'student-study-abroad': '学生：留学準備',
     'job-interview': '就職面接の練習',
@@ -758,11 +818,15 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'work-customer-support': '仕事：カスタマーサポート会話',
     'work-negotiation': '仕事：交渉と説得',
     'startup-pitch': '仕事：プロダクト提案ピッチ',
+    'work-hello': '仕事：あいさつと自己紹介',
+    'work-late': '仕事：休みの連絡と遅刻',
     'coffee-shop': 'カフェでの注文',
     'airport': '空港での場面',
     'hotel-checkin': '旅行：ホテルチェックイン',
     'restaurant-ordering': '旅行：レストランで注文',
     'shopping-mall': '旅行：買い物と価格確認',
+    'travel-money': '旅行：両替とATM',
+    'travel-rent': '旅行：車を借りて返す',
     'taxi-direction': '旅行：タクシーと道案内',
     'doctor-pharmacy': '旅行：病院・薬局の基本場面',
     'immigration-customs': '旅行：入国審査と税関',
@@ -770,6 +834,10 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'daily-hobbies': '日常：趣味について話す',
     'daily-routine': '日常：毎日のルーティン',
     'daily-food-health': '日常：食事と健康',
+    'daily-weather': '日常：天気と今日の予定',
+    'daily-market': '日常：市場と値段を聞く',
+    'daily-phone': '日常：電話とメッセージ',
+    'daily-clothes': '日常：服を買ってサイズを変える',
     'daily-parenting': '子育て：子どもの学習について話す',
     'daily-home-neighbor': '日常：近所との会話',
     'finance-basic': '個人家計：支出と貯蓄',
@@ -786,10 +854,17 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'kids-basic': '어린이: 인사와 자기소개',
     'kids-school': '어린이: 교실과 친구',
     'kids-family': '어린이: 가족과 일상 활동',
+    'kids-play': '어린이: 놀이, 장난감, 놀이터',
+    'kids-food': '어린이: 배고픔, 목마름, 음식',
+    'kids-feelings': '어린이: 기쁨, 슬픔, 사과',
     'teens-social': '청소년: 건강한 SNS 대화',
     'teens-hobbies': '청소년: 취미, 게임, 음악, 영화',
+    'teens-school': '청소년: 수업, 숙제, 성적',
+    'teens-plans': '청소년: 주말과 약속',
     'teens-confidence': '청소년: 짧은 발표 자신감 키우기',
     'student-campus': '학생: 캠퍼스 커뮤니케이션',
+    'student-dorm': '학생: 기숙사와 룸메이트',
+    'student-library': '학생: 도서관과 책 빌리기',
     'student-groupwork': '학생: 팀 과제와 토론',
     'student-study-abroad': '학생: 유학 준비',
     'job-interview': '취업 면접 연습',
@@ -798,11 +873,15 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'work-customer-support': '직장: 고객 지원 대화',
     'work-negotiation': '직장: 협상과 설득',
     'startup-pitch': '직장: 제품 아이디어 피치',
+    'work-hello': '직장: 인사와 자기소개',
+    'work-late': '직장: 휴가와 지각 말하기',
     'coffee-shop': '카페에서 주문하기',
     'airport': '공항 상황',
     'hotel-checkin': '여행: 호텔 체크인',
     'restaurant-ordering': '여행: 식당 주문',
     'shopping-mall': '여행: 쇼핑과 가격 묻기',
+    'travel-money': '여행: 환전과 ATM',
+    'travel-rent': '여행: 차 빌리고 반납하기',
     'taxi-direction': '여행: 택시와 길 안내',
     'doctor-pharmacy': '여행: 병원·약국 기본 상황',
     'immigration-customs': '여행: 입국심사와 세관',
@@ -810,6 +889,10 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'daily-hobbies': '일상: 취미 이야기',
     'daily-routine': '일상: 하루 루틴',
     'daily-food-health': '일상: 음식과 건강',
+    'daily-weather': '일상: 날씨와 오늘 계획',
+    'daily-market': '일상: 시장과 값 묻기',
+    'daily-phone': '일상: 전화와 메시지',
+    'daily-clothes': '일상: 옷 사고 사이즈 바꾸기',
     'daily-parenting': '양육: 자녀 학습 대화',
     'daily-home-neighbor': '일상: 이웃과 대화',
     'finance-basic': '개인 재정: 지출과 저축',
@@ -826,10 +909,17 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'kids-basic': 'เด็ก: ทักทายและแนะนำตัว',
     'kids-school': 'เด็ก: ห้องเรียนและเพื่อน',
     'kids-family': 'เด็ก: ครอบครัวและกิจกรรมประจำวัน',
+    'kids-play': 'เด็ก: เล่น ของเล่น และสนามเด็กเล่น',
+    'kids-food': 'เด็ก: หิว กระหาย และอาหาร',
+    'kids-feelings': 'เด็ก: ดีใจ เศร้า และขอโทษ',
     'teens-social': 'วัยรุ่น: คุยโซเชียลอย่างสร้างสรรค์',
     'teens-hobbies': 'วัยรุ่น: งานอดิเรก เกม เพลง และภาพยนตร์',
+    'teens-school': 'วัยรุ่น: ห้องเรียน การบ้าน และคะแนน',
+    'teens-plans': 'วัยรุ่น: วันหยุดสุดสัปดาห์และนัดเพื่อน',
     'teens-confidence': 'วัยรุ่น: เสริมความมั่นใจในการพูดสั้น ๆ',
     'student-campus': 'นักศึกษา: การสื่อสารในมหาวิทยาลัย',
+    'student-dorm': 'นักศึกษา: หอพักและเพื่อนร่วมห้อง',
+    'student-library': 'นักศึกษา: ห้องสมุดและยืมหนังสือ',
     'student-groupwork': 'นักศึกษา: งานกลุ่มและการอภิปราย',
     'student-study-abroad': 'นักศึกษา: เตรียมตัวเรียนต่อต่างประเทศ',
     'job-interview': 'ฝึกสัมภาษณ์งาน',
@@ -838,11 +928,15 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'work-customer-support': 'งาน: การสื่อสารงานบริการลูกค้า',
     'work-negotiation': 'งาน: การเจรจาและโน้มน้าว',
     'startup-pitch': 'งาน: พิชชิ่งไอเดียโปรดักต์',
+    'work-hello': 'งาน: ทักทายและแนะนำตัว',
+    'work-late': 'งาน: ลาและบอกว่ามาสาย',
     'coffee-shop': 'สั่งเครื่องดื่มที่ร้านกาแฟ',
     'airport': 'สถานการณ์ที่สนามบิน',
     'hotel-checkin': 'ท่องเที่ยว: เช็กอินโรงแรม',
     'restaurant-ordering': 'ท่องเที่ยว: สั่งอาหารที่ร้าน',
     'shopping-mall': 'ท่องเที่ยว: ช้อปปิ้งและถามราคา',
+    'travel-money': 'ท่องเที่ยว: แลกเงินและหาตู้ ATM',
+    'travel-rent': 'ท่องเที่ยว: เช่ารถและคืนรถ',
     'taxi-direction': 'ท่องเที่ยว: เรียกแท็กซี่และถามทาง',
     'doctor-pharmacy': 'ท่องเที่ยว: สถานการณ์พื้นฐานที่คลินิก/ร้านยา',
     'immigration-customs': 'ท่องเที่ยว: ตม. และศุลกากร',
@@ -850,6 +944,10 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'daily-hobbies': 'ชีวิตประจำวัน: พูดคุยเรื่องงานอดิเรก',
     'daily-routine': 'ชีวิตประจำวัน: กิจวัตรประจำวัน',
     'daily-food-health': 'ชีวิตประจำวัน: อาหารและสุขภาพ',
+    'daily-weather': 'ชีวิตประจำวัน: อากาศและแผนวันนี้',
+    'daily-market': 'ชีวิตประจำวัน: ตลาดและการต่อราคา',
+    'daily-phone': 'ชีวิตประจำวัน: โทรศัพท์และข้อความ',
+    'daily-clothes': 'ชีวิตประจำวัน: ซื้อเสื้อผ้าและเปลี่ยนไซซ์',
     'daily-parenting': 'ผู้ปกครอง: คุยเรื่องการเรียนของลูก',
     'daily-home-neighbor': 'ชีวิตประจำวัน: เพื่อนบ้านและชุมชน',
     'finance-basic': 'การเงินส่วนบุคคล: ใช้จ่ายและออมเงิน',
@@ -866,10 +964,17 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'kids-basic': 'बच्चे: अभिवादन और परिचय',
     'kids-school': 'बच्चे: कक्षा और दोस्त',
     'kids-family': 'बच्चे: परिवार और दैनिक गतिविधियाँ',
+    'kids-play': 'बच्चे: खेल, खिलौने और मैदान',
+    'kids-food': 'बच्चे: भूख, प्यास और खाना',
+    'kids-feelings': 'बच्चे: खुश, उदास और माफ़ी',
     'teens-social': 'किशोर: स्वस्थ सोशल मीडिया वार्तालाप',
     'teens-hobbies': 'किशोर: शौक, गेम, संगीत और फिल्में',
+    'teens-school': 'किशोर: कक्षा, होमवर्क और अंक',
+    'teens-plans': 'किशोर: वीकेंड और दोस्त से मिलना',
     'teens-confidence': 'किशोर: छोटे प्रेज़ेंटेशन में आत्मविश्वास',
     'student-campus': 'छात्र: कैंपस संचार',
+    'student-dorm': 'छात्र: हॉस्टल और रूममेट',
+    'student-library': 'छात्र: लाइब्रेरी और किताब उधार',
     'student-groupwork': 'छात्र: समूह कार्य और चर्चा',
     'student-study-abroad': 'छात्र: विदेश अध्ययन की तैयारी',
     'job-interview': 'नौकरी इंटरव्यू अभ्यास',
@@ -878,11 +983,15 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'work-customer-support': 'कार्य: ग्राहक सहायता संवाद',
     'work-negotiation': 'कार्य: बातचीत और मनाना',
     'startup-pitch': 'कार्य: प्रोडक्ट आइडिया पिच',
+    'work-hello': 'कार्य: अभिवादन और अपना परिचय',
+    'work-late': 'कार्य: छुट्टी और देर से आने की बात',
     'coffee-shop': 'कैफे में ऑर्डर करना',
     'airport': 'एयरपोर्ट स्थितियाँ',
     'hotel-checkin': 'यात्रा: होटल चेक-इन',
     'restaurant-ordering': 'यात्रा: रेस्टोरेंट में ऑर्डर',
     'shopping-mall': 'यात्रा: खरीदारी और कीमत पूछना',
+    'travel-money': 'यात्रा: मुद्रा बदलना और ATM',
+    'travel-rent': 'यात्रा: गाड़ी किराए पर लेना और लौटाना',
     'taxi-direction': 'यात्रा: टैक्सी और दिशा पूछना',
     'doctor-pharmacy': 'यात्रा: डॉक्टर/फार्मेसी की बुनियादी स्थितियाँ',
     'immigration-customs': 'यात्रा: इमिग्रेशन और कस्टम्स',
@@ -890,6 +999,10 @@ const TOPIC_LABELS_BY_LOCALE: Record<UiLocale, Record<string, string>> = {
     'daily-hobbies': 'दैनिक जीवन: शौक पर बातचीत',
     'daily-routine': 'दैनिक जीवन: रोज़मर्रा की दिनचर्या',
     'daily-food-health': 'दैनिक जीवन: भोजन और स्वास्थ्य',
+    'daily-weather': 'दैनिक जीवन: मौसम और आज की योजना',
+    'daily-market': 'दैनिक जीवन: बाज़ार और दाम पूछना',
+    'daily-phone': 'दैनिक जीवन: फ़ोन और संदेश',
+    'daily-clothes': 'दैनिक जीवन: कपड़े खरीदना और साइज़ बदलना',
     'daily-parenting': 'पालन-पोषण: बच्चों की पढ़ाई पर बात',
     'daily-home-neighbor': 'दैनिक जीवन: पड़ोस की बातचीत',
     'finance-basic': 'व्यक्तिगत वित्त: खर्च और बचत',
@@ -908,10 +1021,17 @@ const TOPIC_DIFFICULTY_BY_ID: Record<string, TopicDifficultyTag> = {
   'kids-basic': 'basic',
   'kids-school': 'basic',
   'kids-family': 'basic',
+  'kids-play': 'basic',
+  'kids-food': 'basic',
+  'kids-feelings': 'basic',
   'teens-social': 'basic',
   'teens-hobbies': 'basic',
+  'teens-school': 'basic',
+  'teens-plans': 'basic',
   'teens-confidence': 'intermediate',
   'student-campus': 'basic',
+  'student-dorm': 'basic',
+  'student-library': 'basic',
   'student-groupwork': 'intermediate',
   'student-study-abroad': 'intermediate',
   'job-interview': 'intermediate',
@@ -920,11 +1040,15 @@ const TOPIC_DIFFICULTY_BY_ID: Record<string, TopicDifficultyTag> = {
   'work-customer-support': 'intermediate',
   'work-negotiation': 'advanced',
   'startup-pitch': 'advanced',
+  'work-hello': 'basic',
+  'work-late': 'basic',
   'coffee-shop': 'basic',
   'airport': 'basic',
   'hotel-checkin': 'basic',
   'restaurant-ordering': 'basic',
   'shopping-mall': 'basic',
+  'travel-money': 'basic',
+  'travel-rent': 'basic',
   'taxi-direction': 'basic',
   'doctor-pharmacy': 'intermediate',
   'immigration-customs': 'intermediate',
@@ -932,6 +1056,10 @@ const TOPIC_DIFFICULTY_BY_ID: Record<string, TopicDifficultyTag> = {
   'daily-hobbies': 'basic',
   'daily-routine': 'basic',
   'daily-food-health': 'basic',
+  'daily-weather': 'basic',
+  'daily-market': 'basic',
+  'daily-phone': 'basic',
+  'daily-clothes': 'basic',
   'daily-parenting': 'intermediate',
   'daily-home-neighbor': 'basic',
   'finance-basic': 'intermediate',
@@ -2358,6 +2486,9 @@ export default function HocTiengAnhAiClientPage() {
   const isPresetPageSession = false
   const englishCoachUsageContext = isCurrentPresetSession ? ('preset' as const) : ('live' as const)
   const [liveSessionExtraTurnUnlocks, setLiveSessionExtraTurnUnlocks] = useState(0)
+  const [freeLiveRemaining, setFreeLiveRemaining] = useState(FREE_LIVE_LESSON_LIMIT)
+  const [freeLiveLoginRequired, setFreeLiveLoginRequired] = useState(false)
+  const [liveStartWasFree, setLiveStartWasFree] = useState(false)
   const [liveUnlockBusy, setLiveUnlockBusy] = useState(false)
   const [draft, setDraft] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -6861,6 +6992,28 @@ export default function HocTiengAnhAiClientPage() {
     }
   }, [])
 
+  const lessonHoc = searchParams.get('hoc')
+  const lessonMe = searchParams.get('me')
+  useEffect(() => {
+    const picked = readLessonLanguageQuery({
+      get: (name) => (name === 'hoc' ? lessonHoc : name === 'me' ? lessonMe : null),
+    })
+    if (!picked.target && !picked.native) return
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      if (picked.target) {
+        setLanguageCode(picked.target)
+        const teachers = TEACHERS_BY_LANGUAGE[picked.target]
+        if (teachers?.[0]) setTeacherId(teachers[0].id)
+      }
+      if (picked.native) setNativeLanguageCode(picked.native)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [lessonHoc, lessonMe])
+
   useEffect(() => {
     try {
       localStorage.setItem(NATIVE_LANGUAGE_PREF_KEY, nativeLanguageCode)
@@ -8007,6 +8160,8 @@ export default function HocTiengAnhAiClientPage() {
     setLessonStartPresetAvailable(opts?.presetAvailable !== false)
     setLessonStartPlan({ curriculum, topic })
     setLessonStartChoiceOpen(true)
+    const sid = String(sessionId || '').trim()
+    if (sid) void syncSessionCreditStatus(sid)
   }
 
   const hasStrictPresetMatch = async (plan: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
@@ -8041,6 +8196,9 @@ export default function HocTiengAnhAiClientPage() {
     if (!ok) return
     const unlockCount = Math.max(0, Math.floor(Number(data.liveUnlockCount || 0) || 0))
     setLiveSessionExtraTurnUnlocks(unlockCount)
+    setFreeLiveRemaining(Math.max(0, Math.floor(Number(data.freeLiveRemaining ?? FREE_LIVE_LESSON_LIMIT) || 0)))
+    setFreeLiveLoginRequired(Boolean(data.freeLiveLoginRequired))
+    setLiveStartWasFree(Boolean(data.liveStartFree))
   }, [])
 
   const startLiveLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
@@ -8065,25 +8223,37 @@ export default function HocTiengAnhAiClientPage() {
       sessionId: sessionIdForCharge,
     })
     if (!liveCharge.ok) {
+      if (String(liveCharge.data.code || '') === 'LOGIN_REQUIRED_FREE_LIVE') {
+        throw new Error(freeLiveLoginMessage(uiLocale))
+      }
       throw new Error(String(liveCharge.data.error || localText('Không thể trừ credit cho buổi live.', 'Unable to charge credits for live lesson.')))
     }
     notifyCreditsUpdated()
     const chargedNow = Boolean(liveCharge.data.charged)
+    const grantedFree = Boolean(liveCharge.data.free)
     const liveBalance = Number(liveCharge.data.newBalance || 0)
-    toast({
-      title: chargedNow
-        ? localText('Đã trừ credit mở buổi live', 'Live lesson credits charged')
-        : localText('Buổi live đã được trừ credit trước đó', 'Live lesson already charged earlier'),
-      description: chargedNow
-        ? localText(
-            `Đã trừ ${LIVE_SESSION_PRICE_CREDITS} credit. Số dư còn lại: ${liveBalance.toFixed(2)}.`,
-            `${LIVE_SESSION_PRICE_CREDITS} credits deducted. Remaining balance: ${liveBalance.toFixed(2)}.`
-          )
-        : localText(
-            `Không trừ thêm. Số dư hiện tại: ${liveBalance.toFixed(2)}.`,
-            `No extra deduction. Current balance: ${liveBalance.toFixed(2)}.`
-          ),
-    })
+    const remainingFree = Math.max(0, Math.floor(Number(liveCharge.data.freeLiveRemaining ?? 0) || 0))
+    setFreeLiveRemaining(remainingFree)
+    setFreeLiveLoginRequired(false)
+    setLiveStartWasFree(grantedFree)
+    if (grantedFree) {
+      toast(freeLiveStartToast(uiLocale, { already: !chargedNow, remaining: remainingFree, balance: liveBalance }))
+    } else {
+      toast({
+        title: chargedNow
+          ? localText('Đã trừ credit mở buổi live', 'Live lesson credits charged')
+          : localText('Buổi live đã được trừ credit trước đó', 'Live lesson already charged earlier'),
+        description: chargedNow
+          ? localText(
+              `Đã trừ ${LIVE_SESSION_PRICE_CREDITS} credit. Số dư còn lại: ${liveBalance.toFixed(2)}.`,
+              `${LIVE_SESSION_PRICE_CREDITS} credits deducted. Remaining balance: ${liveBalance.toFixed(2)}.`
+            )
+          : localText(
+              `Không trừ thêm. Số dư hiện tại: ${liveBalance.toFixed(2)}.`,
+              `No extra deduction. Current balance: ${liveBalance.toFixed(2)}.`
+            ),
+      })
+    }
     const unlockCount = Math.max(0, Math.floor(Number(liveCharge.data.liveUnlockCount || 0) || 0))
     setLiveSessionExtraTurnUnlocks(unlockCount)
     setIsCurrentPresetSession(false)
@@ -10414,9 +10584,15 @@ export default function HocTiengAnhAiClientPage() {
                       {localText('Lượt hỏi buổi live:', 'Live lesson turns:')}{' '}
                       <span className="font-semibold">{liveSessionStudentTurnCount}/{liveSessionTurnLimit}</span>
                       {' • '}
-                      {localText('Giá buổi 10 lượt:', 'Price per 10-turn lesson:')}{' '}
-                      <span className="font-semibold">{LIVE_SESSION_PRICE_CREDITS} credit</span>
-                      {localText(', đã thanh toán.', ', paid.')}
+                      {liveStartWasFree ? (
+                        <span className="font-semibold">{freeLiveThisLessonLabel(uiLocale)}</span>
+                      ) : (
+                        <>
+                          {localText('Giá buổi 10 lượt:', 'Price per 10-turn lesson:')}{' '}
+                          <span className="font-semibold">{LIVE_SESSION_PRICE_CREDITS} credit</span>
+                          {localText(', đã thanh toán.', ', paid.')}
+                        </>
+                      )}
                     </p>
                     {liveSessionTurnLimitReached ? (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -11351,7 +11527,8 @@ export default function HocTiengAnhAiClientPage() {
             </p>
             <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 space-y-1">
               <p>
-                {localText('Học live với AI:', 'Live AI lesson:')} <span className="font-semibold">{LIVE_SESSION_PRICE_CREDITS} credit</span>{' '}
+                {localText('Học live với AI:', 'Live AI lesson:')}{' '}
+                <span className="font-semibold">{freeLiveChoiceLabel(uiLocale, freeLiveRemaining, freeLiveLoginRequired, LIVE_SESSION_PRICE_CREDITS)}</span>{' '}
                 {localText(`/ ${LIVE_SESSION_BASE_TURN_LIMIT} lượt hỏi`, `/ ${LIVE_SESSION_BASE_TURN_LIMIT} turns`)}
               </p>
               <p>

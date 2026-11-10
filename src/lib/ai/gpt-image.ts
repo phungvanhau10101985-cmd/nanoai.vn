@@ -182,8 +182,8 @@ export async function generateGptImage(opts: {
   } catch (e) {
     if (e instanceof ImageEngineError) throw e
     const message = e instanceof Error ? e.message : String(e)
-    if (/abort/i.test(message)) throw new ImageEngineError('GPT Image quá thời gian chờ.')
-    throw new ImageEngineError(`GPT Image thất bại: ${message}`)
+    if (/abort/i.test(message)) throw new ImageEngineError('Tạo ảnh quá thời gian chờ.')
+    throw new ImageEngineError(`Tạo ảnh thất bại: ${message}`)
   } finally {
     clearTimeout(timer)
   }
@@ -245,9 +245,9 @@ export async function runImageContent<T>(opts: {
   gemini: () => Promise<T>
 }): Promise<T> {
   if (opts.engine !== 'gpt') return opts.gemini()
-  if (!opts.gptQuality) throw new ImageEngineError('Chọn chất lượng GPT: low, medium hoặc high.')
+  if (!opts.gptQuality) throw new ImageEngineError('Chọn NanoAI 2L, NanoAI 2M hoặc NanoAI 2H.')
   const { prompt, images } = splitGeminiParts(opts.parts)
-  if (!prompt.trim()) throw new ImageEngineError('Thiếu prompt GPT Image.')
+  if (!prompt.trim()) throw new ImageEngineError('Thiếu mô tả ảnh.')
   const generated = await generateGptImage({
     prompt,
     quality: opts.gptQuality,
@@ -268,7 +268,7 @@ export async function produceImageBytes(opts: {
   gemini: () => Promise<Buffer>
 }): Promise<Buffer> {
   if (opts.engine !== 'gpt') return opts.gemini()
-  if (!opts.gptQuality) throw new ImageEngineError('Chọn chất lượng GPT: low, medium hoặc high.')
+  if (!opts.gptQuality) throw new ImageEngineError('Chọn NanoAI 2L, NanoAI 2M hoặc NanoAI 2H.')
   const generated = await generateGptImage({
     prompt: opts.prompt,
     quality: opts.gptQuality,

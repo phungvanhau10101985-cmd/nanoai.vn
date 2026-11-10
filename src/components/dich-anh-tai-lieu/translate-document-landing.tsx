@@ -8,6 +8,7 @@ import { DOCUMENT_TRANSLATE_LANGUAGES } from '@/lib/document-translate-languages
 import { translateDocumentLandingCopy } from '@/lib/dich-anh-tai-lieu/landing-copy'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
+import { NANOAI_IMAGE_NAME } from '@/lib/ai/nanoai-image-names'
 import { SITE_URL } from '@/lib/seo'
 
 function money(locale: WebLocale, amount: number): string {
@@ -31,27 +32,27 @@ export function TranslateDocumentLanding({
     gemini4k: money(locale, CREDIT_UNIT_PRICE_VND * DOCUMENT_TRANSLATE_GEMINI_CREDITS['4K']),
   }
   const modelRows = [
-    { model: 'GPT medium', credit: '1', price: prices.gptMedium, vnd: CREDIT_UNIT_PRICE_VND },
-    { model: 'GPT high', credit: '2', price: prices.gptHigh, vnd: CREDIT_UNIT_PRICE_VND * 2 },
+    { model: NANOAI_IMAGE_NAME.medium, credit: '1', price: prices.gptMedium, vnd: CREDIT_UNIT_PRICE_VND },
+    { model: NANOAI_IMAGE_NAME.high, credit: '2', price: prices.gptHigh, vnd: CREDIT_UNIT_PRICE_VND * 2 },
     {
-      model: 'Gemini 2K',
+      model: NANOAI_IMAGE_NAME['2K'],
       credit: '1.5',
       price: prices.gemini2k,
       vnd: Math.round(CREDIT_UNIT_PRICE_VND * DOCUMENT_TRANSLATE_GEMINI_CREDITS['2K']),
     },
     {
-      model: 'Gemini 4K',
+      model: NANOAI_IMAGE_NAME['4K'],
       credit: '4',
       price: prices.gemini4k,
       vnd: CREDIT_UNIT_PRICE_VND * DOCUMENT_TRANSLATE_GEMINI_CREDITS['4K'],
     },
   ]
-  const fits = {
-    'GPT medium': locale === 'vi' ? 'Chữ trang tài liệu thông thường. Mức nên mở.' : locale === 'zh' ? '普通文档文字。建议先用。' : locale === 'ja' ? '普通の文書の文字。最初に使う段階。' : locale === 'ko' ? '일반 문서 글자. 먼저 쓰는 단계.' : 'Ordinary document text. The tier to start with.',
-    'GPT high': locale === 'vi' ? 'Chữ nhỏ và bản vẽ dày. Cùng cỡ ảnh với medium.' : locale === 'zh' ? '小字和密图。画面尺寸与 medium 相同。' : locale === 'ja' ? '小さい文字と密な図面。画像サイズは medium と同じ。' : locale === 'ko' ? '작은 글자와 빽빽한 도면. 화면 크기는 medium과 같음.' : 'Small type and dense drawings. Same image size as medium.',
-    'Gemini 2K': locale === 'vi' ? 'Trang nét hơn, xem trên màn hình và in vừa.' : locale === 'zh' ? '页面更清晰，适合屏幕和普通打印。' : locale === 'ja' ? 'より鮮明。画面と小さめの印刷向け。' : locale === 'ko' ? '더 선명. 화면과 보통 인쇄용.' : 'Sharper page, for screen and modest print.',
-    'Gemini 4K': locale === 'vi' ? 'Nét nhất, để in lớn. Chữ không chắc hơn GPT medium.' : locale === 'zh' ? '最清晰，适合大幅印刷。文字不一定比 GPT medium 更准。' : locale === 'ja' ? '最も鮮明で大判印刷向け。文字は GPT medium より正確とは限らない。' : locale === 'ko' ? '가장 선명하고 큰 인쇄용. 글자는 GPT medium보다 더 정확하다고 보기 어렵습니다.' : 'Sharpest, for large print. Text is not more reliable than GPT medium.',
-  } as const
+  const fits: Record<string, string> = {
+    [NANOAI_IMAGE_NAME.medium]: locale === 'vi' ? 'Chữ trang tài liệu thông thường. Mức nên mở.' : locale === 'zh' ? '普通文档文字。建议先用。' : locale === 'ja' ? '普通の文書の文字。最初に使う段階。' : locale === 'ko' ? '일반 문서 글자. 먼저 쓰는 단계.' : 'Ordinary document text. The tier to start with.',
+    [NANOAI_IMAGE_NAME.high]: locale === 'vi' ? 'Chữ nhỏ và bản vẽ dày. Cùng cỡ ảnh với NanoAI 2M.' : locale === 'zh' ? '小字和密图。画面尺寸与 NanoAI 2M 相同。' : locale === 'ja' ? '小さい文字と密な図面。画像サイズは NanoAI 2M と同じ。' : locale === 'ko' ? '작은 글자와 빽빽한 도면. 화면 크기는 NanoAI 2M과 같음.' : 'Small type and dense drawings. Same image size as NanoAI 2M.',
+    [NANOAI_IMAGE_NAME['2K']]: locale === 'vi' ? 'Trang nét hơn, xem trên màn hình và in vừa.' : locale === 'zh' ? '页面更清晰，适合屏幕和普通打印。' : locale === 'ja' ? 'より鮮明。画面と小さめの印刷向け。' : locale === 'ko' ? '더 선명. 화면과 보통 인쇄용.' : 'Sharper page, for screen and modest print.',
+    [NANOAI_IMAGE_NAME['4K']]: locale === 'vi' ? 'Nét nhất, để in lớn. Chữ không chắc hơn NanoAI 2M.' : locale === 'zh' ? '最清晰，适合大幅印刷。文字不一定比 NanoAI 2M 更准。' : locale === 'ja' ? '最も鮮明で大判印刷向け。文字は NanoAI 2M より正確とは限らない。' : locale === 'ko' ? '가장 선명하고 큰 인쇄용. 글자는 NanoAI 2M보다 더 정확하다고 보기 어렵습니다.' : 'Sharpest, for large print. Text is not more reliable than NanoAI 2M.',
+  }
   const ctaHref = '/dich-anh-tai-lieu/xu-ly'
   const startButton = (
     <div className="mt-6">

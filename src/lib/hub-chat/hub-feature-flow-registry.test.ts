@@ -215,6 +215,38 @@ test('hỗ trợ làm bài opens homework help, not teacher homework', () => {
   if (teacher?.kind === 'standalone') assert.equal(teacher.href, '/tao-bai-tap-ve-nha')
 })
 
+test('học tiếng nhật opens the Japanese page', () => {
+  for (const phrase of ['Học tiếng Nhật', 'hoc tieng nhat', 'learn japanese']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/hoc-tieng-nhat', phrase)
+  }
+})
+
+test('học tiếng hàn opens the Korean page', () => {
+  for (const phrase of ['Học tiếng Hàn', 'hoc tieng han', 'learn korean']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/hoc-tieng-han', phrase)
+  }
+})
+
+test('học tiếng trung opens the Chinese page', () => {
+  for (const phrase of ['Học tiếng Trung', 'hoc tieng trung', 'learn chinese']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/hoc-tieng-trung', phrase)
+  }
+})
+
+test('học tiếng việt opens the page for foreigners', () => {
+  for (const phrase of ['Học tiếng Việt', 'hoc tieng viet', 'learn vietnamese']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/hoc-tieng-viet', phrase)
+  }
+})
+
 test('học ngoại ngữ opens the language learning page', () => {
   for (const phrase of ['Học ngoại ngữ', 'hoc ngoai ngu', 'học tiếng anh', 'learn a language']) {
     const match = matchFeatureFlowByMessage(phrase, 'vi')

@@ -12,6 +12,7 @@ import { useSearchParams } from 'next/navigation'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
 import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { NANOAI_IMAGE_NAME } from '@/lib/ai/nanoai-image-names'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { DOCUMENT_TRANSLATE_GEMINI_CREDITS } from '@/lib/document-translate-pricing'
 import { documentTranslateLanguagesByGroup } from '@/lib/document-translate-languages'
@@ -75,29 +76,29 @@ function translateModelNotes(uiLocale: UiLocale): Array<{
       key: 'gpt-medium',
       engine: 'gpt',
       gpt: 'medium',
-      title: `GPT medium · ${gptMedium}`,
+      title: `${NANOAI_IMAGE_NAME.medium} · ${gptMedium}`,
       purpose: tr(uiLocale, 'Chữ trang tài liệu. Nên dùng.', 'Document text. The one to use.', '文档文字。建议用这个。', '文書の文字。これを使う。', '문서 글자. 이것을 쓰세요.'),
     },
     {
       key: 'gpt-high',
       engine: 'gpt',
       gpt: 'high',
-      title: `GPT high · ${gptHigh}`,
-      purpose: tr(uiLocale, 'Chữ nhỏ, bản vẽ dày. Cùng cỡ ảnh medium.', 'Small type and dense drawings. Same image size as medium.', '小字、密图。画面尺寸与 medium 相同。', '小さい文字、密な図面。画像サイズは medium と同じ。', '작은 글자, 빽빽한 도면. 화면 크기는 medium과 같음.'),
+      title: `${NANOAI_IMAGE_NAME.high} · ${gptHigh}`,
+      purpose: tr(uiLocale, 'Chữ nhỏ, bản vẽ dày. Cùng cỡ ảnh NanoAI 2M.', 'Small type and dense drawings. Same image size as NanoAI 2M.', '小字、密图。画面尺寸与 NanoAI 2M 相同。', '小さい文字、密な図面。画像サイズは NanoAI 2M と同じ。', '작은 글자, 빽빽한 도면. 화면 크기는 NanoAI 2M과 같음.'),
     },
     {
       key: 'gemini-2k',
       engine: 'gemini',
       gemini: '2K',
-      title: `Gemini 2K · ${gemini2k}`,
+      title: `${NANOAI_IMAGE_NAME['2K']} · ${gemini2k}`,
       purpose: tr(uiLocale, 'Trang nét hơn, xem trên màn hình và in vừa.', 'Sharper page, for screen and modest print.', '页面更清晰，适合屏幕和普通打印。', 'より鮮明。画面と小さめの印刷向け。', '더 선명. 화면과 보통 인쇄용.'),
     },
     {
       key: 'gemini-4k',
       engine: 'gemini',
       gemini: '4K',
-      title: `Gemini 4K · ${gemini4k}`,
-      purpose: tr(uiLocale, 'Nét nhất, in lớn. Chữ không chắc hơn medium.', 'Sharpest, for large print. Text is not more reliable than medium.', '最清晰，适合大幅印刷。文字不一定比 medium 更准。', '最も鮮明、大判印刷向け。文字は medium より正確とは限らない。', '가장 선명, 큰 인쇄용. 글자는 medium보다 더 정확하다고 보기 어렵습니다.'),
+      title: `${NANOAI_IMAGE_NAME['4K']} · ${gemini4k}`,
+      purpose: tr(uiLocale, 'Nét nhất, in lớn. Chữ không chắc hơn NanoAI 2M.', 'Sharpest, for large print. Text is not more reliable than NanoAI 2M.', '最清晰，适合大幅印刷。文字不一定比 NanoAI 2M 更准。', '最も鮮明、大判印刷向け。文字は NanoAI 2M より正確とは限らない。', '가장 선명, 큰 인쇄용. 글자는 NanoAI 2M보다 더 정확하다고 보기 어렵습니다.'),
     },
   ]
 }
@@ -586,7 +587,7 @@ export default function DichAnhTaiLieuClientPage() {
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <FileText className="h-7 w-7 text-slate-600" /> {tr(uiLocale, 'Dịch ảnh tài liệu kỹ thuật', 'Translate technical document images', '翻译技术文档图片', '技術文書画像の翻訳', '기술 문서 이미지 번역')}
           </h1>
-          <p className="text-muted-foreground mt-1">{tr(uiLocale, 'Dịch trang tài liệu, giữ bố cục. Mặc định GPT medium, 1 credit/trang. PDF tải ra file PDF hoặc ZIP từng trang.', 'Translate a document page and keep the layout. Default is GPT medium, 1 credit/page. A PDF can download as one PDF or a ZIP of pages.', '翻译文档页并保留版式。默认 GPT medium，每页 1 积分。PDF 可下载为一个 PDF 或逐页 ZIP。', '文書ページを翻訳し、レイアウトを保ちます。初期設定は GPT medium、1クレジット/ページ。PDFは1つのPDFかページごとのZIPで受け取れます。', '문서 페이지를 번역하고 레이아웃을 유지합니다. 기본은 GPT medium, 페이지당 1크레딧. PDF는 PDF 한 파일 또는 페이지 ZIP으로 받습니다.')}</p>
+          <p className="text-muted-foreground mt-1">{tr(uiLocale, 'Dịch trang tài liệu, giữ bố cục. Mặc định NanoAI 2M, 1 credit/trang. PDF tải ra file PDF hoặc ZIP từng trang.', 'Translate a document page and keep the layout. Default is NanoAI 2M, 1 credit/page. A PDF can download as one PDF or a ZIP of pages.', '翻译文档页并保留版式。默认 NanoAI 2M，每页 1 积分。PDF 可下载为一个 PDF 或逐页 ZIP。', '文書ページを翻訳し、レイアウトを保ちます。初期設定は NanoAI 2M、1クレジット/ページ。PDFは1つのPDFかページごとのZIPで受け取れます。', '문서 페이지를 번역하고 레이아웃을 유지합니다. 기본은 NanoAI 2M, 페이지당 1크레딧. PDF는 PDF 한 파일 또는 페이지 ZIP으로 받습니다.')}</p>
         </div>
 
         {step === 'UPLOAD' && (

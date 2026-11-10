@@ -61,7 +61,7 @@ describe('imageEngineCredit', () => {
 
     const missing = imageChargeFromForm({ get: (name) => (name === 'imageEngine' ? 'gpt' : null) }, 1.5)
     assert.equal(missing.engine, 'gpt')
-    assert.match(missing.error || '', /low, medium hoặc high/)
+    assert.match(missing.error || '', /NanoAI 2L, NanoAI 2M hoặc NanoAI 2H/)
   })
 
   it('maps aspect ratio to a GPT size and uses auto when an edit has no ratio', () => {

@@ -83,7 +83,7 @@ export function imageChargeFromForm(
       geminiQuality,
       gptQuality: null,
       cost: 0,
-      error: 'Chọn chất lượng GPT: low, medium hoặc high.',
+      error: 'Chọn NanoAI 2L, NanoAI 2M hoặc NanoAI 2H.',
     }
   }
   try {
