@@ -27,15 +27,18 @@ export function mobileToolChatFrameFromBox(input: {
   layoutHeightPx: number
   visualOffsetTopPx: number
   visualHeightPx: number
+  /** Layout đã co theo bàn phím nên overlap = 0, nhưng ô gõ vẫn phải nằm sát mép bàn phím. */
+  keyboardOpen?: boolean
 }): MobileToolChatFrame | null {
   if (!input.mobile) return null
   const top = Math.max(0, Math.round(Math.max(input.backBottomPx, input.headerBottomPx ?? 0)))
   const dock = Number.isFinite(input.dockHeightPx) ? Math.ceil(input.dockHeightPx) : 0
-  if (dock < MIN_DOCK_PX) return { top, bottom: null }
   const visualBottom = Math.max(0, input.visualOffsetTopPx) + Math.max(0, input.visualHeightPx)
   const overlap = Math.round(input.layoutHeightPx - visualBottom)
-  const keyboard = overlap >= KEYBOARD_LIFT_MIN_PX ? overlap : 0
-  return { top, bottom: Math.max(dock, keyboard) }
+  const keyboard = input.keyboardOpen === true || overlap >= KEYBOARD_LIFT_MIN_PX
+  if (keyboard) return { top, bottom: Math.max(0, overlap) }
+  if (dock < MIN_DOCK_PX) return { top, bottom: null }
+  return { top, bottom: dock }
 }
 
 export function useMobileToolChatFrame(): MobileToolChatFrame | null {
@@ -47,6 +50,7 @@ export function useMobileToolChatFrame(): MobileToolChatFrame | null {
     let mo: MutationObserver | null = null
     let raf = 0
     let tries = 0
+    let fullVisual = window.visualViewport?.height ?? window.innerHeight
 
     const read = (): MobileToolChatFrame | null => {
       if (!mq.matches) return null
@@ -54,6 +58,8 @@ export function useMobileToolChatFrame(): MobileToolChatFrame | null {
       const back = document.querySelector('[data-creation-tool-back]')
       const nav = document.querySelector('nav.safe-area-pb')
       const vv = window.visualViewport
+      const visualNow = vv?.height ?? window.innerHeight
+      if (visualNow > fullVisual) fullVisual = visualNow
       const active = document.activeElement
       const fieldFocused =
         active instanceof HTMLInputElement ||
@@ -66,7 +72,8 @@ export function useMobileToolChatFrame(): MobileToolChatFrame | null {
         dockHeightPx: nav ? nav.getBoundingClientRect().height : 0,
         layoutHeightPx: window.innerHeight,
         visualOffsetTopPx: fieldFocused ? (vv?.offsetTop ?? 0) : 0,
-        visualHeightPx: fieldFocused ? (vv?.height ?? window.innerHeight) : window.innerHeight,
+        visualHeightPx: fieldFocused ? visualNow : window.innerHeight,
+        keyboardOpen: fieldFocused && fullVisual - visualNow >= KEYBOARD_LIFT_MIN_PX,
       })
     }
 
@@ -117,10 +124,17 @@ export function useMobileToolChatFrame(): MobileToolChatFrame | null {
 
     const onViewport = () => {
       tries = 0
+      const visualNow = window.visualViewport?.height ?? window.innerHeight
+      if (visualNow > fullVisual) fullVisual = visualNow
       sync()
+    }
+    const onOrient = () => {
+      fullVisual = window.visualViewport?.height ?? window.innerHeight
+      onViewport()
     }
     mq.addEventListener('change', onViewport)
     window.addEventListener('resize', onViewport)
+    window.addEventListener('orientationchange', onOrient)
     window.visualViewport?.addEventListener('resize', onViewport)
     window.visualViewport?.addEventListener('scroll', onViewport)
     const onFocusOut = () => {
@@ -138,6 +152,7 @@ export function useMobileToolChatFrame(): MobileToolChatFrame | null {
       mo?.disconnect()
       mq.removeEventListener('change', onViewport)
       window.removeEventListener('resize', onViewport)
+      window.removeEventListener('orientationchange', onOrient)
       window.visualViewport?.removeEventListener('resize', onViewport)
       window.visualViewport?.removeEventListener('scroll', onViewport)
       window.removeEventListener('focusin', onViewport)

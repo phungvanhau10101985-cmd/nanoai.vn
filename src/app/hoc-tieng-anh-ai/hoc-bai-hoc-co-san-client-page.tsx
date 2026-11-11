@@ -3264,10 +3264,10 @@ export default function HocBaiHocCoSanClientPage() {
 
   const redirectToMiniDrill = useCallback(() => {
     if (String(reviewDrillStage) === 'writing') {
-      writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       window.setTimeout(() => {
-        writingInputRef.current?.focus()
-      }, 180)
+        writingInputRef.current?.focus({ preventScroll: true })
+      }, 60)
     } else if (String(reviewDrillStage) === 'speaking') {
       miniSpeakingBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     } else if (String(reviewDrillStage) === 'listening') {
@@ -3276,10 +3276,10 @@ export default function HocBaiHocCoSanClientPage() {
   }, [reviewDrillStage])
 
   const redirectToMiniWriting = useCallback(() => {
-    writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     window.setTimeout(() => {
-      writingInputRef.current?.focus()
-    }, 180)
+      writingInputRef.current?.focus({ preventScroll: true })
+    }, 60)
   }, [])
 
   const persistWritingTaskSnapshot = useCallback(

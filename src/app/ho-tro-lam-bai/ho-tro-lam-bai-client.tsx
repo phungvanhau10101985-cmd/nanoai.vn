@@ -811,19 +811,19 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     : undefined
 
   if (!ready) {
-    return <div className={shellClass} style={shellStyle} aria-busy="true" />
+    return <div className={shellClass} data-keyboard-manual="" style={shellStyle} aria-busy="true" />
   }
 
   if (needsPlan) {
     return (
-      <div className={shellClass} style={shellStyle}>
+      <div className={shellClass} data-keyboard-manual="" style={shellStyle}>
         <StudentStudyPaywall locale={locale} onPurchased={() => setReloadKey((n) => n + 1)} />
       </div>
     )
   }
 
   return (
-    <div className={shellClass} style={shellStyle} data-study-chat="">
+    <div className={shellClass} data-keyboard-manual="" style={shellStyle} data-study-chat="">
       <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 [overflow-anchor:none]">
         <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
         {ready && messages.length === 0 ? <p className="text-sm leading-6 text-muted-foreground">{copy.empty}</p> : null}

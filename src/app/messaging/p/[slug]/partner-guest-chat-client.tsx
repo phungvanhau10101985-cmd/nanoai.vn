@@ -7378,6 +7378,7 @@ export function PartnerGuestChatClient({
               onChange={onPickCamera}
             />
             <div
+              data-keyboard-manual=""
               className={`space-y-2 border-t border-border bg-background px-2 pt-2 sm:px-3 ${
                 guestChatNarrowLayout
                   ? 'relative z-40 w-full shrink-0 shadow-[0_-8px_32px_rgba(0,0,0,0.12)] backdrop-blur-sm supports-[backdrop-filter]:bg-background/95 dark:shadow-[0_-8px_32px_rgba(0,0,0,0.45)]'

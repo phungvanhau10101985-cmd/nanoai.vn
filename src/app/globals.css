@@ -12,6 +12,27 @@
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
+  /* Ô đang gõ không bị trình duyệt căn giữa, chừa một mép sát bàn phím.
+     Thanh đáy ẩn lúc gõ để không nằm giữa ô và bàn phím. */
+  @media (max-width: 1023px) {
+    input,
+    textarea,
+    [contenteditable='true'] {
+      scroll-margin-bottom: 12px;
+    }
+    html[data-keyboard-open] nav[data-nanoai-chrome],
+    html:has(
+      textarea:focus,
+      [contenteditable='true']:focus,
+      input:is([type='text'], [type='search'], [type='email'], [type='tel'], [type='url'], [type='password'], [type='number'], :not([type])):focus
+    ) nav[data-nanoai-chrome] {
+      visibility: hidden;
+      pointer-events: none;
+    }
+    html[data-keyboard-open] [data-study-chat] {
+      z-index: 45;
+    }
+  }
   .safe-area-pt {
     padding-top: env(safe-area-inset-top, 0);
   }

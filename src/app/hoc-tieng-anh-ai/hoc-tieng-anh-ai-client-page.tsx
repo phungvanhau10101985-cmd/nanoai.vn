@@ -14,6 +14,7 @@ import {
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { MobileTypingSheet } from '@/components/mobile/mobile-typing-sheet'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -3457,10 +3458,9 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
     if (String(reviewDrillStage) === 'writing') {
-      writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       window.setTimeout(() => {
-        writingInputRef.current?.focus()
-      }, 180)
+        writingInputRef.current?.focus({ preventScroll: true })
+      }, 60)
     } else if (String(reviewDrillStage) === 'speaking') {
       miniSpeakingBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     } else if (String(reviewDrillStage) === 'listening') {
@@ -3469,10 +3469,9 @@ export default function HocTiengAnhAiClientPage() {
   }, [reviewDrillStage, miniReviewModalOpen])
 
   const redirectToMiniWriting = useCallback(() => {
-    writingTaskRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     window.setTimeout(() => {
-      writingInputRef.current?.focus()
-    }, 180)
+      writingInputRef.current?.focus({ preventScroll: true })
+    }, 60)
   }, [])
 
   const persistWritingTaskSnapshot = useCallback(
@@ -11369,18 +11368,62 @@ export default function HocTiengAnhAiClientPage() {
               </div>
               {learningMode === 'review' && String(reviewDrillStage) === 'writing' && writingTask && miniReviewModalOpen && typeof document !== 'undefined'
                 ? createPortal(
-                <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/80 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:items-center">
-                <div
-                  ref={writingTaskRef}
-                  role="dialog"
-                  aria-modal="true"
-                  className="relative w-full max-h-[92vh] max-w-xl overflow-y-auto rounded-lg border border-amber-200 bg-white p-4 shadow-xl"
+                <MobileTypingSheet
+                  panelRef={writingTaskRef}
+                  panelClassName="border border-amber-200"
+                  header={(
+                    <div className="flex justify-end px-2 py-1">
+                      <Button type="button" variant="ghost" size="sm" onClick={dismissMiniReviewModal} className="min-h-11 touch-manipulation">
+                        {localText('Đóng', 'Close')}
+                      </Button>
+                    </div>
+                  )}
+                  footer={(
+                    <div>
+                      <p className="mb-2 text-xs font-semibold text-slate-700">
+                        {localText('Nhập câu của bạn', 'Type your sentence')}
+                      </p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <LessonImeField
+                          ref={writingInputRef}
+                          value={writingDraft}
+                          languageCode={languageCode}
+                          localText={localText}
+                          flushRef={writingImeFlushRef}
+                          onPendingChange={setWritingImePending}
+                          resetKey={writingTask?.messageId || ''}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' || writingBusy) return
+                            event.preventDefault()
+                            const text = String(writingImeFlushRef.current?.() ?? writingDraft ?? '').trim()
+                            if (!text) return
+                            void evaluateWritingTask()
+                          }}
+                          onChange={(next) => {
+                            setWritingDraft(next)
+                            if (writingEvalResult && !writingTask?.completed) {
+                              setWritingEvalResult(null)
+                            }
+                          }}
+                          placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
+                          disabled={writingBusy}
+                          className={
+                            writingInputStatus === 'matched'
+                              ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                              : writingInputStatus === 'incorrect'
+                                ? 'border-rose-400 bg-rose-50 text-rose-800'
+                                : writingInputStatus === 'partial'
+                                  ? 'border-sky-300 bg-sky-50 text-sky-800'
+                                  : ''
+                          }
+                        />
+                        <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || (!writingDraft.trim() && !writingImePending)}>
+                          {writingBusy ? processingLabel(localText('Đang gửi...', 'Sending...')) : localText('Gửi', 'Send')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 >
-                  <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-3 flex justify-end bg-white/95 px-2 py-1">
-                    <Button type="button" variant="ghost" size="sm" onClick={dismissMiniReviewModal} className="min-h-11 touch-manipulation">
-                      {localText('Đóng', 'Close')}
-                    </Button>
-                  </div>
                   <div className="space-y-3">
                     {writingInputStatus === 'incorrect' ? (
                       <p className="text-xs text-rose-700">
@@ -11454,49 +11497,6 @@ export default function HocTiengAnhAiClientPage() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="rounded-md border border-amber-200 bg-white p-2.5">
-                      <p className="mb-2 text-xs font-semibold text-slate-700">
-                        {localText('Nhập câu của bạn', 'Type your sentence')}
-                      </p>
-                      <div className="flex min-w-0 items-center gap-2">
-                        <LessonImeField
-                          ref={writingInputRef}
-                          value={writingDraft}
-                          languageCode={languageCode}
-                          localText={localText}
-                          flushRef={writingImeFlushRef}
-                          onPendingChange={setWritingImePending}
-                          resetKey={writingTask?.messageId || ''}
-                          onKeyDown={(event) => {
-                            if (event.key !== 'Enter' || writingBusy) return
-                            event.preventDefault()
-                            const text = String(writingImeFlushRef.current?.() ?? writingDraft ?? '').trim()
-                            if (!text) return
-                            void evaluateWritingTask()
-                          }}
-                          onChange={(next) => {
-                            setWritingDraft(next)
-                            if (writingEvalResult && !writingTask?.completed) {
-                              setWritingEvalResult(null)
-                            }
-                          }}
-                          placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
-                          disabled={writingBusy}
-                          className={
-                            writingInputStatus === 'matched'
-                              ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
-                              : writingInputStatus === 'incorrect'
-                                ? 'border-rose-400 bg-rose-50 text-rose-800'
-                                : writingInputStatus === 'partial'
-                                  ? 'border-sky-300 bg-sky-50 text-sky-800'
-                                  : ''
-                          }
-                        />
-                        <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || (!writingDraft.trim() && !writingImePending)}>
-                          {writingBusy ? processingLabel(localText('Đang gửi...', 'Sending...')) : localText('Gửi', 'Send')}
-                        </Button>
-                      </div>
-                    </div>
                     <div className="rounded-md border border-amber-200 bg-amber-50/70 px-2.5 py-2">
                       {!writingTask.completed ? (
                         <p className="text-xs text-amber-700">
@@ -11536,8 +11536,7 @@ export default function HocTiengAnhAiClientPage() {
                       </div>
                     ) : null}
                   </div>
-                </div>
-                </div>,
+                </MobileTypingSheet>,
                 document.body
               )
               : null}

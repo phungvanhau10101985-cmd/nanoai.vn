@@ -55,15 +55,19 @@ export function WeddingSampleComposeModal(props: {
         if (attempts < 12) raf = window.requestAnimationFrame(attach)
         return
       }
-      const mq = window.matchMedia('(max-width: 767px)')
+      const mq = window.matchMedia('(max-width: 1023px)')
+      let fullVisual = window.visualViewport?.height ?? window.innerHeight
 
       const pin = () => {
         const vv = window.visualViewport
+        const visualHeight = vv?.height ?? window.innerHeight
+        if (visualHeight > fullVisual) fullVisual = visualHeight
         const frame = composeDialogKeyboardFrame({
           mobile: mq.matches,
           layoutHeight: window.innerHeight,
           offsetTop: vv?.offsetTop ?? 0,
-          visualHeight: vv?.height ?? window.innerHeight,
+          visualHeight,
+          keyboardOpen: fullVisual - visualHeight >= 80,
         })
         if (!frame) {
           content.style.top = ''
@@ -139,9 +143,10 @@ export function WeddingSampleComposeModal(props: {
         ref={contentRef}
         overlayClassName="z-[260]"
         showCloseButton={!props.busy}
+        data-keyboard-manual=""
         className="z-[260] flex max-h-[min(40rem,calc(100dvh-1rem))] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
         onOpenAutoFocus={(event) => {
-          if (window.matchMedia('(max-width: 767px)').matches) event.preventDefault()
+          if (window.matchMedia('(max-width: 1023px)').matches) event.preventDefault()
         }}
       >
         <DialogHeader className="shrink-0 space-y-0 px-6 pb-2 pr-12 pt-6 text-left">

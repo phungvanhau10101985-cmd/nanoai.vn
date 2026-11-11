@@ -71,6 +71,7 @@ import {
   ReferralClaimRunner,
   SwUpdateReload,
 } from '@/components/layout/deferred-shell-widgets'
+import { MobileKeyboardPin } from '@/components/mobile/mobile-keyboard-pin'
 const GA_MEASUREMENT_ID = "G-1KZ2PKX887";
 const INTEGRATIONS_KEY = "admin_integrations_config";
 
@@ -185,6 +186,7 @@ export const viewport: Viewport = {
   minimumScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
@@ -612,6 +614,7 @@ export default async function RootLayout({
         }
         suppressHydrationWarning
       >
+        <MobileKeyboardPin />
         {shopMetaPixel ? (
           <noscript>
             {/* eslint-disable-next-line @next/next/no-img-element */}

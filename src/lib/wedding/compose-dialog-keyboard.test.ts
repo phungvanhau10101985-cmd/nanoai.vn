@@ -34,3 +34,14 @@ test('a scrolled visual viewport still sits above the keyboard', () => {
   assert.equal(frame.top, 188)
   assert.equal(frame.top + frame.maxHeight, 180 + 420 - 8)
 })
+
+test('resized layout still pins the dialog when overlap is gone', () => {
+  const frame = composeDialogKeyboardFrame({
+    mobile: true,
+    layoutHeight: 470,
+    offsetTop: 0,
+    visualHeight: 470,
+    keyboardOpen: true,
+  })
+  assert.deepEqual(frame, { top: 8, maxHeight: 454 })
+})

@@ -44,3 +44,22 @@ test('a short visual gap such as the URL bar does not lift the composer', () => 
     { top: 128, bottom: 88 }
   )
 })
+
+test('layout resized by the keyboard drops the dock so the composer sits on the keyboard', () => {
+  assert.deepEqual(
+    mobileToolChatFrameFromBox({
+      ...base,
+      layoutHeightPx: 470,
+      visualHeightPx: 470,
+      keyboardOpen: true,
+    }),
+    { top: 128, bottom: 0 }
+  )
+})
+
+test('overlay keyboard still lifts by the overlap when the dock is missing', () => {
+  assert.deepEqual(
+    mobileToolChatFrameFromBox({ ...base, dockHeightPx: 0, visualHeightPx: 470 }),
+    { top: 128, bottom: 330 }
+  )
+})
