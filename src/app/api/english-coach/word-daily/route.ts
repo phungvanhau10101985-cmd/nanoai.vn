@@ -674,7 +674,10 @@ export async function GET(request: NextRequest) {
         })
       }
     }
-    const items = filled.map(({ readingsChanged: _readingsChanged, ...item }) => item)
+    const items = filled.map(({ readingsChanged, ...item }) => {
+      void readingsChanged
+      return item
+    })
 
     return NextResponse.json({
       date: learnedDate,

@@ -53,8 +53,6 @@ import {
   navigateDetachedTeacherSlideWindow,
   openDetachedTeacherSlideWindow,
 } from '@/lib/tao-giao-trinh/teacher-slide-window'
-import { renameSavedSchool, savePickedSchool, useSchoolSearch, voteSavedSchool, type SchoolSearchHit } from '@/hooks/use-school-search'
-import { SchoolNameOptions } from '@/components/school/school-name-options'
 
 function getWebLocaleFromCookie(): WebLocale {
   return readWebLocaleFromDocumentCookie()
@@ -454,20 +452,10 @@ export default function TaoBaiThiClientPage({
   const [newClassName, setNewClassName] = useState('')
   const [newClassSubject, setNewClassSubject] = useState('')
   const [newClassTeacher, setNewClassTeacher] = useState('')
-  const [defaultsForNewClass, setDefaultsForNewClass] = useState({ subject: '', teacher: '' })
+  const [, setDefaultsForNewClass] = useState({ subject: '', teacher: '' })
   const [showCreateClassModal, setShowCreateClassModal] = useState(false)
   const [createdExamsSheetOpen, setCreatedExamsSheetOpen] = useState(false)
   const [schoolSearch, setSchoolSearch] = useState('')
-  const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false)
-  const {
-    items: schoolSearchItems,
-    suggestions: schoolSuggestions,
-    loading: schoolSearchLoading,
-    suggesting: schoolSuggestLoading,
-    reload: reloadSchools,
-  } = useSchoolSearch(schoolSearch)
-  const schoolPanelRef = useRef<HTMLDivElement>(null)
-  const [savingSchool, setSavingSchool] = useState(false)
   const [selectedSchoolId, setSelectedSchoolId] = useState('')
   const [selectedSchoolName, setSelectedSchoolName] = useState('')
   const [examPreview, setExamPreview] = useState<null | {
@@ -672,87 +660,6 @@ export default function TaoBaiThiClientPage({
   useEffect(() => {
     void loadTeacherClasses()
   }, [loadTeacherClasses])
-
-  const chooseSavedSchool = async (item: SchoolSearchHit) => {
-    setSavingSchool(true)
-    try {
-      const saved = await voteSavedSchool({
-        schoolId: item.id,
-        choice: item.choice,
-        setAsDefault: false,
-      })
-      if (!saved.ok) {
-        toast({
-          title: tx.error,
-          description: saved.error || tx.schoolAiFailed,
-          variant: 'destructive',
-        })
-        return
-      }
-      const label = saved.canonicalName || item.name
-      setSelectedSchoolId(saved.schoolId)
-      setSelectedSchoolName(label)
-      setSchoolSearch(label)
-      setSchoolDropdownOpen(false)
-      reloadSchools()
-    } catch (e) {
-      toast({
-        title: tx.error,
-        description: e instanceof Error ? e.message : String(e),
-        variant: 'destructive',
-      })
-    } finally {
-      setSavingSchool(false)
-    }
-  }
-
-  const renameSchool = async (schoolId: string, name: string) => {
-    const saved = await renameSavedSchool({ schoolId, name })
-    if (!saved.ok) {
-      toast({
-        title: tx.error,
-        description: saved.error || tx.schoolAiFailed,
-        variant: 'destructive',
-      })
-      return false
-    }
-    reloadSchools()
-    return true
-  }
-
-  const pickSchoolName = async (rawName: string, siblingNames?: string[]) => {
-    const raw = rawName.trim()
-    if (raw.length < 3) return
-    setSavingSchool(true)
-    try {
-      const saved = await savePickedSchool({
-        name: raw,
-        siblingNames,
-        query: schoolSearch.trim(),
-        setAsDefault: false,
-      })
-      if (!saved.ok) {
-        toast({
-          title: tx.error,
-          description: saved.error || tx.schoolAiFailed,
-          variant: 'destructive',
-        })
-        return
-      }
-      setSelectedSchoolId(saved.schoolId)
-      setSelectedSchoolName(saved.canonicalName)
-      setSchoolSearch(saved.canonicalName)
-      setSchoolDropdownOpen(false)
-    } catch (e) {
-      toast({
-        title: tx.error,
-        description: e instanceof Error ? e.message : String(e),
-        variant: 'destructive',
-      })
-    } finally {
-      setSavingSchool(false)
-    }
-  }
 
   const createTeacherClass = async (): Promise<boolean> => {
     const className = newClassName.trim()

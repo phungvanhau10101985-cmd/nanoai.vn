@@ -147,7 +147,10 @@ export async function GET(request: NextRequest) {
       })
     }
     return NextResponse.json({
-      items: filled.map(({ readingsChanged: _readingsChanged, ...item }) => item),
+      items: filled.map(({ readingsChanged, ...item }) => {
+        void readingsChanged
+        return item
+      }),
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'

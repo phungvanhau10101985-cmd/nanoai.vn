@@ -29,7 +29,8 @@ export const NANOAI_GOOGLE_PRODUCT_CATEGORY = '313'
  * Shopping chỉ nhận hàng hóa hữu hình có trang đích và nút Mua hoàn tất được.
  * Mọi mục catalog NanoAI hiện tại là dịch vụ hoặc credit, nên không một mục nào đủ.
  */
-export function isNanoAiGoogleShoppingEligible(_item: NanoAiFacebookCatalogItem): boolean {
+export function isNanoAiGoogleShoppingEligible(item: NanoAiFacebookCatalogItem): boolean {
+  void item
   return false
 }
 

@@ -946,8 +946,6 @@ export default function WeddingPublicClient({
   const coverShown = coverDraft ?? (previewLookOn && activeSurface === 'cover' ? lookOrnaments : null) ?? coverSaved
   const letterShown = letterDraft ?? (previewLookOn && activeSurface === 'letter' ? lookOrnaments : null) ?? letterSaved
   const activeDraft = activeSurface === 'letter' ? letterDraft : coverDraft
-  const activeShown = activeSurface === 'letter' ? letterShown : coverShown
-  const setActiveDraft = activeSurface === 'letter' ? setLetterDraft : setCoverDraft
   const tImage = getDictionary(uiLocale).weddingCardAiImage
   const tCover = getDictionary(uiLocale).weddingCardAiCover
   const restyleOutfits = useMemo(

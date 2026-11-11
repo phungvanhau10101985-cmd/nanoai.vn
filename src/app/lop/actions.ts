@@ -354,7 +354,9 @@ export async function joinClass(input: { joinCode: string }) {
   return { success: true, classId }
 }
 
-export async function removeClassMember(_classId: string, _memberUserId: string) {
+export async function removeClassMember(classId: string, memberUserId: string) {
+  void classId
+  void memberUserId
   const { t } = getServerDictionary()
   return { error: t.classes.leaveClassTeachersCannotRemove }
 }

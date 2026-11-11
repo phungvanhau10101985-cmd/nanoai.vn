@@ -1122,10 +1122,13 @@ export async function insertClassMemberPg(params: {
 
 /** Giáo viên không xóa học sinh. Học sinh tự rời qua `leaveClassAsStudentPg`. */
 export async function removeClassMemberPg(
-  _classId: string,
-  _teacherUserId: string,
-  _memberUserId: string
+  classId: string,
+  teacherUserId: string,
+  memberUserId: string
 ): Promise<'ok' | 'not_teacher' | 'cannot_remove_owner' | 'not_found' | null> {
+  void classId
+  void teacherUserId
+  void memberUserId
   return 'not_teacher'
 }
 
