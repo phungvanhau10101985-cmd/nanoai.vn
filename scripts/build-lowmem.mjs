@@ -11,8 +11,11 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 process.env.SKIP_ESLINT_ON_BUILD = '1'
 
-const heapMb = Number.parseInt(process.env.NODE_BUILD_HEAP_MB ?? '8192', 10)
-const heap = Number.isFinite(heapMb) && heapMb >= 512 ? heapMb : 8192
+const requestedHeapMb = Number.parseInt(process.env.NODE_BUILD_HEAP_MB ?? '', 10)
+// Webpack production đã OOM quanh 3.1GB khi heap 3072/4096 (VPS 12GB, 2026-11-11).
+// Cho phép nâng trên 8192, không cho env thấp hơn kéo build xuống mức chết.
+const heap = Number.isFinite(requestedHeapMb) && requestedHeapMb > 8192 ? requestedHeapMb : 8192
+console.log('[build] next heap MB ' + heap + (requestedHeapMb !== heap && Number.isFinite(requestedHeapMb) ? ' (ignored NODE_BUILD_HEAP_MB=' + requestedHeapMb + ')' : ''))
 
 if (process.argv.includes('--skip-typescript')) {
   process.env.NEXT_BUILD_SKIP_TYPECHECK = '1'

@@ -24,8 +24,9 @@ set -euo pipefail
 #   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng/xóa PM2 trước lint/typecheck/build để giải phóng RAM (mặc định bật)
 #   DEPLOY_DELETE_PM2_BEFORE_BUILD=1  pm2 delete all trước build (mặc định bật); NanoAI start sau build, 188 start sau khi NanoAI health OK
 #   NODE_OPTIONS=--max-old-space-size=4096  Heap Node cho lint/typecheck (script tự set nếu chưa có).
-#   Bước next build dùng NODE_BUILD_HEAP_MB=8192 (scripts/build-lowmem.mjs). Heap 4096 chết
-#   lúc webpack Map ~3.1GB (OOM 2026-11-01) dù VPS 12GB — không gọi `npm run build:full` trần.
+#   Bước next build dùng NODE_BUILD_HEAP_MB=8192 (scripts/build-lowmem.mjs). Giá trị thấp hơn
+#   bị nâng lại lên 8192. Heap 3072/4096 chết lúc webpack ~3.1GB dù VPS 12GB — không gọi
+#   `npm run build:full` trần.
 #   DEPLOY_188_APP_DIR=/var/www/188.com.vn  Thư mục repo 188 (ecosystem: deploy/ecosystem.config.cjs)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
 #   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup + nhắc lịch đám cưới (mặc định bật)
@@ -408,14 +409,25 @@ stop_all_apps_for_deploy
 assert_no_app_listeners
 # Lint + tsc đã chạy ở [7/15]. next build không chạy lại (trùng, tốn CPU).
 # Chỉ bật DEPLOY_BUILD_VPS=1 khi VPS quá yếu và đã xác nhận quality ở CI/máy khác.
+# Heap 3072 chết giữa "Compiling for client" (GC ~3099MB, 2026-11-11). Không cho
+# NODE_BUILD_HEAP_MB thấp hơn 8192 — kể cả nhánh build:vps.
+if ! [[ "${NODE_BUILD_HEAP_MB:-}" =~ ^[0-9]+$ ]] || [[ "${NODE_BUILD_HEAP_MB}" -lt 8192 ]]; then
+  if [[ -n "${NODE_BUILD_HEAP_MB:-}" ]]; then
+    echo "  Bỏ NODE_BUILD_HEAP_MB=${NODE_BUILD_HEAP_MB} — next build cần ít nhất 8192."
+  fi
+  NODE_BUILD_HEAP_MB=8192
+fi
+export NODE_BUILD_HEAP_MB
+BUILD_NODE_OPTIONS="--max-old-space-size=${NODE_BUILD_HEAP_MB}"
+echo "  next build heap ${NODE_BUILD_HEAP_MB} MB"
 if [[ "${DEPLOY_BUILD_VPS:-}" == "1" ]]; then
   echo "  DEPLOY_BUILD_VPS=1 → npm run build:vps (skip TypeScript trong bước build)."
-  npm run build:vps
+  NODE_OPTIONS="${BUILD_NODE_OPTIONS}" npm run build:vps
 else
-  echo "  Lint + tsc đã xong ở [7/15] — next build bỏ lint/typecheck trùng, heap 8192."
+  echo "  Lint + tsc đã xong ở [7/15] — next build bỏ lint/typecheck trùng, heap ${NODE_BUILD_HEAP_MB}."
   # `next build` trần (build:full) chỉ theo NODE_OPTIONS=4096 và OOM khi Map webpack vượt ~3.1GB.
   # build-lowmem gắn --max-old-space-size trên process next; worker fork kế thừa execArgv.
-  SKIP_ESLINT_ON_BUILD=1 NEXT_BUILD_SKIP_TYPECHECK=1 NODE_BUILD_HEAP_MB=8192 NODE_OPTIONS=--max-old-space-size=8192 npm run build
+  SKIP_ESLINT_ON_BUILD=1 NEXT_BUILD_SKIP_TYPECHECK=1 NODE_OPTIONS="${BUILD_NODE_OPTIONS}" npm run build
 fi
 echo "  DONE [9/15]"
 

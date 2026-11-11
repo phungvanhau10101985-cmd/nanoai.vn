@@ -53,7 +53,7 @@ cd /var/www/Thu-do-online
 bash deploy/update-vps.sh main
 ```
 
-Chỉ khi **admin nói rõ** VPS yếu / bỏ lint / build nhẹ — mới dùng biến skip. Không dùng cho lệnh deploy thường:
+Chỉ khi **admin nói rõ** VPS yếu / bỏ lint / build nhẹ — mới dùng biến skip. Không dùng cho lệnh deploy thường. Không đặt `NODE_BUILD_HEAP_MB` dưới 8192: webpack chết quanh 3.1GB và script sẽ nâng lại lên 8192.
 
 ```bash
 cd /var/www/Thu-do-online
@@ -63,7 +63,6 @@ DEPLOY_STOP_PM2_BEFORE_BUILD=1 \
 DEPLOY_BUILD_VPS=1 \
 DEPLOY_SKIP_LINT=1 \
 DEPLOY_SKIP_TYPECHECK=1 \
-NODE_BUILD_HEAP_MB=3072 \
 bash deploy/update-vps.sh main
 ```
 
