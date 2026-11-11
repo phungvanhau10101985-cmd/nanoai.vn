@@ -1,4 +1,5 @@
 import type { KanaLexicon } from './kana-lexicon'
+import { loadImePack } from './ime-pack'
 import type { PinyinLexicon, PinyinWord } from './pinyin-lexicon'
 
 let pinyinLexicon: PinyinLexicon | null = null
@@ -9,8 +10,8 @@ let kanaLexiconLoad: Promise<KanaLexicon> | null = null
 export function primePinyinLexicon(): Promise<PinyinLexicon> {
   if (pinyinLexicon) return Promise.resolve(pinyinLexicon)
   if (!pinyinLexiconLoad) {
-    pinyinLexiconLoad = import('./pinyin-lexicon').then((mod) => {
-      const loaded = mod.getPinyinLexicon()
+    pinyinLexiconLoad = Promise.all([import('./pinyin-lexicon'), loadImePack('pinyin-lexicon.txt')]).then(([mod, pack]) => {
+      const loaded = mod.parsePinyinLexicon(pack)
       pinyinLexicon = loaded
       return loaded
     })
@@ -21,8 +22,8 @@ export function primePinyinLexicon(): Promise<PinyinLexicon> {
 export function primeKanaLexicon(): Promise<KanaLexicon> {
   if (kanaLexicon) return Promise.resolve(kanaLexicon)
   if (!kanaLexiconLoad) {
-    kanaLexiconLoad = import('./kana-lexicon').then((mod) => {
-      const loaded = mod.getKanaLexicon()
+    kanaLexiconLoad = Promise.all([import('./kana-lexicon'), loadImePack('kana-lexicon.txt')]).then(([mod, pack]) => {
+      const loaded = mod.parseKanaLexicon(pack)
       kanaLexicon = loaded
       return loaded
     })

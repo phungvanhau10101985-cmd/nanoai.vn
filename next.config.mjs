@@ -279,6 +279,8 @@ const withPWA = withPWAInit({
     workboxOptions: {
         importScripts: ['/push-sw.js'],
     },
+    // Từ điển bộ gõ tải khi học, không nhét vào service worker.
+    publicExcludes: ['!ime/**/*'],
     runtimeCaching: [
         {
             // Never cache navigation HTML in SW to avoid stale buildId references after deploy.

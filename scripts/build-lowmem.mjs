@@ -19,9 +19,10 @@ if (process.argv.includes('--skip-typescript')) {
 }
 
 const nextBin = join(root, 'node_modules/next/dist/bin/next')
+const env = { ...process.env, NODE_OPTIONS: '--max-old-space-size=' + String(heap) }
 const r = spawnSync(
   process.execPath,
   ['--max-old-space-size=' + String(heap), nextBin, 'build'],
-  { stdio: 'inherit', cwd: root, env: process.env }
+  { stdio: 'inherit', cwd: root, env }
 )
 process.exit(r.status === null ? 1 : r.status)

@@ -1,4 +1,4 @@
-import { PINYIN_LEXICON_PACK, PINYIN_SYLLABLES } from './pinyin-lexicon-data'
+import { PINYIN_SYLLABLES } from './pinyin-syllables'
 
 export type PinyinWord = { text: string; freq: number; py: string }
 
@@ -18,13 +18,13 @@ const EXTRA: Array<[string, string, number]> = [
 
 let cache: PinyinLexicon | null = null
 
-export function getPinyinLexicon(): PinyinLexicon {
+export function parsePinyinLexicon(pack: string): PinyinLexicon {
   if (cache) return cache
   const byPy = new Map<string, PinyinWord[]>()
   let total = 0
-  for (const line of PINYIN_LEXICON_PACK.split('\n')) {
+  for (const line of pack.split('\n')) {
     const trimmed = line.trim()
-    if (!trimmed) continue
+    if (!trimmed || trimmed.startsWith('#')) continue
     const parts = trimmed.split(' ')
     const py = parts[0]
     if (!py) continue
