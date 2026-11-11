@@ -3507,6 +3507,7 @@ ${topicSenseBlock}
 
 Lịch sử gần đây:
 ${String(transcript || '').slice(-800) || '(trống)'}
+`
       const gateResult = await model.generateContent(mainSentenceGatePrompt)
       trackEnglishCoachGeminiResult(
         gateResult,
