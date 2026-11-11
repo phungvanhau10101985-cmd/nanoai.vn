@@ -387,3 +387,78 @@ export async function updateVocabCacheExampleItemsPg(params: {
     return false
   }
 }
+
+export async function updateDailyWordReadingJsonPg(params: {
+  id: string
+  userId: string
+  meaningItemsJson: string
+  exampleItemsJson: string
+  updatedAtIso: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    await pgQuery(
+      `update public.language_coach_daily_words
+       set meaning_items_json = $3, example_items_json = $4, updated_at = $5::timestamptz
+       where id = $1::uuid and user_id = $2::uuid`,
+      [params.id, params.userId, params.meaningItemsJson, params.exampleItemsJson, params.updatedAtIso]
+    )
+    return true
+  } catch (e) {
+    console.error('[language-coach-meaning-examples-fix-pg] updateDailyWordReadingJsonPg', e)
+    return false
+  }
+}
+
+export async function updateReviewReadingJsonByWordPg(params: {
+  userId: string
+  word: string
+  targetLanguage: string
+  meaningItemsJson: string
+  exampleItemsJson: string
+  updatedAtIso: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    await pgQuery(
+      `update public.language_coach_review_queue
+       set meaning_items_json = $4, example_items_json = $5, updated_at = $6::timestamptz
+       where user_id = $1::uuid and word = $2 and target_language = $3`,
+      [params.userId, params.word, params.targetLanguage, params.meaningItemsJson, params.exampleItemsJson, params.updatedAtIso]
+    )
+    return true
+  } catch (e) {
+    console.error('[language-coach-meaning-examples-fix-pg] updateReviewReadingJsonByWordPg', e)
+    return false
+  }
+}
+
+export async function updateVocabReadingJsonByLookupPg(params: {
+  normalizedWord: string
+  normalizedTargetLanguage: string
+  normalizedNativeLanguage: string
+  meaningItemsJson: string
+  exampleItemsJson: string
+  updatedAtIso: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    await pgQuery(
+      `update public.language_coach_vocab_cache
+       set meaning_items_json = $4, example_items_json = $5, updated_at = $6::timestamptz
+       where normalized_word = $1 and normalized_target_language = $2 and normalized_native_language = $3`,
+      [
+        params.normalizedWord,
+        params.normalizedTargetLanguage,
+        params.normalizedNativeLanguage,
+        params.meaningItemsJson,
+        params.exampleItemsJson,
+        params.updatedAtIso,
+      ]
+    )
+    return true
+  } catch (e) {
+    console.error('[language-coach-meaning-examples-fix-pg] updateVocabReadingJsonByLookupPg', e)
+    return false
+  }
+}

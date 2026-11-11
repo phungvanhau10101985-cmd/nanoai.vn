@@ -20,6 +20,7 @@ export type WordSense = {
   gloss: string
   exampleTarget: string
   exampleNative: string
+  examplePinyin?: string
 }
 
 export type WordPracticeProgress = {

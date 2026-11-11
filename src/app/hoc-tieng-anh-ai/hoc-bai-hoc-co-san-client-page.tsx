@@ -1,6 +1,6 @@
 'use client'
 
-import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { stripReadingCommentary } from '@/lib/coach-reading'
 import { readLessonLanguageQuery } from '@/lib/hoc-ngoai-ngu/lesson-query'
 /* eslint-disable @typescript-eslint/no-unused-vars -- nhiều state/helper dự phòng; dọn dần khi refactor */
 
@@ -17,13 +17,18 @@ import {
   getWritingTaskProgressLocal,
   setWritingTaskProgressLocal,
 } from '@/lib/english-coach/writing-task-progress-storage'
-import { Loader2, Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation } from 'lucide-react'
+import { Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
 import { QuickStartModal } from './components/quick-start-modal'
 import { HistoryPanel } from './components/history-panel'
 import { TodayWordsPanel } from './components/today-words-panel'
 import { ReviewItemsPanel } from './components/review-items-panel'
+import { SpeechIntentConfirm } from './components/speech-intent-confirm'
+import { NativePhoneticLine } from './components/native-phonetic-line'
+import { PronunciationMasterSwitch, PronunciationReveal } from './components/pronunciation-reveal'
+import { LessonImeField } from './ime/lesson-ime-field'
+import { ProcessingIcon, ProcessingRow, processingLabel } from './components/processing-status'
 import { createCoachTranslator } from './i18n'
 import { toLanguagePairKey } from './i18n/pairs'
 import {
@@ -52,6 +57,7 @@ import {
   rescheduleReviewWords,
   runCefrAssessment,
   saveWordDaily,
+  saveWordReading,
   saveHistoryMessage as saveHistoryMessageApi,
   updateMessageTranslation as updateMessageTranslationApi,
   updateMiniStageSnapshot as updateMiniStageSnapshotApi,
@@ -60,6 +66,7 @@ import {
   tokenizeSentence,
   transliterateText,
   transcribeMixed,
+  translateSpeechMeaning,
   uploadAudio,
   runPlacementLevel,
 } from './services/english-coach-api'
@@ -131,6 +138,7 @@ type WordInsight = {
     gloss: string
     exampleTarget: string
     exampleNative: string
+    examplePinyin?: string
   }>
   usageLevel: 'high' | 'medium' | 'low'
   importanceScore: number
@@ -162,6 +170,7 @@ type TodayWordItem = {
     gloss: string
     exampleTarget: string
     exampleNative: string
+    examplePinyin?: string
   }>
   meaningItems?: Array<{
     text: string
@@ -285,6 +294,7 @@ type ReviewItem = {
   contextSensitive?: boolean
   meaningItems?: Array<{ text: string; pinyin?: string }>
   exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }>
+  senses?: Array<{ gloss: string; exampleTarget: string; exampleNative: string; examplePinyin?: string }>
   exampleTarget?: string
   exampleNative?: string
   pronunciationAudioUrl?: string
@@ -1103,6 +1113,118 @@ const GOAL_OPTION_LABELS: Record<UiLocale, Record<GoalType, string>> = {
 }
 
 const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>> = {
+  'Is this what you meant': {
+    zh: '你是想说这个吗',
+    ja: 'こう言いたかったですか',
+    ko: '이렇게 말하려던 건가요',
+    th: 'ต้องการพูดแบบนี้ใช่ไหม',
+    hi: 'क्या आप यही कहना चाहते थे',
+  },
+  'Translating...': {
+    zh: '正在翻译...',
+    ja: '翻訳しています...',
+    ko: '번역 중...',
+    th: 'กำลังแปล...',
+    hi: 'अनुवाद हो रहा है...',
+  },
+  'Recognizing your speech...': {
+    zh: '正在识别语音...',
+    ja: '音声を認識しています...',
+    ko: '음성을 인식하는 중...',
+    th: 'กำลังรู้จำเสียง...',
+    hi: 'आवाज़ पहचान रहे हैं...',
+  },
+  'Continue': {
+    zh: '继续',
+    ja: '次へ',
+    ko: '계속',
+    th: 'ต่อไป',
+    hi: 'आगे',
+  },
+  'Native pronunciation:': {
+    zh: '注音：',
+    ja: '読み：',
+    ko: '발음:',
+    th: 'คำอ่าน:',
+    hi: 'उच्चारण:',
+  },
+  'Loading pronunciation...': {
+    zh: '正在注音...',
+    ja: '読みを作成中...',
+    ko: '발음 만드는 중...',
+    th: 'กำลังทำคำอ่าน...',
+    hi: 'उच्चारण बन रहा है...',
+  },
+  'Play back': {
+    zh: '再听一遍',
+    ja: 'もう一度聞く',
+    ko: '다시 듣기',
+    th: 'ฟังอีกครั้ง',
+    hi: 'फिर सुनें',
+  },
+  'Show pronunciation': {
+    zh: '显示发音',
+    ja: '発音を表示',
+    ko: '발음 보기',
+    th: 'แสดงคำอ่าน',
+    hi: 'उच्चारण दिखाएँ',
+  },
+  'Hide pronunciation': {
+    zh: '隐藏发音',
+    ja: '発音を隠す',
+    ko: '발음 숨기기',
+    th: 'ซ่อนคำอ่าน',
+    hi: 'उच्चारण छिपाएँ',
+  },
+  'All pronunciations': {
+    zh: '全部发音',
+    ja: 'すべての発音',
+    ko: '모든 발음',
+    th: 'คำอ่านทั้งหมด',
+    hi: 'सभी उच्चारण',
+  },
+  'Speed': {
+    zh: '语速',
+    ja: '速度',
+    ko: '속도',
+    th: 'ความเร็ว',
+    hi: 'गति',
+  },
+  'Show all pronunciations': {
+    zh: '显示全部发音',
+    ja: 'すべての発音を表示',
+    ko: '모든 발음 표시',
+    th: 'แสดงคำอ่านทั้งหมด',
+    hi: 'सभी उच्चारण दिखाएँ',
+  },
+  'Using the language keyboard. Tap to type Latin': {
+    zh: '正在使用语言输入法。点此改打拉丁字母',
+    ja: '言語キーボードを使用中。タップでラテン文字',
+    ko: '언어 입력기 사용 중. 누르면 라틴 문자',
+    th: 'กำลังใช้แป้นภาษา แตะเพื่อพิมพ์ละติน',
+    hi: 'भाषा कुंजीपटल चालू है। लैटिन के लिए टैप करें',
+  },
+  'Typing Latin. Tap to use the language keyboard': {
+    zh: '正在打拉丁字母。点此用语言输入法',
+    ja: 'ラテン文字を入力中。タップで言語キーボード',
+    ko: '라틴 문자 입력 중. 누르면 언어 입력기',
+    th: 'กำลังพิมพ์ละติน แตะเพื่อใช้แป้นภาษา',
+    hi: 'लैटिन टाइप हो रहा है। भाषा कुंजीपटल के लिए टैप करें',
+  },
+  'Pronunciation:': {
+    zh: '发音：',
+    ja: '発音：',
+    ko: '발음:',
+    th: 'คำอ่าน:',
+    hi: 'उच्चारण:',
+  },
+  'Generating...': {
+    zh: '正在生成...',
+    ja: '作成中...',
+    ko: '만드는 중...',
+    th: 'กำลังสร้าง...',
+    hi: 'बना रहे हैं...',
+  },
   "Today's progress dashboard": {
     zh: '今日学习进度面板',
     ja: '本日の学習ダッシュボード',
@@ -1547,13 +1669,14 @@ function sanitizeWordExampleItems(input: unknown): Array<{ targetText: string; t
     .slice(0, 6)
 }
 
-function sanitizeWordSenses(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string }> {
+function sanitizeWordSenses(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string; examplePinyin?: string }> {
   if (!Array.isArray(input)) return []
   return input
     .map((row) => ({
       gloss: String((row as { gloss?: unknown })?.gloss || '').trim(),
       exampleTarget: String((row as { exampleTarget?: unknown })?.exampleTarget || '').trim(),
       exampleNative: String((row as { exampleNative?: unknown })?.exampleNative || '').trim(),
+      examplePinyin: String((row as { examplePinyin?: unknown })?.examplePinyin || '').trim(),
     }))
     .filter((row) => row.gloss || (row.exampleTarget && row.exampleNative))
     .slice(0, 5)
@@ -1605,7 +1728,7 @@ function buildWordInsightFromAny(data: {
   const senseExamples = sensesRaw
     .map((s) => ({
       targetText: String(s.exampleTarget || '').trim(),
-      targetPinyin: '',
+      targetPinyin: String(s.examplePinyin || '').trim(),
       nativeText: String(s.exampleNative || '').trim(),
     }))
     .filter((s) => s.targetText && s.nativeText)
@@ -1921,13 +2044,12 @@ function pickCjkPunctuation(cluster: string): string {
 }
 
 function sanitizeRomanizedText(text: string): string {
-  return String(text || '')
+  return stripReadingCommentary(String(text || '')
     .replace(/\s+/g, ' ')
     .replace(/\s+([,.;:!?])/g, '$1')
     .replace(/[,.;:!?]{2,}/g, (m) => pickAsciiPunctuation(m))
     .replace(/([,.;:!?])([A-Za-z\u00C0-\u024F])/g, '$1 $2')
-    .replace(/\s+/g, ' ')
-    .trim()
+    .replace(/\s+/g, ' '))
 }
 
 function sanitizeSentenceForCopy(text: string, targetCode: LanguageCode): string {
@@ -2205,6 +2327,7 @@ export default function HocBaiHocCoSanClientPage() {
   const [reviewBusy, setReviewBusy] = useState(false)
   const [levelRecommendation, setLevelRecommendation] = useState<LevelRecommendation | null>(null)
   const [placementSamples, setPlacementSamples] = useState<string[]>(['', '', ''])
+  const placementFlushRefs = useRef<Array<(() => string) | null>>([null, null, null])
   const [placementBusy, setPlacementBusy] = useState(false)
   const [placementResult, setPlacementResult] = useState<PlacementQuickResult | null>(null)
   const [assessmentBusy, setAssessmentBusy] = useState(false)
@@ -2289,6 +2412,8 @@ export default function HocBaiHocCoSanClientPage() {
   const [responseStyle, setResponseStyle] = useState<ResponseStyle>('detailed')
   const [writingTask, setWritingTask] = useState<WritingTask | null>(null)
   const [writingDraft, setWritingDraft] = useState('')
+  const [writingImePending, setWritingImePending] = useState(false)
+  const writingImeFlushRef = useRef<(() => string) | null>(null)
   const [writingBusy, setWritingBusy] = useState(false)
   const [writingEvalResult, setWritingEvalResult] = useState<WritingEvalResult | null>(null)
   const [writingInputStatus, setWritingInputStatus] = useState<'idle' | 'partial' | 'incorrect' | 'matched'>('idle')
@@ -2296,6 +2421,18 @@ export default function HocBaiHocCoSanClientPage() {
   const [writingRomanizationBusyByKey, setWritingRomanizationBusyByKey] = useState<Record<string, boolean>>({})
   const [listening, setListening] = useState(false)
   const [recordingPending, setRecordingPending] = useState(false)
+  const [speechRecognizing, setSpeechRecognizing] = useState(false)
+  const [speechIntent, setSpeechIntent] = useState<{
+    messageId: string
+    text: string
+    originalText: string
+    meaning: string
+    originalMeaning: string
+    meaningBusy: boolean
+    analysis: MixedSpeechAnalysis | null
+    audioUrl: string
+    presetReplay: boolean
+  } | null>(null)
   const [busy, setBusy] = useState(false)
   const [awaitingTeacherReply, setAwaitingTeacherReply] = useState(false)
   const [reviewDrillStage, setReviewDrillStage] = useState<'idle' | 'writing' | 'speaking' | 'listening'>('idle')
@@ -2335,6 +2472,8 @@ export default function HocBaiHocCoSanClientPage() {
   const [liveSessionExtraTurnUnlocks, setLiveSessionExtraTurnUnlocks] = useState(0)
   const [liveUnlockBusy, setLiveUnlockBusy] = useState(false)
   const [draft, setDraft] = useState('')
+  const [draftImePending, setDraftImePending] = useState(false)
+  const draftImeFlushRef = useRef<(() => string) | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [corrections, setCorrections] = useState<Correction[]>([])
   const [correctionsByMessageId, setCorrectionsByMessageId] = useState<Record<string, Correction[]>>({})
@@ -2354,6 +2493,8 @@ export default function HocBaiHocCoSanClientPage() {
   const [todayWords, setTodayWords] = useState<TodayWordItem[]>([])
   const [wordPractice, setWordPractice] = useState<WordPracticeProgress | null>(null)
   const [practiceInputStatus, setPracticeInputStatus] = useState<'idle' | 'partial' | 'correct' | 'incorrect'>('idle')
+  const [practiceGrade, setPracticeGrade] = useState({ word: '', text: '' })
+  const practiceAcceptRef = useRef('')
   const [sessionEntryStudentTurnBaseline, setSessionEntryStudentTurnBaseline] = useState(0)
   const liveSessionStudentTurnCount = useMemo(
     () => messages.filter((m) => m.role === 'student').length,
@@ -2438,25 +2579,29 @@ export default function HocBaiHocCoSanClientPage() {
       return
     }
 
-    const normalizedDraft = normalizeWordPracticeText(wordPractice.draft)
+    const liveGrade = practiceGrade.word === wordPractice.targetWord ? practiceGrade.text : ''
+    const normalizedDraft = normalizeWordPracticeText(liveGrade || wordPractice.draft)
     if (!normalizedDraft) {
       setPracticeInputStatus('idle')
       return
     }
 
     if (normalizedDraft === wordPractice.normalizedTarget) {
+      const token = `${wordPractice.targetWord}:${wordPractice.correctCount}`
+      if (practiceAcceptRef.current === token) return
       setPracticeInputStatus('correct')
-      setTimeout(() => {
+      const timer = window.setTimeout(() => {
+        practiceAcceptRef.current = token
         onWordPracticeCorrect(wordPractice.targetWord)
         setPracticeInputStatus('idle')
-      }, 300) // Đợi 300ms để người dùng thấy màu xanh
+      }, 300)
+      return () => window.clearTimeout(timer)
     } else if (wordPractice.normalizedTarget.startsWith(normalizedDraft)) {
-      // Đúng nhưng chưa đủ → màu dễ chịu, không đỏ
       setPracticeInputStatus('partial')
     } else {
       setPracticeInputStatus('incorrect')
     }
-  }, [wordPractice])
+  }, [wordPractice, practiceGrade])
 
   const [wordInsightByKey, setWordInsightByKey] = useState<Record<string, WordInsight>>({})
   const [openedWordKey, setOpenedWordKey] = useState('')
@@ -2489,6 +2634,19 @@ export default function HocBaiHocCoSanClientPage() {
   const mixedRecorderRef = useRef<MediaRecorder | null>(null)
   const mixedChunksRef = useRef<BlobPart[]>([])
   const pendingRecordingBlobRef = useRef<Blob | null>(null)
+  const speechIntentRef = useRef<{
+    messageId: string
+    text: string
+    originalText: string
+    meaning: string
+    originalMeaning: string
+    meaningBusy: boolean
+    analysis: MixedSpeechAnalysis | null
+    audioUrl: string
+    presetReplay: boolean
+  } | null>(null)
+  const speechRecognizeLockRef = useRef(false)
+  const speechMeaningSeqRef = useRef(0)
   const recordingMimeTypeRef = useRef<string>('')
   const micStreamRef = useRef<MediaStream | null>(null)
   const micSilenceStopTimerRef = useRef<number | null>(null)
@@ -2600,7 +2758,42 @@ export default function HocBaiHocCoSanClientPage() {
     try {
       const transliteration = await requestTransliteration(sourceText, code)
       if (transliteration) {
-        setWritingRomanizationByKey((prev) => ({ ...prev, [key]: sanitizeRomanizedText(transliteration) }))
+        const reading = sanitizeRomanizedText(transliteration)
+        setWritingRomanizationByKey((prev) => ({ ...prev, [key]: reading }))
+        const text = sourceText
+        const patchList = <T extends { id: string; senses?: Array<{ exampleTarget: string; exampleNative: string; gloss: string; examplePinyin?: string }>; exampleItems?: Array<{ targetText: string; targetPinyin?: string; nativeText: string }> }>(items: T[]) => {
+          const changed: T[] = []
+          const next = items.map((item) => {
+            let touched = false
+            const senses = (item.senses ?? []).map((sense) => {
+              if (String(sense.exampleTarget || '').trim() === text && !String(sense.examplePinyin || '').trim()) {
+                touched = true
+                return { ...sense, examplePinyin: reading }
+              }
+              return sense
+            })
+            const exampleItems = (item.exampleItems ?? []).map((example) => {
+              if (String(example.targetText || '').trim() === text && !String(example.targetPinyin || '').trim()) {
+                touched = true
+                return { ...example, targetPinyin: reading }
+              }
+              return example
+            })
+            if (!touched) return item
+            const updated = { ...item, senses, exampleItems }
+            changed.push(updated)
+            return updated
+          })
+          return { next, changed }
+        }
+        setTodayWords((prev) => {
+          const { next, changed } = patchList(prev)
+          changed.forEach((item) => {
+            void saveWordReading({ id: item.id, senses: item.senses || [], exampleItems: item.exampleItems || [] })
+          })
+          return next
+        })
+        setReviewItems((prev) => patchList(prev).next)
       }
     } finally {
       setWritingRomanizationBusyByKey((prev) => ({ ...prev, [key]: false }))
@@ -3503,7 +3696,9 @@ export default function HocBaiHocCoSanClientPage() {
   }
 
   const runPlacementQuickTest = async () => {
-    const samples = placementSamples.map((x) => String(x || '').trim()).filter(Boolean)
+    const samples = placementSamples
+      .map((value, index) => String(placementFlushRefs.current[index]?.() ?? value ?? '').trim())
+      .filter(Boolean)
     if (samples.length < 2) {
       toast({
         title: localText('Thiếu dữ liệu test', 'Not enough test data'),
@@ -3549,7 +3744,9 @@ export default function HocBaiHocCoSanClientPage() {
     assessmentType: 'baseline' | 'checkpoint',
     options?: { onSuccess?: () => void }
   ) => {
-    const samples = placementSamples.map((x) => String(x || '').trim()).filter(Boolean)
+    const samples = placementSamples
+      .map((value, index) => String(placementFlushRefs.current[index]?.() ?? value ?? '').trim())
+      .filter(Boolean)
     if (samples.length < 2) {
       toast({
         title: localText('Thiếu dữ liệu test', 'Not enough test data'),
@@ -3626,7 +3823,7 @@ export default function HocBaiHocCoSanClientPage() {
 
   const evaluateWritingTask = async () => {
     if (!writingTask) return
-    const learnerText = String(writingDraft || '').trim()
+    const learnerText = String(writingImeFlushRef.current?.() ?? writingDraft ?? '').trim()
     if (!learnerText) {
       toast({
         title: localText('Thiếu câu viết', 'Missing writing input'),
@@ -5310,6 +5507,10 @@ export default function HocBaiHocCoSanClientPage() {
       setMessages([])
       setWritingTask(null)
       setReviewMiniPackCompleted(false)
+      speechIntentRef.current = null
+      setSpeechIntent(null)
+      setSpeechRecognizing(false)
+      speechRecognizeLockRef.current = false
       setWritingDraft('')
       setWritingEvalResult(null)
       setCorrectionsByMessageId({})
@@ -5520,6 +5721,10 @@ export default function HocBaiHocCoSanClientPage() {
     loadHistoryRequestSeqRef.current = requestSeq
     setHistoryBusy(true)
     setReviewDrillStage('idle')
+    speechIntentRef.current = null
+    setSpeechIntent(null)
+    setSpeechRecognizing(false)
+    speechRecognizeLockRef.current = false
     setReviewMiniPackCompleted(false)
     setReviewListeningPopupOpen(false)
     setReviewListeningPrompt('')
@@ -6266,6 +6471,10 @@ export default function HocBaiHocCoSanClientPage() {
     lastMicSentAtRef.current = 0
     pendingRecordingBlobRef.current = null
     setRecordingPending(false)
+    speechIntentRef.current = null
+    setSpeechIntent(null)
+    setSpeechRecognizing(false)
+    speechRecognizeLockRef.current = false
     setListening(false)
     setReviewMiniPackCompleted(false)
     setReviewDrillStage('idle')
@@ -6341,10 +6550,12 @@ export default function HocBaiHocCoSanClientPage() {
       ? writingTask!.requiredSentences!.map((x) => String(x || '').trim()).filter(Boolean)
       : []
     const corrected = String(writingEvalResult?.correctedText || '').trim()
+    const speakingTarget = String(reviewSpeakingTargetSentence || '').trim()
     if (reference) void ensureWritingRomanization(reference)
     required.forEach((x) => void ensureWritingRomanization(x))
     if (corrected) void ensureWritingRomanization(corrected)
-  }, [supportsLatinTransliteration, writingTask?.referenceSentence, writingTask?.requiredSentences, writingEvalResult?.correctedText, languageCode])
+    if (speakingTarget) void ensureWritingRomanization(speakingTarget)
+  }, [supportsLatinTransliteration, writingTask?.referenceSentence, writingTask?.requiredSentences, writingEvalResult?.correctedText, reviewSpeakingTargetSentence, languageCode])
 
   useEffect(() => {
     if (!sessionId) return
@@ -6365,16 +6576,18 @@ export default function HocBaiHocCoSanClientPage() {
   }, [messages, sessionId])
 
   useEffect(() => {
-    const collectExamples = (items: Array<{ targetLanguage?: string; exampleItems?: Array<{ targetText?: string; targetPinyin?: string }>; exampleTarget?: string; exampleNative?: string }>) => {
+    const collectExamples = (items: Array<{ targetLanguage?: string; senses?: Array<{ exampleTarget?: string; examplePinyin?: string }>; exampleItems?: Array<{ targetText?: string; targetPinyin?: string }>; exampleTarget?: string; exampleNative?: string }>) => {
       const out: Array<{ text: string; targetLang: string }> = []
+      const pushMissing = (text: string, reading: string, targetLang: string) => {
+        const value = String(text || '').trim()
+        if (value && !String(reading || '').trim()) out.push({ text: value, targetLang })
+      }
       for (const item of items) {
         if (!isCjkTargetLanguage(item.targetLanguage)) continue
+        const targetLang = item.targetLanguage || ''
         const examples = item.exampleItems ?? (item.exampleTarget && item.exampleNative ? [{ targetText: item.exampleTarget, nativeText: item.exampleNative, targetPinyin: undefined }] : [])
-        for (const ex of examples) {
-          const t = String(ex.targetText || '').trim()
-          const hasPinyin = String(ex.targetPinyin || '').trim()
-          if (t && !hasPinyin) out.push({ text: t, targetLang: item.targetLanguage || '' })
-        }
+        for (const ex of examples) pushMissing(String(ex.targetText || ''), String(ex.targetPinyin || ''), targetLang)
+        for (const sense of item.senses ?? []) pushMissing(String(sense.exampleTarget || ''), String(sense.examplePinyin || ''), targetLang)
       }
       return out
     }
@@ -6510,27 +6723,52 @@ export default function HocBaiHocCoSanClientPage() {
   }, [learningMode, messages, tokensByMessageId, tokenizingByMessageId, mainSentenceByMessageId, intentAnswerByMessageId, isPresetPageSession])
 
   useEffect(() => {
-    const latestTeacherWithTokens = [...messages]
-      .reverse()
-      .find((m) => m.role === 'teacher' && (tokensByMessageId[m.id] || []).length > 0)
-    if (!latestTeacherWithTokens) return
-    if (lastAutoScrollTokenMessageIdRef.current === latestTeacherWithTokens.id) return
-    lastAutoScrollTokenMessageIdRef.current = latestTeacherWithTokens.id
+    const latest = messages[messages.length - 1]
+    const latestTeacher = [...messages].reverse().find((m) => m.role === 'teacher')
+    const teacherId = latestTeacher?.id || ''
+    const pinKey = [
+      latest?.id || '',
+      latest?.text || '',
+      busy ? 'busy' : '',
+      awaitingTeacherReply ? 'wait' : '',
+      speechRecognizing ? 'mic' : '',
+      speechIntent?.messageId || '',
+      speechIntent?.meaningBusy ? 'meaning' : '',
+      speechIntent?.meaning || '',
+      wordBusyKey,
+      teacherId,
+      String((tokensByMessageId[teacherId] || []).length),
+      tokenizingByMessageId[teacherId] ? 'tokens' : '',
+    ].join('|')
+    if (!pinKey.replace(/\|/g, '')) return
     const el = chatScrollRef.current
     if (!el) return
-    window.requestAnimationFrame(() => {
+    const pin = () => {
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-    })
-  }, [messages, tokensByMessageId])
-
-  useEffect(() => {
-    if (!busy) return
-    const el = chatScrollRef.current
-    if (!el) return
-    window.requestAnimationFrame(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-    })
-  }, [busy])
+      const rect = el.getBoundingClientRect()
+      const hiddenBelow = rect.bottom - (window.innerHeight - 8)
+      if (hiddenBelow > 24) {
+        window.scrollTo({ top: window.scrollY + hiddenBelow, behavior: 'smooth' })
+      }
+    }
+    const frame = window.requestAnimationFrame(pin)
+    const timer = window.setTimeout(pin, 120)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [
+    messages,
+    busy,
+    awaitingTeacherReply,
+    speechRecognizing,
+    speechIntent?.messageId,
+    speechIntent?.meaningBusy,
+    speechIntent?.meaning,
+    wordBusyKey,
+    tokensByMessageId,
+    tokenizingByMessageId,
+  ])
 
   useEffect(() => {
     try {
@@ -6734,7 +6972,10 @@ export default function HocBaiHocCoSanClientPage() {
       if (!sessionTeacher) {
         setSessionTeacher(selectedTeacher)
       }
-      const history = messages.slice(-8).map((m) => ({ role: m.role, text: m.text }))
+      const history = messages.slice(-8).map((m) => ({
+        role: m.role,
+        text: m.id === opts?.existingStudentMessageId ? studentText : m.text,
+      }))
       const languagePairKey = toLanguagePairKey(nativeLanguageCode, languageCode)
       const { ok, data } = await chatWithCoach({
         sessionId,
@@ -7966,6 +8207,7 @@ export default function HocBaiHocCoSanClientPage() {
       mimeType: audioBlob.type || 'audio/webm',
       targetLanguage: activeTeacher.languageLabel,
       targetLanguageCode: languageCode,
+      targetLocale: activeTeacher.locale,
       nativeLanguage: selectedNativeLanguage.apiLabel,
       nativeLanguageCode,
       speakingMode: speakingLanguageMode,
@@ -8181,9 +8423,11 @@ export default function HocBaiHocCoSanClientPage() {
     }
     pendingRecordingBlobRef.current = blob
     setRecordingPending(true)
+    void sendPendingRecording()
   }
 
   const sendPendingRecording = async () => {
+    if (speechRecognizeLockRef.current) return
     if (isMiniDrillBlocking) {
       redirectToMiniDrill()
       return
@@ -8216,11 +8460,9 @@ export default function HocBaiHocCoSanClientPage() {
       && Boolean(String(latestMainSentenceForLearner?.sentence || '').trim())
     pendingRecordingBlobRef.current = null
     setRecordingPending(false)
-    setBusy(true)
-    setAwaitingTeacherReply(true)
-    const placeholderText = isPresetDirectReadFlow
-      ? localText('Đang gửi câu đọc...', 'Submitting your reading...')
-      : localText('Đang chuyển giọng nói thành chữ...', 'Converting speech to text...')
+    speechRecognizeLockRef.current = true
+    setSpeechRecognizing(true)
+    const placeholderText = localText('Đang nhận diện giọng nói...', 'Recognizing your speech...')
     const studentMessageId = appendMessage('student', placeholderText)
     const localAudioUrl = URL.createObjectURL(blob)
     createdAudioUrlsRef.current.push(localAudioUrl)
@@ -8231,30 +8473,19 @@ export default function HocBaiHocCoSanClientPage() {
     setStudentAudioByMessageId((prev) => ({ ...prev, [studentMessageId]: localAudioUrl }))
     chatScrollRef.current?.scrollIntoView({ behavior: 'smooth' })
     try {
-      let analysis: MixedSpeechAnalysis | undefined
-      let transcript = ''
-      if (isPresetDirectReadFlow) {
-        transcript = String(latestMainSentenceForLearner?.sentence || '').trim()
-        setDraft(transcript)
-      } else {
-        analysis = await transcribeSpeechAudio(blob)
-        setLatestPronunciationScore(analysis.pronunciationScore || null)
-        setLatestWeakWords(analysis.weakWords || [])
-        setLatestPronunciationBreakdown({
-          accuracy: analysis.pronunciationAccuracy || null,
-          fluency: analysis.pronunciationFluency || null,
-          prosody: analysis.pronunciationProsody || null,
-        })
-        setLatestWordScores(analysis.wordScores || [])
-        const transcriptByMode =
-          speakingLanguageMode === 'target'
-            ? analysis.targetTranscript || analysis.mergedTranscript || analysis.nativeTranscript
-            : speakingLanguageMode === 'native'
-              ? analysis.nativeTranscript || analysis.mergedTranscript || analysis.targetTranscript
-              : analysis.mergedTranscript || analysis.targetTranscript || analysis.nativeTranscript
-        setDraft(transcriptByMode)
-        transcript = String(transcriptByMode || '').trim()
-      }
+      const analysis = await transcribeSpeechAudio(blob)
+      setLatestPronunciationScore(analysis.pronunciationScore || null)
+      setLatestWeakWords(analysis.weakWords || [])
+      setLatestPronunciationBreakdown({
+        accuracy: analysis.pronunciationAccuracy || null,
+        fluency: analysis.pronunciationFluency || null,
+        prosody: analysis.pronunciationProsody || null,
+      })
+      setLatestWordScores(analysis.wordScores || [])
+      const transcript = String(
+        analysis.mergedTranscript || analysis.targetTranscript || analysis.nativeTranscript || ''
+      ).trim()
+      setDraft('')
       updateMessageText(studentMessageId, transcript || placeholderText)
       if (!transcript) {
         setBusy(false)
@@ -8276,32 +8507,120 @@ export default function HocBaiHocCoSanClientPage() {
       } catch {
         // keep local object URL for in-session replay if upload fails
       }
-      if (isPresetDirectReadFlow) {
-        persistedMessageIdsRef.current[studentMessageId] = true
-        void saveHistoryMessage({
-          role: 'student',
-          text: transcript,
-          audioUrl: uploadedStudentAudioUrl || localAudioUrl,
-          clientMessageId: studentMessageId,
-        }).then(() => {
-          persistedMessageIdsRef.current[studentMessageId] = true
-        }).catch(() => {
-          delete persistedMessageIdsRef.current[studentMessageId]
-        })
+      const meaning = String(analysis.inferredMeaning || '').trim()
+      const nextIntent = {
+        messageId: studentMessageId,
+        text: transcript,
+        originalText: transcript,
+        meaning,
+        originalMeaning: '',
+        meaningBusy: true,
+        analysis,
+        audioUrl: uploadedStudentAudioUrl || localAudioUrl,
+        presetReplay: isPresetDirectReadFlow,
       }
-      await handleSend(transcript, 'mic', analysis, {
-        existingStudentMessageId: studentMessageId,
-        studentAudioUrl: uploadedStudentAudioUrl || localAudioUrl,
-        forcePresetReplaySubmission: isPresetDirectReadFlow,
-      })
+      speechIntentRef.current = nextIntent
+      setSpeechIntent(nextIntent)
+      setBusy(false)
+      setAwaitingTeacherReply(false)
     } catch (e) {
       const msg = unknownErrorMsg(e)
       toast({ title: coachUiText.micErrorTitle, description: msg, variant: 'destructive' })
       setBusy(false)
       setAwaitingTeacherReply(false)
       updateMessageText(studentMessageId, localText('Lỗi khi chuyển giọng nói.', 'Error converting speech.'))
+    } finally {
+      speechRecognizeLockRef.current = false
+      setSpeechRecognizing(false)
     }
   }
+
+  const discardSpeechIntent = () => {
+    const current = speechIntentRef.current
+    speechIntentRef.current = null
+    setSpeechIntent(null)
+    if (!current) return
+    setMessages((prev) => prev.filter((m) => m.id !== current.messageId))
+  }
+
+  const confirmSpeechIntent = async () => {
+    const current = speechIntentRef.current
+    if (!current || !current.text.trim() || current.meaningBusy) return
+    const text = current.text.trim()
+    speechIntentRef.current = null
+    setSpeechIntent(null)
+    updateMessageText(current.messageId, text)
+    setBusy(true)
+    setAwaitingTeacherReply(true)
+    await handleSend(text, 'mic', current.analysis || undefined, {
+      existingStudentMessageId: current.messageId,
+      studentAudioUrl: current.audioUrl,
+      forcePresetReplaySubmission: current.presetReplay,
+    })
+  }
+
+  useEffect(() => {
+    const current = speechIntentRef.current
+    if (!current) return
+    const text = current.text.trim()
+    if (!text) return
+    if (text === current.originalText.trim() && current.originalMeaning.trim()) {
+      if (current.meaning !== current.originalMeaning || current.meaningBusy) {
+        const restored = { ...current, meaning: current.originalMeaning, meaningBusy: false }
+        speechIntentRef.current = restored
+        setSpeechIntent(restored)
+      }
+      return
+    }
+    const seq = speechMeaningSeqRef.current + 1
+    speechMeaningSeqRef.current = seq
+    if (!current.meaningBusy) {
+      const busyNow = { ...current, meaningBusy: true }
+      speechIntentRef.current = busyNow
+      setSpeechIntent(busyNow)
+    }
+    const timer = window.setTimeout(() => {
+      const latest = speechIntentRef.current
+      if (!latest || latest.messageId !== current.messageId || latest.text.trim() !== text) return
+      void translateSpeechMeaning({
+        text,
+        targetLanguage: activeTeacher.languageLabel,
+        targetLanguageCode: languageCode,
+        nativeLanguage: selectedNativeLanguage.apiLabel,
+        nativeLanguageCode,
+        coachUsageContext: englishCoachUsageContext,
+      }).then((result) => {
+        if (speechMeaningSeqRef.current !== seq) return
+        const now = speechIntentRef.current
+        if (!now || now.messageId !== current.messageId || now.text.trim() !== text) return
+        const meaning = String(result.data?.meaning || '').trim()
+        const next = {
+          ...now,
+          meaning: meaning || now.meaning,
+          originalMeaning: now.text.trim() === now.originalText.trim() ? (meaning || now.originalMeaning) : now.originalMeaning,
+          meaningBusy: false,
+        }
+        speechIntentRef.current = next
+        setSpeechIntent(next)
+      }).catch(() => {
+        if (speechMeaningSeqRef.current !== seq) return
+        const now = speechIntentRef.current
+        if (!now) return
+        const next = { ...now, meaningBusy: false }
+        speechIntentRef.current = next
+        setSpeechIntent(next)
+      })
+    }, text === current.originalText.trim() ? 0 : 500)
+    return () => window.clearTimeout(timer)
+  }, [
+    speechIntent?.messageId,
+    speechIntent?.text,
+    activeTeacher.languageLabel,
+    languageCode,
+    selectedNativeLanguage.apiLabel,
+    nativeLanguageCode,
+    englishCoachUsageContext,
+  ])
 
   const handlePlaybackRecording = () => {
     const blob = pendingRecordingBlobRef.current
@@ -8353,6 +8672,8 @@ export default function HocBaiHocCoSanClientPage() {
   }
 
   const handleRecordAgain = () => {
+    if (speechRecognizing) return
+    discardSpeechIntent()
     pendingRecordingBlobRef.current = null
     setRecordingPending(false)
     void startMixedRecording().catch((e) => {
@@ -8371,6 +8692,8 @@ export default function HocBaiHocCoSanClientPage() {
       })
       return
     }
+    if (speechRecognizing) return
+    if (speechIntentRef.current) discardSpeechIntent()
     if (isMiniDrillBlocking) {
       redirectToMiniDrill()
       return
@@ -8481,7 +8804,7 @@ export default function HocBaiHocCoSanClientPage() {
                 disabled={quickStartBusy || topicBusy || startingLesson || busy}
                 className="min-h-[44px] w-full sm:w-auto"
               >
-                {quickStartStageLabel}
+                {quickStartStage === 'idle' ? quickStartStageLabel : processingLabel(quickStartStageLabel)}
               </Button>
             </div>
             {historySessions.length > 0 ? (
@@ -8547,13 +8870,25 @@ export default function HocBaiHocCoSanClientPage() {
               ) : null}
               <div className="mt-2 grid gap-2 sm:grid-cols-3">
                 {placementSamples.map((value, idx) => (
-                  <Input
+                  <LessonImeField
                     key={`placement-sample-${idx}`}
                     value={value}
-                    onChange={(e) => {
-                      const next = [...placementSamples]
-                      next[idx] = e.target.value
-                      setPlacementSamples(next)
+                    languageCode={languageCode}
+                    localText={localText}
+                    flushRef={{
+                      get current() {
+                        return placementFlushRefs.current[idx]
+                      },
+                      set current(next) {
+                        placementFlushRefs.current[idx] = next
+                      },
+                    }}
+                    onChange={(nextValue) => {
+                      setPlacementSamples((current) => {
+                        const next = [...current]
+                        next[idx] = nextValue
+                        return next
+                      })
                     }}
                     placeholder={localText(`Câu mẫu ${idx + 1}`, `Sample sentence ${idx + 1}`)}
                     disabled={placementBusy}
@@ -8569,7 +8904,7 @@ export default function HocBaiHocCoSanClientPage() {
                   disabled={placementBusy}
                 >
                   {placementBusy
-                    ? localText('Đang phân tích...', 'Analyzing...')
+                    ? processingLabel(localText('Đang phân tích...', 'Analyzing...'))
                     : localText('Gợi ý level tự động', 'Recommend level automatically')}
                 </Button>
                 <Button
@@ -8580,7 +8915,7 @@ export default function HocBaiHocCoSanClientPage() {
                   disabled={assessmentBusy}
                 >
                   {assessmentBusy
-                    ? localText('Đang lưu baseline...', 'Saving baseline...')
+                    ? processingLabel(localText('Đang lưu baseline...', 'Saving baseline...'))
                     : localText('Lưu baseline CEFR', 'Save CEFR baseline')}
                 </Button>
                 <Button
@@ -8591,7 +8926,7 @@ export default function HocBaiHocCoSanClientPage() {
                   disabled={assessmentBusy}
                 >
                   {assessmentBusy
-                    ? localText('Đang chạy checkpoint...', 'Running checkpoint...')
+                    ? processingLabel(localText('Đang chạy checkpoint...', 'Running checkpoint...'))
                     : localText('Chạy checkpoint CEFR', 'Run CEFR checkpoint')}
                 </Button>
                 {placementResult ? (
@@ -8792,7 +9127,7 @@ export default function HocBaiHocCoSanClientPage() {
                     disabled={customTopicBusy}
                     className="h-11 rounded-xl px-4 sm:shrink-0"
                   >
-                    {customTopicBusy ? localText('Đang tạo chủ đề mới...', 'Creating topic...') : localText('Tạo chủ đề mới', 'Create topic')}
+                    {customTopicBusy ? processingLabel(localText('Đang tạo chủ đề mới...', 'Creating topic...')) : localText('Tạo chủ đề mới', 'Create topic')}
                   </Button>
                 </div>
                 {!compactMode ? (
@@ -8829,7 +9164,7 @@ export default function HocBaiHocCoSanClientPage() {
                     ))}
                   </select>
                   <Button type="button" onClick={() => void saveLearningGoal()} disabled={goalBusy}>
-                    {goalBusy ? localText('Đang lưu...', 'Saving...') : localText('Lưu mục tiêu', 'Save goal')}
+                    {goalBusy ? processingLabel(localText('Đang lưu...', 'Saving...')) : localText('Lưu mục tiêu', 'Save goal')}
                   </Button>
                 </div>
                 <p className="break-words text-xs text-slate-600">
@@ -8978,7 +9313,7 @@ export default function HocBaiHocCoSanClientPage() {
                   disabled={quickStartBusy || topicBusy || !isTopicConfirmedForLesson}
                   className="min-h-[44px] w-full"
                 >
-                  {topicBusy ? localText('Đang tạo...', 'Generating...') : localText('Tạo/Lấy giáo trình', 'Create/Get curriculum')}
+                  {topicBusy ? processingLabel(localText('Đang tạo...', 'Generating...')) : localText('Tạo/Lấy giáo trình', 'Create/Get curriculum')}
                 </Button>
               </div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -9167,7 +9502,7 @@ export default function HocBaiHocCoSanClientPage() {
                     </>
                   ) : null
                 })()}
-              <div ref={chatScrollRef} className="relative left-1/2 right-1/2 w-[calc(100vw-0.4rem)] -translate-x-1/2 max-h-[64vh] min-w-0 flex-1 space-y-2.5 overflow-auto rounded-xl border border-border/70 bg-slate-50/90 p-3 pb-14 scroll-pb-14 sm:static sm:left-auto sm:right-auto sm:w-auto sm:translate-x-0 sm:max-h-[34rem] sm:p-3.5 sm:pb-20 sm:scroll-pb-20">
+              <div ref={chatScrollRef} className="relative w-full min-w-0 max-w-full max-h-[min(64dvh,calc(100dvh-20rem))] flex-1 space-y-2.5 overflow-x-hidden overflow-y-auto overscroll-y-contain rounded-xl border border-border/70 bg-slate-50/90 p-3 pb-14 scroll-pb-14 sm:max-h-[34rem] sm:p-3.5 sm:pb-20 sm:scroll-pb-20">
                 {messages.length === 0 ? (
                   <div className="space-y-3">
                     {historySessions.length > 0 ? (
@@ -9280,6 +9615,7 @@ export default function HocBaiHocCoSanClientPage() {
                   {messages.map((m, idx) => (
                     <div
                       key={m.id}
+                      data-chat-turn={m.id}
                       className={`min-w-0 break-words rounded-md px-3 py-2.5 text-base ${
                         m.role === 'teacher'
                           ? 'border border-indigo-200 bg-indigo-50/90 text-indigo-900'
@@ -9312,18 +9648,17 @@ export default function HocBaiHocCoSanClientPage() {
                               const pinyin3 = !skipPinyin3 && idea3Only
                                 ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(idea3Only)] || '').trim())
                                 : ''
-                              const busy3 = !skipPinyin3 && idea3Only
-                                ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(idea3Only)])
-                                : false
                               return (
                                 <div className="space-y-1 break-words text-base">
                                   <p>{idea3Only}</p>
-                                  {(pinyin3 || busy3) ? (
-                                    <p className="mt-0.5 text-slate-500">
-                                      {localText('Phiên âm Latin:', 'Latin transliteration:')}{' '}
-                                      {busy3 ? localText('đang tải...', 'loading...') : pinyin3}
-                                    </p>
-                                  ) : null}
+                                  <NativePhoneticLine
+                                    text={idea3Only}
+                                    known={pinyin3}
+                                    targetLanguageCode={languageCode}
+                                    nativeLanguageCode={nativeLanguageCode}
+                                    localText={localText}
+                                    coachUsageContext={englishCoachUsageContext}
+                                  />
                                   {idea3Only ? (
                                     <div className="space-y-1">
                                       <div className="flex flex-wrap gap-2">
@@ -9336,7 +9671,7 @@ export default function HocBaiHocCoSanClientPage() {
                                           disabled={Boolean(intentExplainBusyByMessageId[m.id])}
                                         >
                                           {intentExplainBusyByMessageId[m.id]
-                                            ? localText('Đang dịch...', 'Translating...')
+                                            ? processingLabel(localText('Đang dịch...', 'Translating...'))
                                             : intentExplainByMessageId[m.id]
                                               ? localText('Ẩn dịch câu này', 'Hide this translation')
                                               : localText('Dịch câu này', 'Translate this sentence')}
@@ -9373,8 +9708,6 @@ export default function HocBaiHocCoSanClientPage() {
                             if (supportsLatinTransliteration && intentAnswer && !skipPinyin3) void ensureWritingRomanization(intentAnswer)
                             const pinyin2 = !skipPinyin2 && correctedSentence ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(correctedSentence)] || '').trim()) : ''
                             const pinyin3 = !skipPinyin3 && intentAnswer ? sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(intentAnswer)] || '').trim()) : ''
-                            const busy2 = !skipPinyin2 && correctedSentence ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(correctedSentence)]) : false
-                            const busy3 = !skipPinyin3 && intentAnswer ? Boolean(writingRomanizationBusyByKey[toWritingRomanizationKey(intentAnswer)]) : false
                             return (
                               <div className="space-y-1 break-words text-base">
                                 <p className="whitespace-pre-wrap">
@@ -9406,24 +9739,28 @@ export default function HocBaiHocCoSanClientPage() {
                                     <span className="font-semibold text-emerald-700">{localText('Ý 2 - Câu sửa hoàn chỉnh:', 'Idea 2 - Corrected full sentence:')}</span>{' '}
                                     {correctedSentence || localText('Chưa có câu chuẩn.', 'No corrected sentence yet.')}
                                   </p>
-                                  {(pinyin2 || busy2) ? (
-                                    <p className="mt-0.5 text-slate-500">
-                                      {localText('Phiên âm Latin:', 'Latin transliteration:')}{' '}
-                                      {busy2 ? localText('đang tải...', 'loading...') : pinyin2}
-                                    </p>
-                                  ) : null}
+                                  <NativePhoneticLine
+                                    text={correctedSentence}
+                                    known={pinyin2}
+                                    targetLanguageCode={languageCode}
+                                    nativeLanguageCode={nativeLanguageCode}
+                                    localText={localText}
+                                    coachUsageContext={englishCoachUsageContext}
+                                  />
                                 </div>
                                 <div>
                                   <p>
                                     <span className="font-semibold text-indigo-700">{localText('Ý 3 - Trả lời tự nhiên:', 'Idea 3 - Natural contextual reply:')}</span>{' '}
                                     {intentAnswer || localText('Chưa có phần trả lời ngữ cảnh riêng.', 'No separate contextual reply yet.')}
                                   </p>
-                                  {(pinyin3 || busy3) ? (
-                                    <p className="mt-0.5 text-slate-500">
-                                      {localText('Phiên âm Latin:', 'Latin transliteration:')}{' '}
-                                      {busy3 ? localText('đang tải...', 'loading...') : pinyin3}
-                                    </p>
-                                  ) : null}
+                                  <NativePhoneticLine
+                                    text={intentAnswer}
+                                    known={pinyin3}
+                                    targetLanguageCode={languageCode}
+                                    nativeLanguageCode={nativeLanguageCode}
+                                    localText={localText}
+                                    coachUsageContext={englishCoachUsageContext}
+                                  />
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                   {correctedSentence ? (
@@ -9437,7 +9774,7 @@ export default function HocBaiHocCoSanClientPage() {
                                         disabled={Boolean(mainSentenceExplainBusyByMessageId[m.id])}
                                       >
                                         {mainSentenceExplainBusyByMessageId[m.id]
-                                          ? localText('Đang dịch...', 'Translating...')
+                                          ? processingLabel(localText('Đang dịch...', 'Translating...'))
                                           : mainSentenceExplainByMessageId[m.id]
                                             ? localText('Ẩn dịch ý 2', 'Hide idea 2 translation')
                                             : localText('Dịch ý 2', 'Translate idea 2')}
@@ -9461,7 +9798,7 @@ export default function HocBaiHocCoSanClientPage() {
                                         disabled={Boolean(intentExplainBusyByMessageId[m.id])}
                                       >
                                         {intentExplainBusyByMessageId[m.id]
-                                          ? localText('Đang dịch...', 'Translating...')
+                                          ? processingLabel(localText('Đang dịch...', 'Translating...'))
                                           : intentExplainByMessageId[m.id]
                                             ? localText('Ẩn dịch ý 3', 'Hide idea 3 translation')
                                             : localText('Dịch ý 3', 'Translate idea 3')}
@@ -9541,7 +9878,7 @@ export default function HocBaiHocCoSanClientPage() {
                             })}
                           </div>
                           {tokenizingByMessageId[m.id] ? (
-                            <p className="text-xs text-muted-foreground">{localText('AI đang tách từ theo ngôn ngữ...', 'AI is tokenizing words by language...')}</p>
+                            <ProcessingRow className="text-xs text-muted-foreground">{localText('AI đang tách từ theo ngôn ngữ...', 'AI is tokenizing words by language...')}</ProcessingRow>
                           ) : displayTokens.length === 0 ? (
                             <p className="text-xs text-muted-foreground">{localText('Không có token phù hợp để bấm trong câu này.', 'No tappable tokens found in this sentence.')}</p>
                           ) : (
@@ -9568,7 +9905,7 @@ export default function HocBaiHocCoSanClientPage() {
                                       {capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}
                                     </p>
                                   )}
-                                  <p><span className="font-semibold text-slate-800">{localText('Phát âm:', 'Pronunciation:')}</span> {wordInsightByKey[openedWordKey].pronunciation}</p>
+                                  <PronunciationReveal localText={localText} reading={wordInsightByKey[openedWordKey].pronunciation} lineKey={openedWordKey} />
                                   <div className="flex flex-wrap items-center gap-1">
                                     <span
                                       className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${
@@ -9608,6 +9945,8 @@ export default function HocBaiHocCoSanClientPage() {
                                             gloss: '',
                                             exampleTarget: String(ex.targetText || '').trim(),
                                             exampleNative: String(ex.nativeText || '').trim(),
+                                            examplePinyin: String(ex.targetPinyin || '').trim(),
+                                            targetPinyin: String(ex.targetPinyin || '').trim(),
                                           })))
                                     if (senses.length === 0) return null
                                     return (
@@ -9616,10 +9955,9 @@ export default function HocBaiHocCoSanClientPage() {
                                           const gloss = String(sense.gloss || '').trim()
                                           const exampleText = String(sense.exampleTarget || '').trim()
                                           const exampleNative = String(sense.exampleNative || '').trim()
-                                          const storedPinyin = sanitizeRomanizedText(String((sense as { targetPinyin?: string }).targetPinyin || '').trim())
                                           const fallbackKey = toWritingRomanizationKey(exampleText)
+                                          const storedPinyin = sanitizeRomanizedText(String(sense.examplePinyin || (insight.exampleItems ?? []).find((ex) => String(ex.targetText || '').trim() === exampleText)?.targetPinyin || writingRomanizationByKey[fallbackKey] || '').trim())
                                           const fallbackPinyin = sanitizeRomanizedText(String(writingRomanizationByKey[fallbackKey] || '').trim())
-                                          const busyPinyin = Boolean(writingRomanizationBusyByKey[fallbackKey])
                                           const pinyin = storedPinyin || fallbackPinyin
                                           return (
                                             <div key={`sense-${idx}`} className="rounded-md border border-slate-200 bg-slate-50/70 px-2 py-1.5">
@@ -9636,17 +9974,14 @@ export default function HocBaiHocCoSanClientPage() {
                                                   <span className="font-semibold text-slate-700">{localText('Ví dụ:', 'Example:')}</span> {exampleText}
                                                 </p>
                                               ) : null}
-                                              {supportsLatinTransliteration && exampleText && (pinyin || busyPinyin) ? (
-                                                pinyin ? (
-                                                  <p className="text-muted-foreground">
-                                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {pinyin}
-                                                  </p>
-                                                ) : (
-                                                  <p className="text-muted-foreground">
-                                                    <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span> {localText('Đang tạo...', 'Generating...')}
-                                                  </p>
-                                                )
-                                              ) : null}
+                                              <NativePhoneticLine
+                                                text={exampleText}
+                                                known={pinyin}
+                                                targetLanguageCode={languageCode}
+                                                nativeLanguageCode={nativeLanguageCode}
+                                                localText={localText}
+                                                coachUsageContext={englishCoachUsageContext}
+                                              />
                                               {exampleNative ? (
                                                 <p className="mt-0.5 text-muted-foreground">
                                                   <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}
@@ -9708,7 +10043,7 @@ export default function HocBaiHocCoSanClientPage() {
                                   </Button>
                                 </div>
                               ) : wordBusyKey === openedWordKey ? (
-                                <p className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</p>
+                                <ProcessingRow className="text-muted-foreground">{localText('Đang phân tích từ...', 'Analyzing word...')}</ProcessingRow>
                               ) : (
                                 <p className="text-muted-foreground">{localText('Bấm từ khác để xem nghĩa.', 'Tap another word to view meaning.')}</p>
                               )}
@@ -9717,9 +10052,45 @@ export default function HocBaiHocCoSanClientPage() {
                           </>
                           ) : null}
                         </div>
+                      ) : speechIntent?.messageId === m.id ? (
+                        <SpeechIntentConfirm
+                          text={speechIntent.text}
+                          meaning={speechIntent.meaning}
+                          meaningBusy={speechIntent.meaningBusy}
+                          continueBusy={busy || awaitingTeacherReply}
+                          languageCode={languageCode}
+                          localText={localText}
+                          onTextChange={(value) => {
+                            const current = speechIntentRef.current
+                            if (!current || current.messageId !== m.id) return
+                            const next = { ...current, text: value }
+                            speechIntentRef.current = next
+                            setSpeechIntent(next)
+                          }}
+                          onContinue={() => {
+                            void confirmSpeechIntent()
+                          }}
+                          onReplay={() => {
+                            const url = String(
+                              speechIntent.audioUrl
+                              || studentAudioByMessageIdRef.current[m.id]
+                              || studentAudioByMessageId[m.id]
+                              || ''
+                            ).trim()
+                            if (!url) return
+                            void playAudioUrl(url)
+                          }}
+                        />
                       ) : (
                         <div className="space-y-2">
-                          <p className="text-base leading-relaxed">{m.text}</p>
+                          {speechRecognizing && idx === messages.length - 1 ? (
+                            <p className="flex items-center gap-2 text-base leading-relaxed">
+                              <span className="min-w-0 flex-1">{m.text}</span>
+                              <ProcessingIcon className="h-5 w-5 text-emerald-600" />
+                            </p>
+                          ) : (
+                            <p className="text-base leading-relaxed">{m.text}</p>
+                          )}
                         </div>
                       )}
                       {m.role === 'teacher' ? (
@@ -9755,7 +10126,7 @@ export default function HocBaiHocCoSanClientPage() {
                                 disabled={Boolean(openingTranslateBusyByMessageId[m.id])}
                               >
                                 {openingTranslateBusyByMessageId[m.id]
-                                  ? localText('Đang dịch...', 'Translating...')
+                                  ? processingLabel(localText('Đang dịch...', 'Translating...'))
                                   : openingTranslateByMessageId[m.id]
                                     ? localText('Ẩn dịch câu đầu bài', 'Hide opening translation')
                                     : localText('Dịch câu đầu bài', 'Translate opening line')}
@@ -9765,7 +10136,7 @@ export default function HocBaiHocCoSanClientPage() {
                         </div>
                       ) : m.role === 'student' ? (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {String(studentAudioByMessageId[m.id] || '').trim() ? (
+                          {String(studentAudioByMessageId[m.id] || '').trim() && speechIntent?.messageId !== m.id ? (
                             <>
                               <Button
                                 type="button"
@@ -9795,7 +10166,7 @@ export default function HocBaiHocCoSanClientPage() {
                             disabled={Boolean(studentTranslateBusyByMessageId[m.id])}
                           >
                             {studentTranslateBusyByMessageId[m.id]
-                              ? localText('Đang dịch...', 'Translating...')
+                              ? processingLabel(localText('Đang dịch...', 'Translating...'))
                               : studentTranslateByMessageId[m.id]
                                 ? localText('Ẩn dịch câu này', 'Hide this translation')
                                 : localText('Dịch câu này', 'Translate this sentence')}
@@ -9822,13 +10193,13 @@ export default function HocBaiHocCoSanClientPage() {
                         {localText('Teacher', 'Teacher')}
                       </p>
                       <div className="flex min-w-0 items-center gap-2 text-indigo-800">
-                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-                        <p className="min-w-0 break-words text-sm">
+                        <p className="min-w-0 flex-1 break-words text-sm">
                           {localText(
                             'Thầy/cô đang suy nghĩ và chuẩn bị giảng giải cho bạn...',
                             'Teacher is thinking and preparing an explanation for you...'
                           )}
                         </p>
+                        <ProcessingIcon className="text-indigo-600" />
                       </div>
                     </div>
                   ) : null}
@@ -9947,46 +10318,66 @@ export default function HocBaiHocCoSanClientPage() {
                     </p>
                   </div>
                 ) : null}
-                <div className="sticky bottom-0 z-20 -mx-1 rounded-xl border border-border/70 bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/85">
+                <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 -mx-1 rounded-xl border border-border/70 bg-background/95 p-2 pb-2 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/85 md:bottom-0 md:z-20 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
                   {!isPresetPageSession ? (
                     <div className="flex min-w-0 items-center gap-2 sm:flex-1">
-                      <Input
+                      <LessonImeField
                         value={draft}
+                        languageCode={languageCode}
+                        localText={localText}
+                        flushRef={draftImeFlushRef}
+                        onPendingChange={setDraftImePending}
                         onFocus={(e) => {
+                          if (speechRecognizing || speechIntent) {
+                            e.currentTarget.blur()
+                            return
+                          }
                           if (!isMiniDrillBlocking) return
                           e.currentTarget.blur()
                           redirectToMiniDrill()
                         }}
-                        onChange={(e) => {
+                        onChange={(next) => {
+                          if (speechRecognizing || speechIntent) return
                           if (isMiniDrillBlocking) {
                             redirectToMiniDrill()
                             return
                           }
-                          setDraft(e.target.value)
+                          setDraft(next)
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter') return
+                          event.preventDefault()
+                          if (speechRecognizing || speechIntent) return
+                          if (isMiniDrillBlocking) {
+                            redirectToMiniDrill()
+                            return
+                          }
+                          void handleSend(draftImeFlushRef.current?.() ?? draft)
                         }}
                         placeholder={coachUiText.inputPlaceholder}
-                        disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached}
-                        className="min-w-0 sm:flex-1"
+                        enterKeyHint="send"
+                        disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached || speechRecognizing || Boolean(speechIntent)}
                       />
                       <Button
                         type="button"
                         size="sm"
                         onClick={() => {
+                          if (speechRecognizing || speechIntent) return
                           if (isMiniDrillBlocking) {
                             redirectToMiniDrill()
                             return
                           }
-                          void handleSend()
+                          void handleSend(draftImeFlushRef.current?.() ?? draft)
                         }}
-                        disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached || !draft.trim()}
-                        className="min-h-[46px] rounded-xl px-3.5 text-sm font-semibold"
+                        disabled={busy || reviewListeningPopupOpen || isMiniDrillBlocking || liveSessionTurnLimitReached || speechRecognizing || Boolean(speechIntent) || (!draft.trim() && !draftImePending)}
+                        className="h-11 min-h-11 shrink-0 touch-manipulation rounded-xl px-3.5 text-sm font-semibold"
                       >
                         <Send className="mr-1.5 h-4 w-4" />
                         {localText('Gửi', 'Send')}
                       </Button>
                     </div>
                   ) : null}
-                  <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2">
+                  <div className="mt-2 flex min-w-0 touch-manipulation flex-col gap-2 overflow-visible rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2 sm:flex-row sm:flex-wrap sm:items-center">
                   {recordingPending ? (
                     <>
                       <Button
@@ -9995,7 +10386,7 @@ export default function HocBaiHocCoSanClientPage() {
                         variant="outline"
                         onClick={handlePlaybackRecording}
                         disabled={busy}
-                        className="min-h-[46px] px-3.5 text-sm font-semibold"
+                        className="min-h-11 w-full touch-manipulation px-3.5 text-sm font-semibold sm:w-auto"
                       >
                         <Play className="mr-2 h-4 w-4" />
                         {localText('Nghe lại', 'Play back')}
@@ -10006,7 +10397,7 @@ export default function HocBaiHocCoSanClientPage() {
                         variant="outline"
                         onClick={handleRecordAgain}
                         disabled={busy}
-                        className="min-h-[46px] px-3.5 text-sm font-semibold"
+                        className="min-h-11 w-full touch-manipulation px-3.5 text-sm font-semibold sm:w-auto"
                       >
                         <RotateCcw className="mr-2 h-4 w-4" />
                         {localText('Nói lại', 'Record again')}
@@ -10023,7 +10414,7 @@ export default function HocBaiHocCoSanClientPage() {
                           void sendPendingRecording()
                         }}
                         disabled={busy || awaitingTeacherReply || liveSessionTurnLimitReached}
-                        className="min-h-[46px] px-3.5 text-sm font-semibold"
+                        className="min-h-11 w-full touch-manipulation px-3.5 text-sm font-semibold sm:w-auto"
                       >
                         <Send className="mr-2 h-4 w-4" />
                         {localText('Gửi', 'Send')}
@@ -10036,25 +10427,28 @@ export default function HocBaiHocCoSanClientPage() {
                         size="sm"
                         variant={listening ? 'destructive' : 'outline'}
                         onClick={handleMic}
-                        disabled={busy || awaitingTeacherReply || isMiniDrillBlocking || liveSessionTurnLimitReached}
-                        className="min-h-[46px] px-3.5 text-sm font-semibold"
+                        disabled={busy || awaitingTeacherReply || isMiniDrillBlocking || liveSessionTurnLimitReached || speechRecognizing}
+                        className="min-h-11 w-full touch-manipulation px-3.5 text-sm font-semibold sm:w-auto"
                       >
                         {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
                         {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
                       </Button>
+                      <div className="flex min-w-0 items-center gap-2 sm:contents">
+                      <PronunciationMasterSwitch localText={localText} />
                       <div
                         className="ml-auto flex shrink-0 flex-col items-center gap-0.5"
                         title={localText('Tốc độ giọng nói', 'Voice playback speed')}
                       >
-                        <span className="text-[10px] text-slate-500">
-                          {localText('Tốc độ giọng nói', 'Voice speed')}
+                        <span className="text-[10px] leading-none text-slate-500">
+                          <span className="sm:hidden">{localText('Tốc độ', 'Speed')}</span>
+                          <span className="hidden sm:inline">{localText('Tốc độ giọng nói', 'Voice speed')}</span>
                         </span>
                         <div className="flex items-center rounded-md border border-slate-200 bg-slate-50">
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 min-w-8 p-0 shrink-0"
+                            className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
                             disabled={playbackSpeed <= 0.75}
                             onClick={() => {
                               const speeds = [0.75, 1, 1.25, 1.5]
@@ -10077,7 +10471,7 @@ export default function HocBaiHocCoSanClientPage() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 min-w-8 p-0 shrink-0"
+                            className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
                             disabled={playbackSpeed >= 1.5}
                             onClick={() => {
                               const speeds = [0.75, 1, 1.25, 1.5]
@@ -10094,6 +10488,7 @@ export default function HocBaiHocCoSanClientPage() {
                             <Plus className="h-3.5 w-3.5" />
                           </Button>
                         </div>
+                      </div>
                       </div>
                     </>
                   )}
@@ -10283,9 +10678,7 @@ export default function HocBaiHocCoSanClientPage() {
                           <p className="font-semibold">{localText('Câu cần gõ y nguyên:', 'Sentences to copy exactly:')}</p>
                           <div className="mt-1 space-y-1">
                             {writingTask.requiredSentences.map((sentence, idx) => {
-                              const key = toWritingRomanizationKey(sentence || '')
-                              const romanized = sanitizeRomanizedText(String(writingRomanizationByKey[key] || ''))
-                              const busyKey = writingRomanizationBusyByKey[key]
+                              const romanized = sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(sentence || '')] || ''))
                               const isCurrent = idx === writingTask.currentIndex && !writingTask.completed
                               return (
                                 <div
@@ -10300,12 +10693,14 @@ export default function HocBaiHocCoSanClientPage() {
                                       {sentence}
                                     </span>
                                   </p>
-                                  {supportsLatinTransliteration && (romanized || busyKey) ? (
-                                    <p className="mt-0.5 text-muted-foreground">
-                                      <span className="font-semibold">{localText('Phiên âm Latin:', 'Latin transliteration:')}</span>{' '}
-                                      {romanized || localText('Đang tạo...', 'Generating...')}
-                                    </p>
-                                  ) : null}
+                                  <NativePhoneticLine
+                                    text={sentence}
+                                    known={romanized}
+                                    targetLanguageCode={languageCode}
+                                    nativeLanguageCode={nativeLanguageCode}
+                                    localText={localText}
+                                    coachUsageContext={englishCoachUsageContext}
+                                  />
                                 </div>
                               )
                             })}
@@ -10318,18 +10713,30 @@ export default function HocBaiHocCoSanClientPage() {
                         {localText('Nhập câu của bạn', 'Type your sentence')}
                       </p>
                       <div className="flex min-w-0 items-center gap-2">
-                        <Input
+                        <LessonImeField
                           ref={writingInputRef}
                           value={writingDraft}
-                          onChange={(e) => {
-                            setWritingDraft(e.target.value)
+                          languageCode={languageCode}
+                          localText={localText}
+                          flushRef={writingImeFlushRef}
+                          onPendingChange={setWritingImePending}
+                          resetKey={writingTask?.messageId || ''}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter' || writingBusy) return
+                            event.preventDefault()
+                            const text = String(writingImeFlushRef.current?.() ?? writingDraft ?? '').trim()
+                            if (!text) return
+                            void evaluateWritingTask()
+                          }}
+                          onChange={(next) => {
+                            setWritingDraft(next)
                             if (writingEvalResult && !writingTask?.completed) {
                               setWritingEvalResult(null)
                             }
                           }}
                           placeholder={localText('Viết câu của bạn tại đây...', 'Write your sentence here...')}
                           disabled={writingBusy}
-                          className={`min-w-0 flex-1 ${
+                          className={
                             writingInputStatus === 'matched'
                               ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
                               : writingInputStatus === 'incorrect'
@@ -10337,10 +10744,10 @@ export default function HocBaiHocCoSanClientPage() {
                                 : writingInputStatus === 'partial'
                                   ? 'border-sky-300 bg-sky-50 text-sky-800'
                                   : ''
-                          }`}
+                          }
                         />
-                        <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || !writingDraft.trim()}>
-                          {writingBusy ? localText('Đang gửi...', 'Sending...') : localText('Gửi', 'Send')}
+                        <Button type="button" size="sm" onClick={() => void evaluateWritingTask()} disabled={writingBusy || (!writingDraft.trim() && !writingImePending)}>
+                          {writingBusy ? processingLabel(localText('Đang gửi...', 'Sending...')) : localText('Gửi', 'Send')}
                         </Button>
                       </div>
                     </div>
@@ -10370,20 +10777,14 @@ export default function HocBaiHocCoSanClientPage() {
                         {writingEvalResult.correctedText ? (
                           <div className="mt-1">
                             <p><span className="font-semibold">{localText('Câu sửa gợi ý:', 'Suggested correction:')}</span> {writingEvalResult.correctedText}</p>
-                            {supportsLatinTransliteration ? (
-                              (() => {
-                                const key = toWritingRomanizationKey(writingEvalResult.correctedText || '')
-                                const romanized = sanitizeRomanizedText(String(writingRomanizationByKey[key] || ''))
-                                const busyKey = writingRomanizationBusyByKey[key]
-                                if (!romanized && !busyKey) return null
-                                return (
-                                  <p className="mt-0.5 text-muted-foreground">
-                                    <span className="font-semibold">{localText('Phiên âm Latin:', 'Latin transliteration:')}</span>{' '}
-                                    {romanized || localText('Đang tạo...', 'Generating...')}
-                                  </p>
-                                )
-                              })()
-                            ) : null}
+                            <NativePhoneticLine
+                              text={writingEvalResult.correctedText}
+                              known={sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(writingEvalResult.correctedText || '')] || ''))}
+                              targetLanguageCode={languageCode}
+                              nativeLanguageCode={nativeLanguageCode}
+                              localText={localText}
+                              coachUsageContext={englishCoachUsageContext}
+                            />
                           </div>
                         ) : null}
                       </div>
@@ -10455,9 +10856,19 @@ export default function HocBaiHocCoSanClientPage() {
                     {localText('Mini 2/3: Luyện phát âm', 'Mini 2/3: Pronunciation practice')}
                   </p>
                   {reviewSpeakingTargetSentence ? (
-                    <p className="mt-2 rounded border border-indigo-200 bg-white px-2 py-1.5 text-sm font-medium text-slate-800">
-                      {reviewSpeakingTargetSentence}
-                    </p>
+                    <div className="mt-2 rounded border border-indigo-200 bg-white px-2 py-1.5 text-sm font-medium text-slate-800">
+                      <p>{reviewSpeakingTargetSentence}</p>
+                      <div className="font-normal">
+                      <NativePhoneticLine
+                        text={reviewSpeakingTargetSentence}
+                        known={sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(reviewSpeakingTargetSentence)] || ''))}
+                        targetLanguageCode={languageCode}
+                        nativeLanguageCode={nativeLanguageCode}
+                        localText={localText}
+                        coachUsageContext={englishCoachUsageContext}
+                      />
+                      </div>
+                    </div>
                   ) : null}
                   <p className="mt-2 text-xs text-indigo-700">
                     {localText(
@@ -10483,13 +10894,13 @@ export default function HocBaiHocCoSanClientPage() {
                       </Button>
                     ) : speakingDrillPhase === 'playing' ? (
                       <p className="flex items-center gap-2 text-sm text-indigo-700">
-                        <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
-                        {localText('Đang phát câu mục tiêu...', 'Playing target sentence...')}
+                        <span className="min-w-0 flex-1">{localText('Đang phát câu mục tiêu...', 'Playing target sentence...')}</span>
+                        <ProcessingIcon className="text-indigo-600" />
                       </p>
                     ) : speakingDrillPhase === 'recording' ? (
                       <p className="flex items-center gap-2 text-sm text-indigo-700">
-                        <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-indigo-500" />
-                        {localText('Đang ghi âm... (tự động dừng khi im lặng)', 'Recording... (auto-stops when silent)')}
+                        <span className="min-w-0 flex-1">{localText('Đang ghi âm... (tự động dừng khi im lặng)', 'Recording... (auto-stops when silent)')}</span>
+                        <ProcessingIcon className="text-indigo-600" />
                       </p>
                     ) : (
                       <>
@@ -10604,7 +11015,7 @@ export default function HocBaiHocCoSanClientPage() {
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {reviewListeningDistractorsLoading && reviewListeningVisibleOptions.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">{localText('Đang tải...', 'Loading...')}</p>
+                      <ProcessingRow className="text-sm text-muted-foreground">{localText('Đang tải...', 'Loading...')}</ProcessingRow>
                     ) : null}
                     {reviewListeningVisibleOptions.map((word) => {
                       const status = reviewListeningResultByWord[word]
@@ -10802,7 +11213,12 @@ export default function HocBaiHocCoSanClientPage() {
         wordPractice={wordPractice}
         practiceInputStatus={practiceInputStatus}
         t={t}
+        localText={localText}
+        languageCode={languageCode}
         onWordPracticeDraftChange={onWordPracticeDraftChange}
+        onPracticeGradeChange={(word, shown) => {
+          setPracticeGrade((prev) => (prev.word === word && prev.text === shown ? prev : { word, text: shown }))
+        }}
         onWordPracticeMeaningSelect={onWordPracticeMeaningSelect}
         onPlayWordPronunciation={(word) => void playWordPronunciation(word)}
         onRegenerateWordPronunciation={(word) =>
@@ -10934,7 +11350,7 @@ export default function HocBaiHocCoSanClientPage() {
         <Navigation className="h-5 w-5" />
       </Button>
       {matchedSessionChoiceOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/50 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center">
           <div className="w-full max-w-2xl rounded-lg border bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-900">
               {localText('Có buổi học đang lưu phù hợp', 'Matching in-progress lessons found')}
@@ -10997,7 +11413,7 @@ export default function HocBaiHocCoSanClientPage() {
         </div>
       ) : null}
       {lessonStartChoiceOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/50 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center">
           <div className="w-full max-w-md rounded-lg border bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-900">
               {localText('Chọn hình thức học', 'Choose lesson type')}
@@ -11041,7 +11457,7 @@ export default function HocBaiHocCoSanClientPage() {
                 {!lessonStartPresetAvailable
                   ? localText('Chưa có bài có sẵn phù hợp', 'No matching saved lesson')
                   : lessonStartChoiceBusy
-                    ? localText('Đang mở...', 'Loading...')
+                    ? processingLabel(localText('Đang mở...', 'Loading...'))
                     : localText('Học bài có sẵn', 'Study saved lesson')}
               </Button>
             </div>
@@ -11064,7 +11480,7 @@ export default function HocBaiHocCoSanClientPage() {
         </div>
       ) : null}
       {reviewListeningPopupOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/90 backdrop-blur-sm p-3 sm:items-center sm:p-4">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/90 backdrop-blur-sm px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:items-center">
           <div className="w-full max-w-lg rounded-lg border bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-900">
               {localText('Luyện nghe nhanh', 'Quick listening drill')}
@@ -11080,7 +11496,7 @@ export default function HocBaiHocCoSanClientPage() {
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {reviewListeningDistractorsLoading && reviewListeningVisibleOptions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{localText('Đang tải...', 'Loading...')}</p>
+                <ProcessingRow className="text-sm text-muted-foreground">{localText('Đang tải...', 'Loading...')}</ProcessingRow>
               ) : null}
               {reviewListeningVisibleOptions.map((word) => {
                 const status = reviewListeningResultByWord[word]
@@ -11125,7 +11541,7 @@ export default function HocBaiHocCoSanClientPage() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 min-w-8 p-0 shrink-0"
+                    className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
                     disabled={playbackSpeed <= 0.75}
                     onClick={() => {
                       const speeds = [0.75, 1, 1.25, 1.5]
@@ -11148,7 +11564,7 @@ export default function HocBaiHocCoSanClientPage() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 min-w-8 p-0 shrink-0"
+                    className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
                     disabled={playbackSpeed >= 1.5}
                     onClick={() => {
                       const speeds = [0.75, 1, 1.25, 1.5]

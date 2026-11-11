@@ -1,6 +1,7 @@
 'use client'
 
 import { X } from 'lucide-react'
+import { processingLabel } from './processing-status'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { LocalTextFn, SelectOption } from './types'
@@ -267,7 +268,7 @@ export function QuickStartModal({
                 disabled={customTopicBusy || quickStartBusy}
                 className="h-11 px-4 sm:shrink-0"
               >
-                {customTopicBusy ? localText('Đang tạo chủ đề mới...', 'Creating topic...') : localText('Tạo chủ đề mới', 'Create topic')}
+                {customTopicBusy ? processingLabel(localText('Đang tạo chủ đề mới...', 'Creating topic...')) : localText('Tạo chủ đề mới', 'Create topic')}
               </Button>
             </div>
           </div>
@@ -279,7 +280,7 @@ export function QuickStartModal({
             disabled={quickStartBusy}
             className="min-h-[44px]"
           >
-            {quickStartBusy ? quickStartStageLabel : localText('Tạo bài học', 'Create lesson')}
+            {quickStartBusy ? processingLabel(quickStartStageLabel) : localText('Tạo bài học', 'Create lesson')}
           </Button>
         </div>
       </div>

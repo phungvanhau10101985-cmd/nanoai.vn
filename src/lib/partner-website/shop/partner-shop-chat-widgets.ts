@@ -38,7 +38,7 @@ export function buildFacebookCustomerChatHtml(pageId?: string | null): string {
   return (
     `<div id="fb-root"></div>` +
     `<script async defer crossorigin="anonymous" src="https://connect.facebook.net/vi_VN/sdk.js#xfbml=1&version=v18.0"></script>` +
-    `<div class="fb-customerchat" page_id="${id}" attribution="setup_tool"></div>`
+    `<div class="fb-customerchat" page_id="${id}" attribution="setup_tool" style="overflow-anchor:none"></div>`
   )
 }
 
@@ -75,7 +75,7 @@ export function buildZaloPersonalButtonHtml(url?: string | null): string {
   return (
     `<a href="${href}" target="_blank" rel="noopener noreferrer" data-zalo-open="personal" ` +
     `aria-label="Nhắn Zalo cho shop" ` +
-    `style="position:fixed;right:16px;bottom:16px;z-index:2147483000;display:inline-flex;` +
+    `style="position:fixed;right:16px;bottom:16px;z-index:2147483000;display:inline-flex;overflow-anchor:none;` +
     `align-items:center;background:#0068FF;color:#fff;font:600 14px/1 system-ui,sans-serif;` +
     `padding:12px 16px;border-radius:999px;box-shadow:0 8px 24px rgba(0,104,255,.35);` +
     `text-decoration:none">Nhắn Zalo</a>`
@@ -86,7 +86,7 @@ export function buildZaloOaWidgetHtml(oaId?: string | null): string {
   const id = normalizeChatDigitsId(oaId ?? '')
   if (!id) return ''
   return (
-    `<div class="zalo-chat-widget" data-oaid="${id}" data-welcome-message="Xin chào! Chúng tôi có thể giúp gì cho bạn?" data-autopopup="0"></div>` +
+    `<div class="zalo-chat-widget" data-oaid="${id}" data-welcome-message="Xin chào! Chúng tôi có thể giúp gì cho bạn?" data-autopopup="0" style="overflow-anchor:none"></div>` +
     `<script src="https://sp.zalo.me/plugins/sdk.js"></script>`
   )
 }
@@ -113,5 +113,9 @@ export function buildPartnerShopChatWidgetsHtml(input: {
     zalo,
     sanitizePartnerShopCustomEmbedHtml(input.zaloCustomHtml),
   ].filter(Boolean)
-  return parts.join('\n')
+  if (!parts.length) return ''
+  const body = parts.join('\n')
+  // Nút Zalo cá nhân là thẻ <a>. Bọc div sẽ làm bộ lọc embed giữ lại chữ sau khi gỡ thẻ.
+  if (/<a\b/i.test(body)) return body
+  return `<div data-pw-chat-widgets="1" style="position:fixed;right:0;bottom:0;width:0;height:0;overflow:visible;z-index:2147482000;overflow-anchor:none">${body}</div>`
 }

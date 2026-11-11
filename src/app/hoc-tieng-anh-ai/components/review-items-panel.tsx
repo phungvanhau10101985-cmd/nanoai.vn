@@ -3,6 +3,8 @@
 import { Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { LocalTextFn, VocabularyItem } from './types'
+import { PronunciationReveal } from './pronunciation-reveal'
+import { ProcessingRow } from './processing-status'
 
 type ReviewItemsPanelProps = {
   localText: LocalTextFn
@@ -98,17 +100,7 @@ export function ReviewItemsPanel({
             </Button>
           </div>
           {showPinyin && (pinyin || busyPinyin) ? (
-            pinyin ? (
-              <p className="text-muted-foreground">
-                <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
-                {pinyin}
-              </p>
-            ) : (
-              <p className="text-muted-foreground">
-                <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
-                {localText('Đang tạo...', 'Generating...')}
-              </p>
-            )
+            <PronunciationReveal localText={localText} reading={pinyin} busy={!pinyin && Boolean(busyPinyin)} lineKey={cleanExampleText} />
           ) : null}
           {exampleNative ? (
             <p className="text-muted-foreground">
@@ -130,7 +122,7 @@ export function ReviewItemsPanel({
         </Button>
       </div>
       {reviewBusy ? (
-        <p className="text-sm text-muted-foreground">{localText('Đang tải danh sách từ đến hạn ôn...', 'Loading words due for review...')}</p>
+        <ProcessingRow className="text-sm text-muted-foreground">{localText('Đang tải danh sách từ đến hạn ôn...', 'Loading words due for review...')}</ProcessingRow>
       ) : reviewItems.length === 0 ? (
         <p className="text-sm text-muted-foreground">{localText('Chưa có từ đến hạn ôn. Tiếp tục hội thoại để tích lũy từ mới.', 'No words due yet. Keep chatting to build vocabulary.')}</p>
       ) : (
@@ -147,7 +139,7 @@ export function ReviewItemsPanel({
                 </button>{' '}
                 - {(item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
               </p>
-              <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
+              <PronunciationReveal localText={localText} reading={item.pronunciation || item.word} lineKey={item.id} />
               <div className="mt-1 flex flex-wrap items-center gap-1">
                 <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${usageTagClass(item.usageLevel)}`}>
                   {usageTagLabel(item.usageLevel)}
@@ -161,7 +153,45 @@ export function ReviewItemsPanel({
                   </span>
                 ) : null}
               </div>
-              {renderExamples(item)}
+              {Array.isArray(item.senses) && item.senses.length > 0 ? (
+                <div className="mt-1.5 space-y-1">
+                  {item.senses.map((sense, idx) => {
+                    const gloss = String(sense.gloss || '').trim()
+                    const exampleTarget = String(sense.exampleTarget || '').trim()
+                    const exampleNative = String(sense.exampleNative || '').trim()
+                    const matched = (item.exampleItems ?? []).find((ex) => String(ex.targetText || '').trim() === exampleTarget)
+                    const stored = String(sense.examplePinyin || matched?.targetPinyin || '').trim()
+                    const fallbackKey = toWritingRomanizationKey(exampleTarget, item.targetLanguage)
+                    const fallback = String(writingRomanizationByKey[fallbackKey] || '').trim()
+                    const busy = Boolean(writingRomanizationBusyByKey[fallbackKey])
+                    const pinyin = stored || fallback
+                    const showPinyin = Boolean(exampleTarget) && isCjkTargetLanguage(item.targetLanguage) && Boolean(pinyin || busy)
+                    return (
+                      <div key={`${item.id}-sense-${idx}`} className="rounded-md border border-slate-200 bg-white/80 px-2 py-1.5">
+                        <p className="font-semibold text-slate-800">{localText(`Nghĩa ${idx + 1}`, `Sense ${idx + 1}`)}</p>
+                        {gloss ? <p className="mt-0.5"><span className="font-semibold">{localText('Giải nghĩa:', 'Gloss:')}</span> {gloss}</p> : null}
+                        {exampleTarget ? (
+                          <div className="mt-0.5 flex items-start gap-2">
+                            <p className="flex-1"><span className="font-semibold">{localText('Ví dụ:', 'Example:')}</span> {exampleTarget}</p>
+                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => onPlayWordTextSnippet(exampleTarget)}>
+                              <Volume2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : null}
+                        {showPinyin ? (
+                          <PronunciationReveal
+                            localText={localText}
+                            reading={pinyin}
+                            busy={!pinyin && busy}
+                            lineKey={`${item.id}:${exampleTarget}`}
+                          />
+                        ) : null}
+                        {exampleNative ? <p className="text-muted-foreground"><span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}</p> : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : renderExamples(item)}
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 <Button
                   type="button"

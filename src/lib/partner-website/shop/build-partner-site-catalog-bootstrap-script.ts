@@ -454,7 +454,7 @@ function closeListingFacetPicker(){
   if(sel){
     var wrap=sel.closest('[data-pw-listing-facet-wrap]');
     var btn=wrap&&wrap.querySelector('[data-pw-listing-facet-trigger]');
-    if(btn)try{btn.focus();}catch(e){}
+    if(btn)try{btn.focus({preventScroll:true});}catch(e){try{btn.focus();}catch(e2){}}
   }
 }
 function ensureListingFacetPicker(){
@@ -528,7 +528,7 @@ function openListingFacetPicker(sel){
   host.hidden=false;
   host.removeAttribute('aria-hidden');
   document.documentElement.setAttribute('data-pw-listing-facet-open','1');
-  if(closeBtn)try{closeBtn.focus();}catch(e){}
+  if(closeBtn)try{closeBtn.focus({preventScroll:true});}catch(e){try{closeBtn.focus();}catch(e2){}}
 }
 function enhanceListingFacetSelect(sel){
   if(!sel||sel.closest('[data-pw-listing-facet-wrap]')){

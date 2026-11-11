@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, BookOpen, RefreshCw, ArrowLeft, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
+import { PronunciationReveal } from '../components/pronunciation-reveal'
 
 function localText(vi: string, en: string) {
   if (typeof window === 'undefined') return vi
@@ -187,9 +188,7 @@ export default function TuMoiClientPage() {
                     {item.meaning || localText('Chưa có nghĩa', 'No meaning yet')}
                   </p>
                   {item.pronunciation ? (
-                    <p className="mt-1 text-xs text-slate-500">
-                      {localText('Phát âm:', 'Pronunciation:')} {item.pronunciation}
-                    </p>
+                    <PronunciationReveal localText={localText} reading={item.pronunciation} lineKey={item.id} />
                   ) : null}
                   <div className="mt-2 flex flex-wrap gap-1">
                     {item.usageLevel ? (

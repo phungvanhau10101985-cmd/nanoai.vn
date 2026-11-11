@@ -1,3 +1,4 @@
+import { PARTNER_SHOP_SCROLL_PIN_SCRIPT } from '@/lib/partner-website/shop/partner-site-scroll-pin'
 import { PW_ENSURE_CONTENT_SCENE_ROOT_SOURCE } from './ensure-content-scene-root'
 import {
   PW_DEVICE_FALLBACK_ORDER,
@@ -823,7 +824,8 @@ export function pwMediaZoomOriginYPct(top: number, height: number, viewHeight: n
 /** Runtime Sửa nhanh + web thật: neo canvas theo trung điểm màn hình. */
 export const PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID = 'pw-shop-scene-center'
 /** Khóa máy theo outerWidth (không đổi khi Ctrl +/-); scale khít innerWidth — không tràn viewport. */
-export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
+export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${PARTNER_SHOP_SCROLL_PIN_SCRIPT}
+${pwCoordinateRuntimeSource()}
 (function(){
   var C=window.__pwCoordinate;
   var W=C.widths;
@@ -1651,7 +1653,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     var node=root.firstChild;
     while(node){
       var next=node.nextSibling;
-      if(!stayOutsideScaleFrame(node))frame.appendChild(node);
+      if(!stayOutsideScaleFrame(node)&&node.parentNode!==frame)frame.appendChild(node);
       node=next;
     }
     if(!frame.__pwFitRo&&window.ResizeObserver){
@@ -1664,7 +1666,12 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     }
     paintScaleFrame(root,frame,z);
   }
-  function apply(){
+  function pinScroll(fn){
+    var pin=window.__pwPinScroll;
+    if(typeof pin==='function'){pin(fn);return;}
+    fn();
+  }
+  function apply(force){
     var html=document.documentElement;
     if(!html||!html.style)return;
     var key=pick(band())||band();
@@ -1677,6 +1684,24 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if (z && z !== 1) html.setAttribute('data-pw-scene-zoomed','1');
     else html.removeAttribute('data-pw-scene-zoomed');
     var root=liveRoot();
+    var inFrame=false;
+    try{inFrame=window.parent!==window;}catch(eFrame){inFrame=true;}
+    if(!force&&root&&!isEditor()&&!inFrame&&html.getAttribute('data-pw-visual-ready')!=='1'){
+      if(!window.__pwSceneWaitReady){
+        window.__pwSceneWaitReady=1;
+        var waited=0;
+        function go(){
+          if(waited)return;
+          waited=1;
+          window.clearTimeout(window.__pwSceneWaitTimer);
+          apply(true);
+        }
+        document.addEventListener('pw-shop-visual-ready',go);
+        window.__pwSceneWaitTimer=window.setTimeout(go,2500);
+      }
+      return;
+    }
+    pinScroll(function(){
     if(root){
       stampLiveLook(root,null);
       watchLiveRoot(root);
@@ -1725,6 +1750,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
       if(bg.style)bg.style.setProperty('z-index',ix||'1','important');
     }
     releaseTopbarInnerColumn();
+    });
   }
   window.__pwSceneCenterApply=apply;
   apply();

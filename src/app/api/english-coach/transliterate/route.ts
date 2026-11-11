@@ -8,6 +8,7 @@ import {
   trackEnglishCoachGeminiResult,
 } from '@/lib/english-coach-api-usage'
 import { isPgConfigured } from '@/lib/db/pool'
+import { stripReadingCommentary } from '@/lib/coach-reading'
 import {
   fetchTransliterationCachePg,
   touchTransliterationCachePg,
@@ -26,22 +27,26 @@ function toCacheKey(text: string, languageCode: string): string {
   return `${languageCode}:${hash}`
 }
 
-function normalizeCode(input: string): 'zh' | 'ja' | 'ko' | 'th' | 'hi' | '' {
+function normalizeCode(input: string): 'zh' | 'ja' | 'ko' | 'th' | 'hi' | 'en' | '' {
   const code = String(input || '').trim().toLowerCase()
   if (code === 'zh') return 'zh'
   if (code === 'ja') return 'ja'
   if (code === 'ko') return 'ko'
   if (code === 'th') return 'th'
   if (code === 'hi') return 'hi'
+  if (code === 'en') return 'en'
   return ''
 }
 
-function buildPrompt(text: string, languageCode: 'zh' | 'ja' | 'ko' | 'th' | 'hi'): string {
+function buildPrompt(text: string, languageCode: 'zh' | 'ja' | 'ko' | 'th' | 'hi' | 'en'): string {
   if (languageCode === 'zh') {
-    return `Chuyển câu sau sang phiên âm Latin pinyin có dấu thanh.
+    return `Chuyển câu sau sang Hán ngữ pinyin có dấu thanh. Mỗi tiếng một âm, cách nhau bằng dấu cách.
+Ví dụ: 登机口 → dēng jī kǒu
 Yêu cầu:
-- Chỉ trả về đúng 1 dòng pinyin.
-- Không thêm giải thích, không markdown.
+- Chỉ trả về đúng 1 dòng chữ Latin.
+- Có dấu thanh (ā á ǎ à), không dùng số 1-4.
+- Cấm chữ Hán. Cấm viết theo chính tả tiếng Việt (cấm dạng chỉnh-tào, chi-khẩu).
+- Không dịch nghĩa, không markdown, không câu tiếng Anh. Cấm viết "Looks correct".
 
 Văn bản gốc:
 ${text}`
@@ -82,7 +87,15 @@ Requirements:
 Original text:
 ${text}`
   }
-  return ''
+  return `Write one IPA pronunciation of this English text, without slash marks.
+Example: hello → həˈloʊ
+Requirements:
+- One line only.
+- Do not translate. Do not use Vietnamese spelling.
+- No explanation, no markdown.
+
+Original text:
+${text}`
 }
 
 export async function POST(request: NextRequest) {
@@ -104,9 +117,19 @@ export async function POST(request: NextRequest) {
     if (isPgConfigured()) {
       const cached = await fetchTransliterationCachePg(cacheKey)
       if (cached) {
+        const rawCached = String(cached.transliteration || '')
+        const cleaned = stripReadingCommentary(rawCached)
         void touchTransliterationCachePg(cached.id, new Date().toISOString())
+        if (cleaned && cleaned !== rawCached.replace(/\s+/g, ' ').trim()) {
+          void upsertTransliterationCachePg({
+            cacheKey,
+            languageCode,
+            transliteration: cleaned,
+            nowIso: new Date().toISOString(),
+          })
+        }
         return NextResponse.json({
-          transliteration: String(cached.transliteration || '').trim(),
+          transliteration: cleaned,
           cached: true,
         })
       }
@@ -132,9 +155,15 @@ export async function POST(request: NextRequest) {
     const latinLinePattern = /[A-Za-z\u00C0-\u024F]/
     const candidateLines = lines.filter((line) => !skipPattern.test(line))
     const lastLatinLine = [...candidateLines].reverse().find((line) => latinLinePattern.test(line))
-    const transliteration = (lastLatinLine ?? raw)
-      .replace(/\s+/g, ' ')
-      .trim()
+    const transliteration = stripReadingCommentary((lastLatinLine ?? raw)
+      .replace(/[\u4E00-\u9FFF]/g, '')
+      .replace(/^(?:pinyin|phiên âm|phát âm)\s*[:：]\s*/i, '')
+      .replace(/^[→>:：\s]+/, '')
+      .replace(/\s+/g, ' '))
+    if (languageCode === 'zh' && (/[ăơưđĂƠƯĐ]/.test(transliteration) || transliteration.includes('-'))) {
+      return NextResponse.json({ transliteration: '' })
+    }
+    if (!transliteration) return NextResponse.json({ transliteration: '' })
 
     if (isPgConfigured()) {
       const up = await upsertTransliterationCachePg({

@@ -14,6 +14,9 @@ import {
   trackEnglishCoachGeminiResult,
 } from '@/lib/english-coach-api-usage'
 import { createHash } from 'crypto'
+import { fillSharedSentenceReadings, storeSentenceReadingsIfMissing } from '@/lib/coach-reading-db'
+import { readingLanguageCode, syncCoachReadings } from '@/lib/coach-reading'
+import { updateVocabReadingJsonByLookupPg } from '@/lib/db/language-coach-meaning-examples-fix-pg'
 
 type WordPayload = {
   word?: string
@@ -32,6 +35,7 @@ type WordSenseItem = {
   gloss: string
   exampleTarget: string
   exampleNative: string
+  examplePinyin?: string
 }
 
 type WordExampleItem = {
@@ -98,6 +102,7 @@ function normalizeSensesForDictionary(input: WordSenseItem[]): WordSenseItem[] {
       gloss,
       exampleTarget,
       exampleNative,
+      examplePinyin: String(row.examplePinyin || '').trim(),
     })
     if (out.length >= 5) break
   }
@@ -179,6 +184,7 @@ function sanitizeSenseItems(input: unknown): WordSenseItem[] {
       gloss: String((row as { gloss?: unknown })?.gloss || '').trim(),
       exampleTarget: String((row as { exampleTarget?: unknown })?.exampleTarget || '').trim(),
       exampleNative: String((row as { exampleNative?: unknown })?.exampleNative || '').trim(),
+      examplePinyin: String((row as { examplePinyin?: unknown })?.examplePinyin || '').trim(),
     }))
     .filter((row) => row.gloss || (row.exampleTarget && row.exampleNative))
     .slice(0, 5)
@@ -351,10 +357,33 @@ export async function POST(request: NextRequest) {
                   gloss: '',
                   exampleTarget: String(ex.targetText || '').trim(),
                   exampleNative: String(ex.nativeText || '').trim(),
+                  examplePinyin: String(ex.targetPinyin || '').trim(),
                 }))
               : fallbackExampleTarget && fallbackExampleNative
-                ? [{ gloss: '', exampleTarget: fallbackExampleTarget, exampleNative: fallbackExampleNative }]
+                ? [{ gloss: '', exampleTarget: fallbackExampleTarget, exampleNative: fallbackExampleNative, examplePinyin: '' }]
                 : [])
+        const [withReadings] = await fillSharedSentenceReadings([{
+          targetLanguage,
+          senses: cachedSenseItems,
+          exampleItems: cachedExampleItems,
+        }])
+        const senses = withReadings?.senses || cachedSenseItems
+        const exampleItems = withReadings?.exampleItems || cachedExampleItems
+        if (withReadings?.readingsChanged) {
+          void updateVocabReadingJsonByLookupPg({
+            normalizedWord,
+            normalizedTargetLanguage: normalizedTarget,
+            normalizedNativeLanguage: normalizedNative,
+            meaningItemsJson: JSON.stringify(senses),
+            exampleItemsJson: JSON.stringify(exampleItems),
+            updatedAtIso: nowTouch,
+          })
+        }
+        const readingCode = readingLanguageCode(targetLanguage)
+        void storeSentenceReadingsIfMissing(readingCode, [
+          ...senses.map((sense) => ({ text: sense.exampleTarget, reading: String(sense.examplePinyin || '') })),
+          ...exampleItems.map((example) => ({ text: example.targetText, reading: String(example.targetPinyin || '') })),
+        ])
         console.info(`[WORD] cache-hit word="${word}"`)
         logWordCacheStats(word)
         return NextResponse.json({
@@ -363,10 +392,10 @@ export async function POST(request: NextRequest) {
         pronunciation: String(cached.pronunciation || '').trim() || word,
         exampleTarget: fallbackExampleTarget,
         exampleNative: fallbackExampleNative,
-        senses: cachedSenseItems,
+        senses,
         meaningItems: [],
-        exampleItems: cachedExampleItems.length > 0
-          ? cachedExampleItems
+        exampleItems: exampleItems.length > 0
+          ? exampleItems
           : [{ targetText: fallbackExampleTarget, nativeText: fallbackExampleNative }],
         pronunciationAudioUrl: String(cached.pronunciation_audio_url || '').trim(),
         usageLevel: normalizeUsageLevel(cached.usage_level),
@@ -407,6 +436,7 @@ Yêu cầu:
    - Ưu tiên senses[0] là nghĩa trực tiếp dễ hiểu nhất (ví dụ seafood → "hải sản, động vật biển").
    - exampleTarget (BẮT BUỘC): ví dụ ngắn ở ngôn ngữ mục tiêu, độc lập với câu ngữ cảnh.
    - exampleNative (BẮT BUỘC): bản dịch ví dụ sang ${nativeLanguage}.
+   - examplePinyin: pinyin hoặc romaji của exampleTarget, mỗi tiếng cách nhau bằng dấu cách. Ví dụ tiếng Trung: dēng jī kǒu.
 3) pronunciation: phiên âm dễ đọc. Nếu ngôn ngữ là tiếng Trung thì dùng pinyin có dấu; tiếng Nhật dùng romaji; tiếng Hàn dùng romanization; tiếng Thái dùng RTGS; tiếng Hindi dùng IAST.
 4) partOfSpeech: loại từ ngắn gọn (noun/verb/adj/adv/...).
 5) exampleItems: mảng 2-3 ví dụ. QUAN TRỌNG:
@@ -423,7 +453,7 @@ Trả về JSON hợp lệ, không markdown:
 {
   "partOfSpeech": "...",
   "meaning": "...",
-  "senses": [{"gloss":"...","exampleTarget":"...","exampleNative":"..."}],
+  "senses": [{"gloss":"...","exampleTarget":"...","exampleNative":"...","examplePinyin":"dēng jī kǒu"}],
   "pronunciation": "...",
   "exampleItems": [{"targetText":"汉字/かな/한글","targetPinyin":"pinyin/romaji","nativeText":"..."}],
   "exampleTarget": "...",
@@ -478,7 +508,7 @@ Trả về JSON hợp lệ, không markdown:
     const senseExamples = normalizedSenses
       .map((s) => ({
         targetText: String(s.exampleTarget || '').trim(),
-        targetPinyin: '',
+        targetPinyin: String(s.examplePinyin || '').trim(),
         nativeText: String(s.exampleNative || '').trim(),
       }))
       .filter((s) => s.targetText && s.nativeText)
@@ -505,6 +535,10 @@ Trả về JSON hợp lệ, không markdown:
       importanceScore: 50,
       contextSensitive: true,
     }
+    const readingCode = readingLanguageCode(targetLanguage)
+    const synced = syncCoachReadings(readingCode, completed.senses, completed.exampleItems)
+    completed.senses = synced.senses
+    completed.exampleItems = synced.examples
 
     const nowIso = new Date().toISOString()
     const upsertRes = await upsertVocabCacheFromWordRoutePg({
@@ -531,6 +565,10 @@ Trả về JSON hợp lệ, không markdown:
     if (!upsertRes.ok) {
       return NextResponse.json({ error: upsertRes.message || 'Không lưu được từ vào cache.' }, { status: 500 })
     }
+    void storeSentenceReadingsIfMissing(readingCode, [
+      ...completed.senses.map((sense) => ({ text: sense.exampleTarget, reading: String(sense.examplePinyin || '') })),
+      ...completed.exampleItems.map((example) => ({ text: example.targetText, reading: String(example.targetPinyin || '') })),
+    ])
     logWordCacheStats(word)
 
     return NextResponse.json({

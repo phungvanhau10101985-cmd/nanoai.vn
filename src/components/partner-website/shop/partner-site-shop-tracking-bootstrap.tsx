@@ -99,6 +99,17 @@ function applyVerifyMetas(tracking: PartnerSiteShopTrackingConfig): void {
   }
 }
 
+function reviveNestedScripts(node: Node): void {
+  if (!(node instanceof HTMLElement)) return
+  const scripts = Array.from(node.querySelectorAll('script'))
+  for (const old of scripts) {
+    const next = document.createElement('script')
+    Array.from(old.attributes).forEach((attr) => next.setAttribute(attr.name, attr.value))
+    next.text = old.text
+    old.replaceWith(next)
+  }
+}
+
 function applyCustomHtml(html: string, where: 'head' | 'body-start' | 'body-end'): void {
   const safe = sanitizePartnerShopCustomEmbedHtml(html)
   if (!safe || typeof document === 'undefined') return
@@ -132,6 +143,7 @@ function applyCustomHtml(html: string, where: 'head' | 'body-start' | 'body-end'
     } else {
       document.body.appendChild(node)
     }
+    reviveNestedScripts(node)
   })
   void target
 }

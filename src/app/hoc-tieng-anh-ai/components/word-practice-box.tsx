@@ -1,8 +1,8 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { LessonImeField } from '../ime/lesson-ime-field'
 import type { LocalTextFn, WordPracticeProgress } from './types'
 
 type WordPracticeBoxProps = {
@@ -11,6 +11,7 @@ type WordPracticeBoxProps = {
   wordPractice: WordPracticeProgress | null
   practiceInputStatus: 'idle' | 'partial' | 'correct' | 'incorrect'
   localText: LocalTextFn
+  languageCode: string
   onStartWordPractice: (word: string, expectedMeaning?: string) => void
   onWordPracticeDraftChange: (targetWord: string, nextDraft: string) => void
   onWordPracticeMeaningSelect: (targetWord: string, selectedMeaning: string) => void
@@ -25,6 +26,7 @@ export function WordPracticeBox({
   wordPractice,
   practiceInputStatus,
   localText,
+  languageCode,
   onStartWordPractice,
   onWordPracticeDraftChange,
   onWordPracticeMeaningSelect,
@@ -55,12 +57,14 @@ export function WordPracticeBox({
       {!active.unlocked ? (
         <>
           <div className="flex items-center">
-            <Input
+            <LessonImeField
               value={active.draft}
-              onChange={(e) => onWordPracticeDraftChange(targetWord, e.target.value)}
+              onChange={(next) => onWordPracticeDraftChange(targetWord, next)}
+              languageCode={languageCode}
+              localText={localText}
               placeholder={localText('Gõ lại từ mới...', 'Type the new word...')}
               className={cn(
-                'mt-1 h-9 rounded-lg text-xs',
+                'mt-1 rounded-lg text-xs',
                 practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 text-emerald-800 focus:ring-emerald-500',
                 practiceInputStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus:ring-sky-400',
                 practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus:ring-rose-500'

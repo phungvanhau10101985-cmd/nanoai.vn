@@ -637,7 +637,7 @@ function ensureImageControl(){
     pop.style.width=pw+'px';
     pop.style.visibility='';
     var url=pop.querySelector('[data-pw-image-url]');
-    if(url)try{url.focus();}catch(errF){}
+    if(url)try{url.focus({preventScroll:true});}catch(errF){try{url.focus();}catch(errF2){}}
   }
   function hidePop(){
     pop.hidden=true;

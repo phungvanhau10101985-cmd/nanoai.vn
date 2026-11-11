@@ -108,6 +108,10 @@ import {
   PW_LISTING_FILTER_SLOT_ATTR,
 } from '@/lib/partner-website/shop/listing-head'
 import {
+  PARTNER_SHOP_SCROLL_PIN_SCRIPT,
+  PARTNER_SHOP_SCROLL_PIN_SCRIPT_ID,
+} from '@/lib/partner-website/shop/partner-site-scroll-pin'
+import {
   extractVisualDocumentCssText,
   extractVisualDocumentStyleLinks,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
@@ -823,6 +827,15 @@ function PartnerSiteShopShellInner({
     s.textContent = PARTNER_SHOP_LISTING_HEAD_SCRIPT
     document.body.appendChild(s)
   }, [listingCategory, pageKind])
+  useLayoutEffect(() => {
+    const win = window as Window & { __pwScrollPin?: number }
+    if (win.__pwScrollPin) return
+    if (document.getElementById(PARTNER_SHOP_SCROLL_PIN_SCRIPT_ID)) return
+    const s = document.createElement('script')
+    s.id = PARTNER_SHOP_SCROLL_PIN_SCRIPT_ID
+    s.textContent = PARTNER_SHOP_SCROLL_PIN_SCRIPT
+    document.body.appendChild(s)
+  }, [])
   useLayoutEffect(() => {
     const rootLook =
       document.querySelector('[data-pw-inline-visual-root]')?.getAttribute('data-pw-look') ||

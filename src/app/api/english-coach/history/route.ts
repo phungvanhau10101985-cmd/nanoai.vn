@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { getUserForAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
+import { stripReadingCommentary } from '@/lib/coach-reading'
 import { fetchTransliterationCacheByKeysPg } from '@/lib/db/language-coach-transliteration-tokenize-pg'
 import {
   fetchEndedSessionIdsForUserPg,
@@ -318,7 +319,7 @@ export async function GET(request: NextRequest) {
         const cacheRows = await fetchTransliterationCacheByKeysPg(uniqueKeys)
         for (const r of cacheRows) {
           const ck = String(r.cache_key || '')
-          const t = String(r.transliteration || '').trim()
+          const t = stripReadingCommentary(String(r.transliteration || ''))
           if (ck && t) transliterationByKey.set(ck, t)
         }
       }

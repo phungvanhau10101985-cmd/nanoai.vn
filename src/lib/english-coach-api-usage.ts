@@ -25,6 +25,7 @@ export const EnglishCoachApiFeature = {
   chatMainSentenceGate: 'english-coach-chat-main-sentence-gate',
   chatPinyin: 'english-coach-chat-pinyin',
   intentExplain: 'english-coach-intent-explain',
+  speechMeaning: 'english-coach-speech-meaning',
   transliterate: 'english-coach-transliterate',
   placementLevel: 'english-coach-placement-level',
   topicNormalize: 'english-coach-topic-normalize',

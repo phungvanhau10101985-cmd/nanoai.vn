@@ -110,7 +110,7 @@ function render(profile){
       '</div></form></div>';
     bind();
     var first=root.querySelector('[data-pw-bg-day]');
-    if(first)setTimeout(function(){try{first.focus();}catch(e){}},80);
+    if(first)setTimeout(function(){try{first.focus({preventScroll:true});}catch(e){try{first.focus();}catch(e2){}}},80);
   }
   function showErr(msg){var el=root.querySelector('[data-pw-birth-gender-error]');if(!el)return;el.hidden=!msg;el.textContent=msg||'';}
   function bind(){

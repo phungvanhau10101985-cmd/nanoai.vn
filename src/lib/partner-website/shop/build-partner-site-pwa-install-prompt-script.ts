@@ -128,7 +128,7 @@ function render(){
   document.body.style.overflow='hidden';
   document.body.appendChild(root);
   var focusEl=nativeBtn?go:later;
-  if(focusEl)setTimeout(function(){try{focusEl.focus();}catch(e){}},80);
+  if(focusEl)setTimeout(function(){try{focusEl.focus({preventScroll:true});}catch(e){try{focusEl.focus();}catch(e2){}}},80);
   function onKey(e){if(e.key==='Escape'){onLater();window.removeEventListener('keydown',onKey);}}
   window.addEventListener('keydown',onKey);
 }

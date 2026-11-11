@@ -26,6 +26,8 @@ test('buildPartnerShopChatWidgetsHtml emits Facebook chat and Zalo OA when that 
   assert.match(html, /data-oaid="99887766"/)
   assert.match(html, /sp\.zalo\.me\/plugins\/sdk\.js/)
   assert.match(html, /<div>zns<\/div>/)
+  assert.match(html, /data-pw-chat-widgets="1"/)
+  assert.match(html, /overflow-anchor:none/)
   assert.doesNotMatch(html, /0968659836/)
   assert.doesNotMatch(html, /evil\.example/)
 })
@@ -38,6 +40,7 @@ test('a saved personal number opens that chat and hides the OA widget', () => {
   assert.match(html, /data-zalo-open="personal"/)
   assert.match(html, /https:\/\/zalo\.me\/0968659836/)
   assert.doesNotMatch(html, /zalo-chat-widget/)
+  assert.doesNotMatch(html, /data-pw-chat-widgets/)
   assert.equal(
     resolvePartnerShopZaloClickUrl({
       zaloPersonalUrl: '0968659836',

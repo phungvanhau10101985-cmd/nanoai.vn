@@ -6,12 +6,14 @@ import {
   trackEnglishCoachGeminiResult,
   type EnglishCoachUsageContext,
 } from '@/lib/english-coach-api-usage'
+import { toSimplifiedChinese, usesSimplifiedChinese } from '@/lib/chinese-script'
 
 type Payload = {
   audioBase64?: string
   mimeType?: string
   targetLanguage?: string
   targetLanguageCode?: string
+  targetLocale?: string
   nativeLanguage?: string
   nativeLanguageCode?: string
   speakingMode?: 'auto' | 'target' | 'native' | 'mixed'
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest) {
     const mimeType = String(payload.mimeType || 'audio/webm').trim()
     const targetLanguage = String(payload.targetLanguage || 'English').trim()
     const targetLanguageCode = String(payload.targetLanguageCode || '').trim().toLowerCase()
+    const targetLocale = String(payload.targetLocale || '').trim()
     const nativeLanguage = String(payload.nativeLanguage || 'Vietnamese').trim()
     const nativeLanguageCode = String(payload.nativeLanguageCode || '').trim().toLowerCase()
     const locale = tr(nativeLanguage)
@@ -134,9 +137,13 @@ export async function POST(request: NextRequest) {
         : payload.speakingMode === 'mixed'
           ? 'mixed'
           : 'auto'
+    const simplifiedTarget = usesSimplifiedChinese(targetLanguageCode, targetLocale)
+    const simplifiedNative = usesSimplifiedChinese(nativeLanguageCode)
     const transliterationGuide =
       targetLanguageCode === 'zh'
-        ? `Nếu học sinh nói kiểu phiên âm Latin gần pinyin, ưu tiên map về chữ Hán cho transcript chính.`
+        ? simplifiedTarget
+          ? `Ngôn ngữ đang học là tiếng Trung giản thể (${targetLocale || 'zh-CN'}). Mọi chữ Hán trong targetTranscript, mergedTranscript và wordScores phải là giản thể. Cấm chữ phồn thể. Ví dụ nghe được câu này thì viết 这个是我机票, không viết 這個是我機票. Nếu học sinh nói phiên âm gần pinyin, map về chữ Hán giản thể.`
+          : `Nếu học sinh nói kiểu phiên âm Latin gần pinyin, ưu tiên map về chữ Hán cho transcript chính.`
         : targetLanguageCode === 'ja'
           ? `Nếu học sinh nói kiểu romanization (romaji), ưu tiên map về tiếng Nhật (kana/kanji) cho transcript chính.`
           : targetLanguageCode === 'ko'
@@ -217,6 +224,17 @@ Trả về JSON hợp lệ:
     const parsed = safeParse(text)
     if (!parsed) {
       return NextResponse.json({ error: msg(locale, 'Không tách được transcript mixed.', 'Failed to split mixed transcript.') }, { status: 502 })
+    }
+    if (simplifiedTarget) {
+      parsed.targetTranscript = toSimplifiedChinese(parsed.targetTranscript)
+      parsed.mergedTranscript = toSimplifiedChinese(parsed.mergedTranscript)
+      parsed.weakWords = parsed.weakWords.map((word) => toSimplifiedChinese(word))
+      parsed.pronunciationIssues = parsed.pronunciationIssues.map((issue) => toSimplifiedChinese(issue))
+      parsed.wordScores = parsed.wordScores.map((row) => ({ ...row, word: toSimplifiedChinese(row.word) }))
+    }
+    if (simplifiedNative) {
+      parsed.nativeTranscript = toSimplifiedChinese(parsed.nativeTranscript)
+      parsed.inferredMeaning = toSimplifiedChinese(parsed.inferredMeaning)
     }
 
     return NextResponse.json(parsed)

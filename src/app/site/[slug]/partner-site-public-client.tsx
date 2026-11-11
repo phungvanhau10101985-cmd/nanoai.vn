@@ -120,6 +120,9 @@ function PartnerSiteInlineVisualScripts({ revision }: { revision: string }) {
       next.setAttribute('data-pw-script-armed', '1')
       old.replaceWith(next)
     })
+    const applyNow = (window as Window & { __pwSceneCenterApply?: (force?: boolean) => void })
+      .__pwSceneCenterApply
+    if (typeof applyNow === 'function') applyNow(true)
     const timer = window.setTimeout(() => {
       if (!document.querySelector('[data-pw-inline-visual-root]')) return
       document.documentElement.setAttribute('data-pw-visual-ready', '1')

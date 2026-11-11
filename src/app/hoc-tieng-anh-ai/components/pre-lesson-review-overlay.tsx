@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Volume2, X } from 'lucide-react'
+import { ProcessingRow } from './processing-status'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { LessonImeField } from '../ime/lesson-ime-field'
 import { cn } from '@/lib/utils'
 import type { LocalTextFn, PreLessonWordItem } from './types'
+import { PronunciationReveal } from './pronunciation-reveal'
 
 type PreLessonReviewOverlayProps = {
   words: PreLessonWordItem[]
@@ -85,6 +87,17 @@ export function PreLessonReviewOverlay({
   void results
   const [wrongHint, setWrongHint] = useState<{ word: string; meaning: string; pronunciation?: string; type: 'cloze' | 'listen' | 'recall' } | null>(null)
   const [inputCheckStatus, setInputCheckStatus] = useState<'idle' | 'partial' | 'correct' | 'incorrect'>('idle')
+  const [gradeText, setGradeText] = useState(input)
+  const gradeRef = useRef(input)
+  const rememberGrade = (shown: string) => {
+    gradeRef.current = shown
+    setGradeText((current) => (current === shown ? current : shown))
+  }
+  useEffect(() => {
+    if (input) return
+    gradeRef.current = ''
+    setGradeText((current) => (current ? '' : current))
+  }, [input, wordIndex, exerciseIndex])
   const [compositionEndAt, setCompositionEndAt] = useState(0)
   const autoPlayedListenWordRef = useRef<Record<string, true>>({})
   const autoPlayedHintRef = useRef<string | null>(null)
@@ -185,20 +198,11 @@ export function PreLessonReviewOverlay({
     localText('2. Nghe và gõ từ', '2. Listen and type the word'),
     localText('3. Recall 2 chiều (từ ↔ nghĩa)', '3. Two-way recall (word ↔ meaning)'),
   ]
-  const statusTextColor =
-    inputCheckStatus === 'correct'
-      ? '#065f46'
-      : inputCheckStatus === 'partial'
-        ? '#1d4ed8'
-        : inputCheckStatus === 'incorrect'
-          ? '#b91c1c'
-          : undefined
-
   useEffect(() => {
     if (!currentWord || wrongHint || submittedRef.current) return
     if (!ex0 && !ex1) return
 
-    const normalizedInput = normalizeWordForCompare(input)
+    const normalizedInput = normalizeWordForCompare(gradeText)
     if (!normalizedInput) {
       setInputCheckStatus('idle')
       return
@@ -213,7 +217,7 @@ export function PreLessonReviewOverlay({
     const timer = setTimeout(() => {
       if (submittedRef.current || isComposingRef.current) return
       const normalizedTarget = normalizeWordForCompare(targetWord)
-      const inputNfc = input.trim().normalize('NFC')
+      const inputNfc = gradeText.trim().normalize('NFC')
       const targetNfc = targetWord.trim().normalize('NFC')
       const exactMatch =
         normalizedInput === normalizedTarget || (inputNfc === targetNfc && inputNfc.length > 0)
@@ -237,7 +241,7 @@ export function PreLessonReviewOverlay({
     }, checkDebounceMs)
 
     return () => clearTimeout(timer)
-  }, [input, targetWord, currentWord, ex0, ex1, wrongHint, isCjk, compositionEndAt])
+  }, [gradeText, targetWord, currentWord, ex0, ex1, wrongHint, isCjk, compositionEndAt])
   /** Lấy câu ví dụ của chính từ từ DB, xóa đúng từ đó để tạo ô trống. Không sinh/cải biên thêm. */
   const clozeSentence = (() => {
     if (!exampleSentence) return ''
@@ -272,7 +276,7 @@ export function PreLessonReviewOverlay({
     if (!wrongHint || wrongHint.type === 'recall') return
     if (!currentWord) return
 
-    const normalizedInput = normalizeWordForCompare(input)
+    const normalizedInput = normalizeWordForCompare(gradeText)
     if (!normalizedInput) {
       setInputCheckStatus('idle')
       return
@@ -288,7 +292,7 @@ export function PreLessonReviewOverlay({
       setCompositionEndAt(0)
       if (!wrongHint || wrongHint.type === 'recall') return
       const normalizedTarget = normalizeWordForCompare(targetWord)
-      const inputNfc = input.trim().normalize('NFC')
+      const inputNfc = gradeText.trim().normalize('NFC')
       const targetNfc = targetWord.trim().normalize('NFC')
       const exactMatch =
         normalizedInput === normalizedTarget || (inputNfc === targetNfc && inputNfc.length > 0)
@@ -313,7 +317,7 @@ export function PreLessonReviewOverlay({
     }, debounceMs)
 
     return () => clearTimeout(timer)
-  }, [input, wrongHint, currentWord, targetWord, isCjk, compositionEndAt])
+  }, [gradeText, wrongHint, currentWord, targetWord, isCjk, compositionEndAt])
 
   useEffect(() => {
     if (!ex0 && !ex1) return
@@ -345,7 +349,7 @@ export function PreLessonReviewOverlay({
 
   const handleClozeSubmit = () => {
     if (!currentWord) return
-    const correct = normalizeWordForCompare(input) === normalizeWordForCompare(targetWord)
+    const correct = normalizeWordForCompare(gradeRef.current) === normalizeWordForCompare(targetWord)
     if (correct) {
       setInputCheckStatus('correct')
       submittedRef.current = true
@@ -362,7 +366,7 @@ export function PreLessonReviewOverlay({
 
   const handleListenSubmit = () => {
     if (!currentWord) return
-    const correct = normalizeWordForCompare(input) === normalizeWordForCompare(targetWord)
+    const correct = normalizeWordForCompare(gradeRef.current) === normalizeWordForCompare(targetWord)
     if (correct) {
       setInputCheckStatus('correct')
       submittedRef.current = true
@@ -395,11 +399,11 @@ export function PreLessonReviewOverlay({
           <p className="mt-2 text-sm text-slate-600">
             {localText('Bạn đã đạt yêu cầu! Có thể bắt đầu bài mới.', 'You passed! You can start the new lesson.')}
           </p>
-          <p className="mt-4 text-sm text-slate-500">
+          <ProcessingRow className="mt-4 text-sm text-slate-500">
             {continueAfterPassBusy
               ? localText('Đang chuyển sang bài học...', 'Redirecting to lesson...')
               : localText('Đang kiểm tra buổi học phù hợp...', 'Checking matching lessons...')}
-          </p>
+          </ProcessingRow>
         </div>
       </div>
     )
@@ -432,7 +436,7 @@ export function PreLessonReviewOverlay({
             </p>
             <p className="mt-2 text-lg font-semibold text-slate-900">{wrongHint.word.charAt(0).toUpperCase() + wrongHint.word.slice(1)}</p>
             {wrongHint.pronunciation ? (
-              <p className="mt-1 text-sm text-slate-500 italic">{wrongHint.pronunciation}</p>
+              <PronunciationReveal localText={localText} reading={wrongHint.pronunciation} lineKey={wrongHint.word} />
             ) : null}
             {wrongHint.meaning ? (
               <p className="mt-1 text-sm text-slate-600">{localText('Nghĩa:', 'Meaning:')} {wrongHint.meaning}</p>
@@ -465,19 +469,13 @@ export function PreLessonReviewOverlay({
                 <label className="mb-1.5 block break-words text-sm font-medium text-slate-700">
                   {localText('Gõ từ để ôn tập (đúng mới chuyển tiếp, từ này vẫn kiểm tra lại lần sau):', 'Type the word to review (correct to continue, this word will be reviewed again):')}
                 </label>
-                <Input
-                  type="text"
-                  inputMode="text"
-                  autoComplete="off"
-                  lang={wordLanguageCode === 'zh' ? 'zh-CN' : wordLanguageCode === 'ja' ? 'ja' : wordLanguageCode === 'ko' ? 'ko' : undefined}
+                <LessonImeField
                   value={input}
-                  onChange={(e) => onInputChange(e.target.value)}
-                  onCompositionStart={() => { isComposingRef.current = true }}
-                  onCompositionEnd={(e) => {
-                    isComposingRef.current = false
-                    onInputChange((e.target as HTMLInputElement).value)
-                    setCompositionEndAt(Date.now())
-                  }}
+                  languageCode={wordLanguageCode}
+                  localText={localText}
+                  onChange={onInputChange}
+                  onShownChange={rememberGrade}
+                  resetKey={`${wordIndex}:${exerciseIndex}:recall`}
                   placeholder={localText('Gõ từ...', 'Type the word...')}
                   className={cn(
                     'h-11 text-base',
@@ -485,7 +483,6 @@ export function PreLessonReviewOverlay({
                     inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
                     inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
                   )}
-                  style={{ color: statusTextColor }}
                   autoFocus
                 />
               </div>
@@ -526,19 +523,13 @@ export function PreLessonReviewOverlay({
                       ? localText('Điền từ vào chỗ trống:', 'Fill in the blank:')
                       : localText('Gõ từ tương ứng với nghĩa trên:', 'Type the word matching the meaning above:')}
                   </label>
-                  <Input
-                    type="text"
-                    inputMode="text"
-                    autoComplete="off"
-                    lang={wordLanguageCode === 'zh' ? 'zh-CN' : wordLanguageCode === 'ja' ? 'ja' : wordLanguageCode === 'ko' ? 'ko' : undefined}
+                  <LessonImeField
                     value={input}
-                    onChange={(e) => onInputChange(e.target.value)}
-                    onCompositionStart={() => { isComposingRef.current = true }}
-                    onCompositionEnd={(e) => {
-                      isComposingRef.current = false
-                      onInputChange((e.target as HTMLInputElement).value)
-                      setCompositionEndAt(Date.now())
-                    }}
+                    languageCode={wordLanguageCode}
+                    localText={localText}
+                    onChange={onInputChange}
+                    onShownChange={rememberGrade}
+                    resetKey={`${wordIndex}:${exerciseIndex}:cloze`}
                     onKeyDown={(e) => e.key === 'Enter' && handleClozeSubmit()}
                     placeholder={
                       clozeSentence
@@ -551,7 +542,6 @@ export function PreLessonReviewOverlay({
                       inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
                       inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
                     )}
-                    style={{ color: statusTextColor }}
                     autoFocus
                   />
                   {inputCheckStatus === 'incorrect' && (
@@ -602,19 +592,13 @@ export function PreLessonReviewOverlay({
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
                     {localText('Gõ từ bạn nghe được:', 'Type the word you heard:')}
                   </label>
-                  <Input
-                    type="text"
-                    inputMode="text"
-                    autoComplete="off"
-                    lang={wordLanguageCode === 'zh' ? 'zh-CN' : wordLanguageCode === 'ja' ? 'ja' : wordLanguageCode === 'ko' ? 'ko' : undefined}
+                  <LessonImeField
                     value={input}
-                    onChange={(e) => onInputChange(e.target.value)}
-                    onCompositionStart={() => { isComposingRef.current = true }}
-                    onCompositionEnd={(e) => {
-                      isComposingRef.current = false
-                      onInputChange((e.target as HTMLInputElement).value)
-                      setCompositionEndAt(Date.now())
-                    }}
+                    languageCode={wordLanguageCode}
+                    localText={localText}
+                    onChange={onInputChange}
+                    onShownChange={rememberGrade}
+                    resetKey={`${wordIndex}:${exerciseIndex}:listen`}
                     onKeyDown={(e) => e.key === 'Enter' && handleListenSubmit()}
                     placeholder={localText('Gõ từ...', 'Type the word...')}
                     className={cn(
@@ -623,7 +607,6 @@ export function PreLessonReviewOverlay({
                       inputCheckStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
                       inputCheckStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'
                     )}
-                    style={{ color: statusTextColor }}
                     autoFocus
                   />
                   {inputCheckStatus === 'incorrect' && (

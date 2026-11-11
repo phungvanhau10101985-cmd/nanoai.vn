@@ -17,6 +17,8 @@ import { getUserForAction } from '@/lib/auth'
 import { resolveGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { buildChatPrompts } from '@/app/hoc-tieng-anh-ai/prompt/prompt-builder'
 import { getPairPromptConfig, toLanguagePairKey } from '@/app/hoc-tieng-anh-ai/i18n/pairs'
+import { simplifyChineseDeep, toSimplifiedChinese, usesSimplifiedChinese } from '@/lib/chinese-script'
+import { stripReadingCommentary } from '@/lib/coach-reading'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   countCreditEventsByTypePg,
@@ -1277,7 +1279,7 @@ async function generatePinyinForSentence(
   const source = String(sentence || '').trim()
   if (!source) return ''
   const prompt = `Chuyển câu tiếng Trung sau thành pinyin có dấu thanh.
-Chỉ trả về đúng 1 dòng pinyin, không thêm giải thích:
+Chỉ trả về đúng 1 dòng pinyin. Cấm giải thích, cấm tiếng Anh, cấm viết "Looks correct".
 ${source}`
   const result = await model.generateContent(prompt)
   trackEnglishCoachGeminiResult(
@@ -1287,7 +1289,7 @@ ${source}`
     userId ?? null,
     coachCtx
   )
-  return String(result.response.text?.() || '').replace(/^```|```$/g, '').trim()
+  return stripReadingCommentary(String(result.response.text?.() || '').replace(/^```|```$/g, ''))
 }
 
 function safeJsonParse(text: string): {
@@ -1498,9 +1500,21 @@ function toMixedAnalyzeResult(input: Record<string, unknown> | null): MixedAnaly
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as ChatPayload
+    const simplifiedChineseLesson = usesSimplifiedChinese(
+      String(payload.targetLanguageCode || ''),
+      String(payload.teacherLocale || '')
+    )
+    const lessonJson = (body: unknown, init?: ResponseInit) =>
+      NextResponse.json(simplifiedChineseLesson ? simplifyChineseDeep(body) : body, init)
+    const lessonText = (value: string) => (simplifiedChineseLesson ? toSimplifiedChinese(value) : value)
     const sessionId = String(payload.sessionId || '').trim()
-    const studentText = String(payload.studentText || '').trim()
-    const history = Array.isArray(payload.history) ? payload.history.slice(-10) : []
+    const studentText = simplifiedChineseLesson
+      ? toSimplifiedChinese(String(payload.studentText || '').trim())
+      : String(payload.studentText || '').trim()
+    const history = (Array.isArray(payload.history) ? payload.history.slice(-10) : []).map((item) => ({
+      ...item,
+      text: simplifiedChineseLesson ? toSimplifiedChinese(item.text) : item.text,
+    }))
     const accent: TeacherAccent = payload.accent === 'uk' ? 'uk' : 'us'
     const gender: TeacherGender = payload.gender === 'male' ? 'male' : 'female'
     const mode: 'chat' | 'listen_speak' | 'roleplay_short' =
@@ -1561,18 +1575,18 @@ export async function POST(request: NextRequest) {
     const micAnalysis = payload.micAnalysis && typeof payload.micAnalysis === 'object'
       ? payload.micAnalysis
       : null
-    const micTargetTranscript = String(micAnalysis?.targetTranscript || '').trim()
-    const micNativeTranscript = String(micAnalysis?.nativeTranscript || '').trim()
-    const micMergedTranscript = String(micAnalysis?.mergedTranscript || '').trim()
-    const micInferredMeaning = String(micAnalysis?.inferredMeaning || '').trim()
+    const micTargetTranscript = lessonText(String(micAnalysis?.targetTranscript || '').trim())
+    const micNativeTranscript = lessonText(String(micAnalysis?.nativeTranscript || '').trim())
+    const micMergedTranscript = lessonText(String(micAnalysis?.mergedTranscript || '').trim())
+    const micInferredMeaning = lessonText(String(micAnalysis?.inferredMeaning || '').trim())
     const micPronunciationIssues = Array.isArray(micAnalysis?.pronunciationIssues)
-      ? micAnalysis!.pronunciationIssues!.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 6)
+      ? micAnalysis!.pronunciationIssues!.map((x) => lessonText(String(x || '').trim())).filter(Boolean).slice(0, 6)
       : []
     const micPronunciationScore = Number.isFinite(Number(micAnalysis?.pronunciationScore))
       ? Math.min(100, Math.max(0, Math.round(Number(micAnalysis?.pronunciationScore))))
       : null
     const micWeakWords = Array.isArray(micAnalysis?.weakWords)
-      ? micAnalysis!.weakWords!.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 8)
+      ? micAnalysis!.weakWords!.map((x) => lessonText(String(x || '').trim())).filter(Boolean).slice(0, 8)
       : []
     const micPronunciationAccuracy = Number.isFinite(Number(micAnalysis?.pronunciationAccuracy))
       ? Math.min(100, Math.max(0, Math.round(Number(micAnalysis?.pronunciationAccuracy))))
@@ -1586,7 +1600,7 @@ export async function POST(request: NextRequest) {
     const micWordScores = Array.isArray(micAnalysis?.wordScores)
       ? micAnalysis.wordScores
         .map((x) => ({
-          word: String(x?.word || '').trim(),
+          word: lessonText(String(x?.word || '').trim()),
           score: Number.isFinite(Number(x?.score)) ? Math.min(100, Math.max(0, Math.round(Number(x?.score)))) : 0,
           issueType: String(x?.issueType || '').trim() || 'unclear',
         }))
@@ -1603,14 +1617,14 @@ export async function POST(request: NextRequest) {
       )
 
     if (!studentText) {
-      return NextResponse.json({ error: 'Thiếu nội dung học sinh.' }, { status: 400 })
+      return lessonJson({ error: 'Thiếu nội dung học sinh.' }, { status: 400 })
     }
 
     const normalizedStudentText = normalizeLookup(studentText)
     const normalizedTargetLanguage = normalizeLookup(targetLanguage)
     const normalizedNativeLanguage = normalizeLookup(nativeLanguage)
     if (!isPgConfigured()) {
-      return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
+      return lessonJson({ error: 'Database not configured.' }, { status: 503 })
     }
     const replayRequestId = `replay_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
@@ -1637,7 +1651,7 @@ export async function POST(request: NextRequest) {
       let best: ReplayCacheRow | null = null
       let bestScore = 0
       for (const row of rows) {
-        const score = similarityScore(studentText, String(row.student_text || row.normalized_student_text || ''))
+        const score = similarityScore(studentText, lessonText(String(row.student_text || row.normalized_student_text || '')))
         if (score > bestScore) {
           bestScore = score
           best = row
@@ -1722,7 +1736,7 @@ export async function POST(request: NextRequest) {
     let reviewDrill: ReviewDrillState | null = null
     if (sessionId) {
       const auth = await getUserForAction()
-      if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+      if ('error' in auth) return lessonJson({ error: auth.error }, { status: 401 })
       userId = auth.user.id
       const memory = await fetchSessionMemoryForChatPg(userId, sessionId)
       sessionPinnedFactsRaw = String(memory?.pinned_facts_json || '{}')
@@ -1735,7 +1749,7 @@ export async function POST(request: NextRequest) {
     }
     const resolvedGoogleKey = await resolveGoogleApiKeyForUser(userId)
     if (!resolvedGoogleKey) {
-      return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY hoặc Gemini API key riêng hợp lệ.' }, { status: 500 })
+      return lessonJson({ error: 'Thiếu GOOGLE_API_KEY hoặc Gemini API key riêng hợp lệ.' }, { status: 500 })
     }
     const apiKey = resolvedGoogleKey.apiKey
     const isPresetSession = Boolean(presetReplay && presetReplay.turns.length > 0)
@@ -1744,20 +1758,20 @@ export async function POST(request: NextRequest) {
     if (userId && sessionId && !isFromDrill && !isPresetSession) {
       const sessionUuid = asUuidOrEmpty(sessionId)
       if (!sessionUuid) {
-        return NextResponse.json({ error: 'sessionId không hợp lệ.' }, { status: 400 })
+        return lessonJson({ error: 'sessionId không hợp lệ.' }, { status: 400 })
       }
       const [liveStartRes, liveUnlockRes] = await Promise.all([
         countCreditEventsByTypePg(userId, sessionUuid, 'english_coach_live_start'),
         countCreditEventsByTypePg(userId, sessionUuid, 'english_coach_live_unlock'),
       ])
       if (!liveStartRes.ok || !liveUnlockRes.ok) {
-        return NextResponse.json({ error: 'Không đọc được trạng thái credit của buổi học.' }, { status: 500 })
+        return lessonJson({ error: 'Không đọc được trạng thái credit của buổi học.' }, { status: 500 })
       }
       const liveStartCount = liveStartRes.count
       const liveUnlockCountRaw = liveUnlockRes.count
       const liveStartCharged = (liveStartCount || 0) > 0
       if (!liveStartCharged) {
-        return NextResponse.json(
+        return lessonJson(
           {
             error: `Buổi live chưa được mở khóa. Cần ${LIVE_SESSION_PRICE_CREDITS} credit cho gói ${LIVE_SESSION_BASE_TURN_LIMIT} lượt.`,
             requiredAction: 'charge_live_start',
@@ -1782,7 +1796,7 @@ export async function POST(request: NextRequest) {
       const turnsUsed = Math.max(0, Math.floor(Number(billingRaw.turnsUsed || 0) || 0))
       const attemptedTurns = turnsUsed + 1
       if (attemptedTurns > turnLimit) {
-        return NextResponse.json(
+        return lessonJson(
           {
             error: `Đã chạm giới hạn ${turnLimit} lượt của buổi live hiện tại.`,
             requiredAction: 'charge_live_unlock',
@@ -1810,13 +1824,13 @@ export async function POST(request: NextRequest) {
       const turnIdx = Math.max(0, Math.floor(Number(presetReplay.nextTurnIndex || 0)))
       const turn = presetReplay.turns[turnIdx]
       if (turn) {
-        const expectedStudent = String(turn.expectedStudent || '').trim()
+        const expectedStudent = lessonText(String(turn.expectedStudent || '').trim())
         if (expectedStudent) {
           const score = similarityScore(studentText, expectedStudent)
           if (score < 0.95) {
             const retry = strictReplayRetryPromptByLanguageCode(targetLanguageCode, expectedStudent, targetLanguage, turnIdx)
             const retryIntent = ensureIntentAnswerTwoPart(retry, targetLanguageCode, targetLanguage)
-            return NextResponse.json({
+            return lessonJson({
               reply: retry,
               corrections: [],
               pronunciationTips: [pronunciationTipByNativeLanguageCode(nativeLanguageCode)],
@@ -1935,7 +1949,7 @@ export async function POST(request: NextRequest) {
         })
         const nextExpectedStudentText = String(presetReplay.turns[turnIdx + 1]?.expectedStudent || '').trim()
         const turnTokensJson = String(turn.tokensJson || '').trim() || undefined
-        return NextResponse.json({
+        return lessonJson({
           reply: turnReply,
           corrections: [],
           pronunciationTips: [],
@@ -1962,7 +1976,8 @@ export async function POST(request: NextRequest) {
     if (userId && sessionId && isFromDrill && learningMode === 'review' && reviewDrill) {
       if (reviewDrill.speaking) {
         const speaking = reviewDrill.speaking
-        const sim = similarityScore(studentText, speaking.targetSentence)
+        const speakingTarget = lessonText(speaking.targetSentence)
+        const sim = similarityScore(studentText, speakingTarget)
         const pronunciationScore = micPronunciationScore ?? 0
         const passBySimilarity = sim >= speaking.minSimilarity
         const passByPronunciation = pronunciationScore >= speaking.minPronunciationScore || inputSource !== 'mic'
@@ -1993,7 +2008,7 @@ export async function POST(request: NextRequest) {
           const retry = strictReplayRetryPromptByLanguageCode(targetLanguageCode, speaking.targetSentence, targetLanguage, speaking.attempt)
           const cooldownHint = showCooldownHint ? speakingCooldownHint(speaking.targetSentence, nativeLanguageCode) : ''
           const correctionNote = [reviewDrillSpeakingHintByLanguageCode(nativeLanguageCode), cooldownHint].filter(Boolean).join(' ')
-          return NextResponse.json({
+          return lessonJson({
             reply: retry,
             corrections: [],
             pronunciationTips: [pronunciationTipByNativeLanguageCode(nativeLanguageCode)],
@@ -2029,7 +2044,7 @@ export async function POST(request: NextRequest) {
         })
         if (reviewDrill.listening) {
           const listening = reviewDrill.listening
-          return NextResponse.json({
+          return lessonJson({
             reply: reviewDrillListeningStartByLanguageCode(nativeLanguageCode),
             corrections: [],
             pronunciationTips: [],
@@ -2065,7 +2080,7 @@ export async function POST(request: NextRequest) {
           learningMode,
           updatedAtIso: new Date().toISOString(),
         })
-        return NextResponse.json({
+        return lessonJson({
           reply: reviewDrillListeningDoneByLanguageCode(nativeLanguageCode),
           corrections: [],
           pronunciationTips: [],
@@ -2166,7 +2181,7 @@ export async function POST(request: NextRequest) {
                         : ` Extra tip: listen by chunks, then pick the most certain ${expectedCount} words.`)
             : ''
           const hint = `${hintBase}${hintKeyword}${hintCooldown}`.trim()
-          return NextResponse.json({
+          return lessonJson({
             reply: reviewDrillListeningRetryByLanguageCode(nativeLanguageCode),
             corrections: [],
             pronunciationTips: [],
@@ -2202,7 +2217,7 @@ export async function POST(request: NextRequest) {
           learningMode,
           updatedAtIso: new Date().toISOString(),
         })
-        return NextResponse.json({
+        return lessonJson({
           reply: reviewDrillListeningDoneByLanguageCode(nativeLanguageCode),
           corrections: [],
           pronunciationTips: [],
@@ -2234,7 +2249,7 @@ export async function POST(request: NextRequest) {
       }
       const retry = retryPromptByCode[targetLanguageCode] || retryPromptByCode.en
       const retryIdea3 = ensureIntentAnswerTwoPart(retry, targetLanguageCode, targetLanguage)
-      return NextResponse.json({
+      return lessonJson({
         reply: retry,
         corrections: [],
         pronunciationTips: [pronunciationTipByNativeLanguageCode(nativeLanguageCode)],
@@ -2352,7 +2367,7 @@ export async function POST(request: NextRequest) {
         String(replayFlow.must_know_text || '').trim()
         || replayMainSentence
         || replayReply
-      return NextResponse.json({
+      return lessonJson({
         reply: replayReply,
         corrections: replayCorrections,
         pronunciationTips: replayPronunciationTips,
@@ -2414,7 +2429,7 @@ ${latestQuestion}`
         labels.askReplyAgain,
       ]
       const repeatIdea3 = ensureIntentAnswerTwoPart(latestQuestion, targetLanguageCode, targetLanguage)
-      return NextResponse.json({
+      return lessonJson({
         reply: replyLines.join('\n'),
         corrections: [],
         pronunciationTips: [pronunciationTipByNativeLanguageCode(nativeLanguageCode)],
@@ -2482,7 +2497,7 @@ ${studentText}`
         if (!reply) {
           const fallback = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
           const mainSentence = fallback
-          return NextResponse.json({ mainSentence, learningMode: 'reflex' })
+          return lessonJson({ mainSentence, learningMode: 'reflex' })
         }
         let pinyin = ''
         const nonLatinCodes = ['zh', 'ja', 'ko', 'th', 'hi'] as const
@@ -2550,10 +2565,10 @@ ${studentText}`
         } catch {
           // Keep reflex response path resilient even if replay cache write fails.
         }
-        return NextResponse.json({ mainSentence, learningMode: 'reflex' })
+        return lessonJson({ mainSentence, learningMode: 'reflex' })
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Reflex mode error'
-        return NextResponse.json({ error: msg }, { status: 500 })
+        return lessonJson({ error: msg }, { status: 500 })
       }
     }
 
@@ -2602,7 +2617,7 @@ ${studentText}`
           targetLanguageCode,
           targetLanguage
         )
-        return NextResponse.json({
+        return lessonJson({
           reply: replyLines.join('\n'),
           corrections: [],
           pronunciationTips: [pronunciationTipByNativeLanguageCode(nativeLanguageCode)],
@@ -2761,7 +2776,7 @@ BẮT BUỘC phản hồi theo thứ tự tự nhiên:
 - Cách phản hồi: hạn chế dịch, tập trung sắc thái, độ chính xác và mở rộng hội thoại.`
     const pairTransliterationGuide =
       targetLanguageCode === 'zh'
-        ? `Nếu học sinh nói kiểu phiên âm Latin gần pinyin, phải map về chữ Hán trong câu chuẩn.`
+        ? `Nếu học sinh nói kiểu phiên âm Latin gần pinyin, phải map về chữ Hán giản thể (zh-CN) trong câu chuẩn. Cấm chữ phồn thể. 這個 là sai, 这个 là đúng.`
         : targetLanguageCode === 'ja'
           ? `Nếu học sinh nói kiểu romaji, phải map về kana/kanji trong câu chuẩn.`
           : targetLanguageCode === 'ko'
@@ -2773,7 +2788,7 @@ BẮT BUỘC phản hồi theo thứ tự tự nhiên:
                 : `Nếu học sinh nói phiên âm không chuẩn của ${targetLanguage}, vẫn phải map về đúng ngôn ngữ đang học trong câu chuẩn.`
     const pinyinGuide =
       targetLanguageCode === 'zh'
-        ? `BẮT BUỘC khi xuất hiện câu tiếng Trung (chữ Hán) thì phải kèm phiên âm Latin pinyin ngay sau đó, dạng:
+        ? `BẮT BUỘC khi xuất hiện câu tiếng Trung giản thể (zh-CN, cấm chữ phồn thể) thì phải kèm phiên âm Latin pinyin ngay sau đó, dạng:
 - Câu hoàn chỉnh (${targetLanguage}): 你好。
 - Pinyin: Nǐ hǎo.`
         : 'Không bắt buộc pinyin.'
@@ -3059,7 +3074,7 @@ Ràng buộc bắt buộc:
     }
 
     if (!parsed || !hasCoreChatFields(parsed)) {
-      return NextResponse.json(
+      return lessonJson(
         {
           error: nativeLanguageCode === 'vi'
             ? 'AI trả dữ liệu sai định dạng nhiều lần. Vui lòng gửi lại.'
@@ -3468,7 +3483,7 @@ Không phân tích gì thêm.`
       // keep original mainSentenceFinal when gate prompt fails
     }
     if ((parsed.corrections || []).length === 0 && studentMainSentenceCandidate && mainSentenceFinal) {
-      const score = similarityScore(studentMainSentenceCandidate, mainSentenceFinal)
+      const score = similarityScore(lessonText(studentMainSentenceCandidate), lessonText(mainSentenceFinal))
       if (score < 0.985) {
         parsed.corrections = [{
           original: studentMainSentenceCandidate,
@@ -3602,7 +3617,7 @@ Không phân tích gì thêm.`
     } catch {
       // Keep chat response path resilient even if replay cache write fails.
     }
-    return NextResponse.json({
+    return lessonJson({
       corrections: parsed.corrections || [],
       pronunciationTips: parsed.pronunciationTips || [],
       correctionNote,
@@ -3613,7 +3628,7 @@ Không phân tích gì thêm.`
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return lessonJson({ error: msg }, { status: 500 })
   }
 }
 

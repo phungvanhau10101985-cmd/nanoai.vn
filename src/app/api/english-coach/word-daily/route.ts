@@ -6,7 +6,12 @@ import {
   insertMeaningFixFailedPg,
   setDailyWordMeaningFixAttemptedPg,
   setReviewQueueMeaningFixAttemptedPg,
+  updateDailyWordReadingJsonPg,
+  updateReviewReadingJsonByWordPg,
+  updateVocabReadingJsonByLookupPg,
 } from '@/lib/db/language-coach-meaning-examples-fix-pg'
+import { fillSharedSentenceReadings } from '@/lib/coach-reading-db'
+import { readingLanguageCode, syncCoachReadings } from '@/lib/coach-reading'
 import { incrementLanguageCoachProgressNewWordsPg } from '@/lib/db/language-coach-progress-pg'
 import {
   deleteAllDailyWordsForUserPg,
@@ -41,6 +46,7 @@ import { upsertVocabCacheFromWordRoutePg } from '@/lib/db/language-coach-vocab-c
 
 type DailyWordPayload = {
   action?: string
+  id?: string
   limit?: number
   learnedDate?: string
   sessionId?: string
@@ -138,13 +144,14 @@ function preferIncomingOrExistingContextSensitive(incoming: unknown, existing?: 
   return normalizeContextSensitive(existing)
 }
 
-function sanitizeSenseItems(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string }> {
+function sanitizeSenseItems(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string; examplePinyin?: string }> {
   if (!Array.isArray(input)) return []
   return input
     .map((row) => ({
       gloss: String((row as { gloss?: unknown })?.gloss || '').trim(),
       exampleTarget: String((row as { exampleTarget?: unknown })?.exampleTarget || '').trim(),
       exampleNative: String((row as { exampleNative?: unknown })?.exampleNative || '').trim(),
+      examplePinyin: String((row as { examplePinyin?: unknown })?.examplePinyin || '').trim(),
     }))
     .filter((row) => row.gloss || (row.exampleTarget && row.exampleNative))
     .slice(0, 8)
@@ -185,13 +192,32 @@ function mergeExampleItems(
   fallbackNative: string | null,
   fallbackPinyin?: string | null
 ): Array<{ targetText: string; targetPinyin?: string; nativeText: string }> {
-  if (incoming.length > 0) return incoming
   const existing = sanitizeExampleItems(parseJsonArrayText(existingJson))
+  const savedByText = new Map(existing.map((item) => [item.targetText, String(item.targetPinyin || '').trim()]))
+  if (incoming.length > 0) {
+    return incoming.map((item) => ({
+      ...item,
+      targetPinyin: String(item.targetPinyin || '').trim() || savedByText.get(item.targetText) || '',
+    }))
+  }
   if (existing.length > 0) return existing
   const target = String(fallbackTarget || '').trim()
   const native = String(fallbackNative || '').trim()
   const pinyin = String(fallbackPinyin || '').trim()
   return target && native ? [{ targetText: target, targetPinyin: pinyin || undefined, nativeText: native }] : []
+}
+
+function mergeSenseItems(
+  incoming: Array<{ gloss: string; exampleTarget: string; exampleNative: string; examplePinyin?: string }>,
+  existingJson: string | null | undefined
+) {
+  const existing = sanitizeSenseItems(parseJsonArrayText(existingJson))
+  const savedByText = new Map(existing.map((item) => [item.exampleTarget, String(item.examplePinyin || '').trim()]))
+  const base = incoming.length > 0 ? incoming : existing
+  return base.map((item) => ({
+    ...item,
+    examplePinyin: String(item.examplePinyin || '').trim() || savedByText.get(item.exampleTarget) || '',
+  }))
 }
 
 function hasMeaning(row: { meaning?: string | null; meaning_items_json?: string | null }): boolean {
@@ -611,9 +637,48 @@ export async function GET(request: NextRequest) {
         updatedAt: row.updated_at,
       }))
 
+    const filled = await fillSharedSentenceReadings(mapped)
+    const nowIso = new Date().toISOString()
+    for (const item of filled) {
+      if (!item.readingsChanged || !item.id) continue
+      const meaningItemsJson = JSON.stringify(item.senses)
+      const exampleItemsJson = JSON.stringify(item.exampleItems)
+      void updateDailyWordReadingJsonPg({
+        id: item.id,
+        userId: user.id,
+        meaningItemsJson,
+        exampleItemsJson,
+        updatedAtIso: nowIso,
+      })
+      const word = String(item.word || '').trim()
+      const targetLanguage = String(item.targetLanguage || '').trim()
+      const nativeLanguage = String(item.nativeLanguage || '').trim()
+      if (word && targetLanguage) {
+        void updateReviewReadingJsonByWordPg({
+          userId: user.id,
+          word,
+          targetLanguage,
+          meaningItemsJson,
+          exampleItemsJson,
+          updatedAtIso: nowIso,
+        })
+      }
+      if (word && targetLanguage && nativeLanguage) {
+        void updateVocabReadingJsonByLookupPg({
+          normalizedWord: normalizeLookup(word).slice(0, 120),
+          normalizedTargetLanguage: normalizeLookup(targetLanguage).slice(0, 120),
+          normalizedNativeLanguage: normalizeLookup(nativeLanguage).slice(0, 120),
+          meaningItemsJson,
+          exampleItemsJson,
+          updatedAtIso: nowIso,
+        })
+      }
+    }
+    const items = filled.map(({ readingsChanged: _readingsChanged, ...item }) => item)
+
     return NextResponse.json({
       date: learnedDate,
-      items: mapped,
+      items,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
@@ -625,6 +690,54 @@ export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as DailyWordPayload
     const action = String(payload.action || '').trim().toLowerCase()
+    if (action === 'save_reading') {
+      const auth = await getUserForAction()
+      if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+      const { user } = auth
+      const id = String(payload.id || '').trim()
+      if (!id) return NextResponse.json({ error: 'Thiếu id từ.' }, { status: 400 })
+      const row = await fetchDailyWordByIdForUserPg(user.id, id)
+      if (!row) return NextResponse.json({ error: 'Không thấy từ đã lưu.' }, { status: 404 })
+      const senses = sanitizeSenseItems(payload.senses)
+      const exampleItems = sanitizeExampleItems(payload.exampleItems)
+      const code = readingLanguageCode(String(row.target_language || ''))
+      const synced = syncCoachReadings(code, senses, exampleItems)
+      const meaningItemsJson = JSON.stringify(synced.senses)
+      const exampleItemsJson = JSON.stringify(synced.examples)
+      const nowIso = new Date().toISOString()
+      const saved = await updateDailyWordReadingJsonPg({
+        id,
+        userId: user.id,
+        meaningItemsJson,
+        exampleItemsJson,
+        updatedAtIso: nowIso,
+      })
+      if (!saved) return NextResponse.json({ error: 'Không lưu được phiên âm.' }, { status: 500 })
+      const word = String(row.word || '').trim()
+      const targetLanguage = String(row.target_language || '').trim()
+      const nativeLanguage = String(row.native_language || '').trim()
+      if (word && targetLanguage) {
+        void updateReviewReadingJsonByWordPg({
+          userId: user.id,
+          word,
+          targetLanguage,
+          meaningItemsJson,
+          exampleItemsJson,
+          updatedAtIso: nowIso,
+        })
+      }
+      if (word && targetLanguage && nativeLanguage) {
+        void updateVocabReadingJsonByLookupPg({
+          normalizedWord: normalizeLookup(word).slice(0, 120),
+          normalizedTargetLanguage: normalizeLookup(targetLanguage).slice(0, 120),
+          normalizedNativeLanguage: normalizeLookup(nativeLanguage).slice(0, 120),
+          meaningItemsJson,
+          exampleItemsJson,
+          updatedAtIso: nowIso,
+        })
+      }
+      return NextResponse.json({ ok: true, senses: synced.senses, exampleItems: synced.examples })
+    }
     if (action === 'normalize_standard') {
       const auth = await getUserForAction()
       if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
@@ -705,10 +818,7 @@ export async function POST(request: NextRequest) {
       contextSensitive,
       existingDailyRow?.is_context_sensitive
     )
-    const mergedSenses =
-      incomingSenses.length > 0
-        ? incomingSenses
-        : sanitizeSenseItems(parseJsonArrayText(existingDailyRow?.meaning_items_json))
+    const mergedSenses = mergeSenseItems(incomingSenses, existingDailyRow?.meaning_items_json)
 
     const hasMeaning = (mergedMeaning?.length ?? 0) > 0
     if (!hasMeaning) {
@@ -738,10 +848,7 @@ export async function POST(request: NextRequest) {
 
     const mergedReviewMeaning = preferIncomingOrExisting(mergedMeaning || '', existingReviewRow?.meaning)
     const mergedReviewPronunciation = preferIncomingOrExisting(mergedPronunciation || '', existingReviewRow?.pronunciation)
-    const mergedReviewSenses =
-      mergedSenses.length > 0
-        ? mergedSenses
-        : sanitizeSenseItems(parseJsonArrayText(existingReviewRow?.meaning_items_json))
+    const mergedReviewSenses = mergeSenseItems(mergedSenses, existingReviewRow?.meaning_items_json)
     const mergedReviewExampleItems = mergeExampleItems(
       mergedExampleItems,
       existingReviewRow?.example_items_json,

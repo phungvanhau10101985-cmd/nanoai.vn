@@ -197,6 +197,13 @@ export function getListeningDistractors(params: {
   return getJson<{ words?: string[]; error?: string }>(`/api/english-coach/listening-distractors?${q.toString()}`)
 }
 
+export function saveWordReading(payload: { id: string; senses: unknown; exampleItems: unknown }) {
+  return sendJson<{ ok?: boolean; error?: string }>('/api/english-coach/word-daily', 'POST', {
+    action: 'save_reading',
+    ...payload,
+  })
+}
+
 export function saveWordDaily(payload: unknown) {
   return sendJson<{ error?: string }>('/api/english-coach/word-daily', 'POST', payload)
 }
@@ -353,6 +360,17 @@ export function checkCompletedLessonMatch(payload: {
 
 export function transcribeMixed(payload: unknown) {
   return sendJson<Record<string, unknown> & { error?: string }>('/api/english-coach/transcribe-mixed', 'POST', payload)
+}
+
+export function translateSpeechMeaning(payload: {
+  text: string
+  targetLanguage: string
+  targetLanguageCode: string
+  nativeLanguage: string
+  nativeLanguageCode: string
+  coachUsageContext?: 'live' | 'preset'
+}) {
+  return sendJson<{ meaning?: string; error?: string }>('/api/english-coach/speech-meaning', 'POST', payload)
 }
 
 export function listLiveLessons(params?: {

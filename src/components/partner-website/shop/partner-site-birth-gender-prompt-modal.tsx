@@ -112,7 +112,7 @@ export function PartnerSiteBirthGenderPromptModal({ siteSlug, shopTitle, locale 
 
   useEffect(() => {
     if (!open) return
-    const t = window.setTimeout(() => firstDobRef.current?.focus(), 100)
+    const t = window.setTimeout(() => firstDobRef.current?.focus({ preventScroll: true }), 100)
     return () => window.clearTimeout(t)
   }, [open])
 

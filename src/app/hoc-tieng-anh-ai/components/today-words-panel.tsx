@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { Volume2, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { LocalTextFn, VocabularyItem } from './types'
+import { PronunciationReveal } from './pronunciation-reveal'
+import { ProcessingRow } from './processing-status'
 
 type TodayWordsPanelProps = {
   localText: LocalTextFn
@@ -97,17 +99,7 @@ export function TodayWordsPanel({
             </Button>
           </div>
           {showPinyin && (pinyin || busyPinyin) ? (
-            pinyin ? (
-              <p className="text-muted-foreground">
-                <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
-                {pinyin}
-              </p>
-            ) : (
-              <p className="text-muted-foreground">
-                <span className="font-semibold text-slate-800">{localText('Pinyin:', 'Pinyin:')}</span>{' '}
-                {localText('Đang tạo...', 'Generating...')}
-              </p>
-            )
+            <PronunciationReveal localText={localText} reading={pinyin} busy={!pinyin && Boolean(busyPinyin)} lineKey={cleanExampleText} />
           ) : null}
           {exampleNative ? (
             <p className="text-muted-foreground">
@@ -137,7 +129,7 @@ export function TodayWordsPanel({
         </div>
       </div>
       {todayWordsBusy ? (
-        <p className="text-sm text-muted-foreground">{localText('Đang tải danh sách từ mới của buổi học...', 'Loading new words for this lesson...')}</p>
+        <ProcessingRow className="text-sm text-muted-foreground">{localText('Đang tải danh sách từ mới của buổi học...', 'Loading new words for this lesson...')}</ProcessingRow>
       ) : todayWords.length === 0 ? (
         <p className="text-sm text-muted-foreground">{localText('Chưa có từ mới trong buổi này. Bấm vào từ trong câu teacher để lưu.', 'No new words yet. Tap words in teacher sentences to save them.')}</p>
       ) : (
@@ -158,7 +150,7 @@ export function TodayWordsPanel({
                 </button>{' '}
                 - {itemSenses.length > 0 ? localText('Nghĩa theo nhóm bên dưới', 'See senses below') : (item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
               </p>
-              <p className="text-muted-foreground">{localText('Phát âm:', 'Pronunciation:')} {item.pronunciation || item.word}</p>
+              <PronunciationReveal localText={localText} reading={item.pronunciation || item.word} lineKey={item.id} />
               <div className="mt-1 flex flex-wrap items-center gap-1">
                 <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${usageTagClass(item.usageLevel)}`}>
                   {usageTagLabel(item.usageLevel)}
@@ -196,6 +188,24 @@ export function TodayWordsPanel({
                             </Button>
                           </div>
                         ) : null}
+                        {(() => {
+                          if (!exampleTarget || !isCjkTargetLanguage(item.targetLanguage)) return null
+                          const matched = (item.exampleItems ?? []).find((ex) => String(ex.targetText || '').trim() === exampleTarget)
+                          const stored = String(sense.examplePinyin || matched?.targetPinyin || '').trim()
+                          const fallbackKey = toWritingRomanizationKey(exampleTarget, item.targetLanguage)
+                          const fallback = String(writingRomanizationByKey[fallbackKey] || '').trim()
+                          const busy = Boolean(writingRomanizationBusyByKey[fallbackKey])
+                          const pinyin = stored || fallback
+                          if (!pinyin && !busy) return null
+                          return (
+                            <PronunciationReveal
+                              localText={localText}
+                              reading={pinyin}
+                              busy={!pinyin && busy}
+                              lineKey={`${item.id}:${exampleTarget}`}
+                            />
+                          )
+                        })()}
                         {exampleNative ? <p className="text-muted-foreground"><span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}</p> : null}
                       </div>
                     )

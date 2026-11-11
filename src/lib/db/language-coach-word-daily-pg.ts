@@ -671,11 +671,11 @@ export async function updateReviewQueueMeaningLanguageFixPg(input: {
 export async function fetchDailyWordByIdForUserPg(
   userId: string,
   id: string
-): Promise<{ id: string; word: string | null; target_language: string | null } | null> {
+): Promise<{ id: string; word: string | null; target_language: string | null; native_language: string | null } | null> {
   if (!isPgConfigured()) return null
   try {
     return await pgQueryOne(
-      `select id::text as id, word, target_language
+      `select id::text as id, word, target_language, native_language
        from public.language_coach_daily_words
        where id = $1::uuid and user_id = $2::uuid
        limit 1`,

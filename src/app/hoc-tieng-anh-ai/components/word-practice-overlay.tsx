@@ -3,15 +3,18 @@
 import { useState } from 'react'
 import { Loader2, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { LessonImeField } from '../ime/lesson-ime-field'
 import type { WordPracticeProgress } from './types'
 
 type WordPracticeOverlayProps = {
   wordPractice: WordPracticeProgress | null
   practiceInputStatus: 'idle' | 'partial' | 'correct' | 'incorrect'
   t: (key: string, params?: Record<string, string | number>) => string
+  localText: (vi: string, en: string) => string
+  languageCode: string
   onWordPracticeDraftChange: (targetWord: string, nextDraft: string) => void
+  onPracticeGradeChange: (targetWord: string, shown: string) => void
   onWordPracticeMeaningSelect: (targetWord: string, selectedMeaning: string) => void
   onPlayWordPronunciation: (word: string) => void | Promise<void>
   onRegenerateWordPronunciation?: (word: string) => void | Promise<void>
@@ -21,7 +24,10 @@ export function WordPracticeOverlay({
   wordPractice,
   practiceInputStatus,
   t,
+  localText,
+  languageCode,
   onWordPracticeDraftChange,
+  onPracticeGradeChange,
   onWordPracticeMeaningSelect,
   onPlayWordPronunciation,
   onRegenerateWordPronunciation,
@@ -94,12 +100,15 @@ export function WordPracticeOverlay({
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t('Type the exact word:')}
             </label>
-            <Input
+            <LessonImeField
               value={wordPractice.draft}
-              onChange={(e) => onWordPracticeDraftChange(wordPractice.targetWord, e.target.value)}
+              onChange={(next) => onWordPracticeDraftChange(wordPractice.targetWord, next)}
+              onShownChange={(shown) => onPracticeGradeChange(wordPractice.targetWord, shown)}
+              resetKey={`${wordPractice.targetWord}:${wordPractice.correctCount}:${wordPractice.awaitingMeaningChoice ? 1 : 0}`}
+              languageCode={languageCode}
+              localText={localText}
               placeholder={t('Type the new word...')}
               className={cn(
-                'h-11 text-base',
                 practiceInputStatus === 'correct' && 'border-emerald-500 bg-emerald-50 text-emerald-800 focus-visible:ring-emerald-500',
                 practiceInputStatus === 'partial' && 'border-sky-300 bg-sky-50 text-sky-800 focus-visible:ring-sky-400',
                 practiceInputStatus === 'incorrect' && 'border-rose-500 bg-rose-50 text-rose-800 focus-visible:ring-rose-500'

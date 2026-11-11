@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
+import { fillSharedSentenceReadings } from '@/lib/coach-reading-db'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchDueReviewQueuePg,
   fetchReviewQueueSpacingPg,
   updateReviewQueueAfterReviewPg,
 } from '@/lib/db/language-coach-goals-review-pg'
+import { updateReviewReadingJsonByWordPg } from '@/lib/db/language-coach-meaning-examples-fix-pg'
 
 type ReviewPayload = {
   id?: string
@@ -23,13 +25,14 @@ function parseJsonArrayText(input: string | null | undefined): unknown[] {
   }
 }
 
-function sanitizeSenseItems(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string }> {
+function sanitizeSenseItems(input: unknown): Array<{ gloss: string; exampleTarget: string; exampleNative: string; examplePinyin?: string }> {
   if (!Array.isArray(input)) return []
   return input
     .map((row) => ({
       gloss: String((row as { gloss?: unknown })?.gloss || '').trim(),
       exampleTarget: String((row as { exampleTarget?: unknown })?.exampleTarget || '').trim(),
       exampleNative: String((row as { exampleNative?: unknown })?.exampleNative || '').trim(),
+      examplePinyin: String((row as { examplePinyin?: unknown })?.examplePinyin || '').trim(),
     }))
     .filter((row) => row.gloss || (row.exampleTarget && row.exampleNative))
     .slice(0, 8)
@@ -127,7 +130,25 @@ export async function GET(request: NextRequest) {
           intervalDays: row.interval_days,
         }
       })
-    return NextResponse.json({ items })
+    const filled = await fillSharedSentenceReadings(items)
+    const nowIso = new Date().toISOString()
+    for (const item of filled) {
+      if (!item.readingsChanged) continue
+      const word = String(item.word || '').trim()
+      const targetLanguage = String(item.targetLanguage || '').trim()
+      if (!word || !targetLanguage) continue
+      void updateReviewReadingJsonByWordPg({
+        userId: user.id,
+        word,
+        targetLanguage,
+        meaningItemsJson: JSON.stringify(item.senses),
+        exampleItemsJson: JSON.stringify(item.exampleItems),
+        updatedAtIso: nowIso,
+      })
+    }
+    return NextResponse.json({
+      items: filled.map(({ readingsChanged: _readingsChanged, ...item }) => item),
+    })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
     return NextResponse.json({ error: msg }, { status: 500 })
