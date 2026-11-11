@@ -34,11 +34,13 @@ function useShowAllPronunciations() {
 }
 
 /** Công tắc một lần cho mọi dòng phát âm trong buổi học. */
-export function PronunciationMasterSwitch({ localText }: { localText: LocalTextFn }) {
+export function PronunciationMasterSwitch({ localText, compact = false }: { localText: LocalTextFn; compact?: boolean }) {
   const [showAll, setShowAll] = useShowAllPronunciations()
   return (
-    <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-md px-1">
-      <span className="text-xs leading-tight text-slate-600">{localText('Mọi phiên âm', 'All pronunciations')}</span>
+    <label className={compact
+      ? 'order-2 flex h-11 shrink-0 cursor-pointer touch-manipulation items-center gap-1 rounded-md'
+      : 'flex min-h-11 min-w-0 flex-1 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-md px-1'}>
+      <span className={compact ? 'hidden text-xs leading-tight text-slate-600 sm:inline' : 'text-xs leading-tight text-slate-600'}>{localText('Mọi phiên âm', 'All pronunciations')}</span>
       <Switch
         checked={showAll}
         onCheckedChange={setShowAll}

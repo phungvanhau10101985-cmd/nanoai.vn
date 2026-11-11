@@ -1,6 +1,7 @@
 'use client'
 
-import { stripReadingCommentary } from '@/lib/coach-reading'
+import { readingForCutSentence, readingStoredForShownText, stripReadingCommentary } from '@/lib/coach-reading'
+import { normalizeCopyText } from './normalize-copy-text'
 import { readLessonLanguageQuery } from '@/lib/hoc-ngoai-ngu/lesson-query'
 /* eslint-disable @typescript-eslint/no-unused-vars -- nhiều state/helper dự phòng; dọn dần khi refactor */
 
@@ -17,7 +18,7 @@ import {
   getWritingTaskProgressLocal,
   setWritingTaskProgressLocal,
 } from '@/lib/english-coach/writing-task-progress-storage'
-import { Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation } from 'lucide-react'
+import { Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation, Search, ChevronRight } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
 import { QuickStartModal } from './components/quick-start-modal'
@@ -1183,6 +1184,34 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     th: 'คำอ่านทั้งหมด',
     hi: 'सभी उच्चारण',
   },
+  'Look up': {
+    zh: '查词',
+    ja: '単語検索',
+    ko: '단어 찾기',
+    th: 'ค้นคำ',
+    hi: 'शब्द खोजें',
+  },
+  'Show buttons': {
+    zh: '显示按钮',
+    ja: 'ボタンを表示',
+    ko: '버튼 보기',
+    th: 'แสดงปุ่ม',
+    hi: 'बटन दिखाएँ',
+  },
+  'Type a word in the language you are learning.': {
+    zh: '请输入正在学习的语言里的一个词。',
+    ja: '学んでいる言語の単語を入力してください。',
+    ko: '배우는 언어의 단어를 입력하세요.',
+    th: 'พิมพ์คำในภาษาที่กำลังเรียน',
+    hi: 'जिस भाषा को सीख रहे हैं उसका एक शब्द लिखें।',
+  },
+  'There is no conversation to attach the word to yet.': {
+    zh: '还没有对话可以加入这个词。',
+    ja: '単語を付ける会話がまだありません。',
+    ko: '단어를 붙일 대화가 아직 없습니다.',
+    th: 'ยังไม่มีบทสนทนาให้ใส่คำนี้',
+    hi: 'अभी कोई बातचीत नहीं है जिसमें शब्द जोड़ा जा सके।',
+  },
   'Speed': {
     zh: '语速',
     ja: '速度',
@@ -1399,6 +1428,34 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     ko: '시작 문장 번역 숨기기',
     th: 'ซ่อนการแปลประโยคเปิด',
     hi: 'शुरुआती अनुवाद छिपाएं',
+  },
+  'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.': {
+    zh: '按顺序输入文字即可。标点只要有就行，普通句号逗号或中文标点都可以。',
+    ja: '文字を順番どおりに入力してください。句読点はどれでもよく、普通のピリオドやカンマでも大丈夫です。',
+    ko: '글자를 순서대로 입력하세요. 문장부호는 어떤 것이든 되며, 일반 마침표나 쉼표도 됩니다.',
+    th: 'พิมพ์ตัวอักษรตามลำดับ เครื่องหมายวรรคตอนมีก็พอ จุดหรือจุลภาคธรรมดาใช้ได้',
+    hi: 'अक्षर क्रम में लिखें। कोई भी विराम चिह्न चलेगा, सामान्य पूर्ण विराम या अल्पविराम भी।',
+  },
+  'The characters do not match yet. Type the same characters in order. Any punctuation mark is fine.': {
+    zh: '文字还不对。请按顺序输入相同的字。标点只要有就行。',
+    ja: '文字がまだ違います。同じ文字を順番どおりに入力してください。句読点はどれでも大丈夫です。',
+    ko: '글자가 아직 다릅니다. 같은 글자를 순서대로 입력하세요. 문장부호는 어떤 것이든 됩니다.',
+    th: 'ตัวอักษรยังไม่ตรง พิมพ์ตัวอักษรเดิมตามลำดับ เครื่องหมายวรรคตอนมีก็พอ',
+    hi: 'अक्षर अभी मेल नहीं खाते। वही अक्षर क्रम में लिखें। कोई भी विराम चिह्न चलेगा।',
+  },
+  'Copy the characters. Any period or comma is fine.': {
+    zh: '照着文字输入。句号或逗号哪种都可以。',
+    ja: '文字を写してください。ピリオドでも読点でも大丈夫です。',
+    ko: '글자를 그대로 쓰세요. 마침표나 쉼표 어느 쪽이든 됩니다.',
+    th: 'คัดลอกตัวอักษร จุดหรือจุลภาคแบบไหนก็ได้',
+    hi: 'अक्षर लिखें। कोई भी पूर्ण विराम या अल्पविराम चलेगा।',
+  },
+  'Sentences to type:': {
+    zh: '要输入的句子：',
+    ja: '入力する文：',
+    ko: '입력할 문장:',
+    th: 'ประโยคที่ต้องพิมพ์:',
+    hi: 'लिखने वाले वाक्य:',
   },
 }
 
@@ -2010,18 +2067,6 @@ function takeFirstSentenceOnly(text: string): string {
   return segments[0] || stripPinyinInParentheses(String(text || '').trim())
 }
 
-function normalizeCopyText(text: string, targetCode?: LanguageCode): string {
-  const base = String(text || '')
-    .replace(/[’‘]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (targetCode === 'zh' || targetCode === 'ja' || targetCode === 'ko' || targetCode === 'th' || targetCode === 'hi') {
-    return base.replace(/\s+/g, '')
-  }
-  return base
-}
-
 function pickAsciiPunctuation(cluster: string): string {
   if (cluster.includes('?')) return '?'
   if (cluster.includes('!')) return '!'
@@ -2605,6 +2650,30 @@ export default function HocBaiHocCoSanClientPage() {
 
   const [wordInsightByKey, setWordInsightByKey] = useState<Record<string, WordInsight>>({})
   const [openedWordKey, setOpenedWordKey] = useState('')
+  const [lookupDraft, setLookupDraft] = useState('')
+  const [lookupImePending, setLookupImePending] = useState(false)
+  const [barToolsOpen, setBarToolsOpen] = useState(true)
+  const lookupImeFlushRef = useRef<(() => string) | null>(null)
+  const barToolsPinnedRef = useRef(false)
+  const pinnedLookupWordsRef = useRef<Record<string, string[]>>({})
+  useEffect(() => {
+    const typing = Boolean(draft.trim() || draftImePending || lookupDraft.trim() || lookupImePending)
+    if (!typing) {
+      barToolsPinnedRef.current = false
+      setBarToolsOpen(true)
+      return
+    }
+    if (!barToolsPinnedRef.current) setBarToolsOpen(false)
+  }, [draft, draftImePending, lookupDraft, lookupImePending])
+  const compactBarRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!openedWordKey) return
+    const el = compactBarRef.current
+    if (!el) return
+    window.requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }, [openedWordKey])
   const [tokensByMessageId, setTokensByMessageId] = useState<Record<string, string[]>>({})
   const [tokensWithUsageByMessageId, setTokensWithUsageByMessageId] = useState<
     Record<string, Array<{ word: string; usageLevel: 'high' | 'medium' | 'low' }>>
@@ -3810,8 +3879,8 @@ export default function HocBaiHocCoSanClientPage() {
       messageId,
       taskType: 'copy',
       instruction: localText(
-        'Hãy gõ lại y nguyên từng câu theo thứ tự. Chỉ khi gõ đúng mới mở lượt nói tiếp theo.',
-        'Type each sentence exactly in order. The next speaking turn unlocks only after exact copy.'
+        'Hãy gõ đúng chữ, đúng thứ tự. Dấu câu chỉ cần có dấu, dấu thường hay dấu tiếng Trung đều được.',
+        'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.'
       ),
       referenceSentence: firstSentence,
       requiredSentences,
@@ -3845,10 +3914,10 @@ export default function HocBaiHocCoSanClientPage() {
           passed: false,
           correctedText: expected,
           feedback: localText(
-            'Chưa đúng y nguyên câu tham chiếu. Hãy gõ lại đúng từ, đúng thứ tự và đúng dấu câu.',
-            'Not an exact copy yet. Please type the reference sentence with exact words, order, and punctuation.'
+            'Chưa đúng chữ. Hãy gõ lại đúng chữ và đúng thứ tự. Dấu câu chỉ cần có dấu.',
+            'The characters do not match yet. Type the same characters in order. Any punctuation mark is fine.'
           ),
-          shortHint: localText('Nhấn vào câu tham chiếu và chép lại y nguyên.', 'Copy the reference sentence exactly.'),
+          shortHint: localText('Chép lại đúng chữ. Dấu chấm hay phẩy nào cũng được.', 'Copy the characters. Any period or comma is fine.'),
         })
         return
       }
@@ -5039,6 +5108,23 @@ export default function HocBaiHocCoSanClientPage() {
     return longestTokenLen > 16
   }
 
+  const mergePinnedLookupWords = (
+    messageId: string,
+    tokens: string[],
+    usage: Array<{ word: string; usageLevel: 'high' | 'medium' | 'low' }>
+  ) => {
+    const extra = pinnedLookupWordsRef.current[messageId] || []
+    const nextTokens = [...tokens]
+    const nextUsage = [...usage]
+    for (const word of extra) {
+      if (!nextTokens.some((item) => item.toLowerCase() === word.toLowerCase())) nextTokens.push(word)
+      if (!nextUsage.some((item) => item.word.toLowerCase() === word.toLowerCase())) {
+        nextUsage.push({ word, usageLevel: 'medium' })
+      }
+    }
+    return { tokens: nextTokens, usage: nextUsage }
+  }
+
   const fetchMessageTokens = async (messageId: string, sentence: string) => {
     setTokenizingByMessageId((prev) => ({ ...prev, [messageId]: true }))
     try {
@@ -5074,11 +5160,14 @@ export default function HocBaiHocCoSanClientPage() {
               .filter((token) => isTokenInTargetLanguage(token, languageCode))
               .filter(Boolean)
               .slice(0, 24)
-      const finalTokens = tokens.length > 0 ? tokens : basicTokenizeBySpace(sentence)
-      const finalWithUsage =
+      const baseTokens = tokens.length > 0 ? tokens : basicTokenizeBySpace(sentence)
+      const baseUsage =
         withUsage.length > 0
           ? withUsage
-          : finalTokens.map((w) => ({ word: w, usageLevel: 'medium' as const }))
+          : baseTokens.map((w) => ({ word: w, usageLevel: 'medium' as const }))
+      const merged = mergePinnedLookupWords(messageId, baseTokens, baseUsage)
+      const finalTokens = merged.tokens
+      const finalWithUsage = merged.usage
       setTokensByMessageId((prev) => ({ ...prev, [messageId]: finalTokens }))
       setTokensWithUsageByMessageId((prev) => ({ ...prev, [messageId]: finalWithUsage }))
       const tokensJson = JSON.stringify(finalWithUsage)
@@ -5089,11 +5178,14 @@ export default function HocBaiHocCoSanClientPage() {
         tokensJson,
       }).catch(() => {})
     } catch {
-      const fallback = basicTokenizeBySpace(sentence)
-      const fallbackWithUsage = fallback.map((w) => ({ word: w, usageLevel: 'medium' as const }))
-      setTokensByMessageId((prev) => ({ ...prev, [messageId]: fallback }))
-      setTokensWithUsageByMessageId((prev) => ({ ...prev, [messageId]: fallbackWithUsage }))
-      const tokensJson = JSON.stringify(fallbackWithUsage)
+      const fallbackMerged = mergePinnedLookupWords(
+        messageId,
+        basicTokenizeBySpace(sentence),
+        basicTokenizeBySpace(sentence).map((w) => ({ word: w, usageLevel: 'medium' as const }))
+      )
+      setTokensByMessageId((prev) => ({ ...prev, [messageId]: fallbackMerged.tokens }))
+      setTokensWithUsageByMessageId((prev) => ({ ...prev, [messageId]: fallbackMerged.usage }))
+      const tokensJson = JSON.stringify(fallbackMerged.usage)
       const isDbId = isUuidMessageId(messageId)
       void updateMessageTranslationApi({
         messageId,
@@ -5219,6 +5311,56 @@ export default function HocBaiHocCoSanClientPage() {
       wordAnalyzingKeysRef.current.delete(key)
       setWordBusyKey('')
     }
+  }
+
+  const lookupWordFromBar = (raw: string) => {
+    const word = extractClickableWord(String(raw || '').trim())
+    if (!word || !isTokenInTargetLanguage(word, languageCode)) {
+      toast({
+        title: localText('Hãy gõ một từ của ngôn ngữ đang học.', 'Type a word in the language you are learning.'),
+        variant: 'destructive',
+      })
+      return false
+    }
+    const teacher = [...messages].reverse().find((item) => item.role === 'teacher')
+    if (!teacher) {
+      toast({
+        title: localText('Chưa có hội thoại để gắn từ.', 'There is no conversation to attach the word to yet.'),
+      })
+      return false
+    }
+    const messageId = teacher.id
+    const pinned = pinnedLookupWordsRef.current[messageId] || []
+    if (!pinned.some((item) => item.toLowerCase() === word.toLowerCase())) {
+      pinnedLookupWordsRef.current[messageId] = [...pinned, word]
+    }
+    const currentTokens = tokensByMessageId[messageId] || []
+    const already = currentTokens.some((item) => item.toLowerCase() === word.toLowerCase())
+    if (!already) {
+      const nextTokens = [...currentTokens, word]
+      const currentUsage = tokensWithUsageByMessageId[messageId] || []
+      const usageBase = currentUsage.length > 0
+        ? currentUsage
+        : currentTokens.map((item) => ({ word: item, usageLevel: 'medium' as const }))
+      const nextUsage = [...usageBase, { word, usageLevel: 'medium' as const }]
+      setTokensByMessageId((prev) => ({ ...prev, [messageId]: nextTokens }))
+      setTokensWithUsageByMessageId((prev) => ({ ...prev, [messageId]: nextUsage }))
+      const tokensJson = JSON.stringify(nextUsage)
+      const isDbId = isUuidMessageId(messageId)
+      void updateMessageTranslationApi({
+        messageId,
+        ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
+        tokensJson,
+      }).catch(() => {})
+    }
+    const sentence = isPresetPageSession
+      ? (String(intentAnswerByMessageId[messageId] || '').trim() || teacher.text)
+      : learningMode === 'reflex'
+        ? (String(mainSentenceByMessageId[messageId] || '').trim().replace(/\n\nPinyin:\s*[\s\S]*$/i, '').trim() || teacher.text)
+        : ([String(mainSentenceByMessageId[messageId] || '').trim(), String(intentAnswerByMessageId[messageId] || '').trim()].filter(Boolean).join('\n') || teacher.text)
+    setOpenedWordKey(`${messageId}:${word.toLowerCase()}`)
+    void fetchWordInsight(messageId, word, sentence)
+    return true
   }
 
   const playWordPronunciation = async (
@@ -5924,9 +6066,11 @@ export default function HocBaiHocCoSanClientPage() {
         const mst = (item as { mainSentenceTransliteration?: string | null }).mainSentenceTransliteration
         const cnt = (item as { correctionNoteTransliteration?: string | null }).correctionNoteTransliteration
         const iat = (item as { intentAnswerTransliteration?: string | null }).intentAnswerTransliteration
-        if (ms && mst) preloadRomanization[`${lang}::${ms}`] = sanitizeRomanizedText(String(mst).trim())
+        const msReading = readingStoredForShownText(msRaw, ms, String(mst || ''))
+        const iaReading = readingStoredForShownText(iaRaw, ia, String(iat || ''))
+        if (ms && msReading) preloadRomanization[`${lang}::${ms}`] = sanitizeRomanizedText(msReading)
         if (cn && cnt) preloadRomanization[`${lang}::${cn}`] = sanitizeRomanizedText(String(cnt).trim())
-        if (ia && iat) preloadRomanization[`${lang}::${ia}`] = sanitizeRomanizedText(String(iat).trim())
+        if (ia && iaReading) preloadRomanization[`${lang}::${ia}`] = sanitizeRomanizedText(iaReading)
       })
       const wtTrans = (payload as { writingTaskTransliterations?: Record<string, string> }).writingTaskTransliterations
       const lastTeacherForTrans = items.filter((x) => x.role === 'teacher').pop()
@@ -5962,7 +6106,7 @@ export default function HocBaiHocCoSanClientPage() {
             setWritingTask({
               messageId: parsed.messageId || lastTeacherItem.id,
               taskType: (parsed.taskType as WritingTaskType) || 'copy',
-              instruction: parsed.instruction || localText('Hãy gõ lại y nguyên từng câu theo thứ tự. Chỉ khi gõ đúng mới mở lượt nói tiếp theo.', 'Type each sentence exactly in order. The next speaking turn unlocks only after exact copy.'),
+              instruction: parsed.instruction || localText('Hãy gõ đúng chữ, đúng thứ tự. Dấu câu chỉ cần có dấu, dấu thường hay dấu tiếng Trung đều được.', 'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.'),
               referenceSentence: finalSentences[refIdx] || finalSentences[0] || '',
               requiredSentences: finalSentences,
               currentIndex: isCompleted ? Math.max(0, finalSentences.length - 1) : Math.max(0, Math.min(parsed.currentIndex ?? 0, finalSentences.length - 1)),
@@ -6004,7 +6148,7 @@ export default function HocBaiHocCoSanClientPage() {
                   return {
                     messageId: String(localTask.messageId || lastTeacherItem.id || ''),
                     taskType: (localTask.taskType as WritingTaskType) || 'copy',
-                    instruction: String(localTask.instruction || localText('Hãy gõ lại y nguyên từng câu theo thứ tự. Chỉ khi gõ đúng mới mở lượt nói tiếp theo.', 'Type each sentence exactly in order. The next speaking turn unlocks only after exact copy.')),
+                    instruction: String(localTask.instruction || localText('Hãy gõ đúng chữ, đúng thứ tự. Dấu câu chỉ cần có dấu, dấu thường hay dấu tiếng Trung đều được.', 'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.')),
                     referenceSentence: String(localTask.referenceSentence || localTask.requiredSentences![localIndex] || ''),
                     requiredSentences: localTask.requiredSentences!,
                     currentIndex: localCompleted ? Math.max(0, localTask.requiredSentences!.length - 1) : localIndex,
@@ -8761,6 +8905,12 @@ export default function HocBaiHocCoSanClientPage() {
     window.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' })
   }, [])
 
+  const typingSentence = Boolean(draft.trim() || draftImePending)
+  const typingLookup = Boolean(lookupDraft.trim() || lookupImePending)
+  const hideSideTools = !barToolsOpen && (typingSentence || typingLookup)
+  const hideLookupWhileWriting = hideSideTools && typingSentence && !typingLookup
+  const collapseToolRow = !isPresetPageSession && !recordingPending && hideLookupWhileWriting
+
   return (
     <>
       <Toaster />
@@ -9890,7 +10040,7 @@ export default function HocBaiHocCoSanClientPage() {
                             )
                           })()}
                           {openedWordKey.startsWith(`${m.id}:`) ? (
-                            <div className="rounded-xl border border-border/70 bg-white p-2 text-xs">
+                            <div ref={compactBarRef} className="rounded-xl border border-border/70 bg-white p-2 text-xs">
                               {wordInsightByKey[openedWordKey] ? (
                                 <div className="space-y-1">
                                   {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
@@ -10320,7 +10470,22 @@ export default function HocBaiHocCoSanClientPage() {
                 ) : null}
                 <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 -mx-1 rounded-xl border border-border/70 bg-background/95 p-2 pb-2 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/85 md:bottom-0 md:z-20 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
                   {!isPresetPageSession ? (
-                    <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+                    <div className="flex min-w-0 items-center gap-1 sm:flex-1">
+                      <button
+                        type="button"
+                        tabIndex={collapseToolRow ? 0 : -1}
+                        aria-hidden={!collapseToolRow}
+                        aria-label={localText('Hiện nút', 'Show buttons')}
+                        title={localText('Hiện nút', 'Show buttons')}
+                        className={`flex h-11 min-w-0 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full p-0 text-indigo-600 transition-all duration-200 ${collapseToolRow ? 'w-11 opacity-100' : 'pointer-events-none w-0 opacity-0'}`}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          barToolsPinnedRef.current = true
+                          setBarToolsOpen(true)
+                        }}
+                      >
+                        <ChevronRight className="h-7 w-7" strokeWidth={2.25} aria-hidden />
+                      </button>
                       <LessonImeField
                         value={draft}
                         languageCode={languageCode}
@@ -10377,7 +10542,8 @@ export default function HocBaiHocCoSanClientPage() {
                       </Button>
                     </div>
                   ) : null}
-                  <div className="mt-2 flex min-w-0 touch-manipulation flex-col gap-2 overflow-visible rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-2 sm:flex-row sm:flex-wrap sm:items-center">
+                  {collapseToolRow ? null : (
+                  <div className={`mt-2 flex min-w-0 touch-manipulation items-center gap-1 overflow-visible rounded-lg border border-slate-200 bg-slate-50/80 px-1.5 py-1.5 ${recordingPending || !hideSideTools ? 'flex-wrap' : 'flex-nowrap'}`}>
                   {recordingPending ? (
                     <>
                       <Button
@@ -10422,26 +10588,77 @@ export default function HocBaiHocCoSanClientPage() {
                     </>
                   ) : (
                     <>
+                      <div className={`order-1 flex items-center gap-1 overflow-hidden transition-[max-width,opacity,transform] duration-200 ease-out ${hideSideTools ? 'pointer-events-none min-w-0 max-w-0 shrink -translate-x-2 opacity-0' : 'max-w-[24rem] shrink-0 translate-x-0 opacity-100'}`}>
                       <Button
                         type="button"
                         size="sm"
                         variant={listening ? 'destructive' : 'outline'}
                         onClick={handleMic}
                         disabled={busy || awaitingTeacherReply || isMiniDrillBlocking || liveSessionTurnLimitReached || speechRecognizing}
-                        className="min-h-11 w-full touch-manipulation px-3.5 text-sm font-semibold sm:w-auto"
+                        className="h-11 min-h-11 shrink-0 touch-manipulation px-3 text-sm font-semibold"
                       >
                         {listening ? <MicOff className="mr-2 h-4 w-4" /> : <Mic className="mr-2 h-4 w-4" />}
                         {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
                       </Button>
-                      <div className="flex min-w-0 items-center gap-2 sm:contents">
-                      <PronunciationMasterSwitch localText={localText} />
+                      <PronunciationMasterSwitch compact localText={localText} />
+                      </div>
+                      <button
+                        type="button"
+                        tabIndex={hideSideTools ? 0 : -1}
+                        aria-hidden={!hideSideTools}
+                        aria-label={localText('Hiện nút', 'Show buttons')}
+                        title={localText('Hiện nút', 'Show buttons')}
+                        className={`order-2 flex h-11 min-w-0 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full text-indigo-600 transition-all duration-200 ${hideSideTools ? 'w-11 opacity-100' : 'pointer-events-none w-0 opacity-0'}`}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          barToolsPinnedRef.current = true
+                          setBarToolsOpen(true)
+                        }}
+                      >
+                        <ChevronRight className="h-7 w-7" strokeWidth={2.25} aria-hidden />
+                      </button>
+                      {hideLookupWhileWriting ? null : (
+                      <form
+                        className={`order-3 flex min-w-0 items-center gap-1 ${hideSideTools ? 'flex-1' : 'w-full sm:w-auto sm:min-w-[10rem] sm:flex-1'}`}
+                        onSubmit={(event) => {
+                          event.preventDefault()
+                          const word = lookupImeFlushRef.current?.() ?? lookupDraft
+                          if (lookupWordFromBar(word)) setLookupDraft('')
+                        }}
+                      >
+                        <LessonImeField
+                          value={lookupDraft}
+                          languageCode={languageCode}
+                          localText={localText}
+                          flushRef={lookupImeFlushRef}
+                          onChange={setLookupDraft}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'Enter') return
+                            event.preventDefault()
+                            const word = lookupImeFlushRef.current?.() ?? lookupDraft
+                            if (lookupWordFromBar(word)) setLookupDraft('')
+                          }}
+                          placeholder={localText('Tra từ', 'Look up')}
+                          enterKeyHint="search"
+                          onPendingChange={setLookupImePending}
+                        />
+                        <Button
+                          type="submit"
+                          variant="outline"
+                          size="sm"
+                          className="h-11 w-11 min-h-11 min-w-11 shrink-0 touch-manipulation p-0"
+                          aria-label={localText('Tra từ', 'Look up')}
+                        >
+                          <Search className="h-4 w-4" />
+                        </Button>
+                      </form>
+                      )}
                       <div
-                        className="ml-auto flex shrink-0 flex-col items-center gap-0.5"
+                        className={`order-2 flex items-center gap-1 overflow-hidden transition-[max-width,opacity,transform] duration-200 ease-out sm:order-4 ${hideSideTools ? 'pointer-events-none min-w-0 max-w-0 shrink opacity-0' : 'max-w-[16rem] shrink-0 translate-x-0 opacity-100'}`}
                         title={localText('Tốc độ giọng nói', 'Voice playback speed')}
                       >
-                        <span className="text-[10px] leading-none text-slate-500">
-                          <span className="sm:hidden">{localText('Tốc độ', 'Speed')}</span>
-                          <span className="hidden sm:inline">{localText('Tốc độ giọng nói', 'Voice speed')}</span>
+                        <span className="hidden text-[10px] leading-none text-slate-500 sm:inline">
+                          {localText('Tốc độ', 'Speed')}
                         </span>
                         <div className="flex items-center rounded-md border border-slate-200 bg-slate-50">
                           <Button
@@ -10489,10 +10706,10 @@ export default function HocBaiHocCoSanClientPage() {
                           </Button>
                         </div>
                       </div>
-                      </div>
                     </>
                   )}
                   </div>
+                  )}
                 </div>
                 {!isPresetPageSession ? (
                   <div className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-700">
@@ -10666,7 +10883,7 @@ export default function HocBaiHocCoSanClientPage() {
                     ) : null}
                     <div className="space-y-1 rounded-md border border-slate-200 bg-white p-2.5">
                       <p className="text-sm font-semibold text-slate-800">{localText('Bài viết mini bắt buộc', 'Required mini-writing task')}</p>
-                      <p className="text-xs text-muted-foreground break-words">{writingTask.instruction}</p>
+                      <p className="text-xs text-muted-foreground break-words">{localText('Hãy gõ đúng chữ, đúng thứ tự. Dấu câu chỉ cần có dấu, dấu thường hay dấu tiếng Trung đều được.', 'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.')}</p>
                       <p className="text-xs text-slate-600">
                         {localText(
                           `Tiến độ: câu ${Math.min(writingTask.currentIndex + 1, Math.max(1, writingTask.requiredSentences.length))}/${Math.max(1, writingTask.requiredSentences.length)}.`,
@@ -10675,10 +10892,22 @@ export default function HocBaiHocCoSanClientPage() {
                       </p>
                       {writingTask.requiredSentences.length > 0 ? (
                         <div className="text-xs text-slate-700">
-                          <p className="font-semibold">{localText('Câu cần gõ y nguyên:', 'Sentences to copy exactly:')}</p>
+                          <p className="font-semibold">{localText('Câu cần gõ đúng chữ:', 'Sentences to type:')}</p>
                           <div className="mt-1 space-y-1">
                             {writingTask.requiredSentences.map((sentence, idx) => {
-                              const romanized = sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(sentence || '')] || ''))
+                              const ownReading = sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(sentence || '')] || ''))
+                              const mainText = String(mainSentenceByMessageId[writingTask.messageId] || '')
+                              const intentText = String(intentAnswerByMessageId[writingTask.messageId] || '')
+                              const romanized = readingForCutSentence(sentence, ownReading, [
+                                {
+                                  text: mainText,
+                                  reading: sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(mainText)] || '')),
+                                },
+                                {
+                                  text: intentText,
+                                  reading: sanitizeRomanizedText(String(writingRomanizationByKey[toWritingRomanizationKey(intentText)] || '')),
+                                },
+                              ])
                               const isCurrent = idx === writingTask.currentIndex && !writingTask.completed
                               return (
                                 <div

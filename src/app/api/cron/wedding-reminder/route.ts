@@ -5,9 +5,11 @@ import { isSmtpConfigured } from '@/lib/email/smtp'
 import { notifyWeddingCardExpired } from '@/lib/wedding/wedding-card-retention-notify'
 import { sendWeddingReminderEmail } from '@/lib/wedding/wedding-reminder-email'
 import { sendDueWeddingAttendanceDailyDigests } from '@/lib/wedding/wedding-rsvp-notify'
+import { sendDueWeddingUnpaidPackReminders } from '@/lib/wedding/wedding-unpaid-pack-reminder'
 
 /**
- * Cron (1 lần/ngày): gỡ thiệp đã qua 18 ngày sau ngày lễ, rồi gửi email nhắc lịch đám cưới.
+ * Cron (1 lần/ngày): gỡ thiệp đã qua 18 ngày sau ngày lễ, gửi email nhắc lịch đám cưới,
+ * và nhắc chủ thiệp cưới chưa mua gói khách mời trước 15 ngày ngày cưới.
  * Bảo vệ: Authorization: Bearer <WEDDING_REMINDER_CRON_SECRET>
  */
 export const dynamic = 'force-dynamic'
@@ -52,6 +54,7 @@ export async function GET(req: NextRequest) {
       purgedCards: purged.length,
       purgeNotified,
       reminder: 'skipped_smtp',
+      unpaidPack: 'skipped_smtp',
     })
   }
 
@@ -72,6 +75,14 @@ export async function GET(req: NextRequest) {
 
   const attendance = await sendDueWeddingAttendanceDailyDigests()
 
+  let unpaidPack = { due: 0, sent: 0, failed: 0, skippedNoEmail: 0 }
+  try {
+    unpaidPack = await sendDueWeddingUnpaidPackReminders()
+  } catch (error) {
+    unpaidPack = { due: 0, sent: 0, failed: 1, skippedNoEmail: 0 }
+    console.error('[wedding-reminder-cron] unpaid pack', error)
+  }
+
   return NextResponse.json({
     ok: true,
     purgedCards: purged.length,
@@ -83,5 +94,9 @@ export async function GET(req: NextRequest) {
     attendanceDailySent: attendance.sent,
     attendanceDailyFailed: attendance.failed,
     attendanceDailySkipped: attendance.skipped,
+    unpaidPackDue: unpaidPack.due,
+    unpaidPackSent: unpaidPack.sent,
+    unpaidPackFailed: unpaidPack.failed,
+    unpaidPackNoEmail: unpaidPack.skippedNoEmail,
   })
 }
