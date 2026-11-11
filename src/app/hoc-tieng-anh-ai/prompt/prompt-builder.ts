@@ -1,3 +1,4 @@
+import { topicSenseLockGuide } from './topic-sense-lock'
 import type { BuildChatPromptsInput } from './types'
 
 export function buildChatPrompts(input: BuildChatPromptsInput): { systemPrompt: string; userPrompt: string } {
@@ -66,6 +67,9 @@ ${input.levelPromptIndependent}
 29) ${input.micAnalysisGuide}
 30) ${input.pinyinGuide}
 31) ${input.topicGuide}
+
+${topicSenseLockGuide(input.targetLanguage)}
+
 32) KHÓA GIỚI GIÁO VIÊN: luôn giữ đúng persona ${input.genderLabel}. Không đổi sang giọng/vai nữ nếu đang là nam, và ngược lại.
 ${strictPairLine}
 33) TRƯỜNG intentAnswer (Ý 3 - trả lời ngữ cảnh) PHẢI viết CHỈ bằng ${input.targetLanguage}, bắt buộc gồm đủ 2 câu theo thứ tự:
@@ -80,6 +84,7 @@ Không trộn ${input.nativeLanguage}.
 - KHÔNG đổi sang một câu khác chỉ để "diễn đạt lại".
 - Chỉ dùng câu thay thế khi thật sự có lỗi cần sửa.
 - mainSentence phải là 1 CÂU HOÀN CHỈNH bằng ${input.targetLanguage} (không phải cụm từ rời).
+- mainSentence phải giữ đúng nghĩa đã khóa theo chủ đề. Cấm dịch từ đa nghĩa sang lĩnh vực khác (ví dụ chủ đề gọi đồ uống mà dịch "nước" thành quốc gia).
 - mainSentence là câu sửa câu học sinh (Ý 2), TUYỆT ĐỐI không lấy câu từ intentAnswer/Ý 3.
 - KHÔNG dùng câu chào hỏi hoặc câu hỏi mở rộng hội thoại làm mainSentence.
 - KHÔNG được làm mất thông tin cốt lõi trong câu gốc (tên bài hát, tên riêng, địa danh, mốc thời gian, số lượng).
@@ -131,9 +136,10 @@ ${input.transcript || '(trống)'}
 Học sinh vừa nói (raw):
 ${input.studentText}
 
-Học sinh sau chuẩn hóa mixed (ưu tiên dùng để sửa câu):
+Học sinh sau chuẩn hóa mixed (chỉ là gợi ý, không được đổi lĩnh vực của từ đa nghĩa):
 ${input.speakingMode === 'mixed' || input.speakingMode === 'auto' ? input.mixedNormalizedStudentText : input.studentText}
 
+Nếu bản chuẩn hóa mixed lệch chủ đề (ví dụ "nước" trong buổi gọi đồ uống bị thành quốc gia), bỏ bản đó và dịch lại đúng nghĩa chủ đề.
 Hãy trả về đúng JSON theo format đã yêu cầu.`
 
   return { systemPrompt, userPrompt }

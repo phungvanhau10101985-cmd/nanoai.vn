@@ -8659,7 +8659,8 @@ export default function HocBaiHocCoSanClientPage() {
 
   const confirmSpeechIntent = async () => {
     const current = speechIntentRef.current
-    if (!current || !current.text.trim() || current.meaningBusy) return
+    const edited = Boolean(current && current.text.trim() !== current.originalText.trim())
+    if (!current || !current.text.trim() || (current.meaningBusy && !edited)) return
     const text = current.text.trim()
     speechIntentRef.current = null
     setSpeechIntent(null)
@@ -8677,8 +8678,17 @@ export default function HocBaiHocCoSanClientPage() {
     const current = speechIntentRef.current
     if (!current) return
     const text = current.text.trim()
+    const original = current.originalText.trim()
+    if (text !== original) {
+      if (current.meaningBusy) {
+        const idle = { ...current, meaningBusy: false }
+        speechIntentRef.current = idle
+        setSpeechIntent(idle)
+      }
+      return
+    }
     if (!text) return
-    if (text === current.originalText.trim() && current.originalMeaning.trim()) {
+    if (original && current.originalMeaning.trim()) {
       if (current.meaning !== current.originalMeaning || current.meaningBusy) {
         const restored = { ...current, meaning: current.originalMeaning, meaningBusy: false }
         speechIntentRef.current = restored
@@ -8724,7 +8734,7 @@ export default function HocBaiHocCoSanClientPage() {
         speechIntentRef.current = next
         setSpeechIntent(next)
       })
-    }, text === current.originalText.trim() ? 0 : 500)
+    }, 0)
     return () => window.clearTimeout(timer)
   }, [
     speechIntent?.messageId,
@@ -10130,7 +10140,13 @@ export default function HocBaiHocCoSanClientPage() {
                           onTextChange={(value) => {
                             const current = speechIntentRef.current
                             if (!current || current.messageId !== m.id) return
-                            const next = { ...current, text: value }
+                            const edited = value.trim() !== current.originalText.trim()
+                            if (edited) speechMeaningSeqRef.current += 1
+                            const next = {
+                              ...current,
+                              text: value,
+                              meaningBusy: edited ? false : current.meaningBusy,
+                            }
                             speechIntentRef.current = next
                             setSpeechIntent(next)
                           }}
@@ -11486,10 +11502,11 @@ export default function HocBaiHocCoSanClientPage() {
           localText={localText}
         />
       ) : null}
+      {/* 14.75rem = trên nút chat (10.5rem + cao 3.5rem) và nút lên đầu trang, không đè nhau. */}
       <Button
         type="button"
         onClick={scrollToSpeakActions}
-        className="fixed bottom-[calc(8rem+env(safe-area-inset-bottom))] right-2 z-40 h-12 w-12 rounded-full p-0 shadow-lg sm:hidden"
+        className="fixed bottom-[calc(14.75rem+env(safe-area-inset-bottom))] right-2 z-40 h-12 w-12 rounded-full p-0 shadow-lg sm:hidden"
         aria-label={localText('Đi tới nút nói', 'Go to speak button')}
         title={localText('Đi tới nút nói', 'Go to speak button')}
       >

@@ -16,6 +16,7 @@ import {
 import { getUserForAction } from '@/lib/auth'
 import { resolveGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { buildChatPrompts } from '@/app/hoc-tieng-anh-ai/prompt/prompt-builder'
+import { topicSenseClash, topicSenseLockGuide } from '@/app/hoc-tieng-anh-ai/prompt/topic-sense-lock'
 import { getPairPromptConfig, toLanguagePairKey } from '@/app/hoc-tieng-anh-ai/i18n/pairs'
 import { simplifyChineseDeep, toSimplifiedChinese, usesSimplifiedChinese } from '@/lib/chinese-script'
 import { stripReadingCommentary } from '@/lib/coach-reading'
@@ -1565,6 +1566,12 @@ export async function POST(request: NextRequest) {
     const topicStarterSentences = Array.isArray(payload.topicStarterSentences)
       ? payload.topicStarterSentences.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 4)
       : []
+    const topicSenseBlock = `${topicSenseLockGuide(targetLanguage)}
+Chủ đề đang học:
+- topicLabel: ${topicLabel}
+- roleplayRole: ${topicRole || '(chưa có)'}
+- objective: ${topicObjective || '(chưa có)'}
+- keywords: ${topicKeywords.join(', ') || '(chưa có)'}`
     const learningMode: 'review' | 'reflex' = 'review'
     const drillType = payload.drillType === 'listening' ? 'listening' : ''
     const drillSpeaking = Boolean(payload.drillSpeaking)
@@ -1663,6 +1670,26 @@ export async function POST(request: NextRequest) {
         )
         return null
       }
+      const cachedSenseText = [
+        best.main_sentence,
+        best.corrected_sentence,
+        best.must_know_text,
+        best.reply,
+        best.intent_answer,
+      ].map((x) => String(x || '')).join('\n')
+      if (topicSenseClash({
+        topicLabel,
+        topicRole,
+        topicObjective,
+        topicKeywords,
+        studentText,
+        candidateText: cachedSenseText,
+      })) {
+        console.info(
+          `[REPLAY][${replayRequestId}] miss reason=topic-sense-clash cacheId=${best.id} topic="${topicLabel}"`
+        )
+        return null
+      }
       console.info(
         `[REPLAY][${replayRequestId}] hit score=${bestScore.toFixed(3)} cacheId=${best.id} gender=${gender} mode=${mode} learningMode=${learningMode}`
       )
@@ -1682,6 +1709,20 @@ export async function POST(request: NextRequest) {
       mustKnowText: string
     }) => {
       const mainSentenceRaw = String(input.mainSentence || '').trim()
+      const replaySenseText = [mainSentenceRaw, input.correctedSentence, input.reply, input.intentAnswer].join('\n')
+      if (topicSenseClash({
+        topicLabel,
+        topicRole,
+        topicObjective,
+        topicKeywords,
+        studentText,
+        candidateText: replaySenseText,
+      })) {
+        console.info(
+          `[REPLAY][${replayRequestId}] skip-save reason=topic-sense-clash topic="${topicLabel}" main="${mainSentenceRaw.slice(0, 80)}"`
+        )
+        return
+      }
       const mainSentenceValid = isLikelyTargetLanguageSentence(
         mainSentenceRaw,
         targetLanguageCode,
@@ -2450,6 +2491,8 @@ ${latestQuestion}`
       const reflexPrompt = `Bạn là giáo viên ${targetLanguage} đang luyện PHẢN XẠ NGHE NÓI với học sinh.
 Ngôn ngữ mẹ đẻ: ${nativeLanguage}. Ngôn ngữ đang học: ${targetLanguage}.
 
+${topicSenseBlock}
+
 QUY TẮC BẮT BUỘC – CHỈ TRẢ VỀ NỘI DUNG BẰNG ${targetLanguage}:
 
 1) CÂU SỬA (bắt buộc có): câu đúng/câu sửa bằng ${targetLanguage} – KHÔNG thêm nhãn "Câu của bạn nói đúng là:", "tiếng Anh nói là:", v.v. UI sẽ tự thêm.
@@ -2805,7 +2848,8 @@ Yêu cầu triển khai theo chủ đề:
 1) Đóng vai đúng roleplayRole để dẫn dắt tự nhiên (ví dụ phỏng vấn viên, nhân viên cửa hàng...).
 2) Giữ mỗi lượt phản hồi súc tích, ưu tiên dưới 50 từ cho phần chính bằng ngôn ngữ đang học.
 3) Lồng ghép tối thiểu 1 từ khóa chủ đề nếu phù hợp.
-4) Sau mỗi lượt, đưa 1 câu hỏi mở tiếp theo để câu chuyện không bị đứt.`
+4) Sau mỗi lượt, đưa 1 câu hỏi mở tiếp theo để câu chuyện không bị đứt.
+5) Từ đa nghĩa trong câu học sinh (nước, gọi, đá, đặt, trả, phòng, thuốc, chuyến...) phải thuộc đúng chủ đề này và hội thoại đang diễn ra. Không dịch sang lĩnh vực khác.`
 
     const transcript = history
       .map((m) => `${m.role === 'teacher' ? 'Teacher' : 'Student'}: ${m.text}`)
@@ -2850,12 +2894,14 @@ Yêu cầu triển khai theo chủ đề:
 - Ngôn ngữ đang học: ${targetLanguage}
 - Ngôn ngữ mẹ đẻ: ${nativeLanguage}
 
+${topicSenseBlock}
+
 Nhiệm vụ trong MỘT lần phân tích:
 1) Hiểu ý định học sinh đang muốn nói gì.
 2) Tách rõ phần ${targetLanguage} mà học sinh đã nói đúng.
 3) Tách rõ phần ${nativeLanguage} là chỗ học sinh chưa biết từ ${targetLanguage}.
 4) Tạo mapping native -> target cho các chỗ còn thiếu.
-5) Dựng lại 1 câu hoàn chỉnh, tự nhiên bằng ${targetLanguage}.
+5) Dựng lại 1 câu hoàn chỉnh, tự nhiên bằng ${targetLanguage}, đúng nghĩa đã khóa theo chủ đề. Cấm đổi từ đa nghĩa sang lĩnh vực khác.
 6) TUYỆT ĐỐI không tự chuyển sang ngôn ngữ thứ ba ngoài cặp target/native.
 7) mappedPairs.target phải là từ/cụm của ${targetLanguage}, không được đổi sang ngôn ngữ khác.
 8) ${pairTransliterationGuide}
@@ -3007,7 +3053,8 @@ Ràng buộc bắt buộc:
 - mainSentence phải là câu sửa hoàn chỉnh, đầy đủ ý câu học sinh, chỉ bằng ${targetLanguage}.
 - Không dùng fragment ngắn kiểu "to eat fish" làm mainSentence.
 - Không lấy nội dung mainSentence từ intentAnswer.
-- intentAnswer gồm 2 câu: (1) trả lời câu/câu hỏi của học sinh (nếu có hỏi phải đáp), (2) câu hỏi mới mở rộng hội thoại.`
+- intentAnswer gồm 2 câu: (1) trả lời câu/câu hỏi của học sinh (nếu có hỏi phải đáp), (2) câu hỏi mới mở rộng hội thoại.
+- ${topicSenseBlock}`
       try {
         const strictRetry = await model.generateContent(strictRetryPrompt)
         trackEnglishCoachGeminiResult(
@@ -3449,11 +3496,17 @@ ${intentAnswer}`
     }
     try {
       const mainSentenceGatePrompt = `câu "${mainSentenceFinal}" có đủ ý với câu "${studentText}" không?
-Nếu đủ ý, trả JSON:
+ĐỦ Ý nghĩa là đúng nghĩa đã khóa theo chủ đề buổi học, không phải nghĩa từ điển của từ đa nghĩa.
+Nếu câu hiện tại đã đúng nghĩa chủ đề, trả JSON:
 {"status":"ok"}
-Nếu không đủ ý, hãy viết lại câu "${studentText}" bằng tiếng "${targetLanguage}" đầy đủ ý và chỉ trả JSON:
+Nếu câu lệch chủ đề (ví dụ buổi gọi đồ uống mà "nước" bị dịch thành quốc gia) hoặc thiếu ý, viết lại câu "${studentText}" bằng "${targetLanguage}" đúng nghĩa chủ đề và chỉ trả JSON:
 {"status":"rewrite","complete_sentence":"..."}
-Không phân tích gì thêm.`
+Không phân tích gì thêm.
+
+${topicSenseBlock}
+
+Lịch sử gần đây:
+${String(transcript || '').slice(-800) || '(trống)'}
       const gateResult = await model.generateContent(mainSentenceGatePrompt)
       trackEnglishCoachGeminiResult(
         gateResult,
@@ -3475,12 +3528,77 @@ Không phân tích gì thêm.`
           rewritten
           && isLikelyTargetLanguageSentence(rewritten, targetLanguageCode, targetScriptRe)
           && isLikelyFullSentence(rewritten, targetLanguageCode)
+          && !topicSenseClash({
+            topicLabel,
+            topicRole,
+            topicObjective,
+            topicKeywords,
+            studentText,
+            candidateText: rewritten,
+          })
         ) {
           mainSentenceFinal = rewritten
         }
       }
     } catch {
       // keep original mainSentenceFinal when gate prompt fails
+    }
+    const senseFields = { topicLabel, topicRole, topicObjective, topicKeywords, studentText }
+    const sentenceClashes = topicSenseClash({ ...senseFields, candidateText: mainSentenceFinal })
+    const intentClashes = topicSenseClash({ ...senseFields, candidateText: intentAnswer })
+    if (sentenceClashes || intentClashes) {
+      try {
+        const repairSensePrompt = `Câu sửa đang lệch chủ đề buổi học. Viết lại bằng ${targetLanguage}.
+${topicSenseBlock}
+
+Học sinh vừa nói:
+${studentText}
+
+Câu đang lệch (cấm giữ nghĩa này nếu nó khác chủ đề):
+${mainSentenceFinal}
+
+Lịch sử gần đây:
+${String(transcript || '').slice(-800) || '(trống)'}
+
+Chỉ trả JSON:
+{"mainSentence":"một câu đúng nghĩa chủ đề, chỉ bằng ${targetLanguage}","intentAnswer":"hai câu chỉ bằng ${targetLanguage}: trả lời đúng ý học sinh theo chủ đề, rồi hỏi tiếp"}`
+        const repairedSense = await model.generateContent(repairSensePrompt)
+        trackEnglishCoachGeminiResult(
+          repairedSense,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatRepairMainSentence,
+          userId || null,
+          coachUsageContext
+        )
+        const repairedObj = safeJsonObject(repairedSense.response.text()?.trim() || '')
+        const repairedSentence = String(repairedObj?.mainSentence || '').trim()
+        if (
+          sentenceClashes
+          && repairedSentence
+          && isLikelyTargetLanguageSentence(repairedSentence, targetLanguageCode, targetScriptRe)
+          && isLikelyFullSentence(repairedSentence, targetLanguageCode)
+          && !topicSenseClash({ ...senseFields, candidateText: repairedSentence })
+        ) {
+          mainSentenceFinal = repairedSentence
+        }
+        const repairedIntent = String(repairedObj?.intentAnswer || '').trim()
+        if (
+          intentClashes
+          && repairedIntent
+          && !topicSenseClash({ ...senseFields, candidateText: repairedIntent })
+        ) {
+          intentAnswer = ensureIntentAnswerTwoPart(repairedIntent, targetLanguageCode, targetLanguage)
+        }
+      } catch {
+        // keep the sentence when the sense repair call fails
+      }
+    }
+    if (Array.isArray(parsed.corrections) && mainSentenceFinal && !topicSenseClash({ ...senseFields, candidateText: mainSentenceFinal })) {
+      parsed.corrections = parsed.corrections.map((row) => {
+        const fixed = String(row?.fixed || '').trim()
+        if (!fixed || !topicSenseClash({ ...senseFields, candidateText: fixed })) return row
+        return { ...row, fixed: mainSentenceFinal }
+      })
     }
     if ((parsed.corrections || []).length === 0 && studentMainSentenceCandidate && mainSentenceFinal) {
       const score = similarityScore(lessonText(studentMainSentenceCandidate), lessonText(mainSentenceFinal))

@@ -34,13 +34,22 @@ function useShowAllPronunciations() {
 }
 
 /** Công tắc một lần cho mọi dòng phát âm trong buổi học. */
-export function PronunciationMasterSwitch({ localText, compact = false }: { localText: LocalTextFn; compact?: boolean }) {
+export function PronunciationMasterSwitch({ localText, compact = false, labeled = false }: { localText: LocalTextFn; compact?: boolean; labeled?: boolean }) {
   const [showAll, setShowAll] = useShowAllPronunciations()
   return (
-    <label className={compact
-      ? 'order-2 flex h-11 shrink-0 cursor-pointer touch-manipulation items-center gap-1 rounded-md'
+    <label
+      title={localText('Hiện mọi phiên âm', 'Show all pronunciations')}
+      className={compact
+      ? `order-2 flex h-11 shrink-0 cursor-pointer touch-manipulation items-center gap-1 rounded-md ${labeled ? 'ml-auto' : ''}`
       : 'flex min-h-11 min-w-0 flex-1 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-md px-1'}>
-      <span className={compact ? 'hidden text-xs leading-tight text-slate-600 sm:inline' : 'text-xs leading-tight text-slate-600'}>{localText('Mọi phiên âm', 'All pronunciations')}</span>
+      <span className={compact && !labeled ? 'hidden text-xs leading-tight text-slate-600 sm:inline' : 'whitespace-nowrap text-xs font-medium leading-tight text-slate-600'}>
+        {labeled ? (
+          <>
+            <span className="sm:hidden">{localText('Phiên âm', 'Pronunciation')}</span>
+            <span className="hidden sm:inline">{localText('Mọi phiên âm', 'All pronunciations')}</span>
+          </>
+        ) : localText('Mọi phiên âm', 'All pronunciations')}
+      </span>
       <Switch
         checked={showAll}
         onCheckedChange={setShowAll}

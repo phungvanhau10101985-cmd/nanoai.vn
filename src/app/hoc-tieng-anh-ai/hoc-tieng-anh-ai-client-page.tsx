@@ -9263,7 +9263,8 @@ export default function HocTiengAnhAiClientPage() {
 
   const confirmSpeechIntent = async () => {
     const current = speechIntentRef.current
-    if (!current || !current.text.trim() || current.meaningBusy) return
+    const edited = Boolean(current && current.text.trim() !== current.originalText.trim())
+    if (!current || !current.text.trim() || (current.meaningBusy && !edited)) return
     const text = current.text.trim()
     speechIntentRef.current = null
     setSpeechIntent(null)
@@ -9281,8 +9282,17 @@ export default function HocTiengAnhAiClientPage() {
     const current = speechIntentRef.current
     if (!current) return
     const text = current.text.trim()
+    const original = current.originalText.trim()
+    if (text !== original) {
+      if (current.meaningBusy) {
+        const idle = { ...current, meaningBusy: false }
+        speechIntentRef.current = idle
+        setSpeechIntent(idle)
+      }
+      return
+    }
     if (!text) return
-    if (text === current.originalText.trim() && current.originalMeaning.trim()) {
+    if (original && current.originalMeaning.trim()) {
       if (current.meaning !== current.originalMeaning || current.meaningBusy) {
         const restored = { ...current, meaning: current.originalMeaning, meaningBusy: false }
         speechIntentRef.current = restored
@@ -9328,7 +9338,7 @@ export default function HocTiengAnhAiClientPage() {
         speechIntentRef.current = next
         setSpeechIntent(next)
       })
-    }, text === current.originalText.trim() ? 0 : 500)
+    }, 0)
     return () => window.clearTimeout(timer)
   }, [
     speechIntent?.messageId,
@@ -10738,7 +10748,13 @@ export default function HocTiengAnhAiClientPage() {
                           onTextChange={(value) => {
                             const current = speechIntentRef.current
                             if (!current || current.messageId !== m.id) return
-                            const next = { ...current, text: value }
+                            const edited = value.trim() !== current.originalText.trim()
+                            if (edited) speechMeaningSeqRef.current += 1
+                            const next = {
+                              ...current,
+                              text: value,
+                              meaningBusy: edited ? false : current.meaningBusy,
+                            }
                             speechIntentRef.current = next
                             setSpeechIntent(next)
                           }}
@@ -10997,7 +11013,7 @@ export default function HocTiengAnhAiClientPage() {
                     </div>
                   ) : null}
                   {collapseToolRow ? null : (
-                  <div className={`mt-2 flex min-w-0 touch-manipulation items-center gap-1 overflow-visible rounded-lg border border-slate-200 bg-slate-50/80 px-1.5 py-1.5 ${recordingPending || !hideSideTools ? 'flex-wrap' : 'flex-nowrap'}`}>
+                  <div className={`mt-1.5 flex min-w-0 touch-manipulation gap-1 overflow-visible rounded-lg border border-slate-200 bg-slate-50/80 px-1.5 py-1.5 ${recordingPending ? 'flex-wrap items-center' : hideSideTools ? 'flex-nowrap items-center' : 'flex-col items-stretch sm:flex-row sm:flex-wrap sm:items-center'}`}>
                   {recordingPending ? (
                     <>
                       <Button
@@ -11042,7 +11058,7 @@ export default function HocTiengAnhAiClientPage() {
                     </>
                   ) : (
                     <>
-                      <div className={`order-1 flex items-center gap-1 overflow-hidden transition-[max-width,opacity,transform] duration-200 ease-out ${hideSideTools ? 'pointer-events-none min-w-0 max-w-0 shrink -translate-x-2 opacity-0' : 'max-w-[24rem] shrink-0 translate-x-0 opacity-100'}`}>
+                      <div className={`order-1 flex flex-nowrap items-center gap-1 transition-[max-width,opacity] duration-200 ease-out ${hideSideTools ? 'pointer-events-none min-w-0 max-w-0 shrink overflow-hidden opacity-0' : 'w-full max-w-none shrink-0 overflow-visible opacity-100 sm:w-auto sm:max-w-none'}`}>
                       {showMiniContinueButton ? (
                         <Button
                           type="button"
@@ -11066,7 +11082,62 @@ export default function HocTiengAnhAiClientPage() {
                           {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
                         </Button>
                       )}
-                      <PronunciationMasterSwitch compact localText={localText} />
+                      <PronunciationMasterSwitch compact labeled localText={localText} />
+                      <div
+                        className="flex items-center gap-1"
+                        title={localText('Tốc độ giọng nói', 'Voice playback speed')}
+                      >
+                        <span className="text-[10px] font-medium leading-none text-slate-500">
+                          {localText('Tốc độ', 'Speed')}
+                        </span>
+                        <div className="flex items-center rounded-md border border-slate-200 bg-white">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
+                            aria-label={localText('Chậm hơn', 'Slower')}
+                            disabled={playbackSpeed <= 0.75}
+                            onClick={() => {
+                              const speeds = [0.75, 1, 1.25, 1.5]
+                              const i = speeds.indexOf(playbackSpeed)
+                              if (i <= 0) return
+                              const next = speeds[i - 1]
+                              playbackSpeedRef.current = next
+                              setPlaybackSpeed(next)
+                              if (audioRef.current && !audioRef.current.paused) {
+                                audioRef.current.playbackRate = next
+                              }
+                            }}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="min-w-[2rem] text-center text-xs font-semibold text-slate-700">
+                            {playbackSpeed}x
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
+                            aria-label={localText('Nhanh hơn', 'Faster')}
+                            disabled={playbackSpeed >= 1.5}
+                            onClick={() => {
+                              const speeds = [0.75, 1, 1.25, 1.5]
+                              const i = speeds.indexOf(playbackSpeed)
+                              if (i >= speeds.length - 1) return
+                              const next = speeds[i + 1]
+                              playbackSpeedRef.current = next
+                              setPlaybackSpeed(next)
+                              if (audioRef.current && !audioRef.current.paused) {
+                                audioRef.current.playbackRate = next
+                              }
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
                       </div>
                       <button
                         type="button"
@@ -11074,7 +11145,7 @@ export default function HocTiengAnhAiClientPage() {
                         aria-hidden={!hideSideTools}
                         aria-label={localText('Hiện nút', 'Show buttons')}
                         title={localText('Hiện nút', 'Show buttons')}
-                        className={`order-2 flex h-11 min-w-0 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full text-indigo-600 transition-all duration-200 ${hideSideTools ? 'w-11 opacity-100' : 'pointer-events-none w-0 opacity-0'}`}
+                        className={`order-2 flex min-w-0 shrink-0 touch-manipulation items-center justify-center overflow-hidden rounded-full text-indigo-600 transition-all duration-200 ${hideSideTools ? 'h-11 w-11 opacity-100' : 'pointer-events-none h-0 w-0 opacity-0 sm:h-11'}`}
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => {
                           barToolsPinnedRef.current = true
@@ -11085,19 +11156,24 @@ export default function HocTiengAnhAiClientPage() {
                       </button>
                       {hideLookupWhileWriting ? null : (
                       <form
-                        className={`order-3 flex min-w-0 items-center gap-1 ${hideSideTools ? 'flex-1' : 'w-full sm:w-auto sm:min-w-[10rem] sm:flex-1'}`}
+                        className={`order-3 flex min-w-0 items-center gap-1 border-t border-slate-200/80 pt-1.5 sm:border-0 sm:pt-0 ${hideSideTools ? 'flex-1 border-0 pt-0' : 'w-full sm:w-auto sm:min-w-[10rem] sm:flex-1'}`}
+                        aria-label={localText('Tra từ', 'Look up')}
                         onSubmit={(event) => {
                           event.preventDefault()
                           const word = lookupImeFlushRef.current?.() ?? lookupDraft
                           if (lookupWordFromBar(word)) setLookupDraft('')
                         }}
                       >
+                        <span className={hideSideTools ? 'sr-only' : 'shrink-0 text-[11px] font-semibold leading-tight text-slate-500 sm:sr-only'}>
+                          {localText('Tra từ', 'Look up')}
+                        </span>
                         <LessonImeField
                           value={lookupDraft}
                           languageCode={languageCode}
                           localText={localText}
                           flushRef={lookupImeFlushRef}
                           onChange={setLookupDraft}
+                          className="bg-white"
                           onKeyDown={(event) => {
                             if (event.key !== 'Enter') return
                             event.preventDefault()
@@ -11119,65 +11195,12 @@ export default function HocTiengAnhAiClientPage() {
                         </Button>
                       </form>
                       )}
-                      <div
-                        className={`order-2 flex items-center gap-1 overflow-hidden transition-[max-width,opacity,transform] duration-200 ease-out sm:order-4 ${hideSideTools ? 'pointer-events-none min-w-0 max-w-0 shrink opacity-0' : 'max-w-[16rem] shrink-0 translate-x-0 opacity-100'}`}
-                        title={localText('Tốc độ giọng nói', 'Voice playback speed')}
-                      >
-                        <span className="hidden text-[10px] leading-none text-slate-500 sm:inline">
-                          {localText('Tốc độ', 'Speed')}
-                        </span>
-                        <div className="flex items-center rounded-md border border-slate-200 bg-slate-50">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
-                            disabled={playbackSpeed <= 0.75}
-                            onClick={() => {
-                              const speeds = [0.75, 1, 1.25, 1.5]
-                              const i = speeds.indexOf(playbackSpeed)
-                              if (i <= 0) return
-                              const next = speeds[i - 1]
-                              playbackSpeedRef.current = next
-                              setPlaybackSpeed(next)
-                              if (audioRef.current && !audioRef.current.paused) {
-                                audioRef.current.playbackRate = next
-                              }
-                            }}
-                          >
-                            <Minus className="h-3.5 w-3.5" />
-                          </Button>
-                          <span className="min-w-[2.25rem] text-center text-xs font-medium text-slate-600">
-                            {playbackSpeed}x
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
-                            disabled={playbackSpeed >= 1.5}
-                            onClick={() => {
-                              const speeds = [0.75, 1, 1.25, 1.5]
-                              const i = speeds.indexOf(playbackSpeed)
-                              if (i >= speeds.length - 1) return
-                              const next = speeds[i + 1]
-                              playbackSpeedRef.current = next
-                              setPlaybackSpeed(next)
-                              if (audioRef.current && !audioRef.current.paused) {
-                                audioRef.current.playbackRate = next
-                              }
-                            }}
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
                     </>
                   )}
                   </div>
                   )}
                   {(speakingLanguageMode === 'auto' || speakingLanguageMode === 'mixed') ? (
-                    <p className="mt-1.5 text-xs text-slate-600">{micLanguageHint}</p>
+                    <p className="mt-1 text-[11px] leading-snug text-slate-500 sm:mt-1.5 sm:text-xs sm:text-slate-600">{micLanguageHint}</p>
                   ) : null}
                 </div>
                 {!isPresetPageSession ? (
@@ -11945,10 +11968,11 @@ export default function HocTiengAnhAiClientPage() {
           localText={localText}
         />
       ) : null}
+      {/* 14.75rem = trên nút chat (10.5rem + cao 3.5rem) và nút lên đầu trang, không đè nhau. */}
       <Button
         type="button"
         onClick={scrollToSpeakActions}
-        className="fixed bottom-[calc(8rem+env(safe-area-inset-bottom))] right-2 z-40 h-12 w-12 rounded-full p-0 shadow-lg sm:hidden"
+        className="fixed bottom-[calc(14.75rem+env(safe-area-inset-bottom))] right-2 z-40 h-12 w-12 rounded-full p-0 shadow-lg sm:hidden"
         aria-label={localText('Đi tới nút nói', 'Go to speak button')}
         title={localText('Đi tới nút nói', 'Go to speak button')}
       >
