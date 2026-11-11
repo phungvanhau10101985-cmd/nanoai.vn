@@ -58,7 +58,7 @@ export function WeddingSideGuestBulkBar({ cardId, side, disabled, onAdded, onNee
     const leftover = rest.trim()
     const notes = [
       result.skippedDuplicate ? `Bỏ ${result.skippedDuplicate} khách đã có.` : '',
-      result.rejected.length ? `Bỏ ${result.rejected.length} chỗ thiếu danh xưng.` : '',
+      result.rejected?.length ? `Bỏ ${result.rejected.length} chỗ thiếu danh xưng.` : '',
       result.held ? `${result.held} khách chưa thêm vì đã đủ gói.` : '',
       leftover ? 'Phần còn lại vẫn trong ô. Bấm Tạo danh sách lần nữa.' : '',
     ].filter(Boolean)

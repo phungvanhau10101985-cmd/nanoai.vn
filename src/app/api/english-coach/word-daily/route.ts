@@ -616,12 +616,12 @@ export async function GET(request: NextRequest) {
     const mapped = (data ?? [])
       .filter(hasMeaning)
       .map((row) => ({
-        id: row.id,
+        id: String(row.id ?? ''),
         sessionId: row.session_id,
         learnedDate: row.learned_date,
-        word: row.word,
-        targetLanguage: row.target_language,
-        nativeLanguage: row.native_language,
+        word: String(row.word ?? ''),
+        targetLanguage: String(row.target_language ?? ''),
+        nativeLanguage: String(row.native_language ?? ''),
         meaning: row.meaning || '',
         pronunciation: row.pronunciation || '',
         pronunciationAudioUrl: row.pronunciation_audio_url || '',

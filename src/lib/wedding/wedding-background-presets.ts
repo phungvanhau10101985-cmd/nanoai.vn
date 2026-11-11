@@ -247,7 +247,7 @@ export function editWeddingOrnamentAt(
   items: readonly WeddingBackgroundOrnament[],
   pages: number,
   visualIndex: number,
-  patch: (Partial<WeddingBackgroundOrnament> & { anchor?: 'top' | 'bottom' | null }) | null,
+  patch: (Omit<Partial<WeddingBackgroundOrnament>, 'anchor'> & { anchor?: 'top' | 'bottom' | null }) | null,
 ): WeddingBackgroundOrnament[] {
   const sheet = weddingOrnamentEditSheet(items, pages)
   const expanded = sheet.length !== items.length
@@ -256,10 +256,11 @@ export function editWeddingOrnamentAt(
     return expanded ? next.map((item) => ({ ...weddingOrnamentPlain(item), free: true as const })) : next
   }
   if (!sheet[visualIndex]) return sheet
-  const merged: WeddingBackgroundOrnament = { ...sheet[visualIndex], ...patch }
+  const { anchor: patchAnchor, ...rest } = patch
+  const merged: WeddingBackgroundOrnament = { ...sheet[visualIndex], ...rest }
   if ('anchor' in patch) {
-    if (patch.anchor == null) delete merged.anchor
-    else merged.anchor = patch.anchor
+    if (patchAnchor == null) delete merged.anchor
+    else merged.anchor = patchAnchor
   }
   const position = 'x' in patch || 'y' in patch
   return sheet.map((item, index) => {

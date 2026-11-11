@@ -1064,7 +1064,7 @@ export default function WeddingPublicClient({
         } catch {
           result = { error: 'unavailable' }
         }
-        if (result && 'albumImageUrls' in result) {
+        if (result && 'albumImageUrls' in result && Array.isArray(result.albumImageUrls)) {
           const live = weddingAlbumLive.get(card.id)
           show(live?.display ?? [...current, ...previews], result.albumImageUrls)
         } else {
@@ -1111,26 +1111,31 @@ export default function WeddingPublicClient({
         if (input.outfitFile) body.set('outfitFile', input.outfitFile)
         else body.set('outfit', String(input.outfitIndex))
         const result = await restyleWeddingCouplePhoto(body)
-        if (!result || !('ok' in result)) {
+        if (!result || !('ok' in result) || result.ok !== true) {
           const code = result && 'error' in result ? result.error : 'failed'
           stopped = code === 'need_credit' || code === 'empty' ? code : 'failed'
           failedId = slot
           break
         }
-        const url = weddingRestyledSlotUrl(slot, result)
+        const url = weddingRestyledSlotUrl(slot, {
+          coverPhotoUrl: result.coverPhotoUrl ?? '',
+          groomImageUrl: result.groomImageUrl ?? '',
+          brideImageUrl: result.brideImageUrl ?? '',
+          albumImageUrls: result.albumImageUrls ?? [],
+        })
         if (!url) {
           stopped = 'failed'
           failedId = slot
           break
         }
         done += 1
-        charged += result.credit
-        made.set(slot, { url, credit: result.credit })
+        charged += result.credit ?? 0
+        made.set(slot, { url, credit: result.credit ?? 0 })
         setMediaLocal((current) => {
           if (slot === 'cover') return { ...current, cover: result.coverPhotoUrl }
           if (slot === 'groom') return { ...current, groom: result.groomImageUrl }
           if (slot === 'bride') return { ...current, bride: result.brideImageUrl }
-          const album = result.albumImageUrls.filter((url) => url.startsWith('http'))
+          const album = (result.albumImageUrls ?? []).filter((url) => url.startsWith('http'))
           weddingAlbumLive.set(card.id, { display: album, saved: album })
           albumSavedRef.current = album
           return { ...current, album }
@@ -1275,24 +1280,28 @@ export default function WeddingPublicClient({
     setLookBusy(true)
     const result = await applyWeddingSampleLook(card.id, sampleId)
     setLookBusy(false)
-    if (!('ok' in result)) {
+    if (!('ok' in result) || result.ok !== true) {
       toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
       return
     }
-    setSectionRaw(result.sectionConfig)
-    setPreviewStyleId(result.selectedStyleId)
-    setPreviewPlates(result.plateUrls)
+    setSectionRaw(result.sectionConfig || '')
+    setPreviewStyleId(result.selectedStyleId ?? null)
+    setPreviewPlates(result.plateUrls ?? null)
     setForcedMasterUrl(result.masterImageUrl ?? '')
-    setPhotoOverride({ groom: result.groomImageUrl, bride: result.brideImageUrl, album: result.albumImageUrls })
-    setCoverShared(result.sharedOrnaments)
-    setLetterShared(result.sharedLetterOrnaments)
+    setPhotoOverride({
+      groom: result.groomImageUrl ?? '',
+      bride: result.brideImageUrl ?? '',
+      album: result.albumImageUrls ?? [],
+    })
+    setCoverShared(result.sharedOrnaments ?? null)
+    setLetterShared(result.sharedLetterOrnaments ?? null)
     setCoverCard(null)
     setLetterCard(null)
     setCoverDraft(null)
     setLetterDraft(null)
     setSampleFlowers(true)
-    setSharedFrame(result.sharedFrame)
-    setSharedShellDraft(result.sharedShell)
+    setSharedFrame(result.sharedFrame ?? null)
+    setSharedShellDraft(result.sharedShell ?? null)
     setLookOpen(false)
     setLookPick('')
     toast({ title: tImage.sampleCardAppliedTitle, description: tImage.sampleCardAppliedHint })
@@ -2499,7 +2508,7 @@ export default function WeddingPublicClient({
       locale={uiLocale}
       groomName={groomDraft}
       brideName={brideDraft}
-      weddingDate={displayWeddingDateLabel || card.weddingDate}
+      weddingDate={displayWeddingDateLabel || card.weddingDate || undefined}
       occasionKey={card.occasionKey}
       omitAddresses={sharedCopyAddresses}
     />

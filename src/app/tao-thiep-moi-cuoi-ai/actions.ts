@@ -821,12 +821,13 @@ async function readPublicWeddingAsset(publicPath: string, rootDir: string, filen
 const WEDDING_OUTFIT_UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 function weddingOutfitUpload(value: FormDataEntryValue | null): File | null {
-  if (!value || typeof value === 'string') return null
-  if (value.size <= 0 || value.size > WEDDING_RESTYLE_MAX_BYTES) return null
-  const name = 'name' in value && typeof value.name === 'string' ? value.name : ''
-  const typeOk = WEDDING_OUTFIT_UPLOAD_TYPES.has(value.type) || /\.(jpe?g|png|webp|gif)$/i.test(name)
+  const file = value as unknown
+  if (!(file instanceof File)) return null
+  if (file.size <= 0 || file.size > WEDDING_RESTYLE_MAX_BYTES) return null
+  const name = typeof file.name === 'string' ? file.name : ''
+  const typeOk = WEDDING_OUTFIT_UPLOAD_TYPES.has(file.type) || /\.(jpe?g|png|webp|gif)$/i.test(name)
   if (!typeOk) return null
-  return value instanceof File ? value : new File([value], name || 'outfit.jpg', { type: value.type || 'image/jpeg' })
+  return file
 }
 
 /** Cắt mặt bằng đúng hàm thử đồ, trả ảnh trang phục để khách xem trước. */

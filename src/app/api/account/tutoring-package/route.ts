@@ -56,5 +56,5 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ error: bought.error || 'Không mua được gói.' }, { status: 400 })
   }
-  return NextResponse.json({ ok: true, ...bought })
+  return NextResponse.json({ ...bought, ok: true })
 }

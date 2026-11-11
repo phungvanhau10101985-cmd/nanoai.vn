@@ -1572,7 +1572,7 @@ Chủ đề đang học:
 - roleplayRole: ${topicRole || '(chưa có)'}
 - objective: ${topicObjective || '(chưa có)'}
 - keywords: ${topicKeywords.join(', ') || '(chưa có)'}`
-    const learningMode: 'review' | 'reflex' = 'review'
+    const learningMode = 'review' as 'review' | 'reflex'
     const drillType = payload.drillType === 'listening' ? 'listening' : ''
     const drillSpeaking = Boolean(payload.drillSpeaking)
     const isFromDrill = drillType === 'listening' || drillSpeaking
@@ -3747,7 +3747,7 @@ Chỉ trả JSON:
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Lỗi không xác định.'
-    return lessonJson({ error: msg }, { status: 500 })
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 

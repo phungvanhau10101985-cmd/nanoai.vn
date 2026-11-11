@@ -68,7 +68,7 @@ test('pixel queue receives every dynamic event', async () => {
     document: { cookie: '' },
     fetch: async () => ({ ok: true }),
   })
-  const { fireNanoAiFacebookDynamicEvent } = await import('./nanoai-facebook-dynamic-events-client.ts')
+  const { fireNanoAiFacebookDynamicEvent } = await import('./nanoai-facebook-dynamic-events-client')
   for (const event of NANOAI_FACEBOOK_DYNAMIC_EVENTS) {
     const ok = fireNanoAiFacebookDynamicEvent({
       event,

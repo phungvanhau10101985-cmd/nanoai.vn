@@ -7664,7 +7664,7 @@ export default function CurriculumViewPage() {
                           ) : (
                             <button
                               type="button"
-                              onClick={openQuizPopupFresh}
+                              onClick={() => openQuizPopupFresh()}
                               className="text-xs text-violet-400 hover:text-violet-300 px-1.5 py-0.5 rounded bg-slate-700/50 flex items-center gap-1"
                               title={tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
                             >

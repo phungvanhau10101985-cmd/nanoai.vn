@@ -74,7 +74,8 @@ function DeviceFrame(props: {
       const view = frame.contentWindow
       if (!doc || !view) return
       // Phần tử trong iframe không thuộc HTMLElement của trang cha.
-      const isEl = (node: Element | null): node is HTMLElement => !!node && node instanceof view.HTMLElement
+      const HtmlCtor = (view as unknown as { HTMLElement?: typeof HTMLElement }).HTMLElement
+      const isEl = (node: Element | null): node is HTMLElement => !!node && !!HtmlCtor && node instanceof HtmlCtor
       const cover = doc.querySelector('[data-cover-preview]')
       const letter = doc.querySelector('main')
       const target = isEl(cover) ? cover : isEl(letter) ? letter : null

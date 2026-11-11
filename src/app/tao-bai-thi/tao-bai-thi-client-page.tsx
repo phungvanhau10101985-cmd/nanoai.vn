@@ -733,6 +733,7 @@ export default function TaoBaiThiClientPage({
         gradeLevelId?: string
         subjectLabel?: string
         teacherDisplayName?: string
+        classKind?: string
       }
       const normalized = {
         id: item.id,
@@ -743,6 +744,7 @@ export default function TaoBaiThiClientPage({
         gradeLevelId: String(item.gradeLevelId ?? gradeLevelId ?? ''),
         subjectLabel: String(item.subjectLabel ?? '').trim(),
         teacherDisplayName: String(item.teacherDisplayName ?? '').trim(),
+        classKind: item.classKind === 'tutoring' ? 'tutoring' as const : 'school' as const,
       }
       setTeacherClasses((prev) => (prev.some((c) => c.id === normalized.id) ? prev : [normalized, ...prev]))
       setSelectedClassId(String(item.id))

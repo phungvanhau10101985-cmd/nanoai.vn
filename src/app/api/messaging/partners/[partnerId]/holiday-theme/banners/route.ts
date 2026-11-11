@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
   if (requested && !isPartnerHolidayThemeId(requested)) {
     return NextResponse.json({ error: 'invalid_code' }, { status: 400 })
   }
-  const codes = requested ? [requested] : [...PARTNER_HOLIDAY_THEME_IDS]
+  const codes = isPartnerHolidayThemeId(requested) ? [requested] : [...PARTNER_HOLIDAY_THEME_IDS]
   const rules = await loadPartnerHolidayRules(partnerId)
   const byCode = new Map(rules.map((row) => [row.code, row]))
 

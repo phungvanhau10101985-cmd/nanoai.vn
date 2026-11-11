@@ -91,7 +91,8 @@ function segmentPinyin(raw: string, lexicon: PinyinLexicon): Array<PinyinPath | 
     const state = dp[i]
     if (!state) continue
     if (raw[i] === "'") {
-      if (!dp[i + 1] || state.cost < dp[i + 1].cost) dp[i + 1] = { text: state.text, cost: state.cost }
+      const next = dp[i + 1]
+      if (!next || state.cost < next.cost) dp[i + 1] = { text: state.text, cost: state.cost }
       continue
     }
     const limit = Math.min(PINYIN_WORD_LIMIT, raw.length - i)

@@ -1197,9 +1197,27 @@ function guestSurface(bits: PublicBits, locale: string) {
   }
 }
 
-export function applyInvitationOccasionPublicCopy<T extends object>(tx: T, occasionKey: unknown, locale: string): T {
+export function applyInvitationOccasionPublicCopy<T extends object>(
+  tx: T,
+  occasionKey: unknown,
+  locale: string,
+): T & {
+  guestInviteVenueGroom: string
+  guestInviteVenueBride: string
+  calendarEventDescription: string
+  reminderTitle: string
+  noWishes: string
+} {
   const bits = bitsOf(occasionKey)
-  if (!bits) return tx
+  if (!bits) {
+    return tx as T & {
+      guestInviteVenueGroom: string
+      guestInviteVenueBride: string
+      calendarEventDescription: string
+      reminderTitle: string
+      noWishes: string
+    }
+  }
   const surface = guestSurface(bits, locale)
   return {
     ...tx,
@@ -1226,6 +1244,12 @@ export function applyInvitationOccasionPublicCopy<T extends object>(tx: T, occas
     guestInviteVenueGroom: at(bits.venueGroom, locale),
     guestInviteVenueBride: at(bits.venueBride, locale),
     ...surface,
+  } as T & {
+    guestInviteVenueGroom: string
+    guestInviteVenueBride: string
+    calendarEventDescription: string
+    reminderTitle: string
+    noWishes: string
   }
 }
 

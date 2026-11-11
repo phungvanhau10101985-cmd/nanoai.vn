@@ -3,6 +3,7 @@
 import { readingForCutSentence, readingStoredForShownText, stripReadingCommentary } from '@/lib/coach-reading'
 import { normalizeCopyText } from './normalize-copy-text'
 import { readLessonLanguageQuery } from '@/lib/hoc-ngoai-ngu/lesson-query'
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import {
   FREE_LIVE_LESSON_LIMIT,
   freeLiveChoiceLabel,
@@ -6284,7 +6285,7 @@ export default function HocTiengAnhAiClientPage() {
       if (loadHistoryRequestSeqRef.current !== requestSeq) return
 
       const items = Array.isArray(payload.items) ? payload.items : []
-      const loadedLearningMode: 'review' | 'reflex' = 'review'
+      const loadedLearningMode = 'review' as 'review' | 'reflex'
       setLearningMode('review')
       setSessionId(targetSessionId)
       setMessages(items.map((x) => ({ id: x.id, role: x.role, text: x.text })))

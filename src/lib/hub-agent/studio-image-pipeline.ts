@@ -509,7 +509,7 @@ export async function runStudioImagePipeline(input: {
             feature: 'hub-studio-logo-remove-bg',
             imageBuffer: resultBufferRaw,
           })
-          resultBuffer = stripped.buffer
+          resultBuffer = Buffer.from(stripped.buffer)
           charged = chargedCreditsForLogoCreate(imageCredit, stripped.removed)
         }
         const resultPath = `results/${input.userId}/studio_${input.kind}_${Date.now()}.png`

@@ -92,6 +92,7 @@ export type WeddingCard = {
   masterImageUrl: string | null
   effectsEnabled: boolean
   guestPack?: WeddingGuestPackId | null
+  updatedAt?: string
 }
 
 export type WeddingAiImage = {
@@ -317,6 +318,7 @@ function mapCard(row: Record<string, unknown>): WeddingCard {
     brideGiftAccountName: String(row.bride_gift_account_name ?? ''),
     isPublished: Boolean(row.is_published),
     publishedAt: row.published_at ? String(row.published_at) : null,
+    updatedAt: row.updated_at ? String(row.updated_at) : '',
     masterImageUrl: row.master_image_url ? String(row.master_image_url) : null,
     effectsEnabled: row.effects_enabled == null ? true : Boolean(row.effects_enabled),
     guestPack: parseWeddingGuestPackId(row.guest_pack),

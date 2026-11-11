@@ -632,7 +632,7 @@ function CoverPhoto(props: {
   /** Ảnh vỏ hiện từ từ lúc thiệp mở, cùng nhịp tên bay vào. */
   openSlowly?: boolean
   /** standard = ảnh thường, tall = ảnh vòm, fit = vỏ rút trong một màn, fan = rẻ quạt, leaf = lá thật đục lỗ, fill = lấp lỗ khung, moon = trăng tròn, star = ngôi sao. */
-  box?: 'standard' | 'tall' | 'fit' | 'fan' | 'leaf' | 'fill' | 'moon' | 'star'
+  box?: 'standard' | 'tall' | 'fit' | 'compact' | 'fan' | 'leaf' | 'fill' | 'moon' | 'star'
   frameStyle?: CSSProperties
 }) {
   if (!props.url.trim()) return null

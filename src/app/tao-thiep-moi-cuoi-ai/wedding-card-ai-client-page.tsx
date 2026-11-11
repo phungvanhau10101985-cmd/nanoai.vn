@@ -713,7 +713,7 @@ export default function WeddingCardAiClientPage() {
         const openId = requestedId && !tombstoneCardIds.has(requestedId) ? requestedId : ''
         let result = await loadWeddingCardWorkspace(openId)
         if (!mounted) return
-        if ('error' in result && requestedId && result.error.includes('Không tìm thấy thiệp')) {
+        if ('error' in result && requestedId && result.error?.includes('Không tìm thấy thiệp')) {
           clearWeddingLocalDraft(requestedId)
           forgetCardInUrl()
           result = await loadWeddingCardWorkspace('')
@@ -1335,7 +1335,7 @@ export default function WeddingCardAiClientPage() {
       ])
       if ('error' in result) {
         if (deletedCardIdsRef.current.has(c.id) || tombstoneCardIds.has(c.id) || startedEpoch !== persistEpochRef.current) return false
-        const missing = result.error.includes('Không tìm thấy thiệp')
+        const missing = result.error?.includes('Không tìm thấy thiệp')
         if (missing && (silent || options?.ignoreNotFound)) return false
         if (!silent) {
           toast({ title: 'Lưu thất bại', description: result.error, variant: 'destructive' })
@@ -2233,7 +2233,7 @@ export default function WeddingCardAiClientPage() {
     try {
       const result = await deleteWeddingCard(cardId)
       if ('error' in result) {
-        if (result.error.includes('Không tìm thấy thiệp')) {
+        if ('error' in result && result.error?.includes('Không tìm thấy thiệp')) {
           await dropMissingCard()
           return
         }

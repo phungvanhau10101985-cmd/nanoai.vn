@@ -66,7 +66,7 @@ export function NativePhoneticLine({
   const source = String(text || '').trim()
   const target = normalizeLang(targetLanguageCode)
   const native = normalizeLang(nativeLanguageCode)
-  const preset = usableSentenceReading(target, known)
+  const preset = usableSentenceReading(target, known ?? '')
   const needsReading = target === 'zh' || target === 'ja' || target === 'ko' || target === 'th' || target === 'hi' || (target === 'en' && native !== 'en')
   const enabled = Boolean(source) && needsReading
   const cacheKey = `${target}|${source}`
