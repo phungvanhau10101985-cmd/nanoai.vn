@@ -160,6 +160,27 @@ function writeLauncherPos(pos: LauncherPoint): void {
   }
 }
 
+const LAUNCHER_NUDGE_LIMIT = 4
+
+/**
+ * Điểm mới để kéo nút vào vùng nhìn thấy.
+ * Nút không đo được (display:none khi thanh khác giấu nó) thì trả null —
+ * nếu vẫn cộng delta, left/top tăng mãi và React ném lỗi #185.
+ */
+export function nextLauncherPos(
+  pos: LauncherPoint,
+  rect: { left: number; top: number; width: number; height: number },
+  visual: LauncherPoint,
+): LauncherPoint | null {
+  if (rect.width < 1 || rect.height < 1) return null
+  const dx = visual.x - rect.left
+  const dy = visual.y - rect.top
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return null
+  const next = { x: pos.x + dx, y: pos.y + dy }
+  if (Math.abs(next.x - pos.x) < 1 && Math.abs(next.y - pos.y) < 1) return null
+  return next
+}
+
 /** Giữ nút trong vùng nhìn thấy (visual viewport), kể cả notch iOS và bàn phím. */
 function clampLauncherVisual(x: number, y: number, size: number): LauncherPoint {
   const vv = window.visualViewport
@@ -304,10 +325,32 @@ export function FloatingChatWidget({
     if (all.length > 1 && all[0] !== rootRef.current) setDuplicateMount(true)
   }, [])
 
+  const nudgeStepsRef = useRef(0)
+  const nudgeViewHRef = useRef(0)
+
   const commitLauncherPos = useCallback((next: LauncherPoint | null) => {
     launcherPosRef.current = next
     setLauncherPos(next)
   }, [])
+
+  const nudgeLauncherIntoView = useCallback(() => {
+    const el = launcherBtnRef.current
+    const pos = launcherPosRef.current
+    if (!el || !pos || launcherDragRef.current) return
+    if (nudgeStepsRef.current >= LAUNCHER_NUDGE_LIMIT) return
+    if (el.getClientRects().length === 0) return
+    const rect = el.getBoundingClientRect()
+    const size = rect.width || el.offsetWidth || 56
+    const visual = clampLauncherVisual(rect.left, rect.top, size)
+    const next = nextLauncherPos(pos, rect, visual)
+    if (!next) {
+      nudgeStepsRef.current = 0
+      return
+    }
+    nudgeStepsRef.current += 1
+    writeLauncherPos(next)
+    commitLauncherPos(next)
+  }, [commitLauncherPos])
 
   useLayoutEffect(() => {
     const saved = readLauncherPos()
@@ -317,19 +360,8 @@ export function FloatingChatWidget({
 
   useLayoutEffect(() => {
     if (!launcherPos || launcherDragRef.current?.moved) return
-    const el = launcherBtnRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const size = el.offsetWidth || 56
-    const visual = clampLauncherVisual(rect.left, rect.top, size)
-    if (Math.abs(visual.x - rect.left) < 1 && Math.abs(visual.y - rect.top) < 1) return
-    const next = {
-      x: launcherPos.x + (visual.x - rect.left),
-      y: launcherPos.y + (visual.y - rect.top),
-    }
-    writeLauncherPos(next)
-    commitLauncherPos(next)
-  }, [closed, commitLauncherPos, launcherPos])
+    nudgeLauncherIntoView()
+  }, [closed, launcherPos, nudgeLauncherIntoView])
 
   useEffect(() => {
     const el = launcherBtnRef.current
@@ -344,19 +376,12 @@ export function FloatingChatWidget({
   useEffect(() => {
     const reclamp = () => {
       measureSafeInsets(true)
-      const prev = launcherPosRef.current
-      const el = launcherBtnRef.current
-      if (!prev || !el || launcherDragRef.current) return
-      const rect = el.getBoundingClientRect()
-      const size = el.offsetWidth || 56
-      const visual = clampLauncherVisual(rect.left, rect.top, size)
-      if (Math.abs(visual.x - rect.left) < 1 && Math.abs(visual.y - rect.top) < 1) return
-      const next = {
-        x: prev.x + (visual.x - rect.left),
-        y: prev.y + (visual.y - rect.top),
+      const viewH = window.visualViewport?.height ?? window.innerHeight
+      if (Math.abs(viewH - nudgeViewHRef.current) >= 40) {
+        nudgeViewHRef.current = viewH
+        nudgeStepsRef.current = 0
       }
-      writeLauncherPos(next)
-      commitLauncherPos(next)
+      nudgeLauncherIntoView()
     }
     window.addEventListener('resize', reclamp)
     window.addEventListener('orientationchange', reclamp)
@@ -368,7 +393,7 @@ export function FloatingChatWidget({
       window.visualViewport?.removeEventListener('resize', reclamp)
       window.visualViewport?.removeEventListener('scroll', reclamp)
     }
-  }, [commitLauncherPos])
+  }, [nudgeLauncherIntoView])
 
   useEffect(() => {
     if (closed) return

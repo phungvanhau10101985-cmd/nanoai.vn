@@ -1608,6 +1608,13 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
   ],
 }
 
+function maleTeacherFor(code: LanguageCode): TeacherProfile {
+  const teachers = TEACHERS_BY_LANGUAGE[code] || TEACHERS_BY_LANGUAGE.en
+  const males = teachers.filter((teacher) => teacher.gender === 'male')
+  const pool = males.length > 0 ? males : teachers
+  return pool.find((teacher) => teacher.voiceName === 'Orus') || pool[0]
+}
+
 function base64ToBytes(b64: string): Uint8Array {
   const binary = atob(b64)
   const out = new Uint8Array(binary.length)
@@ -2334,7 +2341,7 @@ export default function HocBaiHocCoSanClientPage() {
   const [sessionId, setSessionId] = useState<string>(createSessionId)
   const [languageCode, setLanguageCode] = useState<LanguageCode>('en')
   const [nativeLanguageCode, setNativeLanguageCode] = useState<NativeLanguageCode>('vi')
-  const [teacherId, setTeacherId] = useState<string>('en-us-f')
+  const [teacherId, setTeacherId] = useState<string>('en-us-m')
   const [sessionTeacher, setSessionTeacher] = useState<TeacherProfile | null>(null)
   const [speakingLanguageMode] = useState<SpeakingLanguageMode>('auto')
   const [startingLesson, setStartingLesson] = useState(false)
@@ -2984,14 +2991,15 @@ export default function HocBaiHocCoSanClientPage() {
       }
     })
   }
-  const teacherOptions = useMemo(
-    () =>
-      TEACHERS_BY_LANGUAGE[languageCode].map((teacher) => ({
+  const teacherOptions = useMemo(() => {
+    const teacher = maleTeacherFor(languageCode)
+    return [
+      {
         ...teacher,
         label: TEACHER_LABELS[teacher.id]?.[uiLocale] || TEACHER_LABELS[teacher.id]?.en || teacher.label,
-      })),
-    [languageCode, uiLocale]
-  )
+      },
+    ]
+  }, [languageCode, uiLocale])
   const selectedTeacher = useMemo(
     () => teacherOptions.find((t) => t.id === teacherId) || teacherOptions[0],
     [teacherId, teacherOptions]
@@ -4178,7 +4186,7 @@ export default function HocBaiHocCoSanClientPage() {
       nativeLanguage: selectedNativeLanguage.apiLabel,
       voiceStyle:
         activeTeacher.gender === 'male'
-          ? `Speak with a clearly masculine native ${labelToUse} teacher voice. Calm, warm, and natural.`
+          ? `Speak with a deep, warm masculine native ${labelToUse} teacher voice. Low pitch, calm, and natural.`
           : `Speak with a clearly feminine native ${labelToUse} teacher voice. Calm, warm, and natural.`,
     })
     const payload = data as {
@@ -5935,11 +5943,8 @@ export default function HocBaiHocCoSanClientPage() {
       if (loadHistoryRequestSeqRef.current !== requestSeq) return
 
       const items = Array.isArray(payload.items) ? payload.items : []
-      const loadedLearningMode: 'review' | 'reflex' =
-        payload.learningMode === 'reflex' ? 'reflex' : 'review'
-      if (payload.learningMode === 'reflex' || payload.learningMode === 'review') {
-        setLearningMode(payload.learningMode)
-      }
+      const loadedLearningMode: 'review' | 'reflex' = 'review'
+      setLearningMode('review')
       setSessionId(targetSessionId)
       setMessages(items.map((x) => ({ id: x.id, role: x.role, text: x.text })))
       const loadedStudentTurns = items.filter((x) => x.role === 'student').length
@@ -6413,38 +6418,9 @@ export default function HocBaiHocCoSanClientPage() {
       }
       if (metaLanguage && TEACHERS_BY_LANGUAGE[metaLanguage]) {
         setLanguageCode(metaLanguage)
-        const teachers = TEACHERS_BY_LANGUAGE[metaLanguage]
-        const normalize = (value: string) => String(value || '').trim().toLowerCase()
-        const teacherLabelMeta = normalize(String(firstMeta?.teacherLabel || ''))
-        const teacherLocaleMeta = normalize(
-          String((firstMeta as { teacherLocale?: string } | undefined)?.teacherLocale || '')
-        )
-        const inferGenderFromLabel = (label: string): Gender | null => {
-          if (!label) return null
-          if (/(^|\s)(thay|thầy|male|mr|nam|anh)(\s|$)/i.test(label)) return 'male'
-          if (/(^|\s)(co|cô|female|miss|ms|mrs|nu|nữ|chi|chị)(\s|$)/i.test(label)) return 'female'
-          return null
-        }
-        const matchedByLabel = teachers.find((t) => normalize(t.label) === teacherLabelMeta)
-        const matchedByLocale = teacherLocaleMeta
-          ? teachers.find((t) => normalize(t.locale) === teacherLocaleMeta)
-          : undefined
-        const inferredGender = inferGenderFromLabel(teacherLabelMeta)
-        const matchedByGender = inferredGender
-          ? teachers.find((t) => t.gender === inferredGender)
-          : undefined
-        const fallbackTeacher =
-          matchedByLabel
-          || matchedByLocale
-          || matchedByGender
-          || (teachers.find((t) => t.id === selectedTeacher.id))
-          || teachers[0]
-        if (fallbackTeacher) {
-          setTeacherId(fallbackTeacher.id)
-          setSessionTeacher(fallbackTeacher)
-        } else {
-          setSessionTeacher(null)
-        }
+        const lockedTeacher = maleTeacherFor(metaLanguage)
+        setTeacherId(lockedTeacher.id)
+        setSessionTeacher(lockedTeacher)
       } else {
         setSessionTeacher(null)
       }
@@ -6950,12 +6926,7 @@ export default function HocBaiHocCoSanClientPage() {
       }
       if (parsed.languageCode && LANGUAGE_CODES.includes(parsed.languageCode as LanguageCode)) {
         setLanguageCode(parsed.languageCode as LanguageCode)
-        const teachers = TEACHERS_BY_LANGUAGE[parsed.languageCode as LanguageCode]
-        if (teachers?.some((t) => t.id === parsed.teacherId)) {
-          setTeacherId(parsed.teacherId!)
-        } else if (teachers?.[0]) {
-          setTeacherId(teachers[0].id)
-        }
+        setTeacherId(maleTeacherFor(parsed.languageCode as LanguageCode).id)
       }
       // Hợp nhất nativeLanguageCode vào cùng key để giữ nhất quán; ưu tiên giá trị trong unified key.
       if (parsed.nativeLanguageCode && NATIVE_LANGUAGE_CODES.includes(parsed.nativeLanguageCode as NativeLanguageCode)) {
@@ -6973,7 +6944,7 @@ export default function HocBaiHocCoSanClientPage() {
         setTopicId(tid)
       }
       if (parsed.learningMode === 'reflex' || parsed.learningMode === 'review') {
-        setLearningMode(parsed.learningMode as LearningMode)
+        setLearningMode('review')
       }
     } catch {
       // ignore storage issues
@@ -6992,8 +6963,7 @@ export default function HocBaiHocCoSanClientPage() {
       if (cancelled) return
       if (picked.target) {
         setLanguageCode(picked.target)
-        const teachers = TEACHERS_BY_LANGUAGE[picked.target]
-        if (teachers?.[0]) setTeacherId(teachers[0].id)
+        setTeacherId(maleTeacherFor(picked.target).id)
       }
       if (picked.native) setNativeLanguageCode(picked.native)
     })
@@ -9106,8 +9076,7 @@ export default function HocBaiHocCoSanClientPage() {
                   onChange={(e) => {
                     const code = e.target.value as LanguageCode
                     setLanguageCode(code)
-                    const firstTeacher = TEACHERS_BY_LANGUAGE[code]?.[0]
-                    if (firstTeacher) setTeacherId(firstTeacher.id)
+                    setTeacherId(maleTeacherFor(code).id)
                   }}
                   className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
@@ -9131,29 +9100,6 @@ export default function HocBaiHocCoSanClientPage() {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="space-y-1 xl:col-span-2">
-                <label className="text-sm font-medium">{coachUiText.nativeTeacher}</label>
-                <select
-                  value={selectedTeacher.id}
-                  onChange={(e) => setTeacherId(e.target.value)}
-                  disabled={messages.length > 0}
-                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
-                >
-                  {teacherOptions.map((teacher) => (
-                    <option key={teacher.id} value={teacher.id}>
-                      {teacher.label}
-                    </option>
-                  ))}
-                </select>
-                {messages.length > 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    {localText(
-                      'Giáo viên được khóa trong buổi hiện tại. Bấm "Buổi học mới" để đổi.',
-                      'Teacher is locked for this session. Click "New lesson" to change.'
-                    )}
-                  </p>
-                ) : null}
               </div>
               <div className="space-y-1 xl:col-span-2">
                 <label className="text-sm font-medium">{coachUiText.learningMode}</label>
@@ -9374,35 +9320,6 @@ export default function HocBaiHocCoSanClientPage() {
               </div>
             </div>
             <div className="min-w-0 rounded-xl border border-indigo-200/70 bg-indigo-50/60 p-3 sm:p-4">
-              <div className="mb-3 flex min-w-0 flex-wrap items-center gap-4">
-                <div className="min-w-0">
-                  <p className="mb-1 break-words text-xs font-medium text-slate-700">{localText('Chế độ học', 'Learning mode')}</p>
-                  <div className="flex flex-wrap gap-3">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="learningModeSetup"
-                        value="review"
-                        checked={learningMode === 'review'}
-                        onChange={() => setLearningMode('review')}
-                        className="h-3.5 w-3.5"
-                      />
-                      <span className="text-sm">{localText('Ôn tập', 'Review')}</span>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="learningModeSetup"
-                        value="reflex"
-                        checked={learningMode === 'reflex'}
-                        onChange={() => setLearningMode('reflex')}
-                        className="h-3.5 w-3.5"
-                      />
-                      <span className="text-sm">{localText('Phản xạ', 'Reflex')}</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
               <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2">
                 <span
                   className={`shrink-0 rounded-full border px-3 py-1.5 break-words text-xs font-semibold ${
@@ -11822,7 +11739,6 @@ export default function HocBaiHocCoSanClientPage() {
         localText={localText}
         learningLanguageLabel={coachUiText.learningLanguage}
         nativeLanguageLabel={coachUiText.nativeLanguage}
-        nativeTeacherLabel={coachUiText.nativeTeacher}
         learnerLevelLabel={coachUiText.learnerLevel}
         customTopicPlaceholder={coachUiText.customTopicPlaceholder}
         languageCode={languageCode}
@@ -11830,15 +11746,11 @@ export default function HocBaiHocCoSanClientPage() {
         onLanguageChange={(code) => {
           const nextCode = code as LanguageCode
           setLanguageCode(nextCode)
-          const firstTeacher = TEACHERS_BY_LANGUAGE[nextCode]?.[0]
-          if (firstTeacher) setTeacherId(firstTeacher.id)
+          setTeacherId(maleTeacherFor(nextCode).id)
         }}
         nativeLanguageCode={nativeLanguageCode}
         nativeLanguageOptions={nativeLanguageOptions.map((x) => ({ value: x.code, label: x.label }))}
         onNativeLanguageChange={(code) => setNativeLanguageCode(code as NativeLanguageCode)}
-        selectedTeacherId={selectedTeacher.id}
-        teacherOptions={teacherOptions.map((x) => ({ value: x.id, label: x.label }))}
-        onTeacherChange={(id) => setTeacherId(id)}
         learnerLevel={learnerLevel}
         learnerLevelOptions={[
           { value: '0', label: levelLabelUi(0) },
@@ -11848,8 +11760,6 @@ export default function HocBaiHocCoSanClientPage() {
           { value: '4', label: levelLabelUi(4) },
         ]}
         onLearnerLevelChange={(value) => setLearnerLevel(value as LearnerLevel)}
-        learningMode={learningMode}
-        onLearningModeChange={setLearningMode}
         pendingTopicId={pendingTopicId}
         topicSourceMode={topicSourceMode}
         builtInTopicOptions={builtInTopicOptions}

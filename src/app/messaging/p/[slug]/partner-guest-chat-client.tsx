@@ -57,15 +57,18 @@ import { fireMetaBuyNowPixelEvents } from './meta-buy-now-pixel-fire'
 import { fireMetaConsultViewContentPixelEvent } from './meta-view-content-consult-click-pixel-fire'
 import { fireMetaPurchasePixelEvents } from './meta-purchase-pixel-fire'
 import { MetaPixelViewContentTracker } from './meta-pixel-view-content-tracker'
+import { claimPartnerPurchaseTracked } from '@/lib/partner-website/shop/partner-site-purchase-claim'
 import {
   guestCardToTrackingProduct,
   trackPartnerSiteAddToCart,
   trackPartnerSiteBeginCheckout,
+  trackPartnerSitePlaceOrder,
   trackPartnerSitePurchase,
   trackPartnerSiteViewItem,
   trackingProductFromGa4Input,
   trackingProductFromMetaViewContent,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import type { PartnerSiteShopTrackingLine } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { rememberPartnerSiteMetaCustomer } from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import type { ShopGa4ProductInput } from './shop-ga4-ecommerce'
@@ -521,6 +524,7 @@ type GuestOrderGa4Snapshot = {
   subtotal_amount?: number | null
   amount_after_discount?: number | null
   required_amount?: number | null
+  status?: string | null
   customer_email?: string | null
   customer_phone?: string | null
 }
@@ -915,6 +919,139 @@ function parseVndFromHint(priceHint: string | undefined): number {
   if (!digits) return 0
   const n = Number.parseInt(digits, 10)
   return Number.isFinite(n) ? Math.max(0, n) : 0
+}
+
+const CHAT_DEPOSIT_PURCHASE_WAIT = 'pw_chat_purchase_wait_'
+
+function guestCheckoutLines(
+  order: GuestOrderGa4Snapshot | null | undefined,
+  items: Array<{ content_id?: string; item_name?: string; value?: number; quantity?: number }> | undefined
+): { transactionId: string; value: number; lines: PartnerSiteShopTrackingLine[]; customerEmail?: string; customerPhone?: string } | null {
+  const orderId = String(order?.id ?? '').trim()
+  if (!orderId) return null
+  const rows = (items ?? []).filter((item) => String(item.content_id || '').trim())
+  const lines: PartnerSiteShopTrackingLine[] = rows.length
+    ? rows.map((item) => {
+        const contentId = String(item.content_id || '').trim()
+        return {
+          itemId: contentId,
+          remarketingId: contentId,
+          itemName: String(item.item_name || '').trim() || contentId,
+          value: Math.max(0, Math.round(Number(item.value) || 0)),
+          quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
+        }
+      })
+    : String(order?.product_inventory_id || '').trim()
+      ? [
+          {
+            itemId: String(order?.product_inventory_id || '').trim(),
+            itemName: order?.product_name || String(order?.product_inventory_id || '').trim(),
+            value: Math.max(0, Math.round(Number(order?.unit_price) || 0)),
+            quantity: Math.max(1, Math.floor(Number(order?.quantity) || 1)),
+          },
+        ]
+      : []
+  if (!lines.length) return null
+  return {
+    transactionId: orderId,
+    value: Math.max(
+      0,
+      Math.round(Number(order?.amount_after_discount ?? order?.subtotal_amount ?? order?.required_amount) || 0)
+    ),
+    lines,
+    customerEmail: order?.customer_email?.trim() || undefined,
+    customerPhone: order?.customer_phone?.trim() || undefined,
+  }
+}
+
+function rememberChatDepositPurchase(
+  input: { transactionId: string; value: number; lines: PartnerSiteShopTrackingLine[]; customerEmail?: string; customerPhone?: string }
+): void {
+  try {
+    sessionStorage.setItem(`${CHAT_DEPOSIT_PURCHASE_WAIT}${input.transactionId}`, JSON.stringify(input))
+  } catch {
+    /* private */
+  }
+}
+
+function trackGuestCheckoutCommerce(
+  adsTracking: PartnerSiteShopTrackingConfig,
+  order: GuestOrderGa4Snapshot | null | undefined,
+  items: Array<{ content_id?: string; item_name?: string; value?: number; quantity?: number }> | undefined,
+  mp:
+    | {
+        pixelId?: string
+        eventId?: string
+        value?: number
+        currency?: string
+        content_ids?: string[]
+        content_type?: string
+        num_items?: number
+        contents?: Array<{ id: string; quantity: number; item_price: number; title?: string }>
+        order_id?: string
+        remarketing_id?: string
+      }
+    | null
+    | undefined
+): void {
+  const required = Math.max(0, Math.round(Number(order?.required_amount) || 0))
+  if (required > 0 && String(order?.status ?? '') !== 'paid_verified') {
+    const input = guestCheckoutLines(order, items)
+    if (!input) return
+    trackPartnerSitePlaceOrder(adsTracking, {
+      transactionId: input.transactionId,
+      value: input.value,
+      lines: input.lines,
+    })
+    rememberChatDepositPurchase(input)
+    return
+  }
+  if (
+    mp?.pixelId &&
+    mp.eventId &&
+    typeof mp.value === 'number' &&
+    mp.currency === 'VND' &&
+    Array.isArray(mp.content_ids) &&
+    mp.content_type === 'product' &&
+    typeof mp.num_items === 'number' &&
+    Array.isArray(mp.contents) &&
+    mp.order_id
+  ) {
+    const purchasePayload = {
+      pixelId: mp.pixelId,
+      eventId: mp.eventId,
+      value: mp.value,
+      currency: 'VND' as const,
+      content_ids: mp.content_ids,
+      content_type: 'product' as const,
+      num_items: mp.num_items,
+      contents: mp.contents,
+      order_id: mp.order_id,
+      ...(mp.remarketing_id ? { remarketing_id: mp.remarketing_id } : {}),
+    }
+    try {
+      fireMetaPurchasePixelEvents(purchasePayload)
+    } catch {
+      /* Meta tùy chọn */
+    }
+    trackPartnerSitePurchase(
+      adsTracking,
+      {
+        transactionId: purchasePayload.order_id,
+        value: purchasePayload.value,
+        lines: purchasePayload.contents.map((item) => ({
+          itemId: item.id,
+          remarketingId: item.id,
+          itemName: item.title || item.id,
+          value: item.item_price,
+          quantity: item.quantity,
+        })),
+      },
+      { skipMeta: true }
+    )
+    return
+  }
+  if (!mp) trackGuestPurchaseFromCatalogItems(adsTracking, order, items)
 }
 
 function trackGuestPurchaseFromOrderSnapshot(
@@ -2139,6 +2276,58 @@ export function PartnerGuestChatClient({
     () => collectGuestOrderDepositConfirmationSplit(messages),
     [messages]
   )
+
+  useEffect(() => {
+    for (const message of messages) {
+      const raw = message.raw_payload
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+      const row = raw as Record<string, unknown>
+      if (row.source !== 'system_order' || row.order_status !== 'paid_verified') continue
+      const orderId = typeof row.order_id === 'string' ? row.order_id.trim() : ''
+      if (!orderId) continue
+      const stashKey = `${CHAT_DEPOSIT_PURCHASE_WAIT}${orderId}`
+      let stored = ''
+      try {
+        stored = sessionStorage.getItem(stashKey) || ''
+      } catch {
+        continue
+      }
+      if (!stored) continue
+      let input: {
+        transactionId?: string
+        value?: number
+        lines?: PartnerSiteShopTrackingLine[]
+        customerEmail?: string
+        customerPhone?: string
+      }
+      try {
+        input = JSON.parse(stored) as typeof input
+      } catch {
+        continue
+      }
+      if (!input.transactionId || !input.lines?.length) continue
+      if (!claimPartnerPurchaseTracked(orderId)) {
+        try {
+          sessionStorage.removeItem(stashKey)
+        } catch {
+          /* private */
+        }
+        continue
+      }
+      try {
+        sessionStorage.removeItem(stashKey)
+      } catch {
+        /* private */
+      }
+      trackPartnerSitePurchase(adsTracking, {
+        transactionId: input.transactionId,
+        value: Math.max(0, Math.round(Number(input.value) || 0)),
+        lines: input.lines,
+        customerEmail: input.customerEmail,
+        customerPhone: input.customerPhone,
+      })
+    }
+  }, [adsTracking, messages])
 
   useEffect(() => {
     if (proofOrderId && paidDepositOrderIds.has(proofOrderId)) {
@@ -4056,53 +4245,7 @@ export function PartnerGuestChatClient({
         toast({ title: data?.error || 'Không tạo được đơn hàng.', variant: 'destructive' })
         return
       }
-      const mp = data.metaPurchase
-      if (
-        mp?.pixelId &&
-        mp.eventId &&
-        typeof mp.value === 'number' &&
-        mp.currency === 'VND' &&
-        Array.isArray(mp.content_ids) &&
-        mp.content_type === 'product' &&
-        typeof mp.num_items === 'number' &&
-        Array.isArray(mp.contents) &&
-        mp.order_id
-      ) {
-        const purchasePayload = {
-          pixelId: mp.pixelId,
-          eventId: mp.eventId,
-          value: mp.value,
-          currency: 'VND' as const,
-          content_ids: mp.content_ids,
-          content_type: 'product' as const,
-          num_items: mp.num_items,
-          contents: mp.contents,
-          order_id: mp.order_id,
-          ...(mp.remarketing_id ? { remarketing_id: mp.remarketing_id } : {}),
-        }
-        try {
-          fireMetaPurchasePixelEvents(purchasePayload)
-        } catch {
-          // Meta tùy chọn
-        }
-        trackPartnerSitePurchase(
-          adsTracking,
-          {
-            transactionId: purchasePayload.order_id,
-            value: purchasePayload.value,
-            lines: purchasePayload.contents.map((item) => ({
-              itemId: item.id,
-              remarketingId: item.id,
-              itemName: item.title || item.id,
-              value: item.item_price,
-              quantity: item.quantity,
-            })),
-          },
-          { skipMeta: true }
-        )
-      } else if (!mp) {
-        trackGuestPurchaseFromCatalogItems(adsTracking, data.order, data.catalog_items)
-      }
+      trackGuestCheckoutCommerce(adsTracking, data.order, data.catalog_items, data.metaPurchase)
       saveLocalOrderProfile({
         customerName: orderName,
         customerPhone: orderPhone,
@@ -4568,53 +4711,7 @@ export function PartnerGuestChatClient({
         toast({ title: data.error || `Không tạo được đơn hàng (mã lỗi ${res.status}).`, variant: 'destructive' })
         return
       }
-      const mp = data.metaPurchase
-      if (
-        mp?.pixelId &&
-        mp.eventId &&
-        typeof mp.value === 'number' &&
-        mp.currency === 'VND' &&
-        Array.isArray(mp.content_ids) &&
-        mp.content_type === 'product' &&
-        typeof mp.num_items === 'number' &&
-        Array.isArray(mp.contents) &&
-        mp.order_id
-      ) {
-        const purchasePayload = {
-          pixelId: mp.pixelId,
-          eventId: mp.eventId,
-          value: mp.value,
-          currency: 'VND' as const,
-          content_ids: mp.content_ids,
-          content_type: 'product' as const,
-          num_items: mp.num_items,
-          contents: mp.contents,
-          order_id: mp.order_id,
-          ...(mp.remarketing_id ? { remarketing_id: mp.remarketing_id } : {}),
-        }
-        try {
-          fireMetaPurchasePixelEvents(purchasePayload)
-        } catch {
-          // Meta tùy chọn
-        }
-        trackPartnerSitePurchase(
-          adsTracking,
-          {
-            transactionId: purchasePayload.order_id,
-            value: purchasePayload.value,
-            lines: purchasePayload.contents.map((item) => ({
-              itemId: item.id,
-              remarketingId: item.id,
-              itemName: item.title || item.id,
-              value: item.item_price,
-              quantity: item.quantity,
-            })),
-          },
-          { skipMeta: true }
-        )
-      } else if (!mp) {
-        trackGuestPurchaseFromCatalogItems(adsTracking, data.order, data.catalog_items)
-      }
+      trackGuestCheckoutCommerce(adsTracking, data.order, data.catalog_items, data.metaPurchase)
       saveLocalOrderProfile({
         customerName: orderName,
         customerPhone: orderPhone,

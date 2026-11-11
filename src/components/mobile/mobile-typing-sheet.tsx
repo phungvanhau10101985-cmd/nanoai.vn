@@ -35,10 +35,16 @@ export function MobileTypingSheet(props: {
         offsetTop: vv?.offsetTop ?? 0,
         visualHeight,
       })
-      setFrame(next)
+      setFrame((prev) => {
+        if (prev === next) return prev
+        if (prev && next && prev.top === next.top && prev.height === next.height) return prev
+        if (!prev && !next) return prev
+        return next
+      })
       const overlap = keyboardOverlapPx(window.innerHeight, vv?.offsetTop ?? 0, visualHeight)
       const dropped = openedAt - visualHeight
-      setKeyboardOpen(mq.matches && (overlap >= KEYBOARD_OPEN_PX || dropped >= KEYBOARD_OPEN_PX))
+      const open = mq.matches && (overlap >= KEYBOARD_OPEN_PX || dropped >= KEYBOARD_OPEN_PX)
+      setKeyboardOpen((prev) => (prev === open ? prev : open))
     }
 
     sync()

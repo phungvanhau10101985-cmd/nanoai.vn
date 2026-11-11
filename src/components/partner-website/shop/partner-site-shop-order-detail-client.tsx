@@ -9,9 +9,19 @@ import { formatVnd, formatVndOrZero } from '@/lib/partner-website/shop/cart-line
 import { markGoogleCustomerReviewsForOrder } from '@/lib/partner-website/shop/google-customer-reviews'
 import {
   isPartnerShopDepositWaiting,
+  orderSkipsDeposit,
   partnerOrderPayableTotal,
   partnerOrderRemainingAfterDeposit,
 } from '@/lib/partner-website/shop/order-deposit'
+import {
+  claimPartnerPurchaseTracked,
+  clearPartnerPurchaseAfterPageLoad,
+  hasPartnerPurchaseAfterPageLoad,
+} from '@/lib/partner-website/shop/partner-site-purchase-claim'
+import { trackPartnerSitePurchase } from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import type { PartnerSiteShopTrackingLine } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
+import type { OrderCatalogContentItem } from '@/lib/partner-website/shop/order-catalog-content'
+import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { readPartnerSiteCheckoutHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
 import {
   PW_GUEST_ORDER_PAGE_READY_EVENT,
@@ -57,6 +67,8 @@ type DetailOrder = PartnerOrderDiscountFields & {
   product_image_url?: string | null
   product_inventory_id?: string | null
   product_url?: string | null
+  customer_phone?: string | null
+  quantity?: number | null
   promo_code?: string | null
   loyalty_tier_name?: string | null
   tracking_number?: string | null
@@ -72,7 +84,31 @@ type Props = {
   initialShipmentEvents?: ShopShipmentEventView[]
   initialSiblings?: ShopSiblingOrderView[]
   initialCanConfirm?: boolean
+  initialCatalogItems?: OrderCatalogContentItem[]
   shopName?: string
+}
+
+function catalogTrackingLines(order: DetailOrder, items: OrderCatalogContentItem[]): PartnerSiteShopTrackingLine[] {
+  if (items.length) {
+    return items.map((item) => ({
+      itemId: item.content_id,
+      itemName: item.item_name,
+      value: item.value,
+      quantity: item.quantity,
+      remarketingId: item.content_id,
+    }))
+  }
+  const inventoryId = String(order.product_inventory_id || '').trim()
+  if (!inventoryId) return []
+  const quantity = Math.max(1, Math.floor(Number(order.quantity) || 1))
+  return [
+    {
+      itemId: inventoryId,
+      itemName: order.product_name || inventoryId,
+      value: Math.max(0, Math.round(Number(order.subtotal_amount) || 0)),
+      quantity,
+    },
+  ]
 }
 
 export function PartnerSiteShopOrderDetailClient({
@@ -85,17 +121,20 @@ export function PartnerSiteShopOrderDetailClient({
   initialShipmentEvents = [],
   initialSiblings = [],
   initialCanConfirm = false,
+  initialCatalogItems = [],
   shopName = '',
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
   const { authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
+  const { tracking } = usePartnerSiteShop()
   const [order, setOrder] = useState<DetailOrder | null>(initialOrder)
   const [merchantId, setMerchantId] = useState<number | null>(initialMerchantId)
   const [loading, setLoading] = useState(!initialOrder)
   const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>(initialShipmentEvents)
   const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>(initialSiblings)
   const [canConfirm, setCanConfirm] = useState(initialCanConfirm)
+  const [catalogItems, setCatalogItems] = useState<OrderCatalogContentItem[]>(initialCatalogItems)
   const [confirmBusy, setConfirmBusy] = useState(false)
   const [confirmStatus, setConfirmStatus] = useState('')
   const [brandName, setBrandName] = useState(shopName)
@@ -109,9 +148,11 @@ export function PartnerSiteShopOrderDetailClient({
     sibling_orders?: ShopSiblingOrderView[]
     can_confirm_received?: boolean
     partner_display_name?: string
+    catalog_items?: OrderCatalogContentItem[]
   }) => {
     if (!json.order) return false
     setOrder(json.order)
+    if (Array.isArray(json.catalog_items)) setCatalogItems(json.catalog_items)
     if (json.partner_display_name?.trim()) setBrandName(json.partner_display_name.trim())
     setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
     setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
@@ -138,6 +179,7 @@ export function PartnerSiteShopOrderDetailClient({
         shipment_events?: ShopShipmentEventView[]
         sibling_orders?: ShopSiblingOrderView[]
         can_confirm_received?: boolean
+        catalog_items?: OrderCatalogContentItem[]
       }
       if (!res.ok || !json.order) {
         return
@@ -167,6 +209,7 @@ export function PartnerSiteShopOrderDetailClient({
         shipment_events: Array.isArray(boot.shipment_events) ? (boot.shipment_events as ShopShipmentEventView[]) : [],
         sibling_orders: Array.isArray(boot.sibling_orders) ? (boot.sibling_orders as ShopSiblingOrderView[]) : [],
         can_confirm_received: boot.can_confirm_received === true,
+        catalog_items: Array.isArray(boot.catalog_items) ? (boot.catalog_items as OrderCatalogContentItem[]) : [],
       })
     }
     const onReady = () => {
@@ -178,6 +221,7 @@ export function PartnerSiteShopOrderDetailClient({
         shipment_events: Array.isArray(next.shipment_events) ? (next.shipment_events as ShopShipmentEventView[]) : [],
         sibling_orders: Array.isArray(next.sibling_orders) ? (next.sibling_orders as ShopSiblingOrderView[]) : [],
         can_confirm_received: next.can_confirm_received === true,
+        catalog_items: Array.isArray(next.catalog_items) ? (next.catalog_items as OrderCatalogContentItem[]) : [],
       })
     }
     window.addEventListener(PW_GUEST_ORDER_PAGE_READY_EVENT, onReady)
@@ -193,10 +237,35 @@ export function PartnerSiteShopOrderDetailClient({
 
   useEffect(() => {
     if (!order?.id) return
-    if (Number(order.required_amount ?? 0) <= 0) {
+    if (orderSkipsDeposit(order)) {
       markGoogleCustomerReviewsForOrder(order.id)
     }
   }, [order])
+
+  useEffect(() => {
+    if (loading || !order?.id || !hasPartnerPurchaseAfterPageLoad(order.id)) return
+    if (!orderSkipsDeposit(order)) {
+      clearPartnerPurchaseAfterPageLoad(order.id)
+      return
+    }
+    const lines = catalogTrackingLines(order, catalogItems)
+    if (!lines.length) return
+    if (!claimPartnerPurchaseTracked(order.id)) {
+      clearPartnerPurchaseAfterPageLoad(order.id)
+      return
+    }
+    clearPartnerPurchaseAfterPageLoad(order.id)
+    trackPartnerSitePurchase(tracking, {
+      transactionId: order.id,
+      value: partnerOrderPayableTotal({
+        amount_after_discount: order.amount_after_discount ?? order.subtotal_amount,
+        shipping_fee_amount: order.shipping_fee_amount,
+      }),
+      lines,
+      customerEmail: order.customer_email?.trim() || undefined,
+      customerPhone: order.customer_phone?.trim() || undefined,
+    })
+  }, [catalogItems, loading, order, tracking])
 
   const ordersHref = partnerSiteOrdersPath(siteSlug, { customDomain })
   const depositHref = partnerSiteOrderDepositPath(siteSlug, orderId, { customDomain })

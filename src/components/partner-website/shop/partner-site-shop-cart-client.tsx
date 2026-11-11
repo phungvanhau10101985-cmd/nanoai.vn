@@ -45,10 +45,10 @@ import { PartnerSiteAddressFormFields } from '@/components/partner-website/shop/
 import { PartnerSiteShopDialog } from '@/components/partner-website/shop/partner-site-shop-dialog'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
+import { markPartnerPurchaseAfterPageLoad } from '@/lib/partner-website/shop/partner-site-purchase-claim'
 import {
   trackPartnerSiteBeginCheckout,
   trackPartnerSitePlaceOrder,
-  trackPartnerSitePurchase,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import {
   buildPartnerShopLoginHref,
@@ -1258,13 +1258,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
                   : null,
           })
         } else {
-          trackPartnerSitePurchase(tracking, {
-            transactionId: created.id,
-            value: partnerOrderPayableTotal(created),
-            lines: checkoutLines,
-            customerEmail: created.customer_email?.trim() || undefined,
-            customerPhone: orderPhone.trim() || undefined,
-          })
+          markPartnerPurchaseAfterPageLoad(created.id)
         }
       }
       const checkedOutIds = new Set(selectedItems.map((item) => item.id))

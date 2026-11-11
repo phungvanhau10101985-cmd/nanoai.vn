@@ -12,7 +12,8 @@ import {
 const SLOP_PX = 16
 const DOCK_OR_SHEET = '[data-keyboard-dock],[data-keyboard-sheet]'
 const BAR_SELECTOR = 'nav, footer, [class~="sticky"], [class~="fixed"]'
-const PARK_SKIP = '[data-keyboard-manual],[data-keyboard-dock],[data-keyboard-sheet]'
+/** Nút chat tự kéo theo visual viewport. Giấu nó bằng display:none thì effect đo hộp rỗng và setState không dừng. */
+const PARK_SKIP = '[data-keyboard-manual],[data-keyboard-dock],[data-keyboard-sheet],[data-nanoai-widget-root]'
 
 function keyboardOwnedElsewhere(node: HTMLElement): boolean {
   if (node.closest(DOCK_OR_SHEET)) return true

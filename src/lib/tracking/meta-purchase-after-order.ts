@@ -8,6 +8,10 @@ import {
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
 import { readPartnerOrderMetaMatch, savePartnerOrderMetaMatch } from '@/lib/db/messaging-partner-order-meta-match-pg'
 import { normalizePartnerShopCurrency } from '@/lib/partner-website/shop/partner-shop-currency'
+import {
+  isPartnerDepositPurchaseConfirmed,
+  shouldRedirectToDepositAfterCreate,
+} from '@/lib/partner-website/shop/order-deposit'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
 import { metaCapiCustomerFromPartner } from '@/lib/tracking/meta-capi-customer-match'
 import { metaClientIpFromHeaders } from '@/lib/tracking/meta-client-ip'
@@ -60,7 +64,10 @@ function normalizeFbp(raw: string | null | undefined): string | null {
 }
 
 /**
- * Sau «Tạo đơn và QR» / tạo đơn — Purchase (CAPI + payload Pixel).
+ * Lưu cookie quảng cáo lúc tạo đơn.
+ * Purchase chỉ gửi ngay khi đơn không cần cọc (chat / API ngoài, không có trang xác nhận shop).
+ * Web shop không cọc đợi trang đơn tải xong (`deferToPageLoad`).
+ * Đơn còn chờ cọc không gửi Purchase — CAPI bắn lúc trạng thái sang `paid_verified`.
  */
 export async function runMetaPurchaseAfterOrderComplete(params: {
   partnerId: string
@@ -68,34 +75,12 @@ export async function runMetaPurchaseAfterOrderComplete(params: {
   request: NextRequest
   /** ID khách thô (user hoặc guest account). */
   externalId?: string | null
+  /** Web shop: Purchase của đơn không cọc do trang đơn bắn sau khi tải xong. */
+  deferToPageLoad?: boolean
 }): Promise<MetaPurchaseClientPayload | null> {
   const secrets = await fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg(params.partnerId)
   const pixelId = secrets?.facebook_pixel_id?.trim() ?? ''
-  if (!pixelId) return null
-
-  const invId = params.order.product_inventory_id?.trim() ?? ''
-  const inventory =
-    invId && UUID_RE.test(invId)
-      ? await fetchPartnerInventoryRowByIdForPartnerFromPg(params.partnerId, invId)
-      : null
-
-  const currency = normalizePartnerShopCurrency(
-    await fetchMessagingPartnerDefaultCurrencyFromPg(params.partnerId)
-  )
-  const lineItems = await purchaseLineItems(params.partnerId, params.order)
-  const base = buildMetaPurchaseCustomDataFromOrder({
-    order: params.order,
-    inventory,
-    currency,
-    lineItems,
-  })
-  // ID ổn định theo đơn (không phải UUID ngẫu nhiên) — bắt buộc để Meta dedupe đúng với Purchase
-  // gửi lại sau khi xác nhận thanh toán (`sendPartnerMetaPurchaseCapiOnPaymentConfirmed`), dù 2 lần
-  // gửi tách biệt hoàn toàn về thời điểm. Xem docs/188_BEHAVIOR_SPEC.md mục E.1.
-  const eventId = `Purchase_${params.order.id}`
   const eventSourceUrl = eventSourceUrlFromRequest(params.request)
-
-  const capi = secrets?.facebook_capi_access_token?.trim() ?? ''
   const clientIp = clientIpFromRequest(params.request)
   const userAgent = params.request.headers.get('user-agent')
   const fbc = normalizeFbc(params.request.cookies.get('_fbc')?.value)
@@ -117,6 +102,31 @@ export async function runMetaPurchaseAfterOrderComplete(params: {
     fbc,
     externalId: customer.externalId,
   })
+
+  const sendNow =
+    !params.deferToPageLoad &&
+    !shouldRedirectToDepositAfterCreate(params.order) &&
+    (isPartnerDepositPurchaseConfirmed(params.order) || Number(params.order.required_amount) <= 0)
+  if (!pixelId || !sendNow) return null
+
+  const invId = params.order.product_inventory_id?.trim() ?? ''
+  const inventory =
+    invId && UUID_RE.test(invId)
+      ? await fetchPartnerInventoryRowByIdForPartnerFromPg(params.partnerId, invId)
+      : null
+
+  const currency = normalizePartnerShopCurrency(
+    await fetchMessagingPartnerDefaultCurrencyFromPg(params.partnerId)
+  )
+  const lineItems = await purchaseLineItems(params.partnerId, params.order)
+  const base = buildMetaPurchaseCustomDataFromOrder({
+    order: params.order,
+    inventory,
+    currency,
+    lineItems,
+  })
+  const eventId = `Purchase_${params.order.id}`
+  const capi = secrets?.facebook_capi_access_token?.trim() ?? ''
   if (capi && eventSourceUrl) {
     void sendMetaPurchaseConversionsApi({
       pixelId,
@@ -147,9 +157,8 @@ export async function runMetaPurchaseAfterOrderComplete(params: {
 /**
  * Purchase server-side sau khi thanh toán/cọc được xác nhận THẬT (webhook tự động, admin xác nhận
  * thủ công, hoặc OCR biên lai tự duyệt) — dùng CHUNG 1 hàm cho mọi luồng thanh toán, khác 188 (188
- * chỉ có bản server-side riêng cho cọc, COD chỉ có browser). Cùng `event_id` ổn định
- * `Purchase_{orderId}` với lần gửi lúc tạo đơn để Meta dedupe đúng dù gửi 2 lần tách biệt thời điểm
- * — xem docs/188_BEHAVIOR_SPEC.md mục E.1/E.4.
+ * chỉ có bản server-side riêng cho cọc, COD chỉ có browser). `event_id` ổn định
+ * `Purchase_{orderId}` để trùng pixel trên trang «Đã đặt cọc» nếu khách còn mở trang.
  */
 export async function sendPartnerMetaPurchaseCapiOnPaymentConfirmed(params: {
   partnerId: string

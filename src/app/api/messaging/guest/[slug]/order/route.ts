@@ -335,6 +335,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
           order: done.order,
           request,
           externalId: thread.linkedUserId || thread.guestAccountId,
+          deferToPageLoad: true,
         }).catch((e) => console.warn('[order PATCH cart] meta purchase', e))
       } else {
         try {

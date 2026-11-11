@@ -564,7 +564,7 @@ export async function POST(request: NextRequest) {
     const intentAnswer = String(payload.intentAnswer || '').trim().slice(0, 2000) || null
     const tokensJson = String(payload.tokensJson || '').trim().slice(0, 4000) || null
     const aiPayloadJson = String(payload.aiPayloadJson || '').trim().slice(0, 32000) || null
-    const learningMode: 'review' | 'reflex' = payload.learningMode === 'reflex' ? 'reflex' : 'review'
+    const learningMode: 'review' | 'reflex' = 'review'
     const topicId = String(payload.topicId || '').trim() || null
     const topicLabel = String(payload.topicLabel || '').trim() || null
 

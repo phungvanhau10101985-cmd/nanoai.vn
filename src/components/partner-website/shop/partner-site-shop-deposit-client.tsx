@@ -18,12 +18,14 @@ import {
 import { depositQrDownloadFilename } from '@/lib/messaging/deposit-qr-image'
 import { clampPartnerDepositPercent } from '@/lib/messaging/partner-deposit-amount'
 import {
+  isPartnerDepositPurchaseConfirmed,
   isPartnerShopDepositWaiting,
   partnerOrderEstimatedRemainingAfterDeposit,
   partnerOrderPayableTotal,
   partnerOrderRemainingAfterDeposit,
   shouldShowDepositSuccessPage,
 } from '@/lib/partner-website/shop/order-deposit'
+import { claimPartnerPurchaseTracked } from '@/lib/partner-website/shop/partner-site-purchase-claim'
 import {
   readPartnerSiteCheckoutHandoff,
   clearPartnerSiteCheckoutHandoff,
@@ -342,31 +344,19 @@ export function PartnerSiteShopDepositClient({
     if (wasWaiting && nowDone) {
       setToastKind('pay')
       setToast(t.depositToastBody)
-      const key = `pw_purchase_tracked_order_${order.id}`
-      let tracked = false
-      try {
-        tracked = window.localStorage.getItem(key) === '1'
-      } catch {
-        /* private */
-      }
-      if (!tracked) {
-        try {
-          window.localStorage.setItem(key, '1')
-        } catch {
-          /* ignore */
-        }
-        const value = partnerOrderPayableTotal({
-          amount_after_discount: order.amount_after_discount ?? order.subtotal_amount,
-          shipping_fee_amount: order.shipping_fee_amount,
-        })
-        trackPartnerSitePurchase(tracking, {
-          transactionId: order.id,
-          value,
-          lines: catalogTrackingLines(order, catalogItems),
-          customerEmail: order.customer_email?.trim() || undefined,
-          customerPhone: order.customer_phone?.trim() || undefined,
-        })
-      }
+    }
+    if (wasWaiting && isPartnerDepositPurchaseConfirmed(order) && claimPartnerPurchaseTracked(order.id)) {
+      const value = partnerOrderPayableTotal({
+        amount_after_discount: order.amount_after_discount ?? order.subtotal_amount,
+        shipping_fee_amount: order.shipping_fee_amount,
+      })
+      trackPartnerSitePurchase(tracking, {
+        transactionId: order.id,
+        value,
+        lines: catalogTrackingLines(order, catalogItems),
+        customerEmail: order.customer_email?.trim() || undefined,
+        customerPhone: order.customer_phone?.trim() || undefined,
+      })
     }
     prevStatusRef.current = order.status
   }, [catalogItems, catalogReady, order, shopTitle, t.depositToastBody, tracking])

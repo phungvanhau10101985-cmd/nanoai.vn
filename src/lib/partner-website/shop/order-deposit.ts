@@ -33,6 +33,21 @@ export function shouldRedirectToDepositAfterCreate(order: PartnerShopDepositOrde
   return status === 'awaiting_payment' || status === 'waiting_deposit'
 }
 
+/** Không cần chuyển khoản trước. Lượt mua = trang sau khi bấm mua đã tải xong. */
+export function orderSkipsDeposit(order: PartnerShopDepositOrderLike): boolean {
+  return money(order.required_amount) <= 0
+}
+
+/**
+ * Đơn có cọc chỉ là mua khi trạng thái đã sang «Đã đặt cọc».
+ * Trong DB đó là `paid_verified` (SePay khớp, shop xác nhận cọc, hoặc OCR tự duyệt).
+ * Chờ chuyển khoản, đang đối chiếu, chờ duyệt tay chưa phải mua.
+ */
+export function isPartnerDepositPurchaseConfirmed(order: PartnerShopDepositOrderLike): boolean {
+  if (orderSkipsDeposit(order)) return false
+  return String(order.status ?? '').trim() === 'paid_verified'
+}
+
 /** Giỏ mix: ưu tiên đơn còn cọc (kể cả khi đơn chính mang phí ship). */
 export function pickDepositLandingOrder<T extends PartnerShopDepositOrderLike>(
   primary: T,

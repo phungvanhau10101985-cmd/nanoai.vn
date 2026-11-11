@@ -1516,7 +1516,7 @@ export async function POST(request: NextRequest) {
       text: simplifiedChineseLesson ? toSimplifiedChinese(item.text) : item.text,
     }))
     const accent: TeacherAccent = payload.accent === 'uk' ? 'uk' : 'us'
-    const gender: TeacherGender = payload.gender === 'male' ? 'male' : 'female'
+    const gender: TeacherGender = 'male'
     const mode: 'chat' | 'listen_speak' | 'roleplay_short' =
       payload.mode === 'listen_speak'
         ? 'listen_speak'
@@ -1565,7 +1565,7 @@ export async function POST(request: NextRequest) {
     const topicStarterSentences = Array.isArray(payload.topicStarterSentences)
       ? payload.topicStarterSentences.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 4)
       : []
-    const learningMode: 'review' | 'reflex' = payload.learningMode === 'reflex' ? 'reflex' : 'review'
+    const learningMode: 'review' | 'reflex' = 'review'
     const drillType = payload.drillType === 'listening' ? 'listening' : ''
     const drillSpeaking = Boolean(payload.drillSpeaking)
     const isFromDrill = drillType === 'listening' || drillSpeaking

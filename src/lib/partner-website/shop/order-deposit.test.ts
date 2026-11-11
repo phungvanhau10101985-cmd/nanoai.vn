@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  isPartnerDepositPurchaseConfirmed,
   isPartnerShopDepositWaiting,
+  orderSkipsDeposit,
   partnerOrderEstimatedRemainingAfterDeposit,
   partnerOrderPayableTotal,
   partnerOrderRemainingAfterDeposit,
@@ -57,6 +59,28 @@ test('split checkout lands on the sibling that still needs deposit', () => {
   const cn = { id: 'cn', status: 'awaiting_payment', required_amount: 200000 }
   assert.equal(pickDepositLandingOrder(vn, [vn, cn]).id, 'cn')
   assert.equal(pickDepositLandingOrder(vn, [vn]).id, 'vn')
+})
+
+test('purchase is page-load for no deposit, and paid_verified for deposit', () => {
+  assert.equal(orderSkipsDeposit({ required_amount: 0, status: 'awaiting_payment' }), true)
+  assert.equal(orderSkipsDeposit({ required_amount: 150000, status: 'awaiting_payment' }), false)
+  assert.equal(
+    isPartnerDepositPurchaseConfirmed({ status: 'awaiting_payment', required_amount: 150000, paid_amount: 0 }),
+    false
+  )
+  assert.equal(
+    isPartnerDepositPurchaseConfirmed({ status: 'payment_checking', required_amount: 150000, paid_amount: 150000 }),
+    false
+  )
+  assert.equal(
+    isPartnerDepositPurchaseConfirmed({ status: 'pending_manual_review', required_amount: 150000, paid_amount: 0 }),
+    false
+  )
+  assert.equal(
+    isPartnerDepositPurchaseConfirmed({ status: 'paid_verified', required_amount: 150000, paid_amount: 50000 }),
+    true
+  )
+  assert.equal(isPartnerDepositPurchaseConfirmed({ status: 'paid_verified', required_amount: 0, paid_amount: 0 }), false)
 })
 
 test('COD orders are not waiting deposit', () => {
