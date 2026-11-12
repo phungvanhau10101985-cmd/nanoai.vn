@@ -34,16 +34,30 @@ function useShowAllPronunciations() {
 }
 
 /** Công tắc một lần cho mọi dòng phát âm trong buổi học. */
-export function PronunciationMasterSwitch({ localText, compact = false, labeled = false }: { localText: LocalTextFn; compact?: boolean; labeled?: boolean }) {
+export function PronunciationMasterSwitch({
+  localText,
+  compact = false,
+  labeled = false,
+  above = false,
+}: {
+  localText: LocalTextFn
+  compact?: boolean
+  labeled?: boolean
+  above?: boolean
+}) {
   const [showAll, setShowAll] = useShowAllPronunciations()
   return (
     <label
       title={localText('Hiện mọi phiên âm', 'Show all pronunciations')}
-      className={compact
+      className={above
+        ? 'inline-flex h-11 shrink-0 cursor-pointer touch-manipulation items-center gap-1.5'
+        : compact
       ? `order-2 flex h-11 shrink-0 cursor-pointer touch-manipulation items-center gap-1 rounded-md ${labeled ? 'ml-auto' : ''}`
       : 'flex min-h-11 min-w-0 flex-1 cursor-pointer touch-manipulation items-center justify-center gap-2 rounded-md px-1'}>
       <span className={compact && !labeled ? 'hidden text-xs leading-tight text-slate-600 sm:inline' : 'whitespace-nowrap text-xs font-medium leading-tight text-slate-600'}>
-        {labeled ? (
+        {above
+          ? localText('Phiên âm', 'Pronunciation')
+          : labeled ? (
           <>
             <span className="sm:hidden">{localText('Phiên âm', 'Pronunciation')}</span>
             <span className="hidden sm:inline">{localText('Mọi phiên âm', 'All pronunciations')}</span>
@@ -88,7 +102,8 @@ export function PronunciationReveal({
   if (!value && !busy) return null
   const shown = Boolean(value) && !masked
   return (
-    <div className="mt-0.5 flex items-start gap-1">
+    <div className="mt-0.5 space-y-0.5">
+      <div className="flex items-start gap-1">
       <p className="min-w-0 flex-1 break-words text-muted-foreground leading-relaxed">
         <span className="font-semibold text-slate-800">{localText('Phát âm:', 'Pronunciation:')}</span>{' '}
         {busy && !value ? (
@@ -117,6 +132,7 @@ export function PronunciationReveal({
           {shown ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
         </button>
       ) : null}
+      </div>
     </div>
   )
 }

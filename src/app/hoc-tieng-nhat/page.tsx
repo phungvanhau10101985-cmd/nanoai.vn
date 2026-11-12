@@ -1,6 +1,7 @@
 import { LanguageLearningLanding } from '@/components/hoc-ngoai-ngu/language-landing'
 import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { getUserOrBypass } from '@/lib/auth'
+import { redirectToPracticeRoomWhenFreeLessonsUsed } from '@/lib/hoc-ngoai-ngu/skip-landing-after-free-lessons'
 import { listLanguageCoachReviews } from '@/lib/hoc-ngoai-ngu/reviews'
 import { getFeatureSeo } from '@/lib/feature-seo'
 import { buildMetadata } from '@/lib/seo'
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
 }
 
 export default async function HocTiengNhatPage() {
+  await redirectToPracticeRoomWhenFreeLessonsUsed('/hoc-tieng-anh-ai/luyen-noi?hoc=ja&me=vi')
   const user = await getUserOrBypass()
   const reviews = await listLanguageCoachReviews('hoc-tieng-nhat')
   return (

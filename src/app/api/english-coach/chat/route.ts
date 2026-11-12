@@ -20,6 +20,8 @@ import { topicSenseClash, topicSenseLockGuide } from '@/app/hoc-tieng-anh-ai/pro
 import { getPairPromptConfig, toLanguagePairKey } from '@/app/hoc-tieng-anh-ai/i18n/pairs'
 import { simplifyChineseDeep, toSimplifiedChinese, usesSimplifiedChinese } from '@/lib/chinese-script'
 import { stripReadingCommentary } from '@/lib/coach-reading'
+import { filterListeningOptions, lessonListeningWords, prepareListeningWords, stripReadingLabels } from '@/lib/english-coach/listening-words'
+import { pronunciationMishearGuide, pronunciationMishears } from '@/lib/english-coach/pronunciation-mishear'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   countCreditEventsByTypePg,
@@ -99,6 +101,7 @@ type ChatPayload = {
     nativeTranscript?: string
     mergedTranscript?: string
     inferredMeaning?: string
+    nativeMeaningFromLearner?: boolean
     pronunciationIssues?: string[]
     pronunciationScore?: number
     weakWords?: string[]
@@ -293,15 +296,20 @@ function parseReviewDrill(raw: string): ReviewDrillState | null {
           attempt: Math.max(0, Math.floor(Number(speakingRaw.attempt || 0) || 0)),
         }
       : undefined
-    const listening = listeningRaw
+    const preparedListening = listeningRaw
+      ? prepareListeningWords(
+          Array.isArray(listeningRaw.expectedKeywords) ? listeningRaw.expectedKeywords : [],
+          String(listeningRaw.prompt || ''),
+        )
+      : null
+    const listening = listeningRaw && preparedListening
       ? {
-          prompt: String(listeningRaw.prompt || '').trim(),
-          expectedKeywords: Array.isArray(listeningRaw.expectedKeywords)
-            ? listeningRaw.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 24)
-            : [],
-          options: Array.isArray(listeningRaw.options)
-            ? listeningRaw.options.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 24)
-            : [],
+          prompt: preparedListening.prompt,
+          expectedKeywords: preparedListening.words,
+          options: filterListeningOptions(
+            Array.isArray(listeningRaw.options) ? listeningRaw.options : [],
+            preparedListening.prompt,
+          ),
           minMatchedKeywords: Math.max(1, Math.floor(Number(listeningRaw.minMatchedKeywords || 1) || 1)),
           attempt: Math.max(0, Math.floor(Number(listeningRaw.attempt || 0) || 0)),
         }
@@ -400,27 +408,9 @@ function buildReviewDrillRaw(
   }
 }
 
-function extractListeningAllWords(text: string): string[] {
-  const tokens = String(text || '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .map((x) => x.trim())
-    .filter(Boolean)
-  const out: string[] = []
-  for (const t of tokens) {
-    if (!out.includes(t)) out.push(t)
-    if (out.length >= 24) break
-  }
-  return out
-}
-
-/** Token list from sentence for listening drill - words that can be picked one-by-one. */
+/** Từ của câu nghe. Nhãn phiên âm không được vào danh sách. */
 function extractListeningTokenList(text: string, languageCode: string): string[] {
-  const allowSingleChar = ['zh', 'ja', 'ko', 'th', 'hi'].includes(String(languageCode || '').toLowerCase())
-  const minLen = allowSingleChar ? 1 : 2
-  const tokens = extractListeningAllWords(text)
-  return tokens.filter((t) => t.length >= minLen).slice(0, 24)
+  return lessonListeningWords(text, languageCode)
 }
 
 function speakingDrillThresholdByLevel(learnerLevel: number): { minSimilarity: number; minPronunciationScore: number } {
@@ -1908,7 +1898,7 @@ Chủ đề đang học:
         // - speaking: learner repeats the saved learner line (expectedStudent)
         // - listening: learner listens to teacher line (idea 3 / teacher reply)
         const presetSpeakingTarget = String(expectedStudent || turnMainSentence || turnMustKnowText || '').trim()
-        const listeningPrompt = String(turnIntentAnswer || turnReply || '').trim()
+        const listeningPrompt = stripReadingLabels(String(turnIntentAnswer || turnReply || '').trim())
         const presetTokenList = extractListeningTokenList(listeningPrompt, targetLanguageCode)
         const presetSpeakingThreshold = speakingDrillThresholdByLevel(learnerLevel)
         const presetTurnDrill: ReviewDrillState | null =
@@ -2334,9 +2324,10 @@ Chủ đề đang học:
         | undefined
       if (learningMode === 'review' && replayMainSentence) {
         const speakingTargetSentence = String(replayMainSentence || '').trim()
-        const listeningSource =
+        const listeningSource = stripReadingLabels(
           String(replayIntentAnswer || '').trim()
           || String(speakingTargetSentence || '').trim()
+        )
         const listeningTokenList = extractListeningTokenList(listeningSource, targetLanguageCode)
         const listeningExpectedKeywords = listeningTokenList
         const speakingThreshold = speakingDrillThresholdByLevel(learnerLevel)
@@ -2729,13 +2720,37 @@ ${studentText}`
 - Sau đó đưa 1 câu chuẩn bằng ${targetLanguage}.
 - Cuối cùng thêm 1 câu phiên bản dễ nhớ/ngắn gọn nếu phù hợp.`
     const nativeLanguageGuide = `Ngôn ngữ mẹ đẻ của học sinh là ${nativeLanguage}. Mặc định coi học sinh còn yếu ở ${targetLanguage}, nên luôn ưu tiên giải thích bằng ${nativeLanguage} trước, sau đó mới đưa mẫu chuẩn bằng ${targetLanguage}. Nếu học sinh nhập bằng ngôn ngữ mẹ đẻ hoặc trộn ngôn ngữ, bạn phải hiểu đầy đủ ý của học sinh trước khi trả lời.`
+    const foldUtterance = (value: string) => value.trim().replace(/\s+/g, '').toLowerCase()
+    const spokenFolds = [micMergedTranscript, micTargetTranscript, micNativeTranscript]
+      .map(foldUtterance)
+      .filter(Boolean)
+    const studentFold = foldUtterance(studentText)
+    const studentRewroteMicText = Boolean(studentFold) && spokenFolds.length > 0 && !spokenFolds.includes(studentFold)
+    const mishearGuide = pronunciationMishearGuide({
+      transcript: studentText,
+      meaning: micInferredMeaning,
+      targetLanguage,
+      nativeLanguage,
+      targetLanguageCode,
+      nativeLanguageCode,
+    })
     const micGuide =
       inputSource === 'mic'
-        ? `Đầu vào hiện tại đến từ microphone. Giả định học sinh vừa nói trong cặp ngôn ngữ ${targetLanguage} + ${nativeLanguage} (input hint: ${studentInputLanguage}). Bạn cần phân tích đúng ý theo cặp này và TUYỆT ĐỐI không mặc định sang English nếu target/native không phải English.`
+        ? studentRewroteMicText
+          ? `Học sinh đã sửa câu nói trước khi gửi. Câu phải xử lý là câu đã sửa, giống như học sinh vừa gõ câu đó. Không được trả lời theo transcript audio.
+Câu đã sửa: ${studentText}`
+          : `Đầu vào hiện tại đến từ microphone. Giả định học sinh vừa nói trong cặp ngôn ngữ ${targetLanguage} + ${nativeLanguage} (input hint: ${studentInputLanguage}). Bạn cần phân tích đúng ý theo cặp này và TUYỆT ĐỐI không mặc định sang English nếu target/native không phải English.`
         : 'Đầu vào hiện tại là văn bản gõ.'
     const micAnalysisGuide =
       inputSource === 'mic'
-        ? `Kết quả phân tích audio (ưu tiên dùng để sửa lỗi phát âm/ngữ nghĩa, không được bịa thêm):
+        ? studentRewroteMicText
+          ? `Transcript audio là câu nói TRƯỚC khi học sinh sửa. Không dùng transcript này làm câu học sinh vừa nói.
+Câu đã sửa, bắt buộc xử lý câu này: ${studentText}
+- mergedTranscript gốc: ${micMergedTranscript || '(trống)'}
+- targetTranscript gốc: ${micTargetTranscript || '(trống)'}
+- nativeTranscript gốc: ${micNativeTranscript || '(trống)'}
+Điểm phát âm thuộc bản ghi âm cũ, không áp vào câu đã sửa.`
+          : `Kết quả phân tích audio (ưu tiên dùng để sửa lỗi phát âm/ngữ nghĩa, không được bịa thêm):
 - targetTranscript: ${micTargetTranscript || '(trống)'}
 - nativeTranscript: ${micNativeTranscript || '(trống)'}
 - mergedTranscript: ${micMergedTranscript || '(trống)'}
@@ -2747,20 +2762,32 @@ ${studentText}`
 - pronunciationProsody: ${micPronunciationProsody == null ? '(không có)' : `${micPronunciationProsody}/100`}
 - weakWords: ${micWeakWords.join(' | ') || '(không có)'}
 - wordScores: ${micWordScores.map((x) => `${x.word}:${x.score}(${x.issueType})`).join(' | ') || '(không có)'}
-Khi có pronunciationIssues, corrections và pronunciationTips phải chỉ ra học sinh sai ở đâu + cách sửa cụ thể.`
+Khi có pronunciationIssues, corrections và pronunciationTips phải chỉ ra học sinh sai ở đâu + cách sửa cụ thể.
+${micInferredMeaning
+  ? micAnalysis?.nativeMeaningFromLearner
+    ? `Học sinh tự điền nghĩa tiếng mẹ đẻ, đây là ý cần sửa thành câu ${targetLanguage}: ${micInferredMeaning}
+Câu đã nghe vẫn là câu học sinh nói và là câu cần sửa phát âm. Không ghép nghĩa này vào câu nói.`
+    : `Nghĩa tiếng mẹ đẻ máy đoán, học sinh không điền: ${micInferredMeaning}
+Dùng nghĩa này để hiểu ý. Câu đã nghe vẫn là câu học sinh nói. Không ghép nghĩa này vào câu nói.`
+  : ''}
+${mishearGuide}`
         : 'Không có phân tích audio.'
     const speakingModeGuide =
-      speakingMode === 'auto'
+      studentRewroteMicText
+        ? `Học sinh đã sửa câu. Hiểu và trả lời đúng câu đã sửa: ${studentText}. Không nhận diện lại nội dung từ transcript audio.`
+        : micAnalysis?.nativeMeaningFromLearner && micInferredMeaning
+          ? `Học sinh tự điền nghĩa tiếng mẹ đẻ: ${micInferredMeaning}. Hiểu ý theo nghĩa này rồi sửa thành câu ${targetLanguage}. Câu đã nghe vẫn là transcript, dùng transcript để sửa phát âm.`
+          : speakingMode === 'auto'
         ? `Học sinh đang bật auto-detect. Hãy dùng transcript audio (target/native/merged) để tự nhận diện ngôn ngữ các đoạn học sinh nói rồi phản hồi phù hợp.`
         : speakingMode === 'target'
         ? `Học sinh đã chọn chế độ "đang nói bằng ngôn ngữ đang học". Vì vậy hãy ưu tiên hiểu câu của học sinh là tiếng ${targetLanguage}, không tự động suy diễn đó là tiếng mẹ đẻ.`
         : speakingMode === 'native'
           ? `Học sinh đã chọn chế độ "đang nói bằng tiếng mẹ đẻ". Vì vậy hãy hiểu câu theo ${nativeLanguage} trước rồi hướng dẫn sang ${targetLanguage}.`
-          : `Học sinh đã chọn chế độ "nói trộn ${targetLanguage} + ${nativeLanguage}". Hãy coi các đoạn ${nativeLanguage} trong câu là phần học sinh chưa biết từ ở ${targetLanguage}. Bạn phải:
+          : `Học sinh đã chọn chế độ "nói trộn ${targetLanguage} + ${nativeLanguage}". Chỉ coi đoạn ${nativeLanguage} là từ học sinh chưa biết khi phần so sánh câu nghe không kết luận đó là phát âm bị máy nghe nhầm. Bạn phải:
 - Nhận diện rõ từng từ/cụm ${nativeLanguage} đó nghĩa là gì.
 - Đưa từ/cụm tương ứng bằng ${targetLanguage}.
 - Viết lại cả câu hoàn chỉnh, tự nhiên bằng ${targetLanguage}.
-- Giải thích ngắn vì sao dùng từ đó (bằng ${nativeLanguage}).`
+- Nếu là nghe nhầm phát âm thì hướng dẫn đọc từ ${targetLanguage}, không giải thích từ tiếng mẹ đẻ như lỗi ngữ pháp.`
     const strictLanguagePairGuide = `Cặp ngôn ngữ buổi học này là:
 - Ngôn ngữ đang học: ${targetLanguage} (${targetLanguageCode || 'unknown'})
 - Ngôn ngữ mẹ đẻ: ${nativeLanguage} (${nativeLanguageCode || 'unknown'})
@@ -2899,18 +2926,21 @@ ${topicSenseBlock}
 Nhiệm vụ trong MỘT lần phân tích:
 1) Hiểu ý định học sinh đang muốn nói gì.
 2) Tách rõ phần ${targetLanguage} mà học sinh đã nói đúng.
-3) Tách rõ phần ${nativeLanguage} là chỗ học sinh chưa biết từ ${targetLanguage}.
-4) Tạo mapping native -> target cho các chỗ còn thiếu.
-5) Dựng lại 1 câu hoàn chỉnh, tự nhiên bằng ${targetLanguage}, đúng nghĩa đã khóa theo chủ đề. Cấm đổi từ đa nghĩa sang lĩnh vực khác.
-6) TUYỆT ĐỐI không tự chuyển sang ngôn ngữ thứ ba ngoài cặp target/native.
-7) mappedPairs.target phải là từ/cụm của ${targetLanguage}, không được đổi sang ngôn ngữ khác.
-8) ${pairTransliterationGuide}
+3) So sánh câu máy nghe với nghĩa muốn nói. Từ ${nativeLanguage} đứng vào chỗ một từ ${targetLanguage} của nghĩa đó là phát âm bị máy nghe nhầm: ghi vào pronunciationMishears, không ghi vào nativeUnknownFragments.
+4) nativeUnknownFragments chỉ gồm từ ${nativeLanguage} học sinh cố ý nói vì chưa biết từ ${targetLanguage}.
+5) Tạo mapping native -> target chỉ cho các chỗ học sinh chưa biết từ.
+6) Dựng lại 1 câu hoàn chỉnh, tự nhiên bằng ${targetLanguage}, đúng nghĩa đã khóa theo chủ đề. Cấm đổi từ đa nghĩa sang lĩnh vực khác.
+7) TUYỆT ĐỐI không tự chuyển sang ngôn ngữ thứ ba ngoài cặp target/native.
+8) mappedPairs.target phải là từ/cụm của ${targetLanguage}, không được đổi sang ngôn ngữ khác.
+9) ${pairTransliterationGuide}
+${mishearGuide}
 
 Trả về JSON hợp lệ, không markdown:
 {
   "learnerIntent": "ý định học sinh đang muốn nói gì (ngắn)",
   "targetKnownFragments": ["các cụm ${targetLanguage} học sinh đã nói đúng/đủ nghĩa"],
-  "nativeUnknownFragments": ["các cụm ${nativeLanguage} cần đổi sang ${targetLanguage}"],
+  "nativeUnknownFragments": ["các cụm ${nativeLanguage} học sinh cố ý nói vì chưa biết từ"],
+  "pronunciationMishears": [{"heard":"từ máy nghe nhầm","meant":"ý trong nghĩa muốn nói","target":"từ ${targetLanguage}","reading":"cách đọc"}],
   "mappedPairs": [{"native":"...","target":"..."}],
   "reconstructedTargetSentence": "câu hoàn chỉnh tự nhiên bằng ${targetLanguage}"
 }
@@ -2937,21 +2967,35 @@ ${studentText}`
           'Chưa dựng được câu hoàn chỉnh, cần giáo viên tự dựng câu đúng.'
         mixedReconstructedTargetSentence = reconstructed
         const targetFragments = (parsed?.targetKnownFragments || []).slice(0, 12)
-        const nativeFragments = (parsed?.nativeUnknownFragments || []).slice(0, 12)
+        const forcedMishears = pronunciationMishears({
+          transcript: studentText,
+          meaning: micInferredMeaning,
+          targetLanguageCode,
+          nativeLanguageCode,
+        })
+        const misheardTokens = new Set(forcedMishears.map((item) => item.heard.toLowerCase()))
+        const nativeFragments = (parsed?.nativeUnknownFragments || [])
+          .slice(0, 12)
+          .filter((item) => !misheardTokens.has(String(item || '').trim().toLowerCase()))
         const mappedTargets = merged.map((x) => x.target).filter(Boolean)
         const mergedSentenceCandidate = Array.from(new Set([...targetFragments, ...mappedTargets])).join(' ').trim()
         mixedNormalizedStudentText =
           reconstructed && !reconstructed.startsWith('Chưa dựng được')
             ? reconstructed
             : mergedSentenceCandidate || studentText
+        const mishearLines = forcedMishears
+          .map((item) => `${item.heard} là máy nghe nhầm ${item.target} (${item.reading}), vì nghĩa là "${item.meant}". Ý 1 hướng dẫn đọc ${item.reading}.`)
+          .join(' | ')
 
         mixedAnalysisGuide = `Kết quả phân tích độc lập 2 ngôn ngữ (ưu tiên dùng để phản hồi chính xác):
 - Ý định học sinh: ${mergedIntent}
 - Cụm ${targetLanguage} đã nói: ${targetFragments.join(', ') || '(không rõ)'}
-- Cụm ${nativeLanguage} cần đổi: ${nativeFragments.join(', ') || '(không rõ)'}
+- Cụm ${nativeLanguage} học sinh chưa biết từ: ${nativeFragments.join(', ') || '(không có)'}
+- Nghe nhầm phát âm: ${mishearLines || '(không có)'}
 - Bản đồ đổi từ/cụm: ${merged.map((x) => `${x.native} -> ${x.target}`).join(' | ') || '(không có)'}
 - Câu hoàn chỉnh gợi ý (${targetLanguage}): ${reconstructed}
-- Câu chuẩn hóa để gửi giáo viên: ${mixedNormalizedStudentText}`
+- Câu chuẩn hóa để gửi giáo viên: ${mixedNormalizedStudentText}
+Khi mục nghe nhầm phát âm có nội dung, Ý 1 chỉ hướng dẫn đọc từ ngôn ngữ đang học. Cấm dạy từ tiếng mẹ đẻ bị nghe nhầm như lỗi ngữ pháp.`
       } catch {
         mixedAnalysisGuide = `Không phân tích được 2 luồng độc lập, nhưng vẫn phải xử lý mixed theo quy tắc: nhận diện cụm ${nativeLanguage} cần đổi sang ${targetLanguage}, rồi viết câu hoàn chỉnh.`
         mixedNormalizedStudentText = studentText
@@ -3641,10 +3685,11 @@ Chỉ trả JSON:
       )
         ? speakingTargetCandidate
         : ''
-      const listeningSource =
+      const listeningSource = stripReadingLabels(
         String(intentAnswer || '').trim()
         || String(mainSentenceFinal || '').trim()
         || String(speakingTargetSentence || '').trim()
+      )
       const listeningTokenList = extractListeningTokenList(listeningSource, targetLanguageCode)
       const listeningExpectedKeywords = listeningTokenList
       const speakingThreshold = speakingDrillThresholdByLevel(learnerLevel)

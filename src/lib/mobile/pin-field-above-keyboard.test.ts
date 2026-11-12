@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   applyPinAcrossScrollers,
+  composerUncoverPx,
   fieldPinDeltaPx,
   keyboardIsOpen,
   shouldLockStickyBox,
@@ -34,6 +35,12 @@ test('ô thấp hơn bàn phím thì delta dương, ô cách xa phía trên thì
   assert.equal(fieldPinDeltaPx(500, 430), 78)
   assert.equal(fieldPinDeltaPx(280, 430), -142)
   assert.equal(fieldPinDeltaPx(422, 430), 0)
+})
+
+test('thanh hội thoại chỉ kéo lên khi bị che, không đẩy xuống để hở khoảng trắng', () => {
+  assert.equal(composerUncoverPx(500, 430), 78)
+  assert.equal(composerUncoverPx(280, 430), 0)
+  assert.equal(composerUncoverPx(422, 430), 0)
 })
 
 test('cuộn vùng trong trước, phần dư chuyển ra vùng ngoài', () => {

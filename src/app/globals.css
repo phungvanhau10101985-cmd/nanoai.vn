@@ -32,7 +32,8 @@
     html[data-keyboard-open] [data-study-chat] {
       z-index: 45;
     }
-    /* Thanh hội thoại sticky không được phình thành màng trắng khi bàn phím mở. */
+    /* Thanh hội thoại không phình, và khi đang gõ thì bỏ sticky.
+       Sticky + bàn phím đẩy cả thanh xuống, để lại khoảng trắng giữa câu thầy và ô gõ. */
     [data-coach-composer] {
       height: min-content;
       max-height: min-content;
@@ -40,9 +41,23 @@
       flex: 0 0 auto;
       overflow: visible;
     }
+    [data-coach-composer]:focus-within {
+      position: relative !important;
+      top: auto !important;
+      bottom: auto !important;
+      height: auto !important;
+      max-height: none !important;
+      min-height: 0 !important;
+      margin-top: 0 !important;
+    }
     html[data-keyboard-open] [data-coach-jump] {
       visibility: hidden;
       pointer-events: none;
+    }
+    /* Phần dưới ô gõ hội thoại không chiếm chỗ khi đang gõ ở thanh đó. Ô sửa câu đi đường riêng. */
+    [data-coach-composer]:focus-within ~ [data-coach-below]:not(:focus-within),
+    html:has([data-coach-composer]:focus-within) [data-coach-below]:not(:focus-within) {
+      display: none;
     }
   }
   .safe-area-pt {

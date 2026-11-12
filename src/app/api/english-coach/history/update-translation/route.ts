@@ -10,6 +10,7 @@ type Payload = {
   messageId: string
   sessionId?: string
   clientMessageId?: string
+  text?: string
   translation?: string
   mainSentence?: string
   correctionNote?: string
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
     const messageId = String(payload.messageId || '').trim()
     const sessionId = String(payload.sessionId || '').trim()
     const clientMessageId = String(payload.clientMessageId || '').trim()
+    const text = String(payload.text || '').trim().slice(0, 4000)
     const translation = String(payload.translation || '').trim()
     const mainSentence = String(payload.mainSentence || '').trim().slice(0, 2000) || null
     const correctionNote = String(payload.correctionNote || '').trim().slice(0, 2000) || null
@@ -39,6 +41,7 @@ export async function POST(request: NextRequest) {
     const aiPayloadJson = String(payload.aiPayloadJson || '').trim().slice(0, 32000) || null
 
     const updates: Record<string, string | null> = {}
+    if (payload.text !== undefined && text) updates.text = text
     if (payload.translation !== undefined) updates.translation = translation ? translation.slice(0, 4000) : null
     if (payload.mainSentence !== undefined) updates.main_sentence = mainSentence
     if (payload.correctionNote !== undefined) updates.correction_note = correctionNote

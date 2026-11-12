@@ -3,6 +3,8 @@ import { createHash } from 'crypto'
 import { getUserForAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { stripReadingCommentary } from '@/lib/coach-reading'
+import { isDiscardedSpeechPayload } from '@/lib/english-coach/pending-speech-draft'
+import { filterListeningOptions, prepareListeningWords } from '@/lib/english-coach/listening-words'
 import { fetchTransliterationCacheByKeysPg } from '@/lib/db/language-coach-transliteration-tokenize-pg'
 import {
   fetchEndedSessionIdsForUserPg,
@@ -11,7 +13,7 @@ import {
   fetchMessagesForHistorySessionPg,
   fetchSessionMemoriesForHistoryListPg,
   fetchSessionMemoryBriefForHistoryPg,
-  insertHistoryMessagePg,
+  saveHistoryMessagePg,
   insertSessionMemoryMetadataPg,
   updateSessionMemoryMetadataPg,
   upsertHiddenSessionPg,
@@ -155,15 +157,24 @@ function parseActiveReviewDrillFromPinnedFacts(raw: string): ActiveReviewDrill |
           attempt: Math.max(0, Math.floor(Number((speakingRaw as { attempt?: unknown }).attempt || 0) || 0)),
         }
       : undefined
-    const listening = listeningRaw && typeof listeningRaw === 'object'
+    const listeningPrepared = listeningRaw && typeof listeningRaw === 'object'
+      ? prepareListeningWords(
+          Array.isArray((listeningRaw as { expectedKeywords?: unknown }).expectedKeywords)
+            ? (listeningRaw as { expectedKeywords: unknown[] }).expectedKeywords
+            : [],
+          String((listeningRaw as { prompt?: unknown }).prompt || ''),
+        )
+      : null
+    const listening = listeningRaw && typeof listeningRaw === 'object' && listeningPrepared
       ? {
-          prompt: String((listeningRaw as { prompt?: unknown }).prompt || '').trim(),
-          expectedKeywords: Array.isArray((listeningRaw as { expectedKeywords?: unknown }).expectedKeywords)
-            ? (listeningRaw as { expectedKeywords: unknown[] }).expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 12)
-            : [],
-          options: Array.isArray((listeningRaw as { options?: unknown }).options)
-            ? (listeningRaw as { options: unknown[] }).options.map((x) => String(x || '').trim()).filter(Boolean).slice(0, 24)
-            : [],
+          prompt: listeningPrepared.prompt,
+          expectedKeywords: listeningPrepared.words.slice(0, 12),
+          options: filterListeningOptions(
+            Array.isArray((listeningRaw as { options?: unknown }).options)
+              ? (listeningRaw as { options: unknown[] }).options
+              : [],
+            listeningPrepared.prompt,
+          ).slice(0, 24),
           minMatchedKeywords: Math.max(1, Math.min(3, Math.floor(Number((listeningRaw as { minMatchedKeywords?: unknown }).minMatchedKeywords || 1) || 1))),
           attempt: Math.max(0, Math.floor(Number((listeningRaw as { attempt?: unknown }).attempt || 0) || 0)),
         }
@@ -358,7 +369,7 @@ export async function GET(request: NextRequest) {
         miniStageSnapshot: miniStageSnapshot || undefined,
         presetReplay: presetReplayPreview || undefined,
         writingTaskTransliterations,
-        items: rows.map((row: HistorySessionMessagePg) => {
+        items: rows.filter((row) => !isDiscardedSpeechPayload(row.ai_payload_json)).map((row: HistorySessionMessagePg) => {
           const lang = String(row.language_code || '').trim().toLowerCase()
           const mainSentence = row.main_sentence ?? null
           const correctionNote = row.correction_note ?? null
@@ -579,7 +590,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Database not configured.' }, { status: 503 })
     }
 
-    const inserted = await insertHistoryMessagePg({
+    const inserted = await saveHistoryMessagePg({
       userId: user.id,
       sessionId,
       clientMessageId: clientMessageId || null,

@@ -1,6 +1,8 @@
+import { shouldApplyDraftRevision } from '@/lib/english-coach/pending-speech-draft'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 
 const MESSAGE_PATCH_COLS = new Set([
+  'text',
   'translation',
   'main_sentence',
   'correction_note',
@@ -34,6 +36,17 @@ export async function updateLanguageCoachMessagePartialByIdPg(
   if (!built) return null
   try {
     const pool = getPgPool()
+    if ('ai_payload_json' in updates) {
+      const cur = await pool.query<{ ai_payload_json: string | null }>(
+        `select ai_payload_json
+         from public.language_coach_messages
+         where id = $1::uuid and user_id = $2::uuid`,
+        [messageId, userId]
+      )
+      if ((cur.rowCount ?? 0) > 0 && !shouldApplyDraftRevision(cur.rows[0]?.ai_payload_json, updates.ai_payload_json)) {
+        return { rowCount: 1 }
+      }
+    }
     const n = built.values.length
     const sql = `update public.language_coach_messages
       set ${built.fragment}
@@ -57,6 +70,19 @@ export async function updateLanguageCoachMessagePartialBySessionClientPg(
   if (!built) return null
   try {
     const pool = getPgPool()
+    if ('ai_payload_json' in updates) {
+      const cur = await pool.query<{ ai_payload_json: string | null }>(
+        `select ai_payload_json
+         from public.language_coach_messages
+         where session_id = $1::uuid and client_message_id = $2 and user_id = $3::uuid
+         order by created_at asc
+         limit 1`,
+        [sessionId, clientMessageId, userId]
+      )
+      if ((cur.rowCount ?? 0) > 0 && !shouldApplyDraftRevision(cur.rows[0]?.ai_payload_json, updates.ai_payload_json)) {
+        return { rowCount: 1 }
+      }
+    }
     const n = built.values.length
     const sql = `update public.language_coach_messages
       set ${built.fragment}

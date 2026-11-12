@@ -8,6 +8,27 @@ import { PronunciationReveal } from './pronunciation-reveal'
 const memory = new Map<string, string>()
 const pending = new Map<string, Promise<string>>()
 
+const TARGET_SCRIPT: Record<string, RegExp> = {
+  zh: /[\u4E00-\u9FFF]/u,
+  ja: /[\u3040-\u30FF\u4E00-\u9FFF]/u,
+  ko: /[\uAC00-\uD7AF]/u,
+  th: /[\u0E00-\u0E7F]/u,
+  hi: /[\u0900-\u097F]/u,
+}
+
+/** Giữ phần chữ đang học. Bỏ chú thích tiếng mẹ đẻ trong ngoặc để còn dòng phiên âm và công tắc. */
+function readingSource(text: string, languageCode: string): string {
+  const raw = String(text || '').trim()
+  const script = TARGET_SCRIPT[languageCode]
+  if (!raw || !script || !script.test(raw)) return raw
+  const stripped = raw.replace(/\([^)]*\)/g, ' ').replace(/（[^）]*）/g, ' ')
+  const kept: string[] = []
+  for (const ch of Array.from(stripped)) {
+    if (script.test(ch) || /[\s，。！？、；：「」『』（）【】《》〈〉,.!?;:]/u.test(ch)) kept.push(ch)
+  }
+  return kept.join('').replace(/\s+/g, ' ').trim()
+}
+
 function normalizeLang(input: string): string {
   const code = String(input || '').trim().toLowerCase()
   if (code.startsWith('zh')) return 'zh'
@@ -63,8 +84,8 @@ export function NativePhoneticLine({
   localText: (vi: string, en: string) => string
   coachUsageContext?: 'live' | 'preset'
 }) {
-  const source = String(text || '').trim()
   const target = normalizeLang(targetLanguageCode)
+  const source = readingSource(String(text || '').trim(), target)
   const native = normalizeLang(nativeLanguageCode)
   const preset = usableSentenceReading(target, known ?? '')
   const needsReading = target === 'zh' || target === 'ja' || target === 'ko' || target === 'th' || target === 'hi' || (target === 'en' && native !== 'en')

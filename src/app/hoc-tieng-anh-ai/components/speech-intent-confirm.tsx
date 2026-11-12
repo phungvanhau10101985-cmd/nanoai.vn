@@ -1,28 +1,29 @@
 'use client'
 
-import { useLayoutEffect, useRef, useState, type FocusEvent, type PointerEvent } from 'react'
-import { createPortal, flushSync } from 'react-dom'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { RotateCcw, Volume2 } from 'lucide-react'
 import { ProcessingRow } from './processing-status'
 import { LessonImeField } from '../ime/lesson-ime-field'
+import { NativePhoneticLine } from './native-phonetic-line'
 import { Button } from '@/components/ui/button'
-import { keyboardOverlapPx } from '@/lib/mobile/pin-field-above-keyboard'
 
 type LocalText = (vi: string, en: string) => string
 
-function keyboardDockBottom() {
+function readPhone() {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(max-width: 1023px)').matches
+}
+
+function dockTopAboveKeyboard(dockHeight: number) {
   const viewport = window.visualViewport
-  const overlap = keyboardOverlapPx(
-    window.innerHeight,
-    viewport?.offsetTop ?? 0,
-    viewport?.height ?? window.innerHeight,
-  )
-  return Math.max(0, overlap)
+  const offset = viewport?.offsetTop ?? 0
+  const visual = viewport?.height ?? window.innerHeight
+  return Math.max(0, Math.round(offset + visual - Math.max(0, dockHeight)))
 }
 
 const BOTTOM_BAR = 'nav, footer, [class~="sticky"], [class~="fixed"]'
 
-/** Thanh dính đáy không được nằm giữa ô sửa câu và bàn phím. */
+/** Thanh dính đáy không được nằm giữa ô nghĩa và bàn phím. */
 function parkBottomBars(field: HTMLElement, parked: HTMLElement[]) {
   const visualHeight = window.visualViewport?.height ?? window.innerHeight
   document.querySelectorAll<HTMLElement>(BOTTOM_BAR).forEach((node) => {
@@ -57,39 +58,38 @@ export function SpeechIntentConfirm({
   meaning,
   meaningBusy,
   continueBusy,
-  onTextChange,
   onContinue,
   onReplay,
   onRecordAgain,
   localText,
   languageCode,
+  nativeLanguageCode = '',
 }: {
   text: string
   meaning: string
   meaningBusy: boolean
   continueBusy: boolean
-  onTextChange: (value: string) => void
-  onContinue: (text: string) => void
+  onContinue: (learnerMeaning: string) => void
   onReplay?: () => void
   onRecordAgain?: () => void
   localText: LocalText
   languageCode: string
+  nativeLanguageCode?: string
 }) {
   const flushRef = useRef<(() => string) | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dockRef = useRef<HTMLDivElement | null>(null)
-  const spacerRef = useRef<HTMLDivElement | null>(null)
-  const blurTimerRef = useRef(0)
-  const phoneRef = useRef(false)
-  const pinnedRef = useRef(false)
-  const [pending, setPending] = useState(false)
-  const [savedText, setSavedText] = useState('')
-  const editSaved = savedText.length > 0 && savedText === text.trim()
-  const [phone, setPhone] = useState(false)
-  const [pinned, setPinned] = useState(false)
-  const [dockBottom, setDockBottom] = useState(0)
-  const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [meaningDraft, setMeaningDraft] = useState('')
+  const [phone, setPhone] = useState(readPhone)
+  const [dockTop, setDockTop] = useState(() => (readPhone() ? dockTopAboveKeyboard(96) : 0))
+  const [spacerHeight, setSpacerHeight] = useState(0)
   const label = localText('Có phải em muốn nói', 'Is this what you meant')
+  const meaningLabel = localText('Nghĩa tiếng mẹ đẻ, có thể để trống', 'Native meaning, optional')
+  const meaningPlaceholder = localText(
+    'Để trống nếu nghĩa bên trên đã đúng',
+    'Leave blank if the meaning above is right',
+  )
+  const meaningLanguage = nativeLanguageCode || 'en'
 
   useLayoutEffect(() => {
     const query = window.matchMedia('(max-width: 1023px)')
@@ -99,59 +99,26 @@ export function SpeechIntentConfirm({
     return () => query.removeEventListener('change', sync)
   }, [])
 
-  useLayoutEffect(() => () => window.clearTimeout(blurTimerRef.current), [])
-
   useLayoutEffect(() => {
-    if (!phone || pinned) return
-    const place = () => {
-      const rect = spacerRef.current?.getBoundingClientRect()
-      if (!rect || rect.width < 8) return
-      const viewport = window.visualViewport
-      const next = {
-        top: Math.round(rect.top + (viewport?.offsetTop ?? 0)),
-        left: Math.round(rect.left + (viewport?.offsetLeft ?? 0)),
-        width: Math.round(rect.width),
-      }
-      setAnchor((prev) => {
-        if (prev && prev.top === next.top && prev.left === next.left && prev.width === next.width) return prev
-        return next
-      })
+    if (!phone) {
+      setSpacerHeight(0)
+      return
     }
-    place()
-    const rooms: HTMLElement[] = []
-    let node = spacerRef.current?.parentElement ?? null
-    while (node) {
-      rooms.push(node)
-      node = node.parentElement
-    }
-    rooms.forEach((room) => room.addEventListener('scroll', place, { passive: true }))
-    window.addEventListener('resize', place)
-    window.visualViewport?.addEventListener('resize', place)
-    window.visualViewport?.addEventListener('scroll', place)
-    return () => {
-      rooms.forEach((room) => room.removeEventListener('scroll', place))
-      window.removeEventListener('resize', place)
-      window.visualViewport?.removeEventListener('resize', place)
-      window.visualViewport?.removeEventListener('scroll', place)
-    }
-  }, [phone, pinned])
-
-  useLayoutEffect(() => {
-    if (!pinned) return
     const parked: HTMLElement[] = []
     let timers: number[] = []
     const sync = () => {
-      setDockBottom((prev) => {
-        const next = keyboardDockBottom()
-        return prev === next ? prev : next
-      })
+      const dock = dockRef.current
+      const height = Math.round(dock?.getBoundingClientRect().height ?? 0)
+      const nextTop = dockTopAboveKeyboard(height)
+      setDockTop((prev) => (prev === nextTop ? prev : nextTop))
+      setSpacerHeight((prev) => (prev === height ? prev : height))
       const field = inputRef.current
       if (field) parkBottomBars(field, parked)
     }
     const schedule = () => {
       sync()
       timers.forEach((id) => window.clearTimeout(id))
-      timers = [80, 200, 400, 700, 1100].map((delay) => window.setTimeout(sync, delay))
+      timers = [80, 200, 400, 700].map((delay) => window.setTimeout(sync, delay))
     }
     schedule()
     const viewport = window.visualViewport
@@ -165,79 +132,12 @@ export function SpeechIntentConfirm({
       viewport?.removeEventListener('scroll', sync)
       window.removeEventListener('orientationchange', schedule)
     }
-  }, [pinned])
-
-  phoneRef.current = phone
-  pinnedRef.current = pinned
-
-  const focusField = () => {
-    const input = inputRef.current
-    if (!input || input.disabled) return
-    window.clearTimeout(blurTimerRef.current)
-    input.focus({ preventScroll: true })
-    const end = input.value.length
-    try {
-      input.setSelectionRange(end, end)
-    } catch {
-      // Một số bàn phím không cho đặt con trỏ khi chưa nhận focus.
-    }
-  }
-
-  const pinToKeyboard = () => {
-    if (!phoneRef.current || pinnedRef.current) return
-    pinnedRef.current = true
-    flushSync(() => setPinned(true))
-    focusField()
-  }
-
-  useLayoutEffect(() => {
-    const input = inputRef.current
-    const dock = dockRef.current
-    if (!input) return
-    const onFocusOut = (event: globalThis.FocusEvent) => {
-      const next = event.relatedTarget
-      if (next instanceof Node && dock?.contains(next)) return
-      window.clearTimeout(blurTimerRef.current)
-      blurTimerRef.current = window.setTimeout(() => {
-        const active = document.activeElement
-        if (active && dockRef.current?.contains(active)) return
-        pinnedRef.current = false
-        setPinned(false)
-      }, 200)
-    }
-    const onPointerUp = () => {
-      if (document.activeElement === input) return
-      focusField()
-    }
-    input.addEventListener('pointerup', onPointerUp)
-    input.addEventListener('focus', pinToKeyboard)
-    dock?.addEventListener('focusout', onFocusOut)
-    return () => {
-      input.removeEventListener('pointerup', onPointerUp)
-      input.removeEventListener('focus', pinToKeyboard)
-      dock?.removeEventListener('focusout', onFocusOut)
-    }
   }, [phone])
 
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    const target = event.target
-    if (!(target instanceof Element)) return
-    if (target.closest('button')) return
-    if (target instanceof HTMLInputElement) return
-    event.preventDefault()
-    focusField()
-  }
-
-  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
-    const next = event.relatedTarget
-    if (next instanceof Node && event.currentTarget.contains(next)) return
-    window.clearTimeout(blurTimerRef.current)
-    blurTimerRef.current = window.setTimeout(() => {
-      const active = document.activeElement
-      if (active && dockRef.current?.contains(active)) return
-      pinnedRef.current = false
-      setPinned(false)
-    }, 200)
+  const continueWith = () => {
+    const flushed = (flushRef.current?.() ?? inputRef.current?.value ?? meaningDraft).trim()
+    inputRef.current?.blur()
+    onContinue(flushed)
   }
 
   const meaningLine = meaningBusy ? (
@@ -245,102 +145,66 @@ export function SpeechIntentConfirm({
       {localText('Đang dịch...', 'Translating...')}
     </ProcessingRow>
   ) : meaning ? (
-    <p className="max-h-24 overflow-y-auto text-sm leading-relaxed text-slate-700">{meaning}</p>
+    <p className="text-sm leading-relaxed text-slate-700">{meaning}</p>
   ) : null
-
-  const editor = (
-    <div
-      ref={dockRef}
-      data-keyboard-dock={phone ? '' : undefined}
-      onPointerDown={handlePointerDown}
-      onBlur={handleBlur}
-      className={
-        !phone
-          ? undefined
-          : pinned
-            ? 'fixed left-0 right-0 z-[90] border-t border-emerald-200 bg-white px-3 pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.16)]'
-            : 'fixed z-[90]'
-      }
-      style={
-        phone
-          ? pinned
-            ? {
-                bottom: dockBottom,
-                paddingBottom: dockBottom > 0 ? 8 : 'max(8px, env(safe-area-inset-bottom, 0px))',
-              }
-            : {
-                top: anchor?.top ?? -9999,
-                left: anchor?.left ?? 0,
-                width: anchor?.width ?? 0,
-              }
-          : undefined
-      }
-    >
-      {pinned ? <p className="mb-1 text-xs font-semibold text-emerald-800">{label}</p> : null}
-      {pinned ? <div className="mb-1">{meaningLine}</div> : null}
-      <div className="flex items-end gap-2">
-        <div className="min-w-0 flex-1">
-          <LessonImeField
-            ref={inputRef}
-            value={text}
-            onChange={onTextChange}
-            languageCode={languageCode}
-            localText={localText}
-            flushRef={flushRef}
-            onPendingChange={setPending}
-            disabled={continueBusy}
-            className="bg-white text-slate-900"
-          />
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            const flushed = (flushRef.current?.() ?? text).trim()
-            if (!flushed) return
-            onTextChange(flushed)
-            setSavedText(flushed)
-          }}
-          disabled={continueBusy || (!text.trim() && !pending)}
-          className="min-h-11 shrink-0 bg-white px-3"
-        >
-          OK
-        </Button>
-      </div>
-      {editSaved ? (
-        <p className="mt-1 text-xs font-medium text-emerald-700">{localText('Đã sửa xong', 'Edit saved')}</p>
-      ) : null}
-    </div>
-  )
 
   return (
     <div className="space-y-2">
       <p className="text-sm font-semibold text-emerald-800">{label}</p>
-      {phone ? (
-        <div
-          ref={spacerRef}
-          className="min-h-11"
-          onPointerDown={(event) => {
-            if (event.target instanceof HTMLInputElement) return
-            event.preventDefault()
-            focusField()
-          }}
-        >
-          {pinned ? <p className="break-words text-base leading-relaxed">{text}</p> : null}
+      <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-base leading-relaxed text-slate-900">
+        {text}
+      </p>
+      <NativePhoneticLine
+        text={text}
+        targetLanguageCode={languageCode}
+        nativeLanguageCode={nativeLanguageCode}
+        localText={localText}
+      />
+      {meaningLine}
+      {phone ? <div aria-hidden style={{ height: spacerHeight }} /> : null}
+      <div
+        ref={dockRef}
+        data-keyboard-dock=""
+        className={
+          phone
+            ? 'fixed left-0 right-0 z-[90] border-t border-emerald-200 bg-white px-3 pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.16)]'
+            : ''
+        }
+        style={phone ? { top: dockTop, paddingBottom: 8 } : undefined}
+      >
+        <p className="mb-1 text-xs text-slate-600">{meaningLabel}</p>
+        <div className="flex items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <LessonImeField
+              ref={inputRef}
+              value={meaningDraft}
+              onChange={setMeaningDraft}
+              languageCode={meaningLanguage}
+              localText={localText}
+              flushRef={flushRef}
+              disabled={continueBusy}
+              placeholder={meaningPlaceholder}
+              className="bg-white text-slate-900"
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={continueWith}
+            disabled={continueBusy || !text.trim()}
+            className="h-11 min-h-11 shrink-0 whitespace-nowrap px-3.5 text-sm font-semibold"
+          >
+            {localText('Tiếp', 'Continue')}
+          </Button>
         </div>
-      ) : (
-        editor
-      )}
-      {pinned ? null : meaningLine}
+      </div>
       <div className="flex flex-wrap gap-2">
         {onReplay ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onMouseDown={(event) => event.preventDefault()}
             onClick={onReplay}
             disabled={continueBusy}
             className="min-h-[40px] bg-white px-4"
@@ -354,7 +218,6 @@ export function SpeechIntentConfirm({
             type="button"
             size="sm"
             variant="outline"
-            onMouseDown={(event) => event.preventDefault()}
             onClick={onRecordAgain}
             disabled={continueBusy}
             className="min-h-[40px] bg-white px-4"
@@ -363,22 +226,7 @@ export function SpeechIntentConfirm({
             {localText('Nói lại', 'Record again')}
           </Button>
         ) : null}
-        <Button
-          type="button"
-          size="sm"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            const flushed = (flushRef.current?.() ?? text).trim()
-            if (!flushed) return
-            onContinue(flushed)
-          }}
-          disabled={continueBusy || (!text.trim() && !pending)}
-          className="min-h-[40px] px-4"
-        >
-          {localText('Tiếp', 'Continue')}
-        </Button>
       </div>
-      {phone && typeof document !== 'undefined' ? createPortal(editor, document.body) : null}
     </div>
   )
 }

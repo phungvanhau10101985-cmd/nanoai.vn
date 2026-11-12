@@ -9,6 +9,7 @@ import {
   FREE_LIVE_LESSON_LIMIT,
   freeLiveChoiceLabel,
   nextLiveStartKind,
+  shouldLeaveLanguageLanding,
 } from './english-coach-free-lessons'
 import { getFeatureSeo } from './feature-seo'
 
@@ -19,6 +20,10 @@ describe('free live lessons', () => {
     assert.equal(nextLiveStartKind({ alreadyStarted: false, freeUsed: 1 }), 'free')
     assert.equal(nextLiveStartKind({ alreadyStarted: false, freeUsed: 2 }), 'paid')
     assert.equal(nextLiveStartKind({ alreadyStarted: true, freeUsed: 0 }), 'already')
+    assert.equal(shouldLeaveLanguageLanding(0), false)
+    assert.equal(shouldLeaveLanguageLanding(1), false)
+    assert.equal(shouldLeaveLanguageLanding(2), true)
+    assert.equal(shouldLeaveLanguageLanding(3), true)
   })
 
   it('names the free offer in the room and on every language landing', () => {

@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import {
   KEYBOARD_FIELD_GAP_PX,
   applyPinAcrossScrollers,
+  composerUncoverPx,
   fieldPinDeltaPx,
   keyboardIsOpen,
   keyboardOverlapPx,
@@ -174,7 +175,29 @@ function releaseStickySheets(root: ParentNode = document) {
   })
 }
 
+function liftStickyBar(sticky: HTMLElement, overlap: number) {
+  if (sticky.dataset.keyboardLift !== '1') {
+    sticky.dataset.keyboardLift = '1'
+    sticky.dataset.keyboardSavedBottom = sticky.style.bottom
+    sticky.dataset.keyboardSavedZ = sticky.style.zIndex
+  }
+  const bottom = `${Math.max(0, Math.round(overlap))}px`
+  if (sticky.style.bottom !== bottom) sticky.style.bottom = bottom
+  if (sticky.style.zIndex !== '60') sticky.style.zIndex = '60'
+}
+
+function releaseStickyLifts(root: ParentNode = document) {
+  root.querySelectorAll<HTMLElement>('[data-keyboard-lift]').forEach((sticky) => {
+    sticky.style.bottom = sticky.dataset.keyboardSavedBottom ?? ''
+    sticky.style.zIndex = sticky.dataset.keyboardSavedZ ?? ''
+    delete sticky.dataset.keyboardLift
+    delete sticky.dataset.keyboardSavedBottom
+    delete sticky.dataset.keyboardSavedZ
+  })
+}
+
 function restoreShifted(root: ParentNode = document, includeParked = true) {
+  releaseStickyLifts(root)
   root.querySelectorAll<HTMLElement>('[data-keyboard-shift]').forEach((box) => {
     box.style.transform = box.dataset.keyboardSavedTransform ?? ''
     box.style.zIndex = box.dataset.keyboardSavedZ ?? ''
@@ -306,9 +329,55 @@ function nudgeBottomShell(field: HTMLElement, offsetTop: number, visualHeight: n
   return false
 }
 
+function releaseComposerMotion(composer: HTMLElement) {
+  if (composer.dataset.keyboardClamp) {
+    composer.style.height = composer.dataset.keyboardSavedClampHeight ?? ''
+    composer.style.maxHeight = composer.dataset.keyboardSavedClampMax ?? ''
+    delete composer.dataset.keyboardClamp
+    delete composer.dataset.keyboardSavedClampHeight
+    delete composer.dataset.keyboardSavedClampMax
+  }
+  if (composer.dataset.keyboardLift) {
+    composer.style.bottom = composer.dataset.keyboardSavedBottom ?? ''
+    composer.style.zIndex = composer.dataset.keyboardSavedZ ?? ''
+    delete composer.dataset.keyboardLift
+    delete composer.dataset.keyboardSavedBottom
+    delete composer.dataset.keyboardSavedZ
+  }
+  if (composer.dataset.keyboardShift) {
+    composer.style.transform = composer.dataset.keyboardSavedTransform ?? ''
+    composer.style.zIndex = composer.dataset.keyboardSavedZ ?? ''
+    delete composer.dataset.keyboardShift
+    delete composer.dataset.keyboardSavedTransform
+    delete composer.dataset.keyboardSavedZ
+  }
+}
+
+/** Hội thoại: không đẩy thanh gõ xuống. Chỉ cuộn hoặc kéo lên nếu bàn phím che đáy thanh. */
+function pinCoachComposer(field: HTMLElement, composer: HTMLElement, visualHeight: number) {
+  releaseComposerMotion(composer)
+  const covered = () => composerUncoverPx(composer.getBoundingClientRect().bottom, visualHeight)
+  let overlap = covered()
+  if (overlap > SLOP_PX) {
+    const rooms = scrollableAncestors(field)
+    scrollRooms(rooms, overlap)
+    const doc = document.scrollingElement
+    if (doc instanceof HTMLElement && !rooms.includes(doc)) scrollRooms([doc], overlap)
+  }
+  overlap = covered()
+  if (overlap <= SLOP_PX) return
+  composer.dataset.keyboardShift = '1'
+  composer.dataset.keyboardSavedTransform = composer.style.transform
+  composer.dataset.keyboardSavedZ = composer.style.zIndex
+  const base = (composer.dataset.keyboardSavedTransform ?? '').trim()
+  composer.style.transform = base ? `${base} translateY(${-overlap}px)` : `translateY(${-overlap}px)`
+  composer.style.zIndex = '60'
+}
+
 function pinField(field: HTMLElement, heightBeforeFocus: number) {
   if (!field.isConnected || keyboardOwnedElsewhere(field)) return
-  const sticky = nearestSticky(field)
+  const composer = field.closest<HTMLElement>('[data-coach-composer]')
+  const sticky = composer ? null : nearestSticky(field)
   if (sticky) lockStickySheet(sticky)
   const vv = window.visualViewport
   const visualHeight = vv?.height ?? window.innerHeight
@@ -321,12 +390,18 @@ function pinField(field: HTMLElement, heightBeforeFocus: number) {
   })
   if (!open) {
     restoreShifted()
+    if (composer) releaseComposerMotion(composer)
     return
   }
 
   restoreShifted(document, false)
   unparkAround(field)
   parkForeignBars(field, visualHeight)
+
+  if (composer) {
+    pinCoachComposer(field, composer, visualHeight)
+    return
+  }
 
   const deltaNow = () => fieldPinDeltaPx(field.getBoundingClientRect().bottom, visualHeight)
 
@@ -337,10 +412,8 @@ function pinField(field: HTMLElement, heightBeforeFocus: number) {
   }
 
   if (sticky) {
-    const rooms = scrollableAncestors(field)
-    scrollRooms(rooms, deltaNow())
-    const doc = document.scrollingElement
-    if (doc instanceof HTMLElement && !rooms.includes(doc)) scrollRooms([doc], deltaNow())
+    const overlap = keyboardOverlapPx(window.innerHeight, offsetTop, visualHeight)
+    liftStickyBar(sticky, overlap)
     return
   }
 

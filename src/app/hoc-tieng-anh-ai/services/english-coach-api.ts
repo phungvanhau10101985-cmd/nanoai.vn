@@ -288,6 +288,7 @@ export function updateMessageTranslation(payload: {
   messageId: string
   sessionId?: string
   clientMessageId?: string
+  text?: string
   translation?: string
   mainSentence?: string
   correctionNote?: string

@@ -5,6 +5,7 @@ import {
   fetchDailyWordsForSessionListeningPg,
   fetchDailyWordsRecentUserListeningPg,
 } from '@/lib/db/language-coach-misc-pg'
+import { isLessonContentToken, lessonScriptOf } from '@/lib/english-coach/listening-words'
 
 function normalizeLookup(input: string): string {
   return String(input || '').trim().toLowerCase()
@@ -49,7 +50,8 @@ export async function GET(request: NextRequest) {
     const excludeSet = new Set(
       (excludeRaw ? excludeRaw.split(/[,;]/).map((x) => normalizeLookup(x)).filter(Boolean) : []) as string[]
     )
-    const minLen = ['zh', 'ja', 'ko', 'th', 'hi'].includes(languageCode.toLowerCase()) ? 1 : 2
+    const script = lessonScriptOf(languageCode, '')
+    const minLen = script ? 1 : 2
 
     const out: string[] = []
 
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
       for (const row of rows || []) {
         for (const token of extractWords(String(row.word || ''))) {
           const t = normalizeLookup(token)
-          if (!t || t.length < minLen) continue
+          if (!t || t.length < minLen || !isLessonContentToken(t, script, true)) continue
           if (excludeSet.has(t) || out.includes(t)) continue
           out.push(t)
           if (out.length >= limit) return

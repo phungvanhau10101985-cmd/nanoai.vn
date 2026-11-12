@@ -11,6 +11,11 @@ export function nextLiveStartKind(input: { alreadyStarted: boolean; freeUsed: nu
   return 'paid'
 }
 
+/** Hết suất miễn phí thì không mở trang giới thiệu nữa. */
+export function shouldLeaveLanguageLanding(freeUsed: number): boolean {
+  return Math.max(0, Math.floor(Number(freeUsed) || 0)) >= FREE_LIVE_LESSON_LIMIT
+}
+
 function localeKey(locale: string): 'vi' | 'en' | 'zh' | 'ja' | 'ko' | 'th' | 'hi' {
   const code = String(locale || '').trim().toLowerCase()
   if (code === 'vi' || code === 'zh' || code === 'ja' || code === 'ko' || code === 'th' || code === 'hi') return code

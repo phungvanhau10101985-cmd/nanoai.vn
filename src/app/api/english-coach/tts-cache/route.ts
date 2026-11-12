@@ -7,6 +7,7 @@ type Payload = {
   text?: string
   voiceName?: string
   locale?: string
+  delivery?: string
 }
 
 function normalizeTextForTts(input: string): string {
@@ -31,9 +32,14 @@ function normalizeTextForTtsCacheKey(input: string): string {
     .trim()
 }
 
-function toTtsCacheKey(text: string, voiceName: string, locale: string): string {
+function toTtsCacheKey(text: string, voiceName: string, locale: string, delivery?: string): string {
   const textHash = createHash('sha256').update(text).digest('hex')
-  const keyRaw = `${textHash}::${voiceName}::${locale || 'en-US'}`
+  const tone = ['explain', 'model', 'reply'].includes(String(delivery || '').trim())
+    ? String(delivery || '').trim()
+    : ''
+  const keyRaw = tone
+    ? `${textHash}::${voiceName}::${locale || 'en-US'}::${tone}`
+    : `${textHash}::${voiceName}::${locale || 'en-US'}`
   return createHash('sha256').update(keyRaw).digest('hex')
 }
 
@@ -46,7 +52,7 @@ export async function POST(request: NextRequest) {
     const locale = String(payload.locale || 'en-US').trim() || 'en-US'
     if (!text) return NextResponse.json({ found: false }, { status: 200 })
 
-    const cacheKey = toTtsCacheKey(normalizeTextForTtsCacheKey(text), voiceName, locale)
+    const cacheKey = toTtsCacheKey(normalizeTextForTtsCacheKey(text), voiceName, locale, payload.delivery)
     if (!isPgConfigured()) {
       return NextResponse.json({ found: false }, { status: 200 })
     }

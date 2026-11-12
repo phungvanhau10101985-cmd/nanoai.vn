@@ -16,6 +16,7 @@ import {
   isWeddingCardCompletionKey,
   type WeddingCardCompletionKey,
 } from '@/lib/wedding/wedding-card-completion'
+import type { WeddingAdVisitCounts } from '@/lib/wedding/wedding-ad-source'
 import { ApiStatsDateFilter } from '../api-stats/api-stats-date-filter'
 import { ictDayEndIso, ictDayStartIso, ictYearStartYmd, ictYmd } from '../api-stats/ict-date'
 
@@ -35,6 +36,24 @@ function cardTitle(groomName: string, brideName: string): string {
   const bride = brideName.trim()
   if (groom && bride) return `${groom} & ${bride}`
   return groom || bride || '—'
+}
+
+function AdSourceCounts({ counts }: { counts: WeddingAdVisitCounts }) {
+  const lines = [
+    ['Facebook', counts.facebook],
+    ['TikTok', counts.tiktok],
+    ['Google Ads', counts.googleAds],
+  ] as const
+  return (
+    <div className="grid grid-cols-[auto_2.25rem] gap-x-3 gap-y-0.5 text-xs tabular-nums">
+      {lines.map(([label, visits]) => (
+        <div key={label} className="contents">
+          <span className={visits > 0 ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
+          <span className={visits > 0 ? 'text-right font-medium' : 'text-right text-muted-foreground'}>{visits}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default async function AdminWeddingCardStatsPage({
@@ -116,6 +135,15 @@ export default async function AdminWeddingCardStatsPage({
             '客户每次点击创建请柬记为一行。完成度为 10 项，每项 10%：姓名、日期、时间、地点、请柬文、照片、音乐、相册、故事或致谢，以及已发布。时间为越南时间。',
             '作成を押すたびに 1 行。完成度は 10 項目で各 10%：名前、日付、時刻、会場、招待文、写真、音楽、アルバム、物語または感謝、公開済み。時刻はベトナム時間。',
             '청첩장 만들기를 누를 때마다 한 줄. 완성도는 10항목, 각 10%: 이름, 날짜, 시간, 장소, 초대 문구, 사진, 음악, 앨범, 이야기 또는 감사, 게시. 시간은 베트남 시간.',
+          )}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {tr(
+            'Cột Nguồn đếm lượt khách mở thiệp đã xuất bản từ Facebook (gồm Instagram), TikTok và Google Ads. Mỗi trình duyệt, mỗi nguồn, mỗi ngày tính một lượt.',
+            'The Source column counts opens of a published card from Facebook (including Instagram), TikTok, and Google Ads. One browser, one source, and one day count as one visit.',
+            '「来源」列统计已发布请柬的打开次数：Facebook（含 Instagram）、TikTok 和 Google Ads。同一浏览器、同一来源、同一天计为 1 次。',
+            '「流入元」列は公開済み招待状を開いた回数です。Facebook（Instagram を含む）、TikTok、Google Ads。同じブラウザ、同じ流入元、同じ日は 1 回です。',
+            '출처 열은 게시된 청첩장을 연 횟수입니다. Facebook(Instagram 포함), TikTok, Google Ads. 같은 브라우저, 같은 출처, 같은 날은 1회입니다.',
           )}
         </p>
       </div>
@@ -207,6 +235,7 @@ export default async function AdminWeddingCardStatsPage({
                     <TableHead>{tr('Khách', 'Customer', '客户', 'お客様', '고객')}</TableHead>
                     <TableHead>{tr('Thiệp', 'Card', '请柬', '招待状', '청첩장')}</TableHead>
                     <TableHead>{tr('Link', 'Link', '链接', 'リンク', '링크')}</TableHead>
+                    <TableHead>{tr('Nguồn', 'Source', '来源', '流入元', '출처')}</TableHead>
                     <TableHead>{tr('Hoàn thiện', 'Completion', '完成度', '完成度', '완성도')}</TableHead>
                     <TableHead>{tr('Ngày tạo', 'Created date', '创建日期', '作成日', '만든 날짜')}</TableHead>
                     <TableHead>{tr('Giờ tạo', 'Created time', '创建时间', '作成時刻', '만든 시간')}</TableHead>
@@ -215,7 +244,7 @@ export default async function AdminWeddingCardStatsPage({
                 <TableBody>
                   {result.rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                         {tr(
                           'Chưa có khách tạo thiệp trong khoảng này.',
                           'No invitations were created in this range.',
@@ -270,6 +299,18 @@ export default async function AdminWeddingCardStatsPage({
                                 )}
                               </p>
                             )}
+                          </TableCell>
+                          <TableCell
+                            className="min-w-[9.5rem] align-top"
+                            title={tr(
+                              'Mỗi trình duyệt, mỗi nguồn, mỗi ngày tính một lượt.',
+                              'One browser, one source, and one day count as one visit.',
+                              '同一浏览器、同一来源、同一天计为 1 次。',
+                              '同じブラウザ、同じ流入元、同じ日は 1 回です。',
+                              '같은 브라우저, 같은 출처, 같은 날은 1회입니다.',
+                            )}
+                          >
+                            <AdSourceCounts counts={row.adVisits} />
                           </TableCell>
                           <TableCell className="min-w-[160px] align-top">
                             <div className="flex items-center gap-2">

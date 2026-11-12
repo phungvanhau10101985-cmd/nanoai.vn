@@ -1,7 +1,10 @@
 'use client'
 
 import { readingForCutSentence, readingStoredForShownText, stripReadingCommentary } from '@/lib/coach-reading'
+import { lessonListeningWords, prepareListeningWords, stripReadingLabels } from '@/lib/english-coach/listening-words'
 import { normalizeCopyText } from './normalize-copy-text'
+import { getSharedLessonAudio, playSharedLessonAudio, primeSharedLessonAudio } from './shared-lesson-audio'
+import { lessonSpeechDeliveryForKey, type LessonSpeechDelivery } from '@/lib/english-coach/lesson-tts-prompt'
 import { readLessonLanguageQuery } from '@/lib/hoc-ngoai-ngu/lesson-query'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import {
@@ -28,7 +31,7 @@ import {
   getWritingTaskProgressLocal,
   setWritingTaskProgressLocal,
 } from '@/lib/english-coach/writing-task-progress-storage'
-import { Mic, MicOff, Minus, Plus, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation, Search, ChevronRight, X } from 'lucide-react'
+import { Mic, MicOff, Send, Languages, Volume2, Play, RotateCcw, Trash2, Navigation, Search, ChevronRight, X } from 'lucide-react'
 import { WordPracticeOverlay } from './components/word-practice-overlay'
 import { PreLessonReviewOverlay } from './components/pre-lesson-review-overlay'
 import { QuickStartModal } from './components/quick-start-modal'
@@ -38,8 +41,26 @@ import { ReviewItemsPanel } from './components/review-items-panel'
 import { SpeechIntentConfirm } from './components/speech-intent-confirm'
 import { NativePhoneticLine } from './components/native-phonetic-line'
 import { PronunciationMasterSwitch, PronunciationReveal } from './components/pronunciation-reveal'
+import { PlaybackSpeedButton } from './components/playback-speed-button'
 import { LessonImeField } from './ime/lesson-ime-field'
 import { ProcessingIcon, ProcessingRow, processingLabel } from './components/processing-status'
+import {
+  clearPendingSpeechStorage,
+  durableAudioUrl,
+  findRestorablePendingSpeech,
+  isDiscardedSpeechPayload,
+  isUnansweredStudentTurn,
+  newerDraftText,
+  readPendingSpeechPayload,
+  readPendingSpeechStorage,
+  readStoredSpeechAnalysis,
+  recordedTurnBypassesMiniHold,
+  serializePendingSpeech,
+  shouldAttachLocalPendingDraft,
+  writePendingSpeechStorage,
+  type PendingSpeechAnalysis,
+} from '@/lib/english-coach/pending-speech-draft'
+import { applySpeechNativeMeaning } from '@/lib/english-coach/speech-turn-meaning'
 import { createCoachTranslator } from './i18n'
 import { toLanguagePairKey } from './i18n/pairs'
 import {
@@ -200,6 +221,7 @@ type MixedSpeechAnalysis = {
   nativeTranscript: string
   mergedTranscript: string
   inferredMeaning: string
+  nativeMeaningFromLearner?: boolean
   pronunciationIssues: string[]
   pronunciationScore: number
   weakWords: string[]
@@ -1164,6 +1186,20 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     th: 'ต่อไป',
     hi: 'आगे',
   },
+  'Playback speed': {
+    zh: '播放速度',
+    ja: '再生速度',
+    ko: '재생 속도',
+    th: 'ความเร็วในการเล่น',
+    hi: 'प्लेबैक गति',
+  },
+  'Normal': {
+    zh: '正常',
+    ja: '標準',
+    ko: '보통',
+    th: 'ปกติ',
+    hi: 'सामान्य',
+  },
   'Play back': {
     zh: '再听一遍',
     ja: 'もう一度聞く',
@@ -1177,6 +1213,20 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     ko: '다시 말하기',
     th: 'พูดอีกครั้ง',
     hi: 'फिर बोलें',
+  },
+  'Native meaning, optional': {
+    zh: '母语意思，可以留空',
+    ja: '母語の意味。空欄でもよい',
+    ko: '모국어 뜻, 비워도 됩니다',
+    th: 'ความหมายภาษาแม่ เว้นว่างได้',
+    hi: 'मातृभाषा का अर्थ, खाली छोड़ सकते हैं',
+  },
+  'Leave blank if the meaning above is right': {
+    zh: '上面的意思对就留空',
+    ja: '上の意味でよければ空欄のまま',
+    ko: '위 뜻이 맞으면 비워 두세요',
+    th: 'ถ้าความหมายด้านบนถูกแล้ว ให้เว้นว่าง',
+    hi: 'ऊपर वाला अर्थ सही हो तो खाली छोड़ें',
   },
   'Show pronunciation': {
     zh: '显示发音',
@@ -1693,11 +1743,24 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
   ],
 }
 
+const NATIVE_MALE_TEACHER_ID: Record<LanguageCode, string> = {
+  en: 'en-uk-m',
+  zh: 'zh-cn-m',
+  hi: 'hi-in-m',
+  th: 'th-th-m',
+  ja: 'ja-jp-m',
+  ko: 'ko-kr-m',
+  vi: 'vi-vn-m',
+}
+
 function maleTeacherFor(code: LanguageCode): TeacherProfile {
   const teachers = TEACHERS_BY_LANGUAGE[code] || TEACHERS_BY_LANGUAGE.en
-  const males = teachers.filter((teacher) => teacher.gender === 'male')
-  const pool = males.length > 0 ? males : teachers
-  return pool.find((teacher) => teacher.voiceName === 'Orus') || pool[0]
+  const preferredId = NATIVE_MALE_TEACHER_ID[code] || NATIVE_MALE_TEACHER_ID.en
+  return (
+    teachers.find((teacher) => teacher.id === preferredId && teacher.gender === 'male')
+    || teachers.find((teacher) => teacher.gender === 'male')
+    || teachers[0]
+  )
 }
 
 function base64ToBytes(b64: string): Uint8Array {
@@ -2094,7 +2157,8 @@ function tidySpeechSpan(text: string): string {
 /**
  * Câu giải thích đọc cả hai ngôn ngữ: tiếng mẹ đẻ và tiếng đang học.
  * Giữ nguyên câu tiếng Việt (kể cả dấu ấ/ế/ệ). Chỉ bỏ pinyin trong ngoặc.
- * Chữ Hán/Kana/Hangul đọc bằng giọng ngôn ngữ đích; phần còn lại bằng giọng mẹ đẻ.
+ * Chữ tiếng đang học và phần tiếng mẹ đẻ đều do cùng một thầy đọc.
+ * Vẫn tách clip để chữ tiếng đang học được phát âm đúng. Phần tiếng mẹ đẻ không đổi giọng.
  */
 function splitExplanationSpeechSpans(
   text: string,
@@ -2148,27 +2212,28 @@ function splitExplanationSpeechSpans(
 function expandTeacherSpeechClips(
   segments: Array<{ key: string; text: string }>,
   targetCode: LanguageCode
-): Array<{ key: string; text: string; kind: 'target' | 'native' }> {
-  const out: Array<{ key: string; text: string; kind: 'target' | 'native' }> = []
+): Array<{ key: string; text: string; kind: 'target' | 'native'; delivery: LessonSpeechDelivery }> {
+  const out: Array<{ key: string; text: string; kind: 'target' | 'native'; delivery: LessonSpeechDelivery }> = []
   for (const seg of segments) {
-    const raw = String(seg.text || '').trim()
+    const raw = stripReadingLabels(String(seg.text || '').trim())
     if (!raw) continue
-    const isTargetSentence = seg.key.endsWith('__main')
-    if (!isTargetSentence) {
+    const delivery = lessonSpeechDeliveryForKey(seg.key)
+    const isWholeSentence = seg.key.includes('__main') || seg.key.includes('__intent_answer')
+    if (!isWholeSentence) {
       splitExplanationSpeechSpans(raw, targetCode).forEach((span, index) => {
-        out.push({ key: `${seg.key}__sp${index}`, text: span.text, kind: span.kind })
+        out.push({ key: `${seg.key}__sp${index}`, text: span.text, kind: span.kind, delivery })
       })
       continue
     }
     const text = stripPhoneticForTts(raw, targetCode)
-    if (text) out.push({ key: seg.key, text, kind: 'target' })
+    if (text) out.push({ key: seg.key, text, kind: 'target', delivery })
   }
   return out
 }
 
 /** Bỏ phiên âm Latin (pinyin, romaji, v.v.) trước khi gửi TTS – tránh đọc 2 lần. Áp dụng đa ngôn ngữ. */
 function stripPhoneticForTts(text: string, targetCode: LanguageCode): string {
-  const s = String(text || '').trim()
+  const s = stripReadingLabels(text)
   if (!s) return s
   if (targetCode === 'en' || targetCode === 'vi') return s
   let result = stripPinyinInParentheses(s)
@@ -2426,14 +2491,7 @@ function displayListeningWord(text: string): string {
 }
 
 function buildListeningFallbackCandidates(prompt: string, targetCode: LanguageCode): string[] {
-  const allowSingleChar = targetCode === 'zh' || targetCode === 'ja' || targetCode === 'ko' || targetCode === 'th' || targetCode === 'hi'
-  const minLen = allowSingleChar ? 1 : 2
-  const fromPrompt = String(prompt || '')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .map((x) => x.trim())
-    .filter((x) => x.length >= minLen)
-    .slice(0, 20)
+  const fromPrompt = lessonListeningWords(prompt, targetCode).slice(0, 20)
   const byLanguage: Record<LanguageCode, string[]> = {
     en: ['book', 'school', 'water', 'market', 'family', 'today', 'friend', 'morning'],
     vi: ['hôm', 'nay', 'bạn', 'đi', 'học', 'nhà', 'ăn', 'uống'],
@@ -2531,6 +2589,9 @@ function isUuidMessageId(value: string): boolean {
 }
 
 /** Trang học Live AI – tách riêng, không dùng chung logic với bài học có sẵn */
+const missingTeacherReplyInflight = new Map<string, Promise<boolean>>()
+const missingTeacherReplyOwner = new Map<string, object>()
+
 export default function HocTiengAnhAiClientPage() {
   const router = useRouter()
   const pathname = usePathname()
@@ -2539,7 +2600,7 @@ export default function HocTiengAnhAiClientPage() {
   const [sessionId, setSessionId] = useState<string>(createSessionId)
   const [languageCode, setLanguageCode] = useState<LanguageCode>('en')
   const [nativeLanguageCode, setNativeLanguageCode] = useState<NativeLanguageCode>('vi')
-  const [teacherId, setTeacherId] = useState<string>('en-us-m')
+  const [teacherId, setTeacherId] = useState<string>('en-uk-m')
   const [sessionTeacher, setSessionTeacher] = useState<TeacherProfile | null>(null)
   const [speakingLanguageMode] = useState<SpeakingLanguageMode>('auto')
   const [startingLesson, setStartingLesson] = useState(false)
@@ -2718,6 +2779,13 @@ export default function HocTiengAnhAiClientPage() {
   const wordPlayingRef = useRef<Set<string>>(new Set())
   const textSnippetPlayingRef = useRef<Set<string>>(new Set())
   const [openedHistorySessionId, setOpenedHistorySessionId] = useState('')
+  const [missingTeacherResume, setMissingTeacherResume] = useState<{
+    sessionId: string
+    messageId: string
+    text: string
+    audioUrl: string
+    analysis: MixedSpeechAnalysis | null
+  } | null>(null)
   const [isCurrentPresetSession, setIsCurrentPresetSession] = useState(false)
   const [presetReplayExpectedSentence, setPresetReplayExpectedSentence] = useState('')
   const [presetReplayNextTurnIndex, setPresetReplayNextTurnIndex] = useState(0)
@@ -2925,6 +2993,23 @@ export default function HocTiengAnhAiClientPage() {
   const speechRecognizeLockRef = useRef(false)
   const speechMeaningSeqRef = useRef(0)
   const speechMeaningOnceIdRef = useRef('')
+  const speechDraftRevRef = useRef(0)
+  const pendingSpeechSaveTimerRef = useRef(0)
+  const flushPendingSpeechRef = useRef<(
+    mode: 'pending' | 'final' | 'discard',
+    forced?: {
+      messageId: string
+      text: string
+      originalText: string
+      meaning: string
+      analysis: MixedSpeechAnalysis | null
+      audioUrl: string
+      presetReplay: boolean
+    } | null,
+  ) => Promise<void>>(async () => {})
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
+  const conversationalTeacherSavedRef = useRef(false)
   const recordingMimeTypeRef = useRef<string>('')
   const micStreamRef = useRef<MediaStream | null>(null)
   const micSilenceStopTimerRef = useRef<number | null>(null)
@@ -3207,7 +3292,9 @@ export default function HocTiengAnhAiClientPage() {
     [teacherId, teacherOptions]
   )
   const activeTeacher = sessionTeacher || selectedTeacher
-  const selectedVoice = FIXED_TTS_VOICE_BY_GENDER[activeTeacher.gender === 'female' ? 'female' : 'male']
+  const selectedVoice = activeTeacher.gender === 'male'
+    ? activeTeacher.voiceName
+    : FIXED_TTS_VOICE_BY_GENDER.male
   const teacherLabel = activeTeacher.label
   const teacherRoleLabel = useMemo(() => {
     if (uiLocale === 'vi') return activeTeacher.gender === 'male' ? 'Thầy' : 'Cô'
@@ -3355,7 +3442,7 @@ export default function HocTiengAnhAiClientPage() {
     miniReviewModalOpen &&
     (reviewDrillStage === 'writing' || reviewDrillStage === 'speaking' || reviewDrillStage === 'listening')
   const showMiniContinueButton =
-    learningMode === 'review' && miniPackHoldSpeak && !reviewMiniPackCompleted && !miniReviewModalVisible
+    learningMode === 'review' && miniPackHoldSpeak && !reviewMiniPackCompleted && !miniReviewModalVisible && !speechIntent
   const isMiniWritingBlocking =
     learningMode === 'review' && Boolean(writingTask) && !Boolean(writingTask?.completed)
   const latestMainSentenceForLearner = useMemo(() => {
@@ -3471,6 +3558,19 @@ export default function HocTiengAnhAiClientPage() {
     setMiniReviewModalOpen(true)
     setReviewDrillStage('writing')
   }, [miniContinueReady, reviewDrillStage, writingTask])
+
+  const clearStaleMiniForRecordedTurn = useCallback(() => {
+    setReviewDrillStage('idle')
+    setMiniReviewModalOpen(false)
+    setReviewMiniPackCompleted(false)
+    setMiniContinueReady(false)
+    setReviewListeningPopupOpen(false)
+    setWritingTask(null)
+    setReviewSpeakingTargetSentence('')
+    setWritingDraft('')
+    setWritingEvalResult(null)
+    setSpeakingDrillPhase('idle')
+  }, [])
 
   const redirectToMiniDrill = useCallback(() => {
     if (reviewDrillStage === 'idle') {
@@ -4305,37 +4405,11 @@ export default function HocTiengAnhAiClientPage() {
   }, [])
 
   const playAudioUrl = async (url: string): Promise<void> => {
-    const run = async () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.src = ''
-      }
-      const audio = new Audio(url)
-      audio.playbackRate = playbackSpeedRef.current
-      audioRef.current = audio
-      await new Promise<void>((resolve, reject) => {
-        let settled = false
-        const done = (err?: unknown) => {
-          if (settled) return
-          settled = true
-          if (err) reject(err)
-          else resolve()
-        }
-        audio.onended = () => done()
-        audio.onerror = (e) => done(e)
-        void audio.play().then(() => {
-          // normal path: resolved by onended/onerror
-        }).catch((e) => {
-          done(e)
-        })
-      })
-    }
-    audioQueueRef.current = audioQueueRef.current
-      .catch(() => {
-        // recover queue chain after unexpected failure
-      })
-      .then(run)
-    await audioQueueRef.current
+    const next = playSharedLessonAudio(url, playbackSpeedRef.current, audioQueueRef.current)
+    audioQueueRef.current = next
+    const audio = getSharedLessonAudio()
+    if (audio) audioRef.current = audio
+    await next
   }
 
   const replayStudentMessageAudio = async (messageId: string) => {
@@ -4352,6 +4426,7 @@ export default function HocTiengAnhAiClientPage() {
       locale?: string
       languageLabel?: string
       readingLanguage?: string
+      delivery?: LessonSpeechDelivery | ''
       forceEngine?: 'auto' | 'gemini-only' | 'openai-only'
       skipCache?: boolean
     }
@@ -4367,6 +4442,7 @@ export default function HocTiengAnhAiClientPage() {
         text: normalizedText,
         voiceName: selectedVoice,
         locale: localeToUse,
+        delivery: opts?.delivery || '',
       })
       const cachePayload = cacheData as {
         found?: boolean
@@ -4403,6 +4479,7 @@ export default function HocTiengAnhAiClientPage() {
       targetLanguage: activeTeacher.languageLabel,
       nativeLanguage: selectedNativeLanguage.apiLabel,
       readingLanguage: String(opts?.readingLanguage || '').trim(),
+      delivery: opts?.delivery || '',
       voiceStyle:
         activeTeacher.gender === 'male'
           ? `Speak with a deep, warm masculine native ${labelToUse} teacher voice. Low pitch, calm, and natural.`
@@ -4482,13 +4559,18 @@ export default function HocTiengAnhAiClientPage() {
     })
   }
 
-  const tryLoadCachedTtsAudio = async (text: string, localeOverride?: string) => {
+  const tryLoadCachedTtsAudio = async (
+    text: string,
+    localeOverride?: string,
+    delivery?: LessonSpeechDelivery | '',
+  ) => {
     const normalized = String(text || '').trim()
     if (!normalized) return null
     const { ok, data } = await getTtsCache({
       text: normalized,
       voiceName: selectedVoice,
       locale: String(localeOverride || activeTeacher.locale || '').trim() || 'en-US',
+      delivery: delivery || '',
     })
     const payload = data as {
       found?: boolean
@@ -4515,10 +4597,14 @@ export default function HocTiengAnhAiClientPage() {
     return { url, blob, blobType }
   }
 
-  const playBestEffortTts = async (text: string, opts?: { skipCache?: boolean }) => {
+  const playBestEffortTts = async (
+    text: string,
+    opts?: { skipCache?: boolean; delivery?: LessonSpeechDelivery | '' },
+  ) => {
     const single = await createTtsAudioData(String(text || '').trim(), {
       locale: activeTeacher.locale,
       languageLabel: activeTeacher.languageLabel,
+      delivery: opts?.delivery || '',
       forceEngine: 'auto',
       skipCache: opts?.skipCache,
     })
@@ -4528,6 +4614,35 @@ export default function HocTiengAnhAiClientPage() {
       // iOS Safari may block async autoplay; keep audio URL so user can replay manually.
     }
     return [single]
+  }
+
+  const speakOpenedLessonLine = async (messageId: string, text: string) => {
+    const textToSpeak = stripPhoneticForTts(
+      sanitizeLearnerReadingSentence(extractTeacherSpeechText(text)),
+      languageCode
+    )
+    if (!textToSpeak) return
+    const cached = String(teacherAudioByMessageIdRef.current[messageId] || '').trim()
+    if (cached) {
+      try {
+        await playAudioUrl(cached)
+      } catch {
+        // Giữ bài mở nếu trình duyệt chặn tự phát.
+      }
+      return
+    }
+    try {
+      const generated = await playBestEffortTts(textToSpeak)
+      const url = String(generated[0]?.url || '').trim()
+      if (!url) return
+      teacherAudioByMessageIdRef.current = {
+        ...teacherAudioByMessageIdRef.current,
+        [messageId]: url,
+      }
+      setTeacherAudioByMessageId((prev) => ({ ...prev, [messageId]: url }))
+    } catch {
+      // Giữ bài mở nếu không tạo được giọng.
+    }
   }
 
   const saveHistoryMessage = async ({
@@ -4542,6 +4657,7 @@ export default function HocTiengAnhAiClientPage() {
     aiPayloadJson,
     topicId: topicIdOverride,
     topicLabel: topicLabelOverride,
+    sessionIdOverride,
   }: {
     role: 'teacher' | 'student'
     text: string
@@ -4554,9 +4670,10 @@ export default function HocTiengAnhAiClientPage() {
     aiPayloadJson?: string
     topicId?: string
     topicLabel?: string
+    sessionIdOverride?: string
   }) => {
     const { ok, data } = await saveHistoryMessageApi({
-      sessionId,
+      sessionId: sessionIdOverride || sessionId,
       role,
       text,
       audioUrl: audioUrl || '',
@@ -4581,6 +4698,241 @@ export default function HocTiengAnhAiClientPage() {
     }
     return data.id || null
   }
+
+  const rememberPendingSpeech = (
+    snapshot?: {
+      messageId: string
+      text: string
+      originalText: string
+      meaning: string
+      analysis: MixedSpeechAnalysis | null
+      audioUrl: string
+      presetReplay: boolean
+    } | null,
+  ) => {
+    const current = snapshot ?? speechIntentRef.current
+    const sid = sessionIdRef.current
+    const text = String(current?.text || '').trim()
+    if (!current || !sid || !text) return
+    writePendingSpeechStorage({
+      sessionId: sid,
+      messageId: current.messageId,
+      text,
+      originalText: current.originalText || text,
+      meaning: current.meaning || '',
+      audioUrl: durableAudioUrl(current.audioUrl),
+      presetReplay: current.presetReplay,
+      analysis: current.analysis,
+      savedAt: Date.now(),
+    })
+  }
+
+  const flushPendingSpeech = async (
+    mode: 'pending' | 'final' | 'discard',
+    forced?: {
+      messageId: string
+      text: string
+      originalText: string
+      meaning: string
+      analysis: MixedSpeechAnalysis | null
+      audioUrl: string
+      presetReplay: boolean
+    } | null,
+  ) => {
+    const current = forced ?? speechIntentRef.current
+    const sid = sessionIdRef.current
+    const text = String(current?.text || '').trim()
+    if (!current || !sid || !text) return
+    const pending = mode === 'pending'
+    const discarded = mode === 'discard'
+    const rev = ++speechDraftRevRef.current
+    const savedAt = Date.now()
+    const aiPayloadJson = serializePendingSpeech({
+      rev,
+      savedAt,
+      pending,
+      discarded,
+      originalText: current.originalText || text,
+      meaning: current.meaning || '',
+      presetReplay: current.presetReplay,
+      analysis: (current.analysis || null) as PendingSpeechAnalysis | null,
+    })
+    const audioUrl = durableAudioUrl(current.audioUrl)
+    if (pending) {
+      writePendingSpeechStorage({
+        sessionId: sid,
+        messageId: current.messageId,
+        text,
+        originalText: current.originalText || text,
+        meaning: current.meaning || '',
+        audioUrl,
+        presetReplay: current.presetReplay,
+        analysis: current.analysis,
+        savedAt,
+      })
+    }
+    if (isUuidMessageId(current.messageId)) {
+      await updateMessageTranslationApi({
+        messageId: current.messageId,
+        sessionId: sid,
+        text,
+        aiPayloadJson,
+        ...(audioUrl ? { audioUrl } : {}),
+      })
+      if (!pending) clearPendingSpeechStorage(sid)
+      return
+    }
+    const markedNow = !persistedMessageIdsRef.current[current.messageId]
+    if (markedNow) persistedMessageIdsRef.current[current.messageId] = true
+    try {
+      await saveHistoryMessage({
+        role: 'student',
+        text,
+        audioUrl,
+        clientMessageId: current.messageId,
+        aiPayloadJson,
+        sessionIdOverride: sid,
+      })
+      if (!pending) clearPendingSpeechStorage(sid)
+    } catch (error) {
+      if (markedNow && speechDraftRevRef.current === rev) {
+        delete persistedMessageIdsRef.current[current.messageId]
+      }
+      throw error
+    }
+  }
+  flushPendingSpeechRef.current = flushPendingSpeech
+
+  const speechSaveContextRef = useRef({
+    languageCode: '',
+    targetLanguage: '',
+    teacherLabel: '',
+    teacherLocale: '',
+    mode: 'chat' as string,
+    nativeLanguage: '',
+    learningMode: 'review' as 'review' | 'reflex',
+    topicId: '',
+    topicLabel: '',
+  })
+  speechSaveContextRef.current = {
+    languageCode,
+    targetLanguage: activeTeacher.languageLabel,
+    teacherLabel: activeTeacher.label,
+    teacherLocale: activeTeacher.locale,
+    mode,
+    nativeLanguage: selectedNativeLanguage.apiLabel,
+    learningMode,
+    topicId: selectedTopic.id,
+    topicLabel: selectedTopic.label,
+  }
+
+  const postPendingSpeechKeepalive = (
+    snapshot: {
+      messageId: string
+      text: string
+      originalText: string
+      meaning: string
+      analysis: MixedSpeechAnalysis | null
+      audioUrl: string
+      presetReplay: boolean
+    },
+  ) => {
+    const sid = sessionIdRef.current
+    const text = String(snapshot.text || '').trim()
+    if (!sid || !text) return
+    const rev = ++speechDraftRevRef.current
+    const savedAt = Date.now()
+    const aiPayloadJson = serializePendingSpeech({
+      rev,
+      savedAt,
+      pending: true,
+      originalText: snapshot.originalText || text,
+      meaning: snapshot.meaning || '',
+      presetReplay: snapshot.presetReplay,
+      analysis: (snapshot.analysis || null) as PendingSpeechAnalysis | null,
+    })
+    writePendingSpeechStorage({
+      sessionId: sid,
+      messageId: snapshot.messageId,
+      text,
+      originalText: snapshot.originalText || text,
+      meaning: snapshot.meaning || '',
+      audioUrl: durableAudioUrl(snapshot.audioUrl),
+      presetReplay: snapshot.presetReplay,
+      analysis: snapshot.analysis,
+      savedAt,
+    })
+    const ctx = speechSaveContextRef.current
+    const audioUrl = durableAudioUrl(snapshot.audioUrl)
+    const init: RequestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+    }
+    try {
+      if (isUuidMessageId(snapshot.messageId)) {
+        void fetch('/api/english-coach/history/update-translation', {
+          ...init,
+          body: JSON.stringify({
+            messageId: snapshot.messageId,
+            sessionId: sid,
+            text,
+            aiPayloadJson,
+            ...(audioUrl ? { audioUrl } : {}),
+          }),
+        })
+        return
+      }
+      persistedMessageIdsRef.current[snapshot.messageId] = true
+      void fetch('/api/english-coach/history', {
+        ...init,
+        body: JSON.stringify({
+          sessionId: sid,
+          clientMessageId: snapshot.messageId,
+          role: 'student',
+          text,
+          audioUrl,
+          aiPayloadJson,
+          languageCode: ctx.languageCode,
+          targetLanguage: ctx.targetLanguage,
+          teacherLabel: ctx.teacherLabel,
+          teacherLocale: ctx.teacherLocale,
+          mode: ctx.mode,
+          nativeLanguage: ctx.nativeLanguage,
+          learningMode: ctx.learningMode,
+          topicId: ctx.topicId,
+          topicLabel: ctx.topicLabel,
+        }),
+      })
+    } catch {
+      // Trình duyệt đóng thì bản trong sessionStorage vẫn còn khi mở lại cùng tab.
+    }
+  }
+
+  const schedulePendingSpeechSave = () => {
+    window.clearTimeout(pendingSpeechSaveTimerRef.current)
+    pendingSpeechSaveTimerRef.current = window.setTimeout(() => {
+      void flushPendingSpeech('pending').catch(() => {})
+    }, 400)
+  }
+
+  useEffect(() => {
+    const leave = () => {
+      const current = speechIntentRef.current
+      if (!String(current?.text || '').trim()) return
+      postPendingSpeechKeepalive(current)
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') leave()
+    }
+    window.addEventListener('pagehide', leave)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('pagehide', leave)
+      document.removeEventListener('visibilitychange', onVis)
+      leave()
+    }
+  }, [])
 
   const uploadTeacherAudio = async (messageId: string, blob: Blob, blobType: string) => {
     const formData = new FormData()
@@ -4684,7 +5036,7 @@ export default function HocTiengAnhAiClientPage() {
         const voice = voiceForSpeechKind(seg.kind)
         let url = String(teacherAudioByMessageIdRef.current[seg.key] || '').trim()
         if (!url) {
-          const cachedDb = await tryLoadCachedTtsAudio(seg.text, voice.locale)
+          const cachedDb = await tryLoadCachedTtsAudio(seg.text, voice.locale, seg.delivery)
           if (cachedDb?.url) url = cachedDb.url
         }
         if (!url && !busy) {
@@ -4692,6 +5044,7 @@ export default function HocTiengAnhAiClientPage() {
             locale: voice.locale,
             languageLabel: voice.languageLabel,
             readingLanguage: voice.readingLanguage,
+            delivery: seg.delivery,
             forceEngine: 'auto',
           })
           url = String(single?.url || '').trim()
@@ -4808,7 +5161,7 @@ export default function HocTiengAnhAiClientPage() {
         const voice = voiceForSpeechKind(clip.kind)
         let url = String(teacherAudioByMessageIdRef.current[clip.key] || '').trim()
         if (!url) {
-          const cachedDb = await tryLoadCachedTtsAudio(clip.text, voice.locale)
+          const cachedDb = await tryLoadCachedTtsAudio(clip.text, voice.locale, clip.delivery)
           if (cachedDb?.url) url = cachedDb.url
         }
         if (!url) {
@@ -4816,6 +5169,7 @@ export default function HocTiengAnhAiClientPage() {
             locale: voice.locale,
             languageLabel: voice.languageLabel,
             readingLanguage: voice.readingLanguage,
+            delivery: clip.delivery,
             forceEngine: 'auto',
           })
           url = String(single?.url || '').trim()
@@ -4868,7 +5222,7 @@ export default function HocTiengAnhAiClientPage() {
         const voice = voiceForSpeechKind(clip.kind)
         let url = String(teacherAudioByMessageIdRef.current[clip.key] || '').trim()
         if (!url) {
-          const cachedDb = await tryLoadCachedTtsAudio(clip.text, voice.locale)
+          const cachedDb = await tryLoadCachedTtsAudio(clip.text, voice.locale, clip.delivery)
           if (cachedDb?.url) {
             url = cachedDb.url
             if (!firstAudio) firstAudio = cachedDb
@@ -4879,6 +5233,7 @@ export default function HocTiengAnhAiClientPage() {
             locale: voice.locale,
             languageLabel: voice.languageLabel,
             readingLanguage: voice.readingLanguage,
+            delivery: clip.delivery,
             forceEngine: 'auto',
           })
           url = String(single?.url || '').trim()
@@ -5176,7 +5531,7 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
     if (busy) {
-      const cachedDb = await tryLoadCachedTtsAudio(textForTts)
+      const cachedDb = await tryLoadCachedTtsAudio(textForTts, undefined, 'model')
       if (!cachedDb) return
       teacherAudioByMessageIdRef.current = {
         ...teacherAudioByMessageIdRef.current,
@@ -5188,7 +5543,7 @@ export default function HocTiengAnhAiClientPage() {
     }
     setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
     try {
-      const generated = await playBestEffortTts(textForTts)
+      const generated = await playBestEffortTts(textForTts, { delivery: 'model' })
       teacherAudioByMessageIdRef.current = {
         ...teacherAudioByMessageIdRef.current,
         [key]: generated[0]?.url || '',
@@ -5322,7 +5677,7 @@ export default function HocTiengAnhAiClientPage() {
       if (learningMode === 'reflex') {
         const fallback = stripPhoneticForTts(String(text || '').trim(), languageCode)
         if (!fallback) throw new Error(localText('Không tạo được âm thanh.', 'Unable to create audio.'))
-        segments.push({ key: `${messageId}__main`, text: fallback, kind: 'target' })
+        segments.push({ key: `${messageId}__main`, text: fallback, kind: 'target', delivery: 'model' })
       } else {
         const bilingual = expandTeacherSpeechClips(
           [{ key: `${messageId}__correction_note`, text: String(text || '').trim() }],
@@ -5342,7 +5697,7 @@ export default function HocTiengAnhAiClientPage() {
         nextCache[seg.key] = existing
         continue
       }
-      const cachedDb = await tryLoadCachedTtsAudio(seg.text, voice.locale)
+      const cachedDb = await tryLoadCachedTtsAudio(seg.text, voice.locale, seg.delivery)
       if (cachedDb?.url) {
         nextCache[seg.key] = cachedDb.url
         if (!firstPart) firstPart = cachedDb
@@ -5353,6 +5708,7 @@ export default function HocTiengAnhAiClientPage() {
           locale: voice.locale,
           languageLabel: voice.languageLabel,
           readingLanguage: voice.readingLanguage,
+          delivery: seg.delivery,
           forceEngine: 'auto',
         })
         if (single?.url) {
@@ -5779,30 +6135,18 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const getNativeTtsLocale = (): string => {
-    const code = String(nativeLanguageCode || 'vi').toLowerCase()
-    const map: Record<string, string> = {
-      vi: 'vi-VN',
-      en: 'en-US',
-      zh: 'zh-CN',
-      ja: 'ja-JP',
-      ko: 'ko-KR',
-      th: 'th-TH',
-      hi: 'hi-IN',
-    }
-    return map[code] || 'vi-VN'
-  }
+  const teacherSpeechProfile = () => ({
+    locale: String(activeTeacher.locale || '').trim() || 'en-US',
+    languageLabel: String(activeTeacher.languageLabel || '').trim() || 'English',
+  })
 
   const voiceForSpeechKind = (kind: 'target' | 'native') => {
+    const teacher = teacherSpeechProfile()
     if (kind === 'native') {
       const label = String(selectedNativeLanguage?.apiLabel || 'Vietnamese').trim() || 'Vietnamese'
-      return { locale: getNativeTtsLocale(), languageLabel: label, readingLanguage: label }
+      return { ...teacher, readingLanguage: label }
     }
-    return {
-      locale: String(activeTeacher.locale || '').trim() || 'en-US',
-      languageLabel: String(activeTeacher.languageLabel || '').trim() || 'English',
-      readingLanguage: '',
-    }
+    return { ...teacher, readingLanguage: '' }
   }
 
   const playMeaningInNativeLanguage = async (meaningText: string) => {
@@ -5810,9 +6154,11 @@ export default function HocTiengAnhAiClientPage() {
     if (!text) return
     try {
       const nativeLabel = selectedNativeLanguage?.apiLabel || 'Vietnamese'
+      const teacher = teacherSpeechProfile()
       const single = await createTtsAudioData(text, {
-        locale: getNativeTtsLocale(),
-        languageLabel: nativeLabel,
+        locale: teacher.locale,
+        languageLabel: teacher.languageLabel,
+        readingLanguage: nativeLabel,
         forceEngine: 'auto',
       })
       await playAudioUrl(single.url)
@@ -5824,16 +6170,17 @@ export default function HocTiengAnhAiClientPage() {
   const getWordSenseSegmentAudioUrl = async (text: string): Promise<string> => {
     const normalized = String(text || '').trim()
     if (!normalized) return ''
-    const locale = getNativeTtsLocale()
+    const teacher = teacherSpeechProfile()
     const voice = String(selectedVoice || '').trim()
     const gender = String(activeTeacher.gender || '').trim()
-    const cacheKey = `${locale}::${voice}::${gender}::${normalized}`
+    const cacheKey = `${teacher.locale}::${voice}::${gender}::${normalized}`
     const cachedUrl = String(wordSenseAudioByKeyRef.current[cacheKey] || '').trim()
     if (cachedUrl) return cachedUrl
     const nativeLabel = selectedNativeLanguage?.apiLabel || 'Vietnamese'
     const single = await createTtsAudioData(normalized, {
-      locale,
-      languageLabel: nativeLabel,
+      locale: teacher.locale,
+      languageLabel: teacher.languageLabel,
+      readingLanguage: nativeLabel,
       forceEngine: 'auto',
     })
     const url = String(single.url || '').trim()
@@ -6009,6 +6356,8 @@ export default function HocTiengAnhAiClientPage() {
       setReviewMiniPackCompleted(false)
       setMiniPackHoldSpeak(false)
       setMiniContinueReady(false)
+      window.clearTimeout(pendingSpeechSaveTimerRef.current)
+      clearPendingSpeechStorage(targetSessionId)
       speechIntentRef.current = null
       setSpeechIntent(null)
       setSpeechRecognizing(false)
@@ -6215,9 +6564,9 @@ export default function HocTiengAnhAiClientPage() {
     void fetchReviewDue()
   }
 
-  const loadHistorySession = async (targetSessionId: string) => {
+  const loadHistorySession = async (targetSessionId: string, opts?: { force?: boolean }) => {
     if (!targetSessionId) return
-    if (openedHistorySessionId === targetSessionId && !historyBusy) {
+    if (!opts?.force && openedHistorySessionId === targetSessionId && !historyBusy) {
       scrollToSpeakActions()
       return
     }
@@ -6228,6 +6577,11 @@ export default function HocTiengAnhAiClientPage() {
     setMiniPackHoldSpeak(false)
     setMiniContinueReady(false)
     setMiniReviewModalOpen(true)
+    window.clearTimeout(pendingSpeechSaveTimerRef.current)
+    const leavingDraft = speechIntentRef.current
+    if (leavingDraft?.text.trim() && sessionIdRef.current && sessionIdRef.current !== targetSessionId) {
+      void flushPendingSpeech('pending', leavingDraft).catch(() => {})
+    }
     speechIntentRef.current = null
     setSpeechIntent(null)
     setSpeechRecognizing(false)
@@ -6299,9 +6653,69 @@ export default function HocTiengAnhAiClientPage() {
       if (!ok) throw new Error(payload.error || localText('Không tải được nội dung buổi học.', 'Failed to load lesson content.'))
       if (loadHistoryRequestSeqRef.current !== requestSeq) return
 
-      const items = Array.isArray(payload.items) ? payload.items : []
+      let items = (Array.isArray(payload.items) ? payload.items : []).filter(
+        (item) => !isDiscardedSpeechPayload(item.aiPayloadJson)
+      )
+      const localDraft = readPendingSpeechStorage(targetSessionId)
+      const serverPending = findRestorablePendingSpeech(items)
+      let restoreSpeech: {
+        messageId: string
+        text: string
+        originalText: string
+        meaning: string
+        audioUrl: string
+        presetReplay: boolean
+        analysis: MixedSpeechAnalysis | null
+        rev: number
+        needsSave: boolean
+      } | null = null
+      if (serverPending) {
+        const meta = readPendingSpeechPayload(serverPending.aiPayloadJson)
+        const serverSavedAt = meta?.savedAt || 0
+        const text = newerDraftText(serverPending.text, serverSavedAt, localDraft, targetSessionId)
+        const useLocal = Boolean(
+          localDraft
+          && localDraft.sessionId === targetSessionId
+          && (localDraft.savedAt || 0) > serverSavedAt
+        )
+        if (text && text !== serverPending.text) {
+          items = items.map((item) => (item.id === serverPending.id ? { ...item, text } : item))
+        }
+        restoreSpeech = {
+          messageId: serverPending.id,
+          text: text || String(serverPending.text || '').trim(),
+          originalText: (useLocal ? localDraft?.originalText : meta?.originalText) || text || String(serverPending.text || ''),
+          meaning: (useLocal ? localDraft?.meaning : meta?.meaning) || '',
+          audioUrl: durableAudioUrl(serverPending.audioUrl || localDraft?.audioUrl || ''),
+          presetReplay: Boolean(meta?.presetReplay || localDraft?.presetReplay),
+          analysis: ((useLocal ? localDraft?.analysis : meta?.analysis) || null) as MixedSpeechAnalysis | null,
+          rev: meta?.rev || 0,
+          needsSave: useLocal,
+        }
+      } else if (localDraft && shouldAttachLocalPendingDraft(items, localDraft)) {
+        const draftId = localDraft.messageId || `draft-${targetSessionId}`
+        items = [...items, {
+          id: draftId,
+          role: 'student' as const,
+          text: localDraft.text,
+          audioUrl: localDraft.audioUrl,
+          aiPayloadJson: null,
+        }]
+        restoreSpeech = {
+          messageId: draftId,
+          text: localDraft.text,
+          originalText: localDraft.originalText || localDraft.text,
+          meaning: localDraft.meaning || '',
+          audioUrl: localDraft.audioUrl,
+          presetReplay: localDraft.presetReplay,
+          analysis: (localDraft.analysis || null) as MixedSpeechAnalysis | null,
+          rev: 0,
+          needsSave: true,
+        }
+      }
       const loadedLearningMode = 'review' as 'review' | 'reflex'
       setLearningMode('review')
+      sessionIdRef.current = targetSessionId
       setSessionId(targetSessionId)
       setMessages(items.map((x) => ({ id: x.id, role: x.role, text: x.text })))
       const loadedStudentTurns = items.filter((x) => x.role === 'student').length
@@ -6594,18 +7008,24 @@ export default function HocTiengAnhAiClientPage() {
           setWritingEvalResult(null)
         } else if (snapshotStage === 'idle') {
           setReviewDrillStage('idle')
+          const pendingMini = Boolean(writingRestored && !writingCompletedRestored)
           setReviewMiniPackCompleted(writingRestored && writingCompletedRestored)
+          if (pendingMini) {
+            setMiniPackHoldSpeak(true)
+            setMiniContinueReady(true)
+          } else {
+            setMiniPackHoldSpeak(false)
+            setMiniContinueReady(false)
+          }
         } else if (snapshotStage === 'listening' && activeListening) {
           setReviewListeningTurnIndex(-1)
-          const promptForListening = String(activeListening.prompt || '').trim()
-          const tokenList = Array.isArray(activeListening.expectedKeywords)
-            ? activeListening.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
-            : promptForListening
-              .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-              .split(/\s+/)
-              .map((x) => x.trim().toLowerCase())
-              .filter((x) => x.length >= 2)
-              .slice(0, 24)
+          const preparedListening = prepareListeningWords(
+            activeListening.expectedKeywords,
+            String(activeListening.prompt || ''),
+            languageCode,
+          )
+          const promptForListening = preparedListening.prompt
+          const tokenList = preparedListening.words
           const sentenceLower = promptForListening.toLowerCase()
           const inSentence = (w: string) => sentenceLower.includes(String(w || '').trim().toLowerCase())
           setReviewDrillStage('listening')
@@ -6700,15 +7120,13 @@ export default function HocTiengAnhAiClientPage() {
           setReviewSpeakingTargetSentence('')
         } else if (activeListening) {
           setReviewListeningTurnIndex(-1)
-          const promptForListening = String(activeListening.prompt || '').trim()
-          const tokenList = Array.isArray(activeListening.expectedKeywords)
-            ? activeListening.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
-            : promptForListening
-              .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-              .split(/\s+/)
-              .map((x) => x.trim().toLowerCase())
-              .filter((x) => x.length >= 2)
-              .slice(0, 24)
+          const preparedListening = prepareListeningWords(
+            activeListening.expectedKeywords,
+            String(activeListening.prompt || ''),
+            languageCode,
+          )
+          const promptForListening = preparedListening.prompt
+          const tokenList = preparedListening.words
           const sentenceLower = promptForListening.toLowerCase()
           const inSentence = (w: string) => sentenceLower.includes(String(w || '').trim().toLowerCase())
           setReviewDrillStage('listening')
@@ -6806,6 +7224,36 @@ export default function HocTiengAnhAiClientPage() {
         acc[item.id] = true
         return acc
       }, {})
+      if (restoreSpeech) {
+        if (restoreSpeech.needsSave && !isUuidMessageId(restoreSpeech.messageId)) {
+          delete persistedMessageIdsRef.current[restoreSpeech.messageId]
+        }
+        speechDraftRevRef.current = Math.max(speechDraftRevRef.current, restoreSpeech.rev)
+        const nextIntent = {
+          messageId: restoreSpeech.messageId,
+          text: restoreSpeech.text,
+          originalText: restoreSpeech.originalText,
+          meaning: restoreSpeech.meaning,
+          originalMeaning: restoreSpeech.meaning,
+          meaningBusy: !String(restoreSpeech.meaning || '').trim(),
+          analysis: restoreSpeech.analysis,
+          audioUrl: restoreSpeech.audioUrl,
+          presetReplay: restoreSpeech.presetReplay,
+        }
+        speechMeaningOnceIdRef.current = nextIntent.meaningBusy ? '' : nextIntent.messageId
+        speechIntentRef.current = nextIntent
+        setSpeechIntent(nextIntent)
+        if (restoreSpeech.audioUrl) {
+          studentAudioByMessageIdRef.current = {
+            ...studentAudioByMessageIdRef.current,
+            [nextIntent.messageId]: restoreSpeech.audioUrl,
+          }
+          setStudentAudioByMessageId((prev) => ({ ...prev, [nextIntent.messageId]: restoreSpeech.audioUrl }))
+        }
+        if (restoreSpeech.needsSave) {
+          void flushPendingSpeech('pending', nextIntent).catch(() => {})
+        }
+      }
       setOpenedHistorySessionId(targetSessionId)
       // Lock routing state to the exact opened session to avoid URL-effect reopening an older session.
       routeOpenSessionHandledRef.current = targetSessionId
@@ -6848,11 +7296,25 @@ export default function HocTiengAnhAiClientPage() {
           if (curriculum) setTopicCurriculum(curriculum)
         })
       }
-      if (Boolean(payload.presetReplaySession)) {
-        const firstTeacher = items.find((x) => x.role === 'teacher')
-        if (firstTeacher) {
-          presetOpeningToReplay = { messageId: firstTeacher.id, text: firstTeacher.text }
-        }
+      const lastLoaded = items[items.length - 1]
+      if (!restoreSpeech && isUnansweredStudentTurn(lastLoaded)) {
+        clearStaleMiniForRecordedTurn()
+        setMiniPackHoldSpeak(true)
+        setBusy(true)
+        setAwaitingTeacherReply(true)
+        setMissingTeacherResume({
+          sessionId: targetSessionId,
+          messageId: lastLoaded.id,
+          text: String(lastLoaded.text || '').trim(),
+          audioUrl: durableAudioUrl(lastLoaded.audioUrl),
+          analysis: readStoredSpeechAnalysis(lastLoaded.aiPayloadJson) as MixedSpeechAnalysis | null,
+        })
+      } else {
+        setMissingTeacherResume(null)
+      }
+      const firstTeacher = items.find((x) => x.role === 'teacher')
+      if (firstTeacher && String(firstTeacher.text || '').trim()) {
+        presetOpeningToReplay = { messageId: firstTeacher.id, text: firstTeacher.text }
       }
     } catch (e) {
       if (loadHistoryRequestSeqRef.current !== requestSeq) return
@@ -6862,8 +7324,9 @@ export default function HocTiengAnhAiClientPage() {
       if (loadHistoryRequestSeqRef.current !== requestSeq) return
       setHistoryBusy(false)
       if (presetOpeningToReplay) {
+        const opening = presetOpeningToReplay
         window.setTimeout(() => {
-          void replayTeacherMessage(presetOpeningToReplay!.messageId, presetOpeningToReplay!.text)
+          void speakOpenedLessonLine(opening.messageId, opening.text)
         }, 320)
       }
     }
@@ -6872,6 +7335,7 @@ export default function HocTiengAnhAiClientPage() {
   const openSessionByRoute = useCallback((targetSessionId: string, isPresetReplaySession?: boolean) => {
     const sid = String(targetSessionId || '').trim()
     if (!sid) return
+    primeSharedLessonAudio()
     const now = Date.now()
     if (now < sessionNavLockUntilRef.current) return
     sessionNavLockUntilRef.current = now + SESSION_NAV_LOCK_MS
@@ -7009,6 +7473,13 @@ export default function HocTiengAnhAiClientPage() {
 
   const startNewSession = () => {
     if (startingLesson || busy || historyBusy) return
+    window.clearTimeout(pendingSpeechSaveTimerRef.current)
+    const leavingDraft = speechIntentRef.current
+    if (leavingDraft?.text.trim()) {
+      void flushPendingSpeech('pending', leavingDraft).catch(() => {})
+    }
+    speechIntentRef.current = null
+    setSpeechIntent(null)
     lessonCompletedToastShownForSessionRef.current = null
     setWordPractice(null)
     setSessionId(createSessionId())
@@ -7503,10 +7974,12 @@ export default function HocTiengAnhAiClientPage() {
     const studentText = String(raw ?? draft).trim()
     if (!studentText) return
     if (busy && !opts?.existingStudentMessageId) return
-    if ((isMiniDrillBlocking || miniPackHoldSpeak) && !opts?.silentDrill && !opts?.drillSpeaking) {
+    const confirmingRecordedTurn = recordedTurnBypassesMiniHold(opts)
+    if ((isMiniDrillBlocking || miniPackHoldSpeak) && !confirmingRecordedTurn && !opts?.silentDrill && !opts?.drillSpeaking) {
       redirectToMiniDrill()
       return
     }
+    if (confirmingRecordedTurn) clearStaleMiniForRecordedTurn()
     if (source === 'mic') {
       const now = Date.now()
       const duplicate =
@@ -7569,18 +8042,34 @@ export default function HocTiengAnhAiClientPage() {
           delete persistedMessageIdsRef.current[studentMessageId]
           // keep conversation usable if history save fails
         })
+    } else if (hadExistingMessage && studentMessageId && persistedMessageIdsRef.current[studentMessageId]) {
+      const savedAudio = durableAudioUrl(opts?.studentAudioUrl || '')
+      void updateMessageTranslationApi({
+        messageId: studentMessageId,
+        ...(isUuidMessageId(studentMessageId) ? {} : { sessionId, clientMessageId: studentMessageId }),
+        text: studentText,
+        ...(savedAudio ? { audioUrl: savedAudio } : {}),
+      }).catch(() => {})
+    }
+    const holdSpeakUntilMini = learningMode === 'review' && !isFromDrill
+    if (!isFromDrill) conversationalTeacherSavedRef.current = false
+    let queuedMiniContinue = false
+    if (holdSpeakUntilMini) {
+      setMiniPackHoldSpeak(true)
+      setMiniContinueReady(false)
     }
     try {
       if (!sessionTeacher) {
         setSessionTeacher(selectedTeacher)
       }
+      const activeSessionId = String(sessionIdRef.current || sessionId || '').trim()
       const history = messages.slice(-8).map((m) => ({
         role: m.role,
         text: m.id === opts?.existingStudentMessageId ? studentText : m.text,
       }))
       const languagePairKey = toLanguagePairKey(nativeLanguageCode, languageCode)
       const { ok, data } = await chatWithCoach({
-        sessionId,
+        sessionId: activeSessionId,
         studentText,
         history,
         learningMode,
@@ -7653,7 +8142,6 @@ export default function HocTiengAnhAiClientPage() {
       }
 
       let mustStayWritingStage = false
-      let queuedMiniContinue = false
       let currentTeacherMessageId = ''
       let currentTeacherText = ''
       let currentWritingCopyTargets: string[] = []
@@ -7718,18 +8206,27 @@ export default function HocTiengAnhAiClientPage() {
             return ''
           }
         })()
-        void saveHistoryMessage({
-          role: 'teacher',
-          text: teacherText,
-          audioUrl: '',
-          clientMessageId: teacherMessageId,
-          mainSentence,
-          correctionNote,
-          intentAnswer,
-          aiPayloadJson,
-        }).then(() => {
+        try {
+          await saveHistoryMessage({
+            role: 'teacher',
+            text: teacherText,
+            audioUrl: '',
+            clientMessageId: teacherMessageId,
+            mainSentence,
+            correctionNote,
+            intentAnswer,
+            aiPayloadJson,
+            sessionIdOverride: activeSessionId,
+          })
           persistedMessageIdsRef.current[teacherMessageId] = true
-        }).catch(() => {})
+          conversationalTeacherSavedRef.current = true
+        } catch {
+          toast({
+            title: localText('Lỗi hội thoại', 'Conversation error'),
+            description: localText('Không lưu được lịch sử học.', 'Failed to save lesson history.'),
+            variant: 'destructive',
+          })
+        }
         const speakParts =
           learningMode === 'reflex'
             ? [mainSentence]
@@ -7921,17 +8418,13 @@ export default function HocTiengAnhAiClientPage() {
         const studentTurnCount = messages.filter((m) => m.role === 'student').length
         const turnIdx = Math.max(-1, studentTurnCount - 1)
         setReviewListeningTurnIndex(turnIdx)
-        const promptForListening = String(
-          payload.reviewDrill.prompt || payload.intentAnswer || payload.mainSentence || ''
-        ).trim()
-        const tokenList = Array.isArray(payload.reviewDrill.expectedKeywords)
-          ? payload.reviewDrill.expectedKeywords.map((x) => String(x || '').trim()).filter(Boolean)
-          : promptForListening
-            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-            .split(/\s+/)
-            .map((x) => x.trim().toLowerCase())
-            .filter((x) => x.length >= 2)
-            .slice(0, 24)
+        const preparedListening = prepareListeningWords(
+          payload.reviewDrill.expectedKeywords,
+          String(payload.reviewDrill.prompt || payload.intentAnswer || payload.mainSentence || ''),
+          languageCode,
+        )
+        const promptForListening = preparedListening.prompt
+        const tokenList = preparedListening.words
         const sentenceLower = promptForListening.toLowerCase()
         const norm = (w: string) => String(w || '').trim().toLowerCase()
         const inSentence = (w: string) => sentenceLower.includes(norm(w)) || new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(promptForListening)
@@ -8010,8 +8503,16 @@ export default function HocTiengAnhAiClientPage() {
         setWritingDraft('')
       } else if (!payload.reviewDrill?.type && !isFromDrill) {
         setReviewDrillStage('idle')
+        if (!queuedMiniContinue) {
+          setMiniPackHoldSpeak(false)
+          setMiniContinueReady(false)
+        }
       }
     } catch (e) {
+      if (holdSpeakUntilMini && !queuedMiniContinue) {
+        setMiniPackHoldSpeak(false)
+        setMiniContinueReady(false)
+      }
       const msg = unknownErrorMsg(e)
       toast({ title: localText('Lỗi hội thoại', 'Conversation error'), description: msg, variant: 'destructive' })
     } finally {
@@ -8019,6 +8520,53 @@ export default function HocTiengAnhAiClientPage() {
       setAwaitingTeacherReply(false)
     }
   }
+
+  const handleSendRef = useRef(handleSend)
+  handleSendRef.current = handleSend
+  const loadHistorySessionRef = useRef(loadHistorySession)
+  loadHistorySessionRef.current = loadHistorySession
+  const teacherResumeOwnerRef = useRef({})
+
+  useEffect(() => {
+    const job = missingTeacherResume
+    if (!job || historyBusy) return
+    if (sessionId !== job.sessionId) return
+    const last = messages[messages.length - 1]
+    if (!last || last.id !== job.messageId || last.role !== 'student') return
+    const existing = missingTeacherReplyInflight.get(job.messageId)
+    if (existing) {
+      if (missingTeacherReplyOwner.get(job.messageId) === teacherResumeOwnerRef.current) return
+      void existing.then((saved) => {
+        if (!saved || sessionIdRef.current !== job.sessionId) return
+        void loadHistorySessionRef.current(job.sessionId, { force: true })
+      })
+      return
+    }
+    let resolveSaved: (saved: boolean) => void = () => {}
+    const run = new Promise<boolean>((resolve) => {
+      resolveSaved = resolve
+    })
+    missingTeacherReplyInflight.set(job.messageId, run)
+    missingTeacherReplyOwner.set(job.messageId, teacherResumeOwnerRef.current)
+    setMissingTeacherResume(null)
+    const savedRef = conversationalTeacherSavedRef
+    void handleSendRef.current(
+      job.text,
+      job.analysis ? 'mic' : 'text',
+      job.analysis || undefined,
+      {
+        existingStudentMessageId: job.messageId,
+        studentAudioUrl: job.audioUrl,
+      },
+    ).then(() => {
+      const saved = savedRef.current
+      if (!saved) {
+        missingTeacherReplyInflight.delete(job.messageId)
+        missingTeacherReplyOwner.delete(job.messageId)
+      }
+      resolveSaved(saved)
+    })
+  }, [missingTeacherResume, historyBusy, sessionId, messages])
 
   const submitReviewListeningDrill = async (pickedOverride?: string[]) => {
     if (reviewListeningSubmitBusy) return
@@ -8324,6 +8872,7 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const startLesson = async (opts?: { skipPrerequisiteCheck?: boolean; curriculumOverride?: TopicCurriculum | null; topicOverride?: TopicOption | null }) => {
+    primeSharedLessonAudio()
     if (startingLesson) return
     if (!opts?.skipPrerequisiteCheck && !isTopicConfirmedForLesson) {
       toast({
@@ -8692,6 +9241,7 @@ export default function HocTiengAnhAiClientPage() {
   }, [])
 
   const startLiveLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
+    primeSharedLessonAudio()
     const plan = planArg || lessonStartPlan || matchedSessionPlan
     if (!plan) return
     let curriculumToUse = plan.curriculum
@@ -8762,6 +9312,7 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const startPresetLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
+    primeSharedLessonAudio()
     if (!lessonStartPresetAvailable) return
     const plan = planArg || lessonStartPlan
     if (!plan) return
@@ -8874,6 +9425,7 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const openMatchedHistorySession = async (targetSessionId: string) => {
+    primeSharedLessonAudio()
     if (!targetSessionId) return
     setMatchedSessionChoiceBusy(true)
     try {
@@ -8891,6 +9443,7 @@ export default function HocTiengAnhAiClientPage() {
   }
 
   const handleStartLessonClick = async () => {
+    primeSharedLessonAudio()
     if (!isLessonReadyToStart || startingLesson) return
     setWordPractice(null)
     try {
@@ -9254,6 +9807,8 @@ export default function HocTiengAnhAiClientPage() {
       }
       speechIntentRef.current = nextIntent
       setSpeechIntent(nextIntent)
+      rememberPendingSpeech(nextIntent)
+      void flushPendingSpeech('pending', nextIntent).catch(() => {})
       setBusy(false)
       setAwaitingTeacherReply(false)
     } catch (e) {
@@ -9270,22 +9825,36 @@ export default function HocTiengAnhAiClientPage() {
 
   const discardSpeechIntent = () => {
     const current = speechIntentRef.current
+    window.clearTimeout(pendingSpeechSaveTimerRef.current)
     speechIntentRef.current = null
     setSpeechIntent(null)
     if (!current) return
     setMessages((prev) => prev.filter((m) => m.id !== current.messageId))
+    void flushPendingSpeech('discard', current).catch(() => {})
   }
 
-  const confirmSpeechIntent = async (rawText?: string) => {
+  const confirmSpeechIntent = async (learnerMeaning?: string) => {
     const current = speechIntentRef.current
-    const text = String(rawText ?? current?.text ?? '').trim()
-    if (!current || !text) return
+    const heard = String(current?.originalText || current?.text || '').trim()
+    if (!current || !heard) return
+    const sent = applySpeechNativeMeaning(current.analysis, {
+      transcript: heard,
+      systemMeaning: current.meaning,
+      learnerMeaning: learnerMeaning || '',
+    })
+    const snapshot = { ...current, text: sent.studentText, analysis: sent.analysis }
+    window.clearTimeout(pendingSpeechSaveTimerRef.current)
     speechIntentRef.current = null
     setSpeechIntent(null)
-    updateMessageText(current.messageId, text)
+    updateMessageText(current.messageId, sent.studentText)
+    try {
+      await flushPendingSpeech('final', snapshot)
+    } catch {
+      // Tiếp vẫn gửi. Câu đã có trong buổi học nếu lần lưu trước kịp ghi.
+    }
     setBusy(true)
     setAwaitingTeacherReply(true)
-    await handleSend(text, 'mic', current.analysis || undefined, {
+    await handleSend(sent.studentText, 'mic', sent.analysis, {
       existingStudentMessageId: current.messageId,
       studentAudioUrl: current.audioUrl,
       forcePresetReplaySubmission: current.presetReplay,
@@ -9322,6 +9891,8 @@ export default function HocTiengAnhAiClientPage() {
       }
       speechIntentRef.current = next
       setSpeechIntent(next)
+      rememberPendingSpeech(next)
+      schedulePendingSpeechSave()
     }).catch(() => {
       if (speechMeaningSeqRef.current !== seq) return
       const now = speechIntentRef.current
@@ -9410,7 +9981,7 @@ export default function HocTiengAnhAiClientPage() {
       return
     }
     if (speechRecognizing) return
-    if (speechIntentRef.current) discardSpeechIntent()
+    if (speechIntentRef.current) return
     if (isMiniDrillBlocking || miniPackHoldSpeak) {
       redirectToMiniDrill()
       return
@@ -10172,7 +10743,7 @@ export default function HocTiengAnhAiClientPage() {
                     </>
                   ) : null
                 })()}
-              <div ref={chatScrollRef} className="relative w-full min-w-0 max-w-full max-h-[min(64dvh,calc(100dvh-20rem))] flex-1 space-y-2.5 overflow-x-hidden overflow-y-auto overscroll-y-contain rounded-xl border border-border/70 bg-slate-50/90 p-3 pb-14 scroll-pb-14 sm:max-h-[34rem] sm:p-3.5 sm:pb-20 sm:scroll-pb-20">
+              <div ref={chatScrollRef} className="relative w-full min-w-0 max-w-full max-h-[min(64lvh,calc(100lvh-20rem))] flex-1 space-y-2.5 overflow-x-hidden overflow-y-auto overscroll-y-contain rounded-xl border border-border/70 bg-slate-50/90 p-3 pb-14 scroll-pb-14 sm:max-h-[34rem] sm:p-3.5 sm:pb-20 sm:scroll-pb-20">
                 {messages.length === 0 ? (
                   <div className="space-y-3">
                     {historySessions.length > 0 ? (
@@ -10458,7 +11029,20 @@ export default function HocTiengAnhAiClientPage() {
                               )
                             }
                             const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer || correctionItems.length > 0)
-                            if (!hasStructured) return <p className="break-words text-base leading-relaxed">{m.text}</p>
+                            if (!hasStructured) {
+                              return (
+                                <div className="space-y-1">
+                                  <p className="break-words text-base leading-relaxed">{m.text}</p>
+                                  <NativePhoneticLine
+                                    text={m.text}
+                                    targetLanguageCode={languageCode}
+                                    nativeLanguageCode={nativeLanguageCode}
+                                    localText={localText}
+                                    coachUsageContext={englishCoachUsageContext}
+                                  />
+                                </div>
+                              )
+                            }
                             const skipPinyin2 = correctedSentence && hasEmbeddedPinyin(correctedSentence)
                             const skipPinyin3 = intentAnswer && hasEmbeddedPinyin(intentAnswer)
                             if (supportsLatinTransliteration && correctedSentence && !skipPinyin2) void ensureWritingRomanization(correctedSentence)
@@ -10733,16 +11317,10 @@ export default function HocTiengAnhAiClientPage() {
                           meaningBusy={speechIntent.meaningBusy}
                           continueBusy={busy || awaitingTeacherReply}
                           languageCode={languageCode}
+                          nativeLanguageCode={nativeLanguageCode}
                           localText={localText}
-                          onTextChange={(value) => {
-                            const current = speechIntentRef.current
-                            if (!current || current.messageId !== m.id) return
-                            const next = { ...current, text: value }
-                            speechIntentRef.current = next
-                            setSpeechIntent(next)
-                          }}
-                          onContinue={(text) => {
-                            void confirmSpeechIntent(text)
+                          onContinue={(learnerMeaning) => {
+                            void confirmSpeechIntent(learnerMeaning)
                           }}
                           onReplay={() => {
                             const url = String(
@@ -10766,6 +11344,13 @@ export default function HocTiengAnhAiClientPage() {
                           ) : (
                             <p className="text-base leading-relaxed">{m.text}</p>
                           )}
+                          <NativePhoneticLine
+                            text={m.text}
+                            targetLanguageCode={languageCode}
+                            nativeLanguageCode={nativeLanguageCode}
+                            localText={localText}
+                            coachUsageContext={englishCoachUsageContext}
+                          />
                         </div>
                       )}
                       {m.role === 'teacher' && learningMode !== 'reflex' ? (
@@ -11053,7 +11638,7 @@ export default function HocTiengAnhAiClientPage() {
                         >
                           {localText('Tiếp', 'Continue')}
                         </Button>
-                      ) : blockConversationInput ? null : (
+                      ) : blockConversationInput || ((Boolean(speechIntent) || speechRecognizing) && !listening) ? null : (
                         <Button
                           type="button"
                           size="sm"
@@ -11066,62 +11651,18 @@ export default function HocTiengAnhAiClientPage() {
                           {listening ? localText('Dừng mic', 'Stop mic') : localText('Nói', 'Speak')}
                         </Button>
                       )}
-                      <PronunciationMasterSwitch compact labeled localText={localText} />
-                      <div
-                        className="flex items-center gap-1"
-                        title={localText('Tốc độ giọng nói', 'Voice playback speed')}
-                      >
-                        <span className="text-[10px] font-medium leading-none text-slate-500">
-                          {localText('Tốc độ', 'Speed')}
-                        </span>
-                        <div className="flex items-center rounded-md border border-slate-200 bg-white">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
-                            aria-label={localText('Chậm hơn', 'Slower')}
-                            disabled={playbackSpeed <= 0.75}
-                            onClick={() => {
-                              const speeds = [0.75, 1, 1.25, 1.5]
-                              const i = speeds.indexOf(playbackSpeed)
-                              if (i <= 0) return
-                              const next = speeds[i - 1]
-                              playbackSpeedRef.current = next
-                              setPlaybackSpeed(next)
-                              if (audioRef.current && !audioRef.current.paused) {
-                                audioRef.current.playbackRate = next
-                              }
-                            }}
-                          >
-                            <Minus className="h-3.5 w-3.5" />
-                          </Button>
-                          <span className="min-w-[2rem] text-center text-xs font-semibold text-slate-700">
-                            {playbackSpeed}x
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
-                            aria-label={localText('Nhanh hơn', 'Faster')}
-                            disabled={playbackSpeed >= 1.5}
-                            onClick={() => {
-                              const speeds = [0.75, 1, 1.25, 1.5]
-                              const i = speeds.indexOf(playbackSpeed)
-                              if (i >= speeds.length - 1) return
-                              const next = speeds[i + 1]
-                              playbackSpeedRef.current = next
-                              setPlaybackSpeed(next)
-                              if (audioRef.current && !audioRef.current.paused) {
-                                audioRef.current.playbackRate = next
-                              }
-                            }}
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
+                      <PlaybackSpeedButton
+                        speed={playbackSpeed}
+                        localText={localText}
+                        onChange={(next) => {
+                          playbackSpeedRef.current = next
+                          setPlaybackSpeed(next)
+                          if (audioRef.current && !audioRef.current.paused) {
+                            audioRef.current.playbackRate = next
+                          }
+                        }}
+                      />
+                      <PronunciationMasterSwitch above labeled localText={localText} />
                       </div>
                       <button
                         type="button"
@@ -11188,7 +11729,7 @@ export default function HocTiengAnhAiClientPage() {
                   ) : null}
                 </div>
                 {!isPresetPageSession ? (
-                  <div className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-700">
+                  <div data-coach-below="" className="rounded-md border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-700">
                     <p>
                       {localText('Lượt hỏi buổi live:', 'Live lesson turns:')}{' '}
                       <span className="font-semibold">{liveSessionStudentTurnCount}/{liveSessionTurnLimit}</span>
@@ -11259,7 +11800,7 @@ export default function HocTiengAnhAiClientPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                  <div data-coach-below="" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                     {localText(
                       `Bài học có sẵn: ${PRESET_SESSION_PRICE_CREDITS} credit/buổi (không mở thêm lượt, học hết buổi hiện tại).`,
                       `Saved lesson: ${PRESET_SESSION_PRICE_CREDITS} credit per lesson (no extra turn unlock, finish current lesson).`
@@ -11267,25 +11808,30 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 )}
                 {showMiniContinueButton && reviewDrillStage !== 'idle' ? (
-                  <p className="text-xs text-slate-500">
+                  <p data-coach-below="" className="text-xs text-slate-500">
                     {localText(
                       'Chưa qua bài ôn mini. Bấm Tiếp để vào lại.',
                       'Mini review is not finished. Tap Continue to open it again.'
                     )}
                   </p>
                 ) : showMiniContinueButton && !miniContinueReady ? (
-                  <p className="text-xs text-slate-500">
-                    {localText(
-                      'Giáo viên đang giảng. Hết bài hãy bấm Tiếp.',
-                      'The teacher is still explaining. Tap Continue when it ends.'
-                    )}
+                  <p data-coach-below="" className="text-xs text-slate-500">
+                    {messages[messages.length - 1]?.role === 'teacher'
+                      ? localText(
+                        'Giáo viên đang giảng. Hết bài hãy bấm Tiếp.',
+                        'The teacher is still explaining. Tap Continue when it ends.'
+                      )
+                      : localText(
+                        'Thầy/cô đang suy nghĩ và chuẩn bị giảng giải cho bạn...',
+                        'Teacher is thinking and preparing an explanation for you...'
+                      )}
                   </p>
                 ) : busy && (messages.length === 0 || messages[messages.length - 1]?.role !== 'teacher') ? (
-                  <p className="text-xs text-slate-500">
+                  <p data-coach-below="" className="text-xs text-slate-500">
                     {localText('Thầy/cô đang suy nghĩ và chuẩn bị giảng giải cho bạn...', 'Teacher is thinking and preparing an explanation for you...')}
                   </p>
                 ) : recordingPending ? (
-                  <p className="text-xs text-slate-500">
+                  <p data-coach-below="" className="text-xs text-slate-500">
                     {localText('Đã ghi âm xong. Nghe lại, gửi hoặc nói lại.', 'Recording done. Play back, send, or record again.')}
                   </p>
                 ) : null}
@@ -11644,7 +12190,7 @@ export default function HocTiengAnhAiClientPage() {
               {!compactMode ? <CardDescription className="break-words">{coachUiText.fixDesc}</CardDescription> : null}
             </CardHeader>
             <CardContent className="min-w-0 space-y-3">
-              <div className="min-w-0 rounded-xl border border-border/70 p-3">
+              <div data-coach-below="" className="min-w-0 rounded-xl border border-border/70 p-3">
                 <p className="break-words text-sm font-semibold text-slate-800">{localText('Lỗi cần sửa', 'Corrections needed')}</p>
                 {corrections.length === 0 ? (
                   <p className="mt-1 break-words text-sm text-muted-foreground">{localText('Chưa có lỗi nào gần đây.', 'No recent errors.')}</p>
@@ -11665,7 +12211,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 )}
               </div>
-              <div className="min-w-0 rounded-xl border border-border/70 p-3">
+              <div data-coach-below="" className="min-w-0 rounded-xl border border-border/70 p-3">
                 <p className="break-words text-sm font-semibold text-slate-800">{localText('Điểm phát âm gần nhất', 'Latest pronunciation score')}</p>
                 {latestPronunciationScore == null ? (
                   <p className="mt-1 break-words text-sm text-muted-foreground">{localText('Chưa có điểm phát âm từ mic.', 'No pronunciation score from mic yet.')}</p>
@@ -11698,7 +12244,7 @@ export default function HocTiengAnhAiClientPage() {
                   </div>
                 )}
               </div>
-              <div className="min-w-0 rounded-xl border border-border/70 p-3">
+              <div data-coach-below="" className="min-w-0 rounded-xl border border-border/70 p-3">
                 <p className="break-words text-sm font-semibold text-slate-800">{localText('Mẹo phát âm', 'Pronunciation tips')}</p>
                 {pronunciationTips.length === 0 ? (
                   <p className="mt-1 break-words text-sm text-muted-foreground">{localText('Chưa có mẹo phát âm mới.', 'No new pronunciation tips yet.')}</p>
@@ -11729,7 +12275,7 @@ export default function HocTiengAnhAiClientPage() {
                 )}
               </div>
               {(learningMode === 'review' || learningMode === 'reflex') ? (
-                <>
+                <div data-coach-below="" className="space-y-4">
                   <TodayWordsPanel
                     localText={localText}
                     todayWordsBusy={todayWordsBusy}
@@ -11769,7 +12315,7 @@ export default function HocTiengAnhAiClientPage() {
                     }
                     onMarkReviewDone={(id, quality) => void markReviewDone(id, quality)}
                   />
-                </>
+                </div>
               ) : null}
             </CardContent>
           </Card>
@@ -11796,6 +12342,7 @@ export default function HocTiengAnhAiClientPage() {
           </Card>
         )}
 
+        <div data-coach-below="" className="space-y-4">
         <HistoryPanel
           title={coachUiText.historyTitle}
           description={coachUiText.historyDesc}
@@ -11820,6 +12367,7 @@ export default function HocTiengAnhAiClientPage() {
           onRefresh={() => void fetchHistorySessions()}
           onOpenSession={(sessionId, isPresetReplaySession) => openSessionByRoute(sessionId, isPresetReplaySession)}
         />
+        </div>
       </div>
       <WordPracticeOverlay
         wordPractice={wordPractice}
@@ -12154,58 +12702,18 @@ export default function HocTiengAnhAiClientPage() {
               >
                 {localText('Nghe lại câu', 'Play line again')}
               </Button>
-              <div
-                className="inline-flex min-h-[44px] flex-col items-start justify-center gap-0.5 rounded-md border border-slate-200 bg-slate-50 px-2"
-                title={localText('Tốc độ giọng nói', 'Voice playback speed')}
-              >
-                <span className="text-[11px] text-slate-500">
-                  {localText('Tốc độ giọng nói', 'Voice speed')}
-                </span>
-                <div className="flex items-center rounded-md border border-slate-200 bg-white">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
-                    disabled={playbackSpeed <= 0.75}
-                    onClick={() => {
-                      const speeds = [0.75, 1, 1.25, 1.5]
-                      const i = speeds.indexOf(playbackSpeed)
-                      if (i <= 0) return
-                      const next = speeds[i - 1]
-                      playbackSpeedRef.current = next
-                      setPlaybackSpeed(next)
-                      if (audioRef.current && !audioRef.current.paused) {
-                        audioRef.current.playbackRate = next
-                      }
-                    }}
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </Button>
-                  <span className="min-w-[2.25rem] text-center text-xs font-medium text-slate-600">
-                    {playbackSpeed}x
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-11 w-11 min-h-11 min-w-11 touch-manipulation p-0 shrink-0 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-8"
-                    disabled={playbackSpeed >= 1.5}
-                    onClick={() => {
-                      const speeds = [0.75, 1, 1.25, 1.5]
-                      const i = speeds.indexOf(playbackSpeed)
-                      if (i >= speeds.length - 1) return
-                      const next = speeds[i + 1]
-                      playbackSpeedRef.current = next
-                      setPlaybackSpeed(next)
-                      if (audioRef.current && !audioRef.current.paused) {
-                        audioRef.current.playbackRate = next
-                      }
-                    }}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+              <div className="flex min-h-[44px] items-center">
+                <PlaybackSpeedButton
+                  speed={playbackSpeed}
+                  localText={localText}
+                  onChange={(next) => {
+                    playbackSpeedRef.current = next
+                    setPlaybackSpeed(next)
+                    if (audioRef.current && !audioRef.current.paused) {
+                      audioRef.current.playbackRate = next
+                    }
+                  }}
+                />
               </div>
             </div>
           </div>

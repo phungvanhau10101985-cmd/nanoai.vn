@@ -26,6 +26,7 @@ import { buildWeddingPublicDescription, buildWeddingPublicJsonLd, buildWeddingPu
 import { weddingPublicShareImageUrl } from '@/lib/wedding/wedding-share-preview'
 import { weddingDesignViewportBootScript } from '@/lib/wedding/wedding-design-viewport'
 import { findWeddingSampleCard, weddingSampleLookOnCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
+import { WeddingCardTrafficBeacon } from '@/components/wedding/wedding-card-traffic-beacon'
 import WeddingPublicClient from './wedding-public-client'
 
 type Props = {
@@ -212,9 +213,11 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
     }
   }
   const jsonLd = buildWeddingPublicJsonLd(card, `${SITE_URL}/thiep-moi-cuoi/${card.slug}`)
+  const trackAdVisit = !layoutPreview && !demoPreview && !sampleLook && !phoneSheet
   return (
     <>
       <JsonLd data={jsonLd} />
+      {trackAdVisit ? <WeddingCardTrafficBeacon cardId={card.id} /> : null}
       <script dangerouslySetInnerHTML={{ __html: weddingDesignViewportBootScript() }} />
       <script
         dangerouslySetInnerHTML={{

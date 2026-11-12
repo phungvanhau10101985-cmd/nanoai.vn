@@ -1,3 +1,4 @@
+import { countWeddingCardAdVisits } from '@/lib/db/wedding-card-ad-visits-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 import {
@@ -5,6 +6,7 @@ import {
   weddingCardCompletionPercent,
   weddingCardCompletionScoreSql,
 } from '@/lib/wedding/wedding-card-completion'
+import { emptyWeddingAdVisitCounts, type WeddingAdVisitCounts } from '@/lib/wedding/wedding-ad-source'
 
 export const ADMIN_WEDDING_CARD_STATS_LIMIT = 500
 
@@ -21,6 +23,7 @@ export type AdminWeddingCardStatRow = {
   email: string | null
   completionPercent: number
   missingKeys: string[]
+  adVisits: WeddingAdVisitCounts
 }
 
 export type AdminWeddingCardStatSummary = {
@@ -156,7 +159,7 @@ export async function fetchAdminWeddingCardStats(input: {
       avgCompletion: weddingCardCompletionPercent(Number(summaryRow?.avg_done ?? 0)),
     }
 
-    const rows = listRows.map((row) => ({
+    const mapped = listRows.map((row) => ({
       id: String(row.id),
       userId: String(row.user_id),
       slug: String(row.slug ?? ''),
@@ -169,6 +172,11 @@ export async function fetchAdminWeddingCardStats(input: {
       email: row.email ? String(row.email) : null,
       completionPercent: weddingCardCompletionPercent(Number(row.done_count ?? 0)),
       missingKeys: Array.isArray(row.missing_keys) ? row.missing_keys.map(String) : [],
+    }))
+    const adVisits = await countWeddingCardAdVisits(mapped.map((row) => row.id))
+    const rows = mapped.map((row) => ({
+      ...row,
+      adVisits: adVisits.get(row.id) ?? emptyWeddingAdVisitCounts(),
     }))
 
     return {

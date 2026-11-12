@@ -71,6 +71,15 @@ export function fieldPinDeltaPx(fieldBottom: number, visualHeight: number, gap =
   return Math.round(fieldBottom - (visualHeight - gap))
 }
 
+/**
+ * Thanh hội thoại chỉ được kéo lên khi bàn phím che đáy thanh.
+ * Kéo xuống sẽ chừa khoảng trắng giữa câu thầy và ô gõ.
+ */
+export function composerUncoverPx(boxBottom: number, visualHeight: number, gap = KEYBOARD_FIELD_GAP_PX): number {
+  const covered = fieldPinDeltaPx(boxBottom, visualHeight, gap)
+  return covered > 0 ? covered : 0
+}
+
 /** Đẩy delta vào từng vùng cuộn, trong trước ngoài sau. Phần dư là khoảng không cuộn hết. */
 export function applyPinAcrossScrollers(
   rooms: ScrollRoom[],

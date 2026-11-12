@@ -10,6 +10,7 @@ import {
 import { createHash } from 'crypto'
 import { trackApiUsage } from '@/lib/track-ai-usage'
 import { getUserOrBypass } from '@/lib/auth'
+import { buildLessonTtsPrompt } from '@/lib/english-coach/lesson-tts-prompt'
 
 type VoiceName =
   | 'Kore'
@@ -31,10 +32,12 @@ type Payload = {
   forceEngine?: 'auto' | 'gemini-only' | 'openai-only'
   targetLanguage?: string
   nativeLanguage?: string
-  /** Ngôn ngữ phải đọc đúng giọng ở clip này (ví dụ Vietnamese khi Ý 1 giải thích). */
+  /** Clip tiếng mẹ đẻ. Thầy tiếng đang học đọc, không đổi sang người bản địa tiếng mẹ đẻ. */
   readingLanguage?: string
   /** Bỏ qua cache, tạo âm thanh mới (dùng khi user báo phát âm sai) */
   skipCache?: boolean
+  /** explain | model | reply. Khác khóa cache để mỗi ý một ngữ điệu. */
+  delivery?: string
 }
 
 type TtsExtracted = { audioBase64: string; mimeType: string } | null
@@ -126,9 +129,12 @@ async function recordCacheMetric(metric: 'tts_hit' | 'tts_miss') {
   await incrementLanguageCoachCacheStatPg(metric)
 }
 
-function toTtsCacheKey(text: string, voiceName: VoiceName, locale: string): string {
+function toTtsCacheKey(text: string, voiceName: VoiceName, locale: string, delivery?: string): string {
   const textHash = createHash('sha256').update(text).digest('hex')
-  const keyRaw = `${textHash}::${voiceName}::${locale || 'en-US'}`
+  const tone = String(delivery || '').trim()
+  const keyRaw = tone
+    ? `${textHash}::${voiceName}::${locale || 'en-US'}::${tone}`
+    : `${textHash}::${voiceName}::${locale || 'en-US'}`
   return createHash('sha256').update(keyRaw).digest('hex')
 }
 
@@ -284,6 +290,11 @@ export async function POST(request: NextRequest) {
     const targetLanguage = String(payload.targetLanguage || '').trim()
     const nativeLanguage = String(payload.nativeLanguage || '').trim()
     const readingLanguage = String(payload.readingLanguage || '').trim()
+    const deliveryRaw = String(payload.delivery || '').trim()
+    const delivery: '' | 'explain' | 'model' | 'reply' =
+      deliveryRaw === 'explain' || deliveryRaw === 'model' || deliveryRaw === 'reply'
+        ? deliveryRaw
+        : ''
     const requestedEngine =
       payload.forceEngine === 'gemini-only' || payload.forceEngine === 'openai-only'
         ? payload.forceEngine
@@ -298,10 +309,10 @@ export async function POST(request: NextRequest) {
     const normalizedLocale = (locale || 'en-US').trim() || 'en-US'
     const skipCache = Boolean(payload.skipCache)
     const cacheKeyText = normalizeTextForTtsCacheKey(speechInput.text)
-    const cacheKey = toTtsCacheKey(cacheKeyText, voiceName, normalizedLocale)
+    const cacheKey = toTtsCacheKey(cacheKeyText, voiceName, normalizedLocale, delivery)
     const textHash = createHash('sha256').update(cacheKeyText).digest('hex')
     console.info(
-      `[TTS][${requestId}] start locale=${locale || 'n/a'} gender=${teacherGender || 'n/a'} voice=${voiceName} textLen=${text.length} spokenLen=${speechInput.text.length} engine=${requestedEngine} skipCache=${skipCache}`
+      `[TTS][${requestId}] start locale=${locale || 'n/a'} gender=${teacherGender || 'n/a'} voice=${voiceName} textLen=${text.length} spokenLen=${speechInput.text.length} delivery=${delivery || 'flat'} engine=${requestedEngine} skipCache=${skipCache}`
     )
 
     let cached: { id: string; audio_base64: string; mime_type: string; source_model: string } | null = null
@@ -339,42 +350,17 @@ export async function POST(request: NextRequest) {
     console.info(`[TTS][${requestId}] cache-miss key=${cacheKey.slice(0, 12)}`)
 
     let extracted: TtsExtracted = null
-    const strictReadPrompt = readingLanguage
-      ? `${voiceStyle ? `${voiceStyle}\n` : ''}You are reading one short lesson clip aloud.
-Reading language: ${readingLanguage}.
-Locale/accent: ${normalizedLocale}.
-Selected voice: ${voiceName}.
-Selected gender: ${teacherGender || 'unspecified'}.
-
-Reading rules (strict):
-1) Read EXACTLY the provided text in original order.
-2) Do not translate, explain, paraphrase, summarize, or add/remove any words.
-3) Pronounce every word as a native ${readingLanguage} speaker (${normalizedLocale}). Do not use another language's accent.
-4) If the reading language is Vietnamese, use standard Vietnamese tones and syllables (sắc, huyền, hỏi, ngã, nặng). Do not read it with a Chinese accent.
-5) Keep teacher-like pacing and natural punctuation pauses.
-
-Text:
-${speechInput.text}`
-      : `${voiceStyle ? `${voiceStyle}\n` : ''}You are the selected teacher voice for this lesson.
-Teacher profile:
-- Selected voice: ${voiceName}
-- Selected gender: ${teacherGender || 'unspecified'}
-- Selected locale/accent: ${normalizedLocale}
-
-Language pair lock (must follow exactly):
-- Target learning language: ${targetLanguage || 'target language'}
-- Learner native language: ${nativeLanguage || 'native language'}
-- Only read text within this selected pair. Do not introduce any third language.
-
-Reading rules (strict):
-1) Read EXACTLY the provided text in original order.
-2) Do not translate, explain, paraphrase, summarize, or add/remove any words.
-3) Keep teacher-like pacing and natural punctuation pauses.
-4) Keep pronunciation consistent with selected locale/accent ${normalizedLocale}.
-5) If both target + native language appear, read both exactly as written, in sequence.
-
-Text:
-${speechInput.text}`
+    const strictReadPrompt = buildLessonTtsPrompt({
+      voiceStyle,
+      voiceName,
+      teacherGender,
+      locale: normalizedLocale,
+      targetLanguage,
+      nativeLanguage,
+      readingLanguage,
+      delivery,
+      text: speechInput.text,
+    })
     /**
      * Thứ tự fallback (2 cấp):
      * 1) **OpenAI `gpt-4o-mini-tts`** — model chính (giọng tự nhiên hơn, ổn định cao). Giá $0.60 input / $12 output per 1M.
