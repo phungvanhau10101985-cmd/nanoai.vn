@@ -4,6 +4,8 @@ import {
   applyPinAcrossScrollers,
   fieldPinDeltaPx,
   keyboardIsOpen,
+  shouldLockStickyBox,
+  stickyContentHeightPx,
   typingSheetFrame,
 } from './pin-field-above-keyboard'
 
@@ -50,6 +52,25 @@ test('ô đang quá cao thì kéo scroll về phía bàn phím, không âm quá 
   const pinned = applyPinAcrossScrollers([{ scrollTop: 40, maxScroll: 200 }], -100)
   assert.deepEqual(pinned.scrollTops, [0])
   assert.equal(pinned.remain, -60)
+})
+
+test('chiều cao thanh gõ cộng đệm, viền và khối con, bỏ khối nổi', () => {
+  assert.equal(
+    stickyContentHeightPx(8, 8, 1, 1, [
+      { height: 44, marginTop: 0, marginBottom: 0, skip: false },
+      { height: 52, marginTop: 6, marginBottom: 0, skip: false },
+      { height: 40, marginTop: 0, marginBottom: 0, skip: true },
+      { height: 0, marginTop: 0, marginBottom: 0, skip: false },
+    ]),
+    120,
+  )
+})
+
+test('chỉ khóa thanh sticky khi khung cao hơn nội dung', () => {
+  assert.equal(shouldLockStickyBox(400, 72, false), true)
+  assert.equal(shouldLockStickyBox(88, 80, false), false)
+  assert.equal(shouldLockStickyBox(70, 80, true), true)
+  assert.equal(shouldLockStickyBox(0, 80, false), false)
 })
 
 test('sheet mobile bám đúng vùng nhìn thấy, desktop giữ nguyên', () => {

@@ -4,6 +4,16 @@ export const KEYBOARD_FIELD_GAP_PX = 8
 /** Dưới ngưỡng này coi như thanh trình duyệt, chưa phải bàn phím. */
 export const KEYBOARD_OPEN_PX = 80
 
+/** Thanh sticky cao hơn nội dung từng này thì coi là bị bàn phím kéo giãn. */
+export const STICKY_STRETCH_SLOP_PX = 16
+
+export type StickyChildBox = {
+  height: number
+  marginTop: number
+  marginBottom: number
+  skip: boolean
+}
+
 export type ScrollRoom = {
   scrollTop: number
   maxScroll: number
@@ -23,6 +33,36 @@ export function keyboardIsOpen(input: {
 }): boolean {
   if (keyboardOverlapPx(input.layoutHeight, input.offsetTop, input.visualHeight) >= KEYBOARD_OPEN_PX) return true
   return input.heightBeforeFocus - input.visualHeight >= KEYBOARD_OPEN_PX
+}
+
+/**
+ * Chiều cao khung thanh gõ = phần đệm + viền + từng khối con đang hiện.
+ * Khối absolute (gợi ý bộ gõ) không tính, kẻo khóa chiều cao nuốt hàng gợi ý.
+ */
+export function stickyContentHeightPx(
+  paddingTop: number,
+  paddingBottom: number,
+  borderTop: number,
+  borderBottom: number,
+  children: StickyChildBox[],
+): number {
+  let total = paddingTop + paddingBottom + borderTop + borderBottom
+  for (const child of children) {
+    if (child.skip) continue
+    const height = Number.isFinite(child.height) ? child.height : 0
+    if (height <= 0) continue
+    const marginTop = Number.isFinite(child.marginTop) ? Math.max(0, child.marginTop) : 0
+    const marginBottom = Number.isFinite(child.marginBottom) ? Math.max(0, child.marginBottom) : 0
+    total += height + marginTop + marginBottom
+  }
+  return Math.ceil(total)
+}
+
+/** Khóa khi khung đã cao hơn nội dung, hoặc đang khóa rồi thì cập nhật theo nội dung mới. */
+export function shouldLockStickyBox(boxHeight: number, contentHeight: number, alreadyLocked: boolean): boolean {
+  if (!(contentHeight > 0) || !(boxHeight > 0)) return false
+  if (alreadyLocked) return true
+  return boxHeight > contentHeight + STICKY_STRETCH_SLOP_PX
 }
 
 /** Dương: ô đang thấp hơn mép bàn phím. Âm: ô đang cách bàn phím quá xa phía trên. */

@@ -1164,6 +1164,13 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     th: 'ฟังอีกครั้ง',
     hi: 'फिर सुनें',
   },
+  'Record again': {
+    zh: '再说一次',
+    ja: 'もう一度話す',
+    ko: '다시 말하기',
+    th: 'พูดอีกครั้ง',
+    hi: 'फिर बोलें',
+  },
   'Show pronunciation': {
     zh: '显示发音',
     ja: '発音を表示',
@@ -1430,26 +1437,33 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     th: 'ซ่อนการแปลประโยคเปิด',
     hi: 'शुरुआती अनुवाद छिपाएं',
   },
-  'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.': {
-    zh: '按顺序输入文字即可。标点只要有就行，普通句号逗号或中文标点都可以。',
-    ja: '文字を順番どおりに入力してください。句読点はどれでもよく、普通のピリオドやカンマでも大丈夫です。',
-    ko: '글자를 순서대로 입력하세요. 문장부호는 어떤 것이든 되며, 일반 마침표나 쉼표도 됩니다.',
-    th: 'พิมพ์ตัวอักษรตามลำดับ เครื่องหมายวรรคตอนมีก็พอ จุดหรือจุลภาคธรรมดาใช้ได้',
-    hi: 'अक्षर क्रम में लिखें। कोई भी विराम चिह्न चलेगा, सामान्य पूर्ण विराम या अल्पविराम भी।',
+  'Type the characters in order. A period or comma in the sentence must be typed. An English or Chinese mark both count.': {
+    zh: '按顺序输入文字。句中的句号和逗号必须输入。英文或中文标点都可以。',
+    ja: '文字を順番どおりに入力してください。文にある句点と読点は必ず入力します。英語式でも中国語式でも構いません。',
+    ko: '글자를 순서대로 입력하세요. 문장의 마침표와 쉼표는 반드시 입력해야 합니다. 영어식이나 중국어식 모두 됩니다.',
+    th: 'พิมพ์ตัวอักษรตามลำดับ ต้องพิมพ์จุดและจุลภาคที่มีในประโยค จุดแบบอังกฤษหรือจีนใช้ได้ทั้งคู่',
+    hi: 'अक्षर क्रम में लिखें। वाक्य का पूर्ण विराम और अल्पविराम लिखना ज़रूरी है। अंग्रेज़ी या चीनी चिह्न दोनों चलेंगे।',
   },
-  'The characters do not match yet. Type the same characters in order. Any punctuation mark is fine.': {
-    zh: '文字还不对。请按顺序输入相同的字。标点只要有就行。',
-    ja: '文字がまだ違います。同じ文字を順番どおりに入力してください。句読点はどれでも大丈夫です。',
-    ko: '글자가 아직 다릅니다. 같은 글자를 순서대로 입력하세요. 문장부호는 어떤 것이든 됩니다.',
-    th: 'ตัวอักษรยังไม่ตรง พิมพ์ตัวอักษรเดิมตามลำดับ เครื่องหมายวรรคตอนมีก็พอ',
-    hi: 'अक्षर अभी मेल नहीं खाते। वही अक्षर क्रम में लिखें। कोई भी विराम चिह्न चलेगा।',
+  'The characters do not match yet. Type the same characters in order, and do not skip a period or comma.': {
+    zh: '文字还不对。请按顺序输入相同的字，不要漏掉句号或逗号。',
+    ja: '文字がまだ違います。同じ文字を順番どおりに入力し、句点や読点を抜かないでください。',
+    ko: '글자가 아직 다릅니다. 같은 글자를 순서대로 입력하고 마침표나 쉼표를 빼지 마세요.',
+    th: 'ตัวอักษรยังไม่ตรง พิมพ์ตัวอักษรเดิมตามลำดับ และอย่าข้ามจุดหรือจุลภาค',
+    hi: 'अक्षर अभी मेल नहीं खाते। वही अक्षर क्रम में लिखें, और पूर्ण विराम या अल्पविराम न छोड़ें।',
   },
-  'Copy the characters. Any period or comma is fine.': {
-    zh: '照着文字输入。句号或逗号哪种都可以。',
-    ja: '文字を写してください。ピリオドでも読点でも大丈夫です。',
-    ko: '글자를 그대로 쓰세요. 마침표나 쉼표 어느 쪽이든 됩니다.',
-    th: 'คัดลอกตัวอักษร จุดหรือจุลภาคแบบไหนก็ได้',
-    hi: 'अक्षर लिखें। कोई भी पूर्ण विराम या अल्पविराम चलेगा।',
+  'Do not skip a period or comma that is in the sentence. English or Chinese marks both count.': {
+    zh: '句中有句号或逗号就不能漏。英文或中文标点都可以。',
+    ja: '文にある句点や読点は抜かないでください。英語式でも中国語式でも構いません。',
+    ko: '문장에 있는 마침표나 쉼표는 빼지 마세요. 영어식이나 중국어식 모두 됩니다.',
+    th: 'อย่าข้ามจุดหรือจุลภาคที่มีในประโยค จุดแบบอังกฤษหรือจีนใช้ได้ทั้งคู่',
+    hi: 'वाक्य में जो पूर्ण विराम या अल्पविराम है उसे न छोड़ें। अंग्रेज़ी या चीनी चिह्न दोनों चलेंगे।',
+  },
+  'Edit saved': {
+    zh: '已改完',
+    ja: '修正済み',
+    ko: '수정 완료',
+    th: 'แก้เสร็จแล้ว',
+    hi: 'संपादन हो गया',
   },
   'Sentences to type:': {
     zh: '要输入的句子：',
@@ -2724,6 +2738,7 @@ export default function HocBaiHocCoSanClientPage() {
   } | null>(null)
   const speechRecognizeLockRef = useRef(false)
   const speechMeaningSeqRef = useRef(0)
+  const speechMeaningOnceIdRef = useRef('')
   const recordingMimeTypeRef = useRef<string>('')
   const micStreamRef = useRef<MediaStream | null>(null)
   const micSilenceStopTimerRef = useRef<number | null>(null)
@@ -3888,8 +3903,8 @@ export default function HocBaiHocCoSanClientPage() {
       messageId,
       taskType: 'copy',
       instruction: localText(
-        'Hãy gõ đúng chữ, đúng thứ tự. Dấu câu chỉ cần có dấu, dấu thường hay dấu tiếng Trung đều được.',
-        'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.'
+        'Hãy gõ đúng chữ, đúng thứ tự. Có dấu chấm thì phải gõ dấu chấm, có dấu phẩy thì phải gõ dấu phẩy. Dấu kiểu tiếng Anh hay tiếng Trung đều được.',
+        'Type the characters in order. A period or comma in the sentence must be typed. An English or Chinese mark both count.'
       ),
       referenceSentence: firstSentence,
       requiredSentences,
@@ -3923,10 +3938,10 @@ export default function HocBaiHocCoSanClientPage() {
           passed: false,
           correctedText: expected,
           feedback: localText(
-            'Chưa đúng chữ. Hãy gõ lại đúng chữ và đúng thứ tự. Dấu câu chỉ cần có dấu.',
-            'The characters do not match yet. Type the same characters in order. Any punctuation mark is fine.'
+            'Chưa đúng chữ. Hãy gõ lại đúng chữ, đúng thứ tự, và không bỏ dấu chấm hoặc dấu phẩy.',
+            'The characters do not match yet. Type the same characters in order, and do not skip a period or comma.'
           ),
-          shortHint: localText('Chép lại đúng chữ. Dấu chấm hay phẩy nào cũng được.', 'Copy the characters. Any period or comma is fine.'),
+          shortHint: localText('Không bỏ dấu chấm hoặc dấu phẩy có trong câu. Dấu tiếng Anh hay tiếng Trung đều được.', 'Do not skip a period or comma that is in the sentence. English or Chinese marks both count.'),
         })
         return
       }
@@ -6112,7 +6127,7 @@ export default function HocBaiHocCoSanClientPage() {
             setWritingTask({
               messageId: parsed.messageId || lastTeacherItem.id,
               taskType: (parsed.taskType as WritingTaskType) || 'copy',
-              instruction: parsed.instruction || localText('Hãy gõ đúng chữ, đúng thứ tự. Dấu câu chỉ cần có dấu, dấu thường hay dấu tiếng Trung đều được.', 'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.'),
+              instruction: parsed.instruction || localText('Hãy gõ đúng chữ, đúng thứ tự. Có dấu chấm thì phải gõ dấu chấm, có dấu phẩy thì phải gõ dấu phẩy. Dấu kiểu tiếng Anh hay tiếng Trung đều được.', 'Type the characters in order. A period or comma in the sentence must be typed. An English or Chinese mark both count.'),
               referenceSentence: finalSentences[refIdx] || finalSentences[0] || '',
               requiredSentences: finalSentences,
               currentIndex: isCompleted ? Math.max(0, finalSentences.length - 1) : Math.max(0, Math.min(parsed.currentIndex ?? 0, finalSentences.length - 1)),
@@ -6154,7 +6169,7 @@ export default function HocBaiHocCoSanClientPage() {
                   return {
                     messageId: String(localTask.messageId || lastTeacherItem.id || ''),
                     taskType: (localTask.taskType as WritingTaskType) || 'copy',
-                    instruction: String(localTask.instruction || localText('Hãy gõ đúng chữ, đúng thứ tự. Dấu câu chỉ cần có dấu, dấu thường hay dấu tiếng Trung đều được.', 'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.')),
+                    instruction: String(localTask.instruction || localText('Hãy gõ đúng chữ, đúng thứ tự. Có dấu chấm thì phải gõ dấu chấm, có dấu phẩy thì phải gõ dấu phẩy. Dấu kiểu tiếng Anh hay tiếng Trung đều được.', 'Type the characters in order. A period or comma in the sentence must be typed. An English or Chinese mark both count.')),
                     referenceSentence: String(localTask.referenceSentence || localTask.requiredSentences![localIndex] || ''),
                     requiredSentences: localTask.requiredSentences!,
                     currentIndex: localCompleted ? Math.max(0, localTask.requiredSentences!.length - 1) : localIndex,
@@ -8538,7 +8553,6 @@ export default function HocBaiHocCoSanClientPage() {
     }
     pendingRecordingBlobRef.current = blob
     setRecordingPending(true)
-    void sendPendingRecording()
   }
 
   const sendPendingRecording = async () => {
@@ -8658,11 +8672,10 @@ export default function HocBaiHocCoSanClientPage() {
     setMessages((prev) => prev.filter((m) => m.id !== current.messageId))
   }
 
-  const confirmSpeechIntent = async () => {
+  const confirmSpeechIntent = async (rawText?: string) => {
     const current = speechIntentRef.current
-    const edited = Boolean(current && current.text.trim() !== current.originalText.trim())
-    if (!current || !current.text.trim() || (current.meaningBusy && !edited)) return
-    const text = current.text.trim()
+    const text = String(rawText ?? current?.text ?? '').trim()
+    if (!current || !text) return
     speechIntentRef.current = null
     setSpeechIntent(null)
     updateMessageText(current.messageId, text)
@@ -8678,68 +8691,43 @@ export default function HocBaiHocCoSanClientPage() {
   useEffect(() => {
     const current = speechIntentRef.current
     if (!current) return
-    const text = current.text.trim()
-    const original = current.originalText.trim()
-    if (text !== original) {
-      if (current.meaningBusy) {
-        const idle = { ...current, meaningBusy: false }
-        speechIntentRef.current = idle
-        setSpeechIntent(idle)
-      }
-      return
-    }
-    if (!text) return
-    if (original && current.originalMeaning.trim()) {
-      if (current.meaning !== current.originalMeaning || current.meaningBusy) {
-        const restored = { ...current, meaning: current.originalMeaning, meaningBusy: false }
-        speechIntentRef.current = restored
-        setSpeechIntent(restored)
-      }
-      return
-    }
+    const messageId = current.messageId
+    const source = current.originalText.trim()
+    if (!messageId || !source) return
+    if (speechMeaningOnceIdRef.current === messageId) return
+    speechMeaningOnceIdRef.current = messageId
     const seq = speechMeaningSeqRef.current + 1
     speechMeaningSeqRef.current = seq
-    if (!current.meaningBusy) {
-      const busyNow = { ...current, meaningBusy: true }
-      speechIntentRef.current = busyNow
-      setSpeechIntent(busyNow)
-    }
-    const timer = window.setTimeout(() => {
-      const latest = speechIntentRef.current
-      if (!latest || latest.messageId !== current.messageId || latest.text.trim() !== text) return
-      void translateSpeechMeaning({
-        text,
-        targetLanguage: activeTeacher.languageLabel,
-        targetLanguageCode: languageCode,
-        nativeLanguage: selectedNativeLanguage.apiLabel,
-        nativeLanguageCode,
-        coachUsageContext: englishCoachUsageContext,
-      }).then((result) => {
-        if (speechMeaningSeqRef.current !== seq) return
-        const now = speechIntentRef.current
-        if (!now || now.messageId !== current.messageId || now.text.trim() !== text) return
-        const meaning = String(result.data?.meaning || '').trim()
-        const next = {
-          ...now,
-          meaning: meaning || now.meaning,
-          originalMeaning: now.text.trim() === now.originalText.trim() ? (meaning || now.originalMeaning) : now.originalMeaning,
-          meaningBusy: false,
-        }
-        speechIntentRef.current = next
-        setSpeechIntent(next)
-      }).catch(() => {
-        if (speechMeaningSeqRef.current !== seq) return
-        const now = speechIntentRef.current
-        if (!now) return
-        const next = { ...now, meaningBusy: false }
-        speechIntentRef.current = next
-        setSpeechIntent(next)
-      })
-    }, 0)
-    return () => window.clearTimeout(timer)
+    void translateSpeechMeaning({
+      text: source,
+      targetLanguage: activeTeacher.languageLabel,
+      targetLanguageCode: languageCode,
+      nativeLanguage: selectedNativeLanguage.apiLabel,
+      nativeLanguageCode,
+      coachUsageContext: englishCoachUsageContext,
+    }).then((result) => {
+      if (speechMeaningSeqRef.current !== seq) return
+      const now = speechIntentRef.current
+      if (!now || now.messageId !== messageId) return
+      const meaning = String(result.data?.meaning || '').trim()
+      const next = {
+        ...now,
+        meaning: meaning || now.meaning,
+        originalMeaning: meaning || now.originalMeaning,
+        meaningBusy: false,
+      }
+      speechIntentRef.current = next
+      setSpeechIntent(next)
+    }).catch(() => {
+      if (speechMeaningSeqRef.current !== seq) return
+      const now = speechIntentRef.current
+      if (!now || now.messageId !== messageId) return
+      const next = { ...now, meaningBusy: false }
+      speechIntentRef.current = next
+      setSpeechIntent(next)
+    })
   }, [
     speechIntent?.messageId,
-    speechIntent?.text,
     activeTeacher.languageLabel,
     languageCode,
     selectedNativeLanguage.apiLabel,
@@ -10141,18 +10129,12 @@ export default function HocBaiHocCoSanClientPage() {
                           onTextChange={(value) => {
                             const current = speechIntentRef.current
                             if (!current || current.messageId !== m.id) return
-                            const edited = value.trim() !== current.originalText.trim()
-                            if (edited) speechMeaningSeqRef.current += 1
-                            const next = {
-                              ...current,
-                              text: value,
-                              meaningBusy: edited ? false : current.meaningBusy,
-                            }
+                            const next = { ...current, text: value }
                             speechIntentRef.current = next
                             setSpeechIntent(next)
                           }}
-                          onContinue={() => {
-                            void confirmSpeechIntent()
+                          onContinue={(text) => {
+                            void confirmSpeechIntent(text)
                           }}
                           onReplay={() => {
                             const url = String(
@@ -10164,6 +10146,7 @@ export default function HocBaiHocCoSanClientPage() {
                             if (!url) return
                             void playAudioUrl(url)
                           }}
+                          onRecordAgain={handleRecordAgain}
                         />
                       ) : (
                         <div className="space-y-2">
@@ -10402,7 +10385,7 @@ export default function HocBaiHocCoSanClientPage() {
                     </p>
                   </div>
                 ) : null}
-                <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 -mx-1 rounded-xl border border-border/70 bg-background/95 p-2 pb-2 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/85 md:bottom-0 md:z-20 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+                <div data-coach-composer="" className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 -mx-1 rounded-xl border border-border/70 bg-background/95 p-2 pb-2 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/85 md:bottom-0 md:z-20 md:pb-[max(0.5rem,env(safe-area-inset-bottom))]">
                   {!isPresetPageSession ? (
                     <div className="flex min-w-0 items-center gap-1 sm:flex-1">
                       <button
@@ -10817,7 +10800,7 @@ export default function HocBaiHocCoSanClientPage() {
                     ) : null}
                     <div className="space-y-1 rounded-md border border-slate-200 bg-white p-2.5">
                       <p className="text-sm font-semibold text-slate-800">{localText('Bài viết mini bắt buộc', 'Required mini-writing task')}</p>
-                      <p className="text-xs text-muted-foreground break-words">{localText('Hãy gõ đúng chữ, đúng thứ tự. Dấu câu chỉ cần có dấu, dấu thường hay dấu tiếng Trung đều được.', 'Type the characters in order. Any punctuation mark is fine, including a normal period or comma.')}</p>
+                      <p className="text-xs text-muted-foreground break-words">{localText('Hãy gõ đúng chữ, đúng thứ tự. Có dấu chấm thì phải gõ dấu chấm, có dấu phẩy thì phải gõ dấu phẩy. Dấu kiểu tiếng Anh hay tiếng Trung đều được.', 'Type the characters in order. A period or comma in the sentence must be typed. An English or Chinese mark both count.')}</p>
                       <p className="text-xs text-slate-600">
                         {localText(
                           `Tiến độ: câu ${Math.min(writingTask.currentIndex + 1, Math.max(1, writingTask.requiredSentences.length))}/${Math.max(1, writingTask.requiredSentences.length)}.`,
@@ -11507,6 +11490,7 @@ export default function HocBaiHocCoSanClientPage() {
       <Button
         type="button"
         onClick={scrollToSpeakActions}
+        data-coach-jump=""
         className="fixed bottom-[calc(14.75rem+env(safe-area-inset-bottom))] right-2 z-40 h-12 w-12 rounded-full p-0 shadow-lg sm:hidden"
         aria-label={localText('Đi tới nút nói', 'Go to speak button')}
         title={localText('Đi tới nút nói', 'Go to speak button')}

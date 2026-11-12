@@ -330,6 +330,7 @@ export const LessonImeField = forwardRef<HTMLInputElement, LessonImeFieldProps>(
           autoCorrect="off"
           autoCapitalize="none"
           spellCheck={false}
+          inputMode="text"
           lang={script ? INPUT_LANG[languageCode] || 'en' : 'en'}
           autoFocus={autoFocus}
           className={cn('h-11 min-h-11 min-w-0 flex-1 touch-manipulation text-base md:text-base', className)}

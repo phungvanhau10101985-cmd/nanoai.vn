@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, type FocusEvent, type PointerEvent } from 'react'
 import { createPortal, flushSync } from 'react-dom'
-import { Volume2 } from 'lucide-react'
+import { RotateCcw, Volume2 } from 'lucide-react'
 import { ProcessingRow } from './processing-status'
 import { LessonImeField } from '../ime/lesson-ime-field'
 import { Button } from '@/components/ui/button'
@@ -60,6 +60,7 @@ export function SpeechIntentConfirm({
   onTextChange,
   onContinue,
   onReplay,
+  onRecordAgain,
   localText,
   languageCode,
 }: {
@@ -68,8 +69,9 @@ export function SpeechIntentConfirm({
   meaningBusy: boolean
   continueBusy: boolean
   onTextChange: (value: string) => void
-  onContinue: () => void
+  onContinue: (text: string) => void
   onReplay?: () => void
+  onRecordAgain?: () => void
   localText: LocalText
   languageCode: string
 }) {
@@ -81,6 +83,8 @@ export function SpeechIntentConfirm({
   const phoneRef = useRef(false)
   const pinnedRef = useRef(false)
   const [pending, setPending] = useState(false)
+  const [savedText, setSavedText] = useState('')
+  const editSaved = savedText.length > 0 && savedText === text.trim()
   const [phone, setPhone] = useState(false)
   const [pinned, setPinned] = useState(false)
   const [dockBottom, setDockBottom] = useState(0)
@@ -166,10 +170,24 @@ export function SpeechIntentConfirm({
   phoneRef.current = phone
   pinnedRef.current = pinned
 
+  const focusField = () => {
+    const input = inputRef.current
+    if (!input || input.disabled) return
+    window.clearTimeout(blurTimerRef.current)
+    input.focus({ preventScroll: true })
+    const end = input.value.length
+    try {
+      input.setSelectionRange(end, end)
+    } catch {
+      // Một số bàn phím không cho đặt con trỏ khi chưa nhận focus.
+    }
+  }
+
   const pinToKeyboard = () => {
     if (!phoneRef.current || pinnedRef.current) return
     pinnedRef.current = true
     flushSync(() => setPinned(true))
+    focusField()
   }
 
   useLayoutEffect(() => {
@@ -187,21 +205,27 @@ export function SpeechIntentConfirm({
         setPinned(false)
       }, 200)
     }
-    input.addEventListener('pointerdown', pinToKeyboard)
+    const onPointerUp = () => {
+      if (document.activeElement === input) return
+      focusField()
+    }
+    input.addEventListener('pointerup', onPointerUp)
     input.addEventListener('focus', pinToKeyboard)
     dock?.addEventListener('focusout', onFocusOut)
     return () => {
-      input.removeEventListener('pointerdown', pinToKeyboard)
+      input.removeEventListener('pointerup', onPointerUp)
       input.removeEventListener('focus', pinToKeyboard)
       dock?.removeEventListener('focusout', onFocusOut)
     }
   }, [phone])
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    if (!pinned) return
-    if (event.target instanceof HTMLInputElement) return
-    if (event.target instanceof Element && event.target.closest('button')) return
+    const target = event.target
+    if (!(target instanceof Element)) return
+    if (target.closest('button')) return
+    if (target instanceof HTMLInputElement) return
     event.preventDefault()
+    focusField()
   }
 
   const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
@@ -254,17 +278,40 @@ export function SpeechIntentConfirm({
     >
       {pinned ? <p className="mb-1 text-xs font-semibold text-emerald-800">{label}</p> : null}
       {pinned ? <div className="mb-1">{meaningLine}</div> : null}
-      <LessonImeField
-        ref={inputRef}
-        value={text}
-        onChange={onTextChange}
-        languageCode={languageCode}
-        localText={localText}
-        flushRef={flushRef}
-        onPendingChange={setPending}
-        disabled={continueBusy}
-        className="bg-white text-slate-900"
-      />
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <LessonImeField
+            ref={inputRef}
+            value={text}
+            onChange={onTextChange}
+            languageCode={languageCode}
+            localText={localText}
+            flushRef={flushRef}
+            onPendingChange={setPending}
+            disabled={continueBusy}
+            className="bg-white text-slate-900"
+          />
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            const flushed = (flushRef.current?.() ?? text).trim()
+            if (!flushed) return
+            onTextChange(flushed)
+            setSavedText(flushed)
+          }}
+          disabled={continueBusy || (!text.trim() && !pending)}
+          className="min-h-11 shrink-0 bg-white px-3"
+        >
+          OK
+        </Button>
+      </div>
+      {editSaved ? (
+        <p className="mt-1 text-xs font-medium text-emerald-700">{localText('Đã sửa xong', 'Edit saved')}</p>
+      ) : null}
     </div>
   )
 
@@ -272,7 +319,15 @@ export function SpeechIntentConfirm({
     <div className="space-y-2">
       <p className="text-sm font-semibold text-emerald-800">{label}</p>
       {phone ? (
-        <div ref={spacerRef} className="min-h-11">
+        <div
+          ref={spacerRef}
+          className="min-h-11"
+          onPointerDown={(event) => {
+            if (event.target instanceof HTMLInputElement) return
+            event.preventDefault()
+            focusField()
+          }}
+        >
           {pinned ? <p className="break-words text-base leading-relaxed">{text}</p> : null}
         </div>
       ) : (
@@ -280,24 +335,12 @@ export function SpeechIntentConfirm({
       )}
       {pinned ? null : meaningLine}
       <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => {
-            const flushed = (flushRef.current?.() ?? text).trim()
-            if (flushed !== text.trim()) return
-            onContinue()
-          }}
-          disabled={continueBusy || meaningBusy || (!text.trim() && !pending)}
-          className="min-h-[40px] px-4"
-        >
-          {localText('Tiếp', 'Continue')}
-        </Button>
         {onReplay ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
+            onMouseDown={(event) => event.preventDefault()}
             onClick={onReplay}
             disabled={continueBusy}
             className="min-h-[40px] bg-white px-4"
@@ -306,6 +349,34 @@ export function SpeechIntentConfirm({
             {localText('Nghe lại', 'Play back')}
           </Button>
         ) : null}
+        {onRecordAgain ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onRecordAgain}
+            disabled={continueBusy}
+            className="min-h-[40px] bg-white px-4"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            {localText('Nói lại', 'Record again')}
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          size="sm"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            const flushed = (flushRef.current?.() ?? text).trim()
+            if (!flushed) return
+            onContinue(flushed)
+          }}
+          disabled={continueBusy || (!text.trim() && !pending)}
+          className="min-h-[40px] px-4"
+        >
+          {localText('Tiếp', 'Continue')}
+        </Button>
       </div>
       {phone && typeof document !== 'undefined' ? createPortal(editor, document.body) : null}
     </div>

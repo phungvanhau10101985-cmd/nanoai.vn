@@ -32,6 +32,18 @@
     html[data-keyboard-open] [data-study-chat] {
       z-index: 45;
     }
+    /* Thanh hội thoại sticky không được phình thành màng trắng khi bàn phím mở. */
+    [data-coach-composer] {
+      height: min-content;
+      max-height: min-content;
+      align-self: start;
+      flex: 0 0 auto;
+      overflow: visible;
+    }
+    html[data-keyboard-open] [data-coach-jump] {
+      visibility: hidden;
+      pointer-events: none;
+    }
   }
   .safe-area-pt {
     padding-top: env(safe-area-inset-top, 0);

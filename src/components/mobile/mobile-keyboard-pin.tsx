@@ -7,6 +7,9 @@ import {
   fieldPinDeltaPx,
   keyboardIsOpen,
   keyboardOverlapPx,
+  shouldLockStickyBox,
+  stickyContentHeightPx,
+  type StickyChildBox,
 } from '@/lib/mobile/pin-field-above-keyboard'
 
 const SLOP_PX = 16
@@ -105,6 +108,70 @@ function compactBox(field: HTMLElement, visualHeight: number): HTMLElement {
     node = node.parentElement
   }
   return best
+}
+
+function nearestSticky(field: HTMLElement): HTMLElement | null {
+  let node = field.parentElement
+  while (node && node !== document.body) {
+    if (node.getAttribute('role') === 'dialog') return null
+    const position = getComputedStyle(node).position
+    if (position === 'sticky') return node
+    if (position === 'fixed') return null
+    node = node.parentElement
+  }
+  return null
+}
+
+function readStickyContentPx(el: HTMLElement): number {
+  const box = getComputedStyle(el)
+  const children: StickyChildBox[] = []
+  for (const child of el.children) {
+    if (!(child instanceof HTMLElement)) continue
+    const style = getComputedStyle(child)
+    children.push({
+      height: child.offsetHeight,
+      marginTop: Number.parseFloat(style.marginTop) || 0,
+      marginBottom: Number.parseFloat(style.marginBottom) || 0,
+      skip: style.display === 'none' || style.position === 'absolute' || style.position === 'fixed',
+    })
+  }
+  return stickyContentHeightPx(
+    Number.parseFloat(box.paddingTop) || 0,
+    Number.parseFloat(box.paddingBottom) || 0,
+    Number.parseFloat(box.borderTopWidth) || 0,
+    Number.parseFloat(box.borderBottomWidth) || 0,
+    children,
+  )
+}
+
+/**
+ * Bàn phím mobile đôi khi kéo thanh `position: sticky` cao bằng cả vùng nhìn,
+ * nền trắng che hội thoại, rồi ghim kéo riêng hàng ô gõ ra khỏi nền đó.
+ * Khóa chiều cao đúng bằng nội dung đang hiện.
+ */
+function lockStickySheet(sticky: HTMLElement) {
+  const content = readStickyContentPx(sticky)
+  const box = sticky.getBoundingClientRect().height
+  const locked = sticky.dataset.keyboardClamp === '1'
+  if (!shouldLockStickyBox(box, content, locked)) return
+  if (!locked) {
+    sticky.dataset.keyboardClamp = '1'
+    sticky.dataset.keyboardSavedClampHeight = sticky.style.height
+    sticky.dataset.keyboardSavedClampMax = sticky.style.maxHeight
+  }
+  const px = `${content}px`
+  if (sticky.style.height !== px) sticky.style.height = px
+  if (sticky.style.maxHeight !== px) sticky.style.maxHeight = px
+}
+
+function releaseStickySheets(root: ParentNode = document) {
+  root.querySelectorAll<HTMLElement>('[data-keyboard-clamp]').forEach((sticky) => {
+    sticky.style.height = sticky.dataset.keyboardSavedClampHeight ?? ''
+    sticky.style.maxHeight = sticky.dataset.keyboardSavedClampMax ?? ''
+    delete sticky.dataset.keyboardClamp
+    delete sticky.dataset.keyboardSavedClampHeight
+    delete sticky.dataset.keyboardSavedClampMax
+  })
 }
 
 function restoreShifted(root: ParentNode = document, includeParked = true) {
@@ -241,6 +308,8 @@ function nudgeBottomShell(field: HTMLElement, offsetTop: number, visualHeight: n
 
 function pinField(field: HTMLElement, heightBeforeFocus: number) {
   if (!field.isConnected || keyboardOwnedElsewhere(field)) return
+  const sticky = nearestSticky(field)
+  if (sticky) lockStickySheet(sticky)
   const vv = window.visualViewport
   const visualHeight = vv?.height ?? window.innerHeight
   const offsetTop = vv?.offsetTop ?? 0
@@ -264,6 +333,14 @@ function pinField(field: HTMLElement, heightBeforeFocus: number) {
   const bar = shortPinnedBox(field)
   if (bar) {
     shiftBoxToKeyboard(bar, field, visualHeight)
+    return
+  }
+
+  if (sticky) {
+    const rooms = scrollableAncestors(field)
+    scrollRooms(rooms, deltaNow())
+    const doc = document.scrollingElement
+    if (doc instanceof HTMLElement && !rooms.includes(doc)) scrollRooms([doc], deltaNow())
     return
   }
 
@@ -307,6 +384,8 @@ export function MobileKeyboardPin() {
     let timers: number[] = []
     let pinning = false
     let scrollSpins = 0
+    let stickyNode: HTMLElement | null = null
+    let stickyWatch: MutationObserver | null = null
 
     const clearTimers = () => {
       timers.forEach((id) => window.clearTimeout(id))
@@ -337,6 +416,18 @@ export function MobileKeyboardPin() {
       }
     }
 
+    const watchSticky = (next: HTMLElement | null) => {
+      if (stickyNode === next) return
+      stickyWatch?.disconnect()
+      stickyWatch = null
+      stickyNode = next
+      if (!next) return
+      stickyWatch = new MutationObserver(() => {
+        if (field) run()
+      })
+      stickyWatch.observe(next, { childList: true })
+    }
+
     const rememberBaseline = () => {
       baseline = window.visualViewport?.height ?? window.innerHeight
     }
@@ -357,6 +448,7 @@ export function MobileKeyboardPin() {
       if (!isTextField(event.target)) return
       if (!baseline) rememberBaseline()
       field = event.target
+      watchSticky(nearestSticky(event.target))
       schedule()
     }
 
@@ -368,6 +460,8 @@ export function MobileKeyboardPin() {
           if (!isTextField(next)) {
             field = null
             clearTimers()
+            watchSticky(null)
+            releaseStickySheets()
             restoreShifted()
           }
           return
@@ -376,6 +470,8 @@ export function MobileKeyboardPin() {
         field = null
         baseline = 0
         clearTimers()
+        watchSticky(null)
+        releaseStickySheets()
         restoreShifted()
       }, 80)
     }
@@ -400,6 +496,8 @@ export function MobileKeyboardPin() {
 
     return () => {
       clearTimers()
+      stickyWatch?.disconnect()
+      releaseStickySheets()
       restoreShifted()
       delete document.documentElement.dataset.keyboardOpen
       document.removeEventListener('pointerdown', onPointerDown, true)
