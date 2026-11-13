@@ -193,9 +193,8 @@ function jsSingleQuoted(raw: string): string {
 /** Khách NanoAI.vn (pixel nền tảng), tách khỏi `pw_meta_am:{shop}`. */
 export const PLATFORM_META_AM_STORAGE_KEY = 'nano_meta_am'
 
-function buildMetaPixelInitArgsJs(pixelId: string, storageKey: string, stampJs: string): string {
+function buildMetaPixelInitArgsJs(storageKey: string, stampJs: string): string {
   const key = jsSingleQuoted(storageKey)
-  const id = jsSingleQuoted(pixelId.trim())
   return `(function(){var keys=['em','ph','fn','ln','ge','db','ct','st','zp','country','external_id'];var ud={em:'',ph:'',fn:'',ln:'',ge:'',db:'',ct:'',st:'',zp:'',country:'',external_id:''};function take(p){if(!p)return;for(var i=0;i<keys.length;i++){var k=keys[i];var v=p[k];if(typeof v==='string'&&v)ud[k]=v;}}try{var key='${key}';if(key)take(JSON.parse(localStorage.getItem(key)||'null'));}catch(e){}try{if(!ud.external_id){var xid=String(localStorage.getItem('app_guest_account_id')||localStorage.getItem('nanoai_guest_account_id')||'').trim();if(xid&&xid.length>=2&&xid.length<=128&&xid.indexOf('@')<0)ud.external_id=xid;}}catch(e){}var out={};for(var i=0;i<keys.length;i++){if(ud[keys[i]])out[keys[i]]=ud[keys[i]];}try{${stampJs}}catch(e){}return out;})()`
 }
 
@@ -206,7 +205,6 @@ function buildMetaPixelInitArgsJs(pixelId: string, storageKey: string, stampJs: 
 export function metaPixelInitArgsJs(pixelId: string, siteSlug?: string | null): string {
   const id = jsSingleQuoted(pixelId.trim())
   return buildMetaPixelInitArgsJs(
-    pixelId,
     partnerSiteMetaAmStorageKey(siteSlug || ''),
     `window.__nanoShopMetaAm=out;window.__nanoShopMetaPixels=window.__nanoShopMetaPixels||{};window.__nanoShopMetaPixels['${id}']=1;`
   )
@@ -216,7 +214,6 @@ export function metaPixelInitArgsJs(pixelId: string, siteSlug?: string | null): 
 export function platformMetaPixelInitArgsJs(pixelId: string): string {
   const id = jsSingleQuoted(pixelId.trim())
   return buildMetaPixelInitArgsJs(
-    pixelId,
     PLATFORM_META_AM_STORAGE_KEY,
     `window.__nanoPlatformMetaAm=out;window.__nanoPlatformMetaPixelId='${id}';`
   )
