@@ -70,9 +70,14 @@ test('product json-ld lists the three guest packs', () => {
   assert.equal(offers.offerCount, 3)
 })
 
-test('creator page description states the 149k pack and stays in the meta length band', () => {
+test('creator page description leads with free creation and keeps prices in the faq', () => {
   const seo = getFeatureSeo('tao-thiep-moi-cuoi-ai')
-  assert.match(seo.pageDescription, /149\.000đ/)
+  assert.match(seo.pageTitle, /Tạo thiệp cưới online miễn phí/)
+  assert.match(seo.pageDescription, /miễn phí/)
+  assert.doesNotMatch(seo.pageDescription, /149/)
+  assert.doesNotMatch(seo.overview, /149/)
   assert.ok(seo.pageDescription.length >= 150 && seo.pageDescription.length <= 160)
-  assert.ok(seo.faqs.some((item) => item.question.includes('giá')))
+  const priceFaq = seo.faqs.find((item) => item.question.includes('giá'))
+  assert.ok(priceFaq)
+  assert.match(priceFaq.answer, /149\.000đ/)
 })

@@ -2350,9 +2350,9 @@ export default function WeddingCardAiClientPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-medium text-rose-600">AI Wedding Invitation</p>
-              <h1 className="mt-1 text-2xl font-bold text-slate-950 md:text-3xl">Tạo thiệp cưới AI – thiệp mời cưới online</h1>
+              <h1 className="mt-1 text-2xl font-bold text-slate-950 md:text-3xl">Tạo thiệp cưới online miễn phí</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Xem trước nội dung. Chữ tiếng Việt do hệ thống render riêng.
+                Chọn mẫu, xem trước và xuất bản không tốn credit. Lời mời gọi đúng tên từng khách.
               </p>
             </div>
             <div className="flex flex-col gap-3">
@@ -2368,7 +2368,7 @@ export default function WeddingCardAiClientPage() {
                 Tạo thiệp mới
               </Button>
               <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 shadow-sm">
-                <b>Credit:</b> Xem thiệp mẫu không trừ credit. Dùng mẫu rồi OK: AI soạn lời mở đầu, quote, câu chuyện và lời cảm ơn miễn phí. Mỗi lần Tối ưu AI từng đoạn sau đó = 0,1 credit. Sửa tay, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
+                <b>Miễn phí:</b> Xem mẫu, soạn tay, xem trước, QR, RSVP và xuất bản không trừ credit. Dùng mẫu rồi OK, AI soạn lời mở đầu, quote, câu chuyện và lời cảm ơn cũng không trừ. Chỉ lần Tối ưu AI từng đoạn sau đó mới trừ 0,1 credit.
               </div>
             </div>
           </div>

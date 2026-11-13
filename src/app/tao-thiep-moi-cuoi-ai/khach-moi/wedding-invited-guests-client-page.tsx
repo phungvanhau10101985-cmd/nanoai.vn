@@ -1203,6 +1203,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
             cardId={card?.id ?? cardId}
             side={look.panel}
             quota={quotas?.[look.panel] ?? null}
+            listedCount={sideRows.length}
             open={packSide === look.panel}
             onOpenChange={(open) => setPackSide(open ? look.panel : null)}
             onPaid={(next) => {

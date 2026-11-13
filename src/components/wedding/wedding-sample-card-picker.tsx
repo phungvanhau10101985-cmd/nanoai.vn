@@ -41,20 +41,45 @@ export function WeddingOccasionDemoBar(props: {
   locale: WebLocale
   value: InvitationOccasionKey
   onChange: (key: InvitationOccasionKey) => void
+  /** Trang giới thiệu: nút 44px, dính dưới header. Kho trong công cụ giữ nút nhỏ. */
+  variant?: 'editor' | 'landing'
 }) {
+  const landing = props.variant === 'landing'
   return (
-    <div className="sticky top-0 z-10 -mx-1 bg-[#fffaf6]/95 px-1 pb-2 backdrop-blur">
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{OCCASION_BAR_LABEL[props.locale]}</p>
-      <div className="flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label={OCCASION_BAR_LABEL[props.locale]}>
+    <div
+      className={
+        landing
+          ? 'sticky top-12 z-30 -mx-3 bg-rose-50/95 px-3 py-2 backdrop-blur-md sm:-mx-5 sm:px-5 lg:static lg:mx-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none'
+          : 'sticky top-0 z-10 -mx-1 bg-[#fffaf6]/95 px-1 pb-2 backdrop-blur'
+      }
+    >
+      <p className={landing ? 'mb-2 text-[11px] font-semibold uppercase tracking-wider text-rose-700' : 'mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground'}>
+        {OCCASION_BAR_LABEL[props.locale]}
+      </p>
+      <div
+        className={
+          landing
+            ? 'flex gap-2 overflow-x-auto overscroll-x-contain pb-1 pe-4 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-wrap lg:overflow-visible lg:pe-0'
+            : 'flex gap-1 overflow-x-auto pb-1'
+        }
+        role="tablist"
+        aria-label={OCCASION_BAR_LABEL[props.locale]}
+      >
         {INVITATION_OCCASION_KEYS.map((key) => {
           const active = props.value === key
+          const landingChip = active
+            ? 'inline-flex h-11 min-h-11 shrink-0 snap-start touch-manipulation items-center rounded-full bg-rose-700 px-4 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-700 active:scale-[0.98]'
+            : 'inline-flex h-11 min-h-11 shrink-0 snap-start touch-manipulation items-center rounded-full border border-rose-200 bg-white px-4 text-sm font-medium text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-700 active:scale-[0.98]'
+          const editorChip = active
+            ? 'h-8 shrink-0 rounded-full bg-neutral-950 px-3 text-xs font-semibold text-white'
+            : 'h-8 shrink-0 rounded-full border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700'
           return (
             <button
               key={key}
               type="button"
               role="tab"
               aria-selected={active}
-              className={active ? 'h-8 shrink-0 rounded-full bg-neutral-950 px-3 text-xs font-semibold text-white' : 'h-8 shrink-0 rounded-full border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700'}
+              className={landing ? landingChip : editorChip}
               onClick={() => props.onChange(key)}
             >
               {invitationOccasionShortLabel(key, props.locale)}

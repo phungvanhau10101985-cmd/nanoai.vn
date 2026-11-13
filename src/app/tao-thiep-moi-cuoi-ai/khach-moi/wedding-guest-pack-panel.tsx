@@ -17,6 +17,8 @@ import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import {
   formatWeddingPackVnd,
   weddingGuestPackBanner,
+  weddingGuestPackPriceSummary,
+  weddingGuestPackPricesVisible,
   weddingGuestPackSideLabel,
   type WeddingGuestPackId,
   type WeddingGuestPackQuota,
@@ -50,12 +52,14 @@ type Props = {
   cardId: string
   side: WeddingGuestPackSide
   quota: WeddingGuestPackQuota | null
+  /** Số dòng đang có trên danh sách, kể cả dòng chưa lưu. */
+  listedCount?: number
   open: boolean
   onOpenChange: (open: boolean) => void
   onPaid: (quotas: WeddingGuestSideQuotas | null) => void
 }
 
-export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange, onPaid }: Props) {
+export function WeddingGuestPackPanel({ cardId, side, quota, listedCount = 0, open, onOpenChange, onPaid }: Props) {
   const { toast } = useToast()
   const [payment, setPayment] = useState<PaymentView | null>(null)
   const [buying, setBuying] = useState<WeddingGuestPackId | null>(null)
@@ -145,25 +149,33 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
 
   if (!quota) return null
   const canUpgrade = quota.offers.some((offer) => offer.available)
+  const viewed = quota.packId
+    ? quota
+    : { ...quota, guestCount: Math.max(quota.guestCount, listedCount) }
+  const pricesVisible = weddingGuestPackPricesVisible(viewed)
+  const showBanner = Boolean(quota.packId) || pricesVisible
   const sideLabel = weddingGuestPackSideLabel(side)
+  if (!showBanner && !open) return null
 
   return (
     <>
-      <div className="flex flex-col gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 sm:flex-row sm:items-center sm:justify-between">
-        <p className="min-w-0 leading-5">{weddingGuestPackBanner(quota, side)}</p>
-        {canUpgrade ? (
-          <Button type="button" size="sm" className="h-10 shrink-0 sm:h-9" onClick={() => onOpenChange(true)}>
-            {quota.packId ? `Nâng gói ${sideLabel}` : `Chọn gói ${sideLabel}`}
-          </Button>
-        ) : null}
-      </div>
+      {showBanner ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 sm:flex-row sm:items-center sm:justify-between">
+          <p className="min-w-0 leading-5">{weddingGuestPackBanner(viewed, side)}</p>
+          {pricesVisible && canUpgrade ? (
+            <Button type="button" size="sm" className="h-10 shrink-0 sm:h-9" onClick={() => onOpenChange(true)}>
+              {quota.packId ? `Nâng gói ${sideLabel}` : `Chọn gói ${sideLabel}`}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{`Gói khách mời ${sideLabel}`}</DialogTitle>
             <DialogDescription>
-              {`Chưa mua gói thì 3 khách đầu của ${sideLabel} hiện link. Gói 100 khách 149.000đ, gói 200 khách 199.000đ, không giới hạn 299.000đ. Cô dâu chú rể tự gửi link. ${WEDDING_CARD_RETENTION_NOTICE}`}
+              {`Chưa mua gói thì 3 khách đầu của ${sideLabel} hiện link. ${weddingGuestPackPriceSummary()}. Cô dâu chú rể tự gửi link. ${WEDDING_CARD_RETENTION_NOTICE}`}
             </DialogDescription>
           </DialogHeader>
 

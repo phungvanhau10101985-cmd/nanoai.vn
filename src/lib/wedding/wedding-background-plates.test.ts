@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { isWeddingButtonColorId } from './wedding-button-colors'
 import { WEDDING_BACKGROUND_PRESETS, applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingHeroPhotoLayout, weddingKitFramePatch, weddingPairedFrameSectionPatch, weddingReadingPlate, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame } from './wedding-background-presets'
-import { findWeddingCoverPreset, WEDDING_FAN_CLOSED_CLIP, WEDDING_FAN_PHOTO_CLIP, WEDDING_LEAF_CARDS, WEDDING_LEAF_FRAME, WEDDING_LEAF_FRAMES, WEDDING_MOON_CARDS, weddingCoverGateTone, weddingCoverPhotoClip, weddingCoverPhotoHead, weddingLeafFrameFor } from './wedding-cover-presets'
+import { findWeddingCoverPreset, WEDDING_COVER_PRESETS, WEDDING_FAN_CLOSED_CLIP, WEDDING_FAN_PHOTO_CLIP, WEDDING_LEAF_CARDS, WEDDING_LEAF_FRAME, WEDDING_LEAF_FRAMES, WEDDING_MOON_CARDS, weddingCoverGateTone, weddingCoverPhotoClip, weddingCoverPhotoHead, weddingLeafFrameFor } from './wedding-cover-presets'
 import { WEDDING_ORNAMENT_CATALOG } from './wedding-background-ornament-store'
 import { getOrnamentComposition } from './wedding-ornament-layouts'
 import { weddingStyleIdFromPrompt } from './build-wedding-image-prompt'
@@ -615,6 +615,8 @@ test('song hy red is a gate card on lacquer paper with cream reading cards', () 
 })
 
 test('the folding fan card keeps song hy paper and a fan photo head', () => {
+  assert.equal(WEDDING_BACKGROUND_PRESETS.some((item) => item.id === 're-quat' || item.id.startsWith('re-quat-')), false)
+  assert.equal(WEDDING_COVER_PRESETS.some((item) => item.id === 're_quat' || item.id.startsWith('re_quat_')), false)
   const preset = findWeddingBackgroundPreset('re-quat')
   assert.ok(preset)
   assert.equal(preset.plates[0], '/wedding/backgrounds/song-hy-do.svg')

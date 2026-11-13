@@ -4,7 +4,9 @@ import {
   buildWeddingGuestPackQuota,
   buildWeddingGuestSideQuotas,
   canAddWeddingGuests,
+  weddingGuestPackBanner,
   weddingGuestPackBlockedMessage,
+  weddingGuestPackPricesVisible,
   weddingGuestPackUpgradeVnd,
   weddingGuestRowShowsInviteLink,
 } from './wedding-guest-pack'
@@ -56,6 +58,21 @@ describe('wedding guest packs', () => {
     assert.equal(canAddWeddingGuests(199, 1, 'p100'), true)
     assert.equal(canAddWeddingGuests(200, 1, 'p100'), false)
     assert.equal(canAddWeddingGuests(400, 20, 'unlimited'), true)
+  })
+
+  it('keeps pack prices off the list until a side passes three guests', () => {
+    const trial = buildWeddingGuestPackQuota(null, 3)
+    const over = buildWeddingGuestPackQuota(null, 4)
+    const room = buildWeddingGuestPackQuota('p50', 10)
+    const full = buildWeddingGuestPackQuota('p50', 100)
+    assert.equal(weddingGuestPackPricesVisible(trial), false)
+    assert.equal(weddingGuestPackPricesVisible(over), true)
+    assert.equal(weddingGuestPackPricesVisible(room), false)
+    assert.equal(weddingGuestPackPricesVisible(full), true)
+    assert.equal(weddingGuestPackPricesVisible(buildWeddingGuestPackQuota('unlimited', 400)), false)
+    assert.doesNotMatch(weddingGuestPackBanner(trial, 'groom'), /149\.000đ/)
+    assert.match(weddingGuestPackBanner(over, 'bride'), /149\.000đ/)
+    assert.match(weddingGuestPackBanner(over, 'bride'), /299\.000đ/)
   })
 
   it('tells the free tier that later guests need a pack to show links', () => {

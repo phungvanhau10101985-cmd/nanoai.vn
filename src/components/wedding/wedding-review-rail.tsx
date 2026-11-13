@@ -58,11 +58,11 @@ export function WeddingReviewRail({
 
   return (
     <section className="mt-12" aria-labelledby="danh-gia-thiep">
-      <h2 id="danh-gia-thiep" className="text-2xl font-bold">{copy.title}</h2>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">{copy.lead}</p>
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory">
+      <h2 id="danh-gia-thiep" className="text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{copy.title}</h2>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">{copy.lead}</p>
+      <div className="mt-4 flex gap-3 overflow-x-auto overscroll-x-contain pb-2 snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {reviews.map((review) => (
-          <article key={review.id} className="w-72 shrink-0 snap-start rounded-lg border border-slate-200 bg-white p-4">
+          <article key={review.id} className="w-[min(19rem,82vw)] shrink-0 snap-start rounded-2xl border border-slate-200 bg-white p-4">
             <p className="text-sm font-semibold">{review.authorName}</p>
             <p className="mt-1 text-xs text-slate-500">
               {new Date(review.createdAt).toLocaleDateString(DATE_LOCALE[locale], { timeZone: 'Asia/Ho_Chi_Minh' })}
@@ -84,7 +84,7 @@ export function WeddingReviewRail({
                 type="button"
                 aria-pressed={rating === value}
                 onClick={() => setRating(value)}
-                className={value <= rating ? 'text-xl text-amber-600' : 'text-xl text-slate-300'}
+                className={value <= rating ? 'inline-flex h-11 w-11 touch-manipulation items-center justify-center text-2xl text-amber-600' : 'inline-flex h-11 w-11 touch-manipulation items-center justify-center text-2xl text-slate-300'}
               >
                 ★
               </button>
@@ -98,9 +98,9 @@ export function WeddingReviewRail({
             value={body}
             onChange={(event) => setBody(event.target.value)}
             placeholder={copy.placeholder}
-            className="min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="min-h-24 w-full rounded-xl border border-slate-300 px-3 py-2 text-base"
           />
-          <button type="submit" disabled={pending} className="inline-flex h-10 items-center rounded-md bg-slate-800 px-4 text-sm font-semibold text-white disabled:opacity-60">
+          <button type="submit" disabled={pending} className="inline-flex h-12 min-h-12 touch-manipulation items-center rounded-full bg-rose-700 px-5 text-base font-semibold text-white disabled:opacity-60">
             {copy.send}
           </button>
           {message ? <p className="text-sm">{message}</p> : null}

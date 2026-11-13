@@ -26,21 +26,14 @@ export const metadata: Metadata = buildMetadata({
   keywords: seo.keywords,
 })
 
-const WEDDING_LANDING_DEMOS = [
-  '/wedding/landing-demo/red-rose.png',
-  '/wedding/landing-demo/rainbow.png',
-  '/wedding/landing-demo/crane.png',
-  '/wedding/landing-demo/peony.png',
-  '/wedding/landing-demo/cream-rose.png',
-]
-
 export default async function TaoThiepMoiCuoiAiPage({
   searchParams,
 }: {
-  searchParams?: { useSample?: string } | Promise<{ useSample?: string }>
+  searchParams?: { useSample?: string; landing?: string } | Promise<{ useSample?: string; landing?: string }>
 }) {
   const user = await getUserOrBypass()
   const params = searchParams ? await Promise.resolve(searchParams) : {}
+  const previewLanding = process.env.NODE_ENV !== 'production' && params.landing === '1'
   if (!user) {
     const login = weddingGuestSampleLoginPath(params.useSample)
     if (login) redirect(login)
@@ -61,42 +54,41 @@ export default async function TaoThiepMoiCuoiAiPage({
     thanks: t.weddingCardAiLanding.reviewThanks,
     error: t.weddingCardAiLanding.reviewError,
   }
-  const plates = user ? [] : [...WEDDING_LANDING_DEMOS]
-  const themes = user
-    ? []
-    : INVITATION_OCCASION_KEYS.flatMap((occasionKey) => weddingOccasionDemos(occasionKey).map((sample) => ({
+  const showLanding = !user || previewLanding
+  const themes = showLanding
+    ? INVITATION_OCCASION_KEYS.flatMap((occasionKey) => weddingOccasionDemos(occasionKey).map((sample) => ({
         id: sample.id,
         title: weddingSampleCardTitle(locale, sample),
         image: weddingSampleScrollStrip(sample),
         cover: sample.coverPhotoUrl,
         occasionKey,
       }))).filter((item) => item.title && item.image)
+    : []
 
   return (
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={productJsonLd} />
       <JsonLd data={faqJsonLd} />
-      {user ? (
+      {showLanding ? (
+        <WeddingCardLanding
+          copy={t.weddingCardAiLanding}
+          locale={locale}
+          loginHref={loginHref}
+          themes={themes}
+          reviews={reviews}
+          signedIn={signedIn}
+        />
+      ) : (
         <>
           <CreationToolPageShell currentHref={seo.path} hideAside>
             <WeddingCardAiClientPage />
           </CreationToolPageShell>
           <WeddingReviewRail reviews={reviews} signedIn={signedIn} loginHref={loginHref} locale={locale} copy={reviewCopy} />
         </>
-      ) : (
-        <WeddingCardLanding
-          copy={t.weddingCardAiLanding}
-          locale={locale}
-          loginHref={loginHref}
-          plates={plates}
-          themes={themes}
-          reviews={reviews}
-          signedIn={signedIn}
-        />
       )}
-      <FeatureSeoSection seo={seo} />
-      {user ? null : <div className="h-16 lg:hidden" aria-hidden />}
+      <FeatureSeoSection seo={seo} showCatalogPrice={false} />
+      {showLanding ? <div className="h-[calc(5.25rem+env(safe-area-inset-bottom,0px))] lg:hidden" aria-hidden /> : null}
     </div>
   )
 }

@@ -4007,6 +4007,7 @@ export type Dictionary = {
     eyebrow: string
     title: string
     promise: string
+    freeLine: string
     cta: string
     samplesTitle: string
     samplesHint: string
@@ -8803,9 +8804,10 @@ export const VI_DICTIONARY: Dictionary = {
     eyebrow: 'Thiệp cưới điện tử',
     title: 'Lời mời gọi đúng tên từng khách',
     promise: 'Mỗi khách một lời mời riêng. Khách chọn đi hoặc không đi và ghi số người. Bạn thấy rõ từng nhà còn bao nhiêu người để tính cỗ.',
+    freeLine: 'Tạo, xem trước và xuất bản miễn phí. Ba khách mỗi bên dùng thử.',
     cta: 'Tạo thiệp ngay',
     samplesTitle: 'Thiệp mẫu',
-    samplesHint: 'Chọn một chủ đề để mở thiệp demo. Bấm Xem tất cả để hiện hết chủ đề.',
+    samplesHint: 'Chọn loại thiệp, rồi bấm một mẫu để mở demo. Xem tất cả để hiện hết mẫu.',
     themesMore: 'Xem tất cả',
     themesLess: 'Thu gọn',
     themesOpen: 'Xem demo',
@@ -8845,7 +8847,7 @@ export const VI_DICTIONARY: Dictionary = {
     step3Title: 'Gửi và theo dõi',
     step3Body: 'Gửi link riêng từng khách. Khi họ trả lời, số người đi hiện rõ để tính cỗ.',
     priceTitle: 'Gói khách mời',
-    priceLead: 'Ba khách đầu mỗi bên dùng thử.',
+    priceLead: 'Soạn, xem trước và xuất bản miễn phí. Tiền khi gửi quá ba khách mỗi bên.',
     priceTrialName: 'Dùng thử',
     priceTrialDetail: '3 khách mỗi bên',
     price100Name: '100 khách',

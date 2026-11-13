@@ -1080,27 +1080,6 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       ko: '쌍희 빨강',
     },
   },
-  {
-    id: 're_quat',
-    layout: 'song_hy',
-    photoHead: 'fan',
-    styleId: 'traditional_vietnamese',
-    tags: ['new'],
-    ornament: '囍',
-    thumbnail: {
-      topBg: 'linear-gradient(180deg, #9b1c24 0%, #7a1520 100%)',
-      bottomBg: '#4e1018',
-      accent: '#f3d27a',
-      textClass: 'text-[#f6e2b0]',
-    },
-    label: {
-      vi: 'Rẻ quạt đỏ',
-      en: 'Red folding fan',
-      zh: '红折扇',
-      ja: '赤の扇',
-      ko: '붉은 부채',
-    },
-  },
   gateCover('vom_sen', 'lotus', 'luxury', '❀', '#fff8ee', '#8a5a12', 'text-[#3b2618]', {
     vi: 'Vòm sen vàng', en: 'Gold lotus arch', zh: '金莲拱门', ja: '金蓮のアーチ', ko: '금련 아치',
   }),
@@ -1113,18 +1092,6 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
   gateCover('vom_bien', 'sea', 'minimal', '◇', '#f4faf8', '#0f766e', 'text-[#1a3c48]', {
     vi: 'Vòm biển', en: 'Seaside arch', zh: '海边拱门', ja: '海辺のアーチ', ko: '해변 아치',
   }),
-  gateCover('re_quat_sen', 'lotus', 'luxury', '❀', '#fff8ee', '#8a5a12', 'text-[#3b2618]', {
-    vi: 'Rẻ quạt sen vàng', en: 'Gold lotus fan', zh: '金莲折扇', ja: '金蓮の扇', ko: '금련 부채',
-  }, 'fan'),
-  gateCover('re_quat_ngoc', 'pearl', 'floral', '❀', '#fff7f8', '#b05a78', 'text-[#4a2c38]', {
-    vi: 'Rẻ quạt ngọc trai', en: 'Pearl fan', zh: '珍珠折扇', ja: '真珠の扇', ko: '진주 부채',
-  }, 'fan'),
-  gateCover('re_quat_dem', 'night', 'modern', '✦', '#0c1830', '#e6d3b3', 'text-[#f3e6c8]', {
-    vi: 'Rẻ quạt đêm vàng', en: 'Gold night fan', zh: '夜金折扇', ja: '金の夜の扇', ko: '금빛 밤 부채',
-  }, 'fan'),
-  gateCover('re_quat_bien', 'sea', 'minimal', '◇', '#f4faf8', '#0f766e', 'text-[#1a3c48]', {
-    vi: 'Rẻ quạt biển', en: 'Seaside fan', zh: '海边折扇', ja: '海辺の扇', ko: '해변 부채',
-  }, 'fan'),
   ...WEDDING_MOON_CARDS.map((card) => {
     const face = MOON_GATE_FACE[card.paper]
     return gateCover(card.coverId, card.paper, face.styleId, face.ornament, face.paper, face.accent, face.textClass, card.label, card.shape)
@@ -1352,12 +1319,53 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
   }, 'print'),
 ]
 
+/** Đã dỡ khỏi kho chọn. Thiệp đã lưu vẫn cắt ảnh rẻ quạt. */
+const WEDDING_RETIRED_FAN_COVERS: WeddingCoverPreset[] = [
+  {
+    id: 're_quat',
+    layout: 'song_hy',
+    photoHead: 'fan',
+    styleId: 'traditional_vietnamese',
+    tags: ['new'],
+    ornament: '囍',
+    thumbnail: {
+      topBg: 'linear-gradient(180deg, #9b1c24 0%, #7a1520 100%)',
+      bottomBg: '#4e1018',
+      accent: '#f3d27a',
+      textClass: 'text-[#f6e2b0]',
+    },
+    label: {
+      vi: 'Rẻ quạt đỏ',
+      en: 'Red folding fan',
+      zh: '红折扇',
+      ja: '赤の扇',
+      ko: '붉은 부채',
+    },
+  },
+  gateCover('re_quat_sen', 'lotus', 'luxury', '❀', '#fff8ee', '#8a5a12', 'text-[#3b2618]', {
+    vi: 'Rẻ quạt sen vàng', en: 'Gold lotus fan', zh: '金莲折扇', ja: '金蓮の扇', ko: '금련 부채',
+  }, 'fan'),
+  gateCover('re_quat_ngoc', 'pearl', 'floral', '❀', '#fff7f8', '#b05a78', 'text-[#4a2c38]', {
+    vi: 'Rẻ quạt ngọc trai', en: 'Pearl fan', zh: '珍珠折扇', ja: '真珠の扇', ko: '진주 부채',
+  }, 'fan'),
+  gateCover('re_quat_dem', 'night', 'modern', '✦', '#0c1830', '#e6d3b3', 'text-[#f3e6c8]', {
+    vi: 'Rẻ quạt đêm vàng', en: 'Gold night fan', zh: '夜金折扇', ja: '金の夜の扇', ko: '금빛 밤 부채',
+  }, 'fan'),
+  gateCover('re_quat_bien', 'sea', 'minimal', '◇', '#f4faf8', '#0f766e', 'text-[#1a3c48]', {
+    vi: 'Rẻ quạt biển', en: 'Seaside fan', zh: '海边折扇', ja: '海辺の扇', ko: '해변 부채',
+  }, 'fan'),
+]
+
+const COVER_BY_ID = new Map(
+  [...WEDDING_COVER_PRESETS, ...WEDDING_RETIRED_FAN_COVERS].map((preset) => [preset.id, preset]),
+)
+
 export const DEFAULT_WEDDING_COVER_PRESET_ID = WEDDING_COVER_PRESETS[0]?.id ?? 'dragon_phoenix'
 
 export function findWeddingCoverPreset(id: string | null | undefined): WeddingCoverPreset | undefined {
   const key = String(id || '').trim()
   if (!key) return undefined
-  return WEDDING_COVER_PRESETS.find((preset) => preset.id === key)
+  return COVER_BY_ID.get(key)
 }
 
 export function getWeddingCoverPreset(id: string | null | undefined): WeddingCoverPreset {

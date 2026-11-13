@@ -163,6 +163,21 @@ export function formatWeddingPackVnd(amount: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(amount)))}đ`
 }
 
+/** 100 khách 149.000đ, 200 khách 199.000đ, không giới hạn 299.000đ */
+export function weddingGuestPackPriceSummary(): string {
+  return WEDDING_GUEST_PACKS.map((pack) => {
+    const name = pack.cap == null ? 'không giới hạn' : `${pack.cap} khách`
+    return `${name} ${formatWeddingPackVnd(pack.priceVnd)}`
+  }).join(', ')
+}
+
+/** Giá hiện khi một bên đã quá 3 khách miễn phí, hoặc gói đang dùng đã đầy. */
+export function weddingGuestPackPricesVisible(quota: WeddingGuestPackQuota): boolean {
+  if (!quota.packId) return quota.guestCount > WEDDING_GUEST_FREE_CAP
+  if (quota.guestCap == null) return false
+  return (quota.remaining ?? 0) === 0
+}
+
 export function weddingGuestPackBlockedMessage(
   quota: WeddingGuestPackQuota,
   side?: WeddingGuestPackSide,
@@ -186,7 +201,9 @@ export function weddingGuestPackBanner(quota: WeddingGuestPackQuota, side?: Wedd
     return `Gói${label} không giới hạn · ${quota.guestCount} khách`
   }
   if (!quota.packId) {
-    return `Đã thêm ${quota.guestCount} khách${label}. 3 khách đầu hiện link thiệp. Khách sau mua gói để mở link.`
+    const head = `Đã thêm ${quota.guestCount} khách${label}. 3 khách đầu hiện link thiệp.`
+    if (quota.guestCount > WEDDING_GUEST_FREE_CAP) return `${head} ${weddingGuestPackPriceSummary()}.`
+    return `${head} Khách sau mua gói để mở link.`
   }
   if ((quota.remaining ?? 0) === 0) {
     return `Gói${label} tối đa ${quota.guestCap} khách · đã đủ ${quota.guestCount}. Nâng gói để thêm tiếp.`

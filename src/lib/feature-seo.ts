@@ -127,11 +127,13 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   },
   'tao-thiep-moi-cuoi-ai': {
     key: 'tao-thiep-moi-cuoi-ai',
-    pageTitle: 'Tạo thiệp cưới AI – thiệp mời cưới online',
+    pageTitle: 'Tạo thiệp cưới online miễn phí – thiệp AI gọi tên từng khách',
     pageDescription:
-      'Tạo thiệp cưới AI online: chọn thiệp mẫu, xem trước nội dung miễn phí, xuất link thiệp điện tử và RSVP. Gói khách mời từ 149.000đ.',
+      'Tạo thiệp cưới online miễn phí: chọn mẫu, xem trước và gửi link không tốn credit. Lời mời gọi đúng tên từng khách, RSVP, chia sẻ Zalo. Ba khách mỗi bên thử.',
     path: '/tao-thiep-moi-cuoi-ai',
     keywords: [
+      'tạo thiệp cưới online miễn phí',
+      'tạo thiệp cưới online',
       'tạo thiệp cưới AI',
       'thiệp cưới online',
       'thiệp cưới AI',
@@ -143,10 +145,10 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     ],
     serviceName: 'Tạo thiệp cưới AI',
     serviceDescription:
-      'Tạo thiệp mời cưới online bằng AI: visual nền, chữ tiếng Việt do hệ thống render, xuất bản link thiệp điện tử và RSVP.',
-    h2: 'Tạo thiệp cưới AI online, gửi khách mời chỉ với một đường dẫn',
+      'Tạo thiệp cưới online miễn phí: chọn mẫu, xem trước và xuất bản link. Chữ tiếng Việt do hệ thống sắp, mỗi khách một lời mời và RSVP.',
+    h2: 'Tạo thiệp cưới online miễn phí, lời mời gọi đúng tên từng khách',
     overview:
-      'Thiệp cưới điện tử giúp cặp đôi gửi lời mời nhanh, chỉnh sửa được và theo dõi RSVP mà không cần in hàng loạt. Công cụ trên NanoAI dùng thiệp mẫu với nội dung tiếng Việt do hệ thống sắp chữ, để thiệp đọc rõ trên điện thoại và máy tính. Gói khách mời tính riêng cho nhà trai và nhà gái: 100 khách 149.000đ, 200 khách 199.000đ, không giới hạn 299.000đ. Ba khách đầu mỗi bên dùng thử; mở thêm khách bằng quét mã QR.',
+      'Tạo thiệp cưới online miễn phí: chọn mẫu, xem trước và xuất bản link không tốn credit. Thiệp điện tử giúp cặp đôi gửi lời mời nhanh, chỉnh sửa được và theo dõi RSVP mà không cần in hàng loạt. Công cụ trên NanoAI dùng thiệp mẫu với nội dung tiếng Việt do hệ thống sắp chữ, để thiệp đọc rõ trên điện thoại và máy tính. Ba khách đầu mỗi bên dùng thử.',
     benefits: [
       'Xem trước nội dung, chọn thiệp mẫu và xuất bản link không tốn credit',
       'Chữ tiếng Việt do hệ thống render, hạn chế lỗi font trên ảnh AI',

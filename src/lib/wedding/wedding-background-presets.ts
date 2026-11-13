@@ -1084,80 +1084,6 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     },
   },
   {
-    id: 're-quat',
-    plates: ['/wedding/backgrounds/song-hy-do.svg'],
-    ornaments: SONG_HY_ORNAMENTS,
-    coverPresetId: 're_quat',
-    look: SONG_HY_LOOK,
-    label: {
-      vi: 'Rẻ quạt đỏ',
-      en: 'Red folding fan',
-      zh: '红折扇',
-      ja: '赤の扇',
-      ko: '붉은 부채',
-    },
-  },
-  {
-    id: 're-quat-sen',
-    plates: ['/wedding/backgrounds/sen-vang.jpg'],
-    ornaments: LOTUS_ORNAMENTS,
-    coverPresetId: 're_quat_sen',
-    look: LOTUS_LOOK,
-    label: {
-      vi: 'Rẻ quạt sen vàng',
-      en: 'Gold lotus fan',
-      zh: '金莲折扇',
-      ja: '金蓮の扇',
-      ko: '금련 부채',
-    },
-  },
-  {
-    id: 're-quat-ngoc',
-    plates: [
-      '/wedding/backgrounds/hong-ngoc-trai-1.jpg',
-      '/wedding/backgrounds/hong-ngoc-trai-wash.jpg',
-      '/wedding/backgrounds/hong-ngoc-trai-2.jpg',
-    ],
-    ornaments: PEARL_ORNAMENTS,
-    coverPresetId: 're_quat_ngoc',
-    look: PEARL_LOOK,
-    label: {
-      vi: 'Rẻ quạt ngọc trai',
-      en: 'Pearl fan',
-      zh: '珍珠折扇',
-      ja: '真珠の扇',
-      ko: '진주 부채',
-    },
-  },
-  {
-    id: 're-quat-dem',
-    plates: ['/wedding/backgrounds/dem-vang-paper.jpg'],
-    ornaments: DEM_ORNAMENTS,
-    coverPresetId: 're_quat_dem',
-    look: DEM_LOOK,
-    label: {
-      vi: 'Rẻ quạt đêm vàng',
-      en: 'Gold night fan',
-      zh: '夜金折扇',
-      ja: '金の夜の扇',
-      ko: '금빛 밤 부채',
-    },
-  },
-  {
-    id: 're-quat-bien',
-    plates: ['/wedding/backgrounds/bien-paper.jpg'],
-    ornaments: BIEN_ORNAMENTS,
-    coverPresetId: 're_quat_bien',
-    look: BIEN_LOOK,
-    label: {
-      vi: 'Rẻ quạt biển',
-      en: 'Seaside fan',
-      zh: '海边折扇',
-      ja: '海辺の扇',
-      ko: '해변 부채',
-    },
-  },
-  {
     id: 'vom-sen',
     plates: ['/wedding/backgrounds/sen-vang.jpg'],
     ornaments: LOTUS_ORNAMENTS,
@@ -1761,7 +1687,87 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
   },
 ]
 
-const PRESET_BY_ID = new Map(WEDDING_BACKGROUND_PRESETS.map((preset) => [preset.id, preset]))
+/** Đã dỡ khỏi kho chọn. Thiệp đã lưu vẫn đọc được nền và vỏ. */
+const WEDDING_RETIRED_FAN_BACKGROUNDS: WeddingBackgroundPreset[] = [
+  {
+    id: 're-quat',
+    plates: ['/wedding/backgrounds/song-hy-do.svg'],
+    ornaments: SONG_HY_ORNAMENTS,
+    coverPresetId: 're_quat',
+    look: SONG_HY_LOOK,
+    label: {
+      vi: 'Rẻ quạt đỏ',
+      en: 'Red folding fan',
+      zh: '红折扇',
+      ja: '赤の扇',
+      ko: '붉은 부채',
+    },
+  },
+  {
+    id: 're-quat-sen',
+    plates: ['/wedding/backgrounds/sen-vang.jpg'],
+    ornaments: LOTUS_ORNAMENTS,
+    coverPresetId: 're_quat_sen',
+    look: LOTUS_LOOK,
+    label: {
+      vi: 'Rẻ quạt sen vàng',
+      en: 'Gold lotus fan',
+      zh: '金莲折扇',
+      ja: '金蓮の扇',
+      ko: '금련 부채',
+    },
+  },
+  {
+    id: 're-quat-ngoc',
+    plates: [
+      '/wedding/backgrounds/hong-ngoc-trai-1.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-wash.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-2.jpg',
+    ],
+    ornaments: PEARL_ORNAMENTS,
+    coverPresetId: 're_quat_ngoc',
+    look: PEARL_LOOK,
+    label: {
+      vi: 'Rẻ quạt ngọc trai',
+      en: 'Pearl fan',
+      zh: '珍珠折扇',
+      ja: '真珠の扇',
+      ko: '진주 부채',
+    },
+  },
+  {
+    id: 're-quat-dem',
+    plates: ['/wedding/backgrounds/dem-vang-paper.jpg'],
+    ornaments: DEM_ORNAMENTS,
+    coverPresetId: 're_quat_dem',
+    look: DEM_LOOK,
+    label: {
+      vi: 'Rẻ quạt đêm vàng',
+      en: 'Gold night fan',
+      zh: '夜金折扇',
+      ja: '金の夜の扇',
+      ko: '금빛 밤 부채',
+    },
+  },
+  {
+    id: 're-quat-bien',
+    plates: ['/wedding/backgrounds/bien-paper.jpg'],
+    ornaments: BIEN_ORNAMENTS,
+    coverPresetId: 're_quat_bien',
+    look: BIEN_LOOK,
+    label: {
+      vi: 'Rẻ quạt biển',
+      en: 'Seaside fan',
+      zh: '海边折扇',
+      ja: '海辺の扇',
+      ko: '해변 부채',
+    },
+  },
+]
+
+const PRESET_BY_ID = new Map(
+  [...WEDDING_BACKGROUND_PRESETS, ...WEDDING_RETIRED_FAN_BACKGROUNDS].map((preset) => [preset.id, preset]),
+)
 
 export function findWeddingBackgroundPreset(id: string | null | undefined): WeddingBackgroundPreset | undefined {
   const key = id?.trim() || ''

@@ -25,6 +25,9 @@ function reducedMotion() {
 export function WeddingSampleScrollPreview(props: {
   src: string
   eager?: boolean
+  /** Mặc định 3/5. Trang giới thiệu dùng tỉ lệ thấp hơn trên điện thoại. */
+  aspectClassName?: string
+  fetchPriority?: 'high' | 'low' | 'auto'
   className?: string
   onError?: () => void
 }) {
@@ -96,7 +99,11 @@ export function WeddingSampleScrollPreview(props: {
   return (
     <span
       ref={boxRef}
-      className={cn('relative block aspect-[3/5] overflow-hidden bg-[#fffaf2] [transform:translateZ(0)]', props.className)}
+      className={cn(
+        'relative block overflow-hidden bg-[#fffaf2] [transform:translateZ(0)]',
+        props.aspectClassName ?? 'aspect-[3/5]',
+        props.className,
+      )}
       onMouseEnter={play}
       onMouseLeave={stop}
     >
@@ -104,6 +111,7 @@ export function WeddingSampleScrollPreview(props: {
         src={props.src}
         alt=""
         loading={props.eager ? 'eager' : 'lazy'}
+        fetchPriority={props.fetchPriority}
         decoding="async"
         draggable={false}
         className="pointer-events-none absolute inset-x-0 top-0 block w-full max-w-none"
