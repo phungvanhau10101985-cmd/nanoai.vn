@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildLessonTtsPrompt, lessonSpeechDeliveryForKey } from './lesson-tts-prompt'
+import { buildLessonTtsPrompt, lessonSpeechDeliveryForKey, teacherVoiceStyle } from './lesson-tts-prompt'
 
 const base = {
   voiceStyle: 'Speak with a deep, warm masculine native Chinese (Mandarin) teacher voice.',
@@ -42,6 +42,15 @@ test('ba ý cùng một thầy nhưng khác ngữ điệu', () => {
   assert.match(model, /do not use a questioning tone/)
   assert.match(reply, /rising question intonation/)
   assert.match(reply, /您的航班号是多少？/)
+})
+
+test('tiếng Anh dùng giọng nam Anh trầm ấm', () => {
+  const style = teacherVoiceStyle({ gender: 'male', locale: 'en-GB', languageLabel: 'English' })
+  assert.match(style, /deep, warm British man/)
+  assert.match(style, /not American/)
+  const other = teacherVoiceStyle({ gender: 'male', locale: 'ja-JP', languageLabel: 'Japanese' })
+  assert.match(other, /native Japanese/)
+  assert.doesNotMatch(other, /British/)
 })
 
 test('khóa ý theo vai đọc', () => {

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { headers } from 'next/headers'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { getUserForCreditAction } from '@/lib/auth'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
@@ -122,6 +123,12 @@ import {
 } from '@/lib/wedding/wedding-text-polish-credit'
 import { composeWeddingSampleCopyWithDeepseek } from '@/lib/wedding/wedding-sample-compose-deepseek'
 import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
+import {
+  chooseWeddingCreateTouch,
+  resolveWeddingCreateSource,
+  type WeddingCreateSourcePayload,
+  type WeddingCreateTouch,
+} from '@/lib/wedding/wedding-create-source'
 import {
   WEDDING_SAMPLE_COMPOSE_CREDIT,
   type WeddingCardOpeningCopy,
@@ -1109,11 +1116,34 @@ export async function createNewWeddingCard(
   occasionKey?: string,
   _heroPhotoLayout?: string,
   opening?: WeddingCardOpeningCopy | null,
+  createSource?: WeddingCreateSourcePayload | null,
 ) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
-  const draft = await createWeddingCardDraft(ownerUserId, 'luxury', occasionKey)
+  const now = Date.now()
+  const clientTouch: WeddingCreateTouch | null = createSource
+    ? {
+        search: String(createSource.search ?? ''),
+        referrer: String(createSource.referrer ?? ''),
+        pageHost: String(createSource.pageHost ?? ''),
+        at: now - 1,
+      }
+    : null
+  let pageTouch: WeddingCreateTouch = { search: '', referrer: '', pageHost: '', at: now }
+  try {
+    const referer = (await headers()).get('referer') || ''
+    const url = new URL(referer)
+    pageTouch = { search: url.search, referrer: '', pageHost: url.hostname, at: now }
+  } catch {
+    pageTouch = { search: '', referrer: '', pageHost: '', at: now }
+  }
+  const chosen = chooseWeddingCreateTouch(clientTouch, pageTouch, now)
+  const recorded =
+    createSource || pageTouch.search
+      ? resolveWeddingCreateSource(chosen.search, chosen.referrer, chosen.pageHost)
+      : null
+  const draft = await createWeddingCardDraft(ownerUserId, 'luxury', occasionKey, recorded)
   let seeded = draft
   const groomName = capitalizeInvitationPersonName(clipOpening(opening?.groomName, 300))
   const brideName = capitalizeInvitationPersonName(clipOpening(opening?.brideName, 300))

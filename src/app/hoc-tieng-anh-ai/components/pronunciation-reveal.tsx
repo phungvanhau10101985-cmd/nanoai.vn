@@ -1,14 +1,11 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
+import { pairedReading } from '@/lib/coach-reading'
 import { ProcessingIcon } from './processing-status'
 import { Switch } from '@/components/ui/switch'
 import type { LocalTextFn } from './types'
-
-function maskReading(value: string): string {
-  return Array.from(value).map((ch) => (/\s/u.test(ch) ? ch : '•')).join('')
-}
 
 let showAllPronunciations = false
 const listeners = new Set<() => void>()
@@ -74,17 +71,52 @@ export function PronunciationMasterSwitch({
   )
 }
 
-/** Dòng phát âm luôn hiện. Lúc ẩn thì che bằng chấm như mật khẩu. Icon mắt chỉ mở đúng dòng này. */
+function pairedPlain(source: string, reading: string): string {
+  const parts = pairedReading(source, reading)
+  if (!parts.length) return reading
+  return parts.map((part) => (
+    part.kind === 'gap' ? part.text : `${part.text}${part.reading ? `(${part.reading})` : ''}`
+  )).join('')
+}
+
+function maskReading(value: string): string {
+  return Array.from(value).map((ch) => (/\s/u.test(ch) ? ch : '•')).join('')
+}
+
+function PairedReadingText({ source, reading }: { source: string; reading: string }) {
+  const parts = pairedReading(source, reading)
+  if (!parts.length) return <>{reading}</>
+  return (
+    <>
+      {parts.map((part, index) => (
+        part.kind === 'gap' ? (
+          <span key={index}>{part.text}</span>
+        ) : (
+          <span key={index}>
+            {part.text}
+            {part.reading ? <span className="text-violet-700 dark:text-violet-300">({part.reading})</span> : null}
+          </span>
+        )
+      ))}
+    </>
+  )
+}
+
+/** Hai trạng thái: hiện từ(âm), hoặc che cả dòng bằng chấm như mật khẩu. */
 export function PronunciationReveal({
   localText,
   reading,
+  source = '',
   busy = false,
   lineKey = '',
+  actions = null,
 }: {
   localText: LocalTextFn
   reading: string
+  source?: string
   busy?: boolean
   lineKey?: string
+  actions?: ReactNode
 }) {
   const [showAll] = useShowAllPronunciations()
   const value = String(reading || '').trim()
@@ -102,19 +134,23 @@ export function PronunciationReveal({
   if (!value && !busy) return null
   const shown = Boolean(value) && !masked
   return (
-    <div className="mt-0.5 space-y-0.5">
-      <div className="flex items-start gap-1">
-      <p className="min-w-0 flex-1 break-words text-muted-foreground leading-relaxed">
-        <span className="font-semibold text-slate-800">{localText('Phát âm:', 'Pronunciation:')}</span>{' '}
-        {busy && !value ? (
-          localText('Đang tạo...', 'Generating...')
-        ) : (
-          <span className={shown ? 'break-words' : 'select-none break-words tracking-wide [-webkit-touch-callout:none]'}>{shown ? value : maskReading(value)}</span>
-        )}
-      </p>
+    <div className="mt-0.5 flex items-start gap-1">
+      {value ? (
+        <p className="min-w-0 flex-1 break-words leading-relaxed">
+          {shown ? (
+            <PairedReadingText source={source} reading={value} />
+          ) : (
+            <span className="select-none break-words tracking-wide text-muted-foreground [-webkit-touch-callout:none]">
+              {maskReading(pairedPlain(source, value))}
+            </span>
+          )}
+          {actions ? <span className="ml-1 inline-flex flex-wrap items-center gap-1 align-middle">{actions}</span> : null}
+        </p>
+      ) : actions}
       {busy && !value ? (
-        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center text-slate-500">
+        <span className="inline-flex h-11 items-center gap-1 text-sm text-slate-500">
           <ProcessingIcon />
+          {localText('Đang tạo...', 'Generating...')}
         </span>
       ) : null}
       {value ? (
@@ -132,7 +168,6 @@ export function PronunciationReveal({
           {shown ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
         </button>
       ) : null}
-      </div>
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { readingForCutSentence, readingStoredForShownText, stripReadingCommentar
 import { lessonListeningWords, prepareListeningWords, stripReadingLabels } from '@/lib/english-coach/listening-words'
 import { normalizeCopyText } from './normalize-copy-text'
 import { getSharedLessonAudio, playSharedLessonAudio, primeSharedLessonAudio } from './shared-lesson-audio'
-import { lessonSpeechDeliveryForKey, type LessonSpeechDelivery } from '@/lib/english-coach/lesson-tts-prompt'
+import { lessonSpeechDeliveryForKey, teacherVoiceStyle, type LessonSpeechDelivery } from '@/lib/english-coach/lesson-tts-prompt'
 import { readLessonLanguageQuery } from '@/lib/hoc-ngoai-ngu/lesson-query'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import {
@@ -1628,7 +1628,7 @@ const TEACHERS_BY_LANGUAGE: Record<LanguageCode, TeacherProfile[]> = {
       label: 'Thầy giáo người Anh (UK)',
       languageLabel: 'English',
       locale: 'en-GB',
-      voiceName: 'Fenrir',
+      voiceName: 'Orus',
       accent: 'uk',
       gender: 'male',
     },
@@ -4480,10 +4480,11 @@ export default function HocTiengAnhAiClientPage() {
       nativeLanguage: selectedNativeLanguage.apiLabel,
       readingLanguage: String(opts?.readingLanguage || '').trim(),
       delivery: opts?.delivery || '',
-      voiceStyle:
-        activeTeacher.gender === 'male'
-          ? `Speak with a deep, warm masculine native ${labelToUse} teacher voice. Low pitch, calm, and natural.`
-          : `Speak with a clearly feminine native ${labelToUse} teacher voice. Calm, warm, and natural.`,
+      voiceStyle: teacherVoiceStyle({
+        gender: activeTeacher.gender,
+        locale: localeToUse,
+        languageLabel: labelToUse,
+      }),
     })
     const payload = data as {
       audioBase64?: string
@@ -5314,16 +5315,12 @@ export default function HocTiengAnhAiClientPage() {
       if (!ok) throw new Error(data.error || localText('Không giải thích được câu trả lời.', 'Unable to explain this reply.'))
       const meaning = String(data.explanation || '').trim()
       if (!meaning) throw new Error(localText('Không có nội dung giải thích.', 'No explanation content.'))
-      const transliteration = await requestTransliteration(intentAnswer)
-      const combined = transliteration
-        ? `${meaning}\n${localText('Phiên âm Latin:', 'Latin transliteration:')} ${transliteration}`
-        : meaning
-      setIntentExplainByMessageId((prev) => ({ ...prev, [messageId]: combined }))
+      setIntentExplainByMessageId((prev) => ({ ...prev, [messageId]: meaning }))
       const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId)
       void updateMessageTranslationApi({
         messageId,
         ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
-        translation: combined,
+        translation: meaning,
       }).catch(() => {})
     } catch (e) {
       toast({
@@ -5375,11 +5372,7 @@ export default function HocTiengAnhAiClientPage() {
       if (!ok) throw new Error(data.error || localText('Không giải thích được câu sửa.', 'Unable to explain corrected sentence.'))
       const meaning = String(data.explanation || '').trim()
       if (!meaning) throw new Error(localText('Không có nội dung giải thích.', 'No explanation content.'))
-      const transliteration = await requestTransliteration(correctedSentence)
-      const combined = transliteration
-        ? `${meaning}\n${localText('Phiên âm Latin:', 'Latin transliteration:')} ${transliteration}`
-        : meaning
-      setMainSentenceExplainByMessageId((prev) => ({ ...prev, [messageId]: combined }))
+      setMainSentenceExplainByMessageId((prev) => ({ ...prev, [messageId]: meaning }))
     } catch (e) {
       toast({
         title: localText('Không giải thích được', 'Cannot explain now'),
@@ -5415,16 +5408,12 @@ export default function HocTiengAnhAiClientPage() {
       if (!ok) throw new Error(data.error || localText('Không dịch được câu mở đầu.', 'Unable to translate opening line.'))
       const meaning = String(data.explanation || '').trim()
       if (!meaning) throw new Error(localText('Không có nội dung dịch.', 'No translation content.'))
-      const transliteration = await requestTransliteration(sourceText)
-      const combined = transliteration
-        ? `${meaning}\n${localText('Phiên âm Latin:', 'Latin transliteration:')} ${transliteration}`
-        : meaning
-      setOpeningTranslateByMessageId((prev) => ({ ...prev, [messageId]: combined }))
+      setOpeningTranslateByMessageId((prev) => ({ ...prev, [messageId]: meaning }))
       const isDbId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId)
       void updateMessageTranslationApi({
         messageId,
         ...(isDbId ? {} : { sessionId, clientMessageId: messageId }),
-        translation: combined,
+        translation: meaning,
       }).catch(() => {})
     } catch (e) {
       toast({
@@ -6744,7 +6733,7 @@ export default function HocTiengAnhAiClientPage() {
       const studentTrans: Record<string, string> = {}
       items.forEach((item, idx) => {
         const trans = String((item as { translation?: string }).translation || '').trim()
-        if (!trans) return
+        if (!trans || /Phiên âm Latin:|Latin transliteration:/i.test(trans)) return
         if (item.role === 'teacher') {
           if (idx === firstTeacherIdx) openingTrans[item.id] = trans
           else intentTrans[item.id] = trans
@@ -11007,7 +10996,7 @@ export default function HocTiengAnhAiClientPage() {
                                           ) : (
                                             <p className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}</p>
                                           )}
-                                          <PronunciationReveal localText={localText} reading={wordInsightByKey[openedWordKey].pronunciation} lineKey={openedWordKey} />
+                                          <PronunciationReveal localText={localText} source={openedWordKey.split(':').slice(1).join(':')} reading={wordInsightByKey[openedWordKey].pronunciation} lineKey={openedWordKey} />
                                           <div className="flex flex-wrap items-center gap-1">
                                             <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${wordInsightByKey[openedWordKey].usageLevel === 'high' ? 'border-blue-300 bg-blue-50 text-blue-700' : wordInsightByKey[openedWordKey].usageLevel === 'low' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-emerald-300 bg-emerald-50 text-emerald-700'}`}>
                                               {wordInsightByKey[openedWordKey].usageLevel === 'high' ? localText('Dùng nhiều', 'High use') : wordInsightByKey[openedWordKey].usageLevel === 'low' ? localText('Ít dùng', 'Low use') : localText('Dùng trung bình', 'Medium use')}
@@ -11030,6 +11019,45 @@ export default function HocTiengAnhAiClientPage() {
                             }
                             const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer || correctionItems.length > 0)
                             if (!hasStructured) {
+                              const openingActions = idx === 0 && learningMode !== 'reflex' ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    title={localText('Nghe câu mở đầu', 'Play opening sentence')}
+                                    aria-label={localText('Nghe câu mở đầu', 'Play opening sentence')}
+                                    onClick={() => void replayTeacherMessage(m.id, m.text)}
+                                    disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
+                                  >
+                                    <Volume2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    title={openingTranslateBusyByMessageId[m.id]
+                                      ? localText('Đang dịch...', 'Translating...')
+                                      : openingTranslateByMessageId[m.id]
+                                        ? localText('Ẩn dịch câu đầu bài', 'Hide opening translation')
+                                        : localText('Dịch câu đầu bài', 'Translate opening line')}
+                                    aria-label={openingTranslateBusyByMessageId[m.id]
+                                      ? localText('Đang dịch...', 'Translating...')
+                                      : openingTranslateByMessageId[m.id]
+                                        ? localText('Ẩn dịch câu đầu bài', 'Hide opening translation')
+                                        : localText('Dịch câu đầu bài', 'Translate opening line')}
+                                    aria-pressed={Boolean(openingTranslateByMessageId[m.id])}
+                                    onClick={() => void translateOpeningMessage(m.id, m.text)}
+                                    disabled={Boolean(openingTranslateBusyByMessageId[m.id])}
+                                  >
+                                    {openingTranslateBusyByMessageId[m.id]
+                                      ? <ProcessingIcon className="h-4 w-4" />
+                                      : <Languages className="h-4 w-4" />}
+                                  </Button>
+                                </>
+                              ) : null
                               return (
                                 <div className="space-y-1">
                                   <p className="break-words text-base leading-relaxed">{m.text}</p>
@@ -11039,7 +11067,14 @@ export default function HocTiengAnhAiClientPage() {
                                     nativeLanguageCode={nativeLanguageCode}
                                     localText={localText}
                                     coachUsageContext={englishCoachUsageContext}
+                                    actions={openingActions}
                                   />
+                                  {openingTranslateByMessageId[m.id] ? (
+                                    <p className="text-slate-600">
+                                      <span className="font-semibold">{localText('Dịch ngữ cảnh:', 'Context translation:')}</span>{' '}
+                                      {openingTranslateByMessageId[m.id]}
+                                    </p>
+                                  ) : null}
                                 </div>
                               )
                             }
@@ -11077,12 +11112,71 @@ export default function HocTiengAnhAiClientPage() {
                                       <p className="text-muted-foreground">{localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}</p>
                                     )}
                                   </div>
+                                  <div className="mt-2">
+                                    <Button
+                                      type="button"
+                                      variant="secondary"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      title={localText('Nghe ý 1', 'Play idea 1')}
+                                      aria-label={localText('Nghe ý 1', 'Play idea 1')}
+                                      onClick={() => void replayTeacherCorrectionNote(m.id)}
+                                      disabled={isReplayButtonDisabled(`${m.id}__correction_note`, hasCachedTeacherAudio(`${m.id}__correction_note`))}
+                                    >
+                                      <Volume2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </div>
                                 <div>
                                   <p>
                                     <span className="font-semibold text-emerald-700">{localText('Ý 2 - Câu sửa hoàn chỉnh:', 'Idea 2 - Corrected full sentence:')}</span>{' '}
-                                    {correctedSentence || localText('Chưa có câu chuẩn.', 'No corrected sentence yet.')}
+                                    {correctedSentence || localText('Chưa có câu chuẩn.', 'No corrected sentence yet.')}{' '}
+                                    <span className="inline-flex flex-wrap items-center gap-2 align-middle">
+                                      <Button
+                                        type="button"
+                                        variant="secondary"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        title={localText('Nghe ý 2', 'Play idea 2')}
+                                        aria-label={localText('Nghe ý 2', 'Play idea 2')}
+                                        onClick={() => void replayTeacherMainSentence(m.id, m.text)}
+                                        disabled={isReplayButtonDisabled(`${m.id}__main`, hasCachedTeacherAudio(`${m.id}__main`))}
+                                      >
+                                        <Volume2 className="h-4 w-4" />
+                                      </Button>
+                                      {correctedSentence ? (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                          title={mainSentenceExplainBusyByMessageId[m.id]
+                                            ? localText('Đang dịch...', 'Translating...')
+                                            : mainSentenceExplainByMessageId[m.id]
+                                              ? localText('Ẩn dịch ý 2', 'Hide idea 2 translation')
+                                              : localText('Dịch ý 2', 'Translate idea 2')}
+                                          aria-label={mainSentenceExplainBusyByMessageId[m.id]
+                                            ? localText('Đang dịch...', 'Translating...')
+                                            : mainSentenceExplainByMessageId[m.id]
+                                              ? localText('Ẩn dịch ý 2', 'Hide idea 2 translation')
+                                              : localText('Dịch ý 2', 'Translate idea 2')}
+                                          aria-pressed={Boolean(mainSentenceExplainByMessageId[m.id])}
+                                          onClick={() => void explainMainSentence(m.id)}
+                                          disabled={Boolean(mainSentenceExplainBusyByMessageId[m.id])}
+                                        >
+                                          {mainSentenceExplainBusyByMessageId[m.id]
+                                            ? <ProcessingIcon className="h-4 w-4" />
+                                            : <Languages className="h-4 w-4" />}
+                                        </Button>
+                                      ) : null}
+                                    </span>
                                   </p>
+                                  {mainSentenceExplainByMessageId[m.id] ? (
+                                    <p className="mt-1 text-slate-600">
+                                      <span className="font-semibold">{localText('Dịch ý 2:', 'Idea 2 translation:')}</span>{' '}
+                                      {mainSentenceExplainByMessageId[m.id]}
+                                    </p>
+                                  ) : null}
                                   <NativePhoneticLine
                                     text={correctedSentence}
                                     known={pinyin2}
@@ -11095,8 +11189,53 @@ export default function HocTiengAnhAiClientPage() {
                                 <div>
                                   <p>
                                     <span className="font-semibold text-indigo-700">{localText('Ý 3 - Trả lời tự nhiên:', 'Idea 3 - Natural contextual reply:')}</span>{' '}
-                                    {intentAnswer || localText('Chưa có phần trả lời ngữ cảnh riêng.', 'No separate contextual reply yet.')}
+                                    {intentAnswer || localText('Chưa có phần trả lời ngữ cảnh riêng.', 'No separate contextual reply yet.')}{' '}
+                                    <span className="inline-flex flex-wrap items-center gap-2 align-middle">
+                                      <Button
+                                        type="button"
+                                        variant="secondary"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        title={localText('Nghe ý 3', 'Play idea 3')}
+                                        aria-label={localText('Nghe ý 3', 'Play idea 3')}
+                                        onClick={() => void replayTeacherIntentAnswer(m.id)}
+                                        disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
+                                      >
+                                        <Volume2 className="h-4 w-4" />
+                                      </Button>
+                                      {intentAnswer ? (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-8 w-8"
+                                          title={intentExplainBusyByMessageId[m.id]
+                                            ? localText('Đang dịch...', 'Translating...')
+                                            : intentExplainByMessageId[m.id]
+                                              ? localText('Ẩn dịch ý 3', 'Hide idea 3 translation')
+                                              : localText('Dịch ý 3', 'Translate idea 3')}
+                                          aria-label={intentExplainBusyByMessageId[m.id]
+                                            ? localText('Đang dịch...', 'Translating...')
+                                            : intentExplainByMessageId[m.id]
+                                              ? localText('Ẩn dịch ý 3', 'Hide idea 3 translation')
+                                              : localText('Dịch ý 3', 'Translate idea 3')}
+                                          aria-pressed={Boolean(intentExplainByMessageId[m.id])}
+                                          onClick={() => void explainIntentAnswer(m.id)}
+                                          disabled={Boolean(intentExplainBusyByMessageId[m.id])}
+                                        >
+                                          {intentExplainBusyByMessageId[m.id]
+                                            ? <ProcessingIcon className="h-4 w-4" />
+                                            : <Languages className="h-4 w-4" />}
+                                        </Button>
+                                      ) : null}
+                                    </span>
                                   </p>
+                                  {intentExplainByMessageId[m.id] ? (
+                                    <p className="mt-1 text-slate-600">
+                                      <span className="font-semibold">{localText('Dịch ý 3:', 'Idea 3 translation:')}</span>{' '}
+                                      {intentExplainByMessageId[m.id]}
+                                    </p>
+                                  ) : null}
                                   <NativePhoneticLine
                                     text={intentAnswer}
                                     known={pinyin3}
@@ -11105,56 +11244,6 @@ export default function HocTiengAnhAiClientPage() {
                                     localText={localText}
                                     coachUsageContext={englishCoachUsageContext}
                                   />
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {correctedSentence ? (
-                                    <div className="space-y-1">
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="min-h-[44px] px-3 text-xs"
-                                        onClick={() => void explainMainSentence(m.id)}
-                                        disabled={Boolean(mainSentenceExplainBusyByMessageId[m.id])}
-                                      >
-                                        {mainSentenceExplainBusyByMessageId[m.id]
-                                          ? processingLabel(localText('Đang dịch...', 'Translating...'))
-                                          : mainSentenceExplainByMessageId[m.id]
-                                            ? localText('Ẩn dịch ý 2', 'Hide idea 2 translation')
-                                            : localText('Dịch ý 2', 'Translate idea 2')}
-                                      </Button>
-                                      {mainSentenceExplainByMessageId[m.id] ? (
-                                        <p className="text-slate-600">
-                                          <span className="font-semibold">{localText('Dịch ý 2:', 'Idea 2 translation:')}</span>{' '}
-                                          {mainSentenceExplainByMessageId[m.id]}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                  ) : null}
-                                  {intentAnswer ? (
-                                    <div className="space-y-1">
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="min-h-[44px] px-3 text-xs"
-                                        onClick={() => void explainIntentAnswer(m.id)}
-                                        disabled={Boolean(intentExplainBusyByMessageId[m.id])}
-                                      >
-                                        {intentExplainBusyByMessageId[m.id]
-                                          ? processingLabel(localText('Đang dịch...', 'Translating...'))
-                                          : intentExplainByMessageId[m.id]
-                                            ? localText('Ẩn dịch ý 3', 'Hide idea 3 translation')
-                                            : localText('Dịch ý 3', 'Translate idea 3')}
-                                      </Button>
-                                      {intentExplainByMessageId[m.id] ? (
-                                        <p className="text-slate-600">
-                                          <span className="font-semibold">{localText('Dịch ý 3:', 'Idea 3 translation:')}</span>{' '}
-                                          {intentExplainByMessageId[m.id]}
-                                        </p>
-                                      ) : null}
-                                    </div>
-                                  ) : null}
                                 </div>
                               </div>
                             )
@@ -11238,7 +11327,7 @@ export default function HocTiengAnhAiClientPage() {
                                   ) : (
                                     <p className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}</p>
                                   )}
-                                  <PronunciationReveal localText={localText} reading={wordInsightByKey[openedWordKey].pronunciation} lineKey={openedWordKey} />
+                                  <PronunciationReveal localText={localText} source={openedWordKey.split(':').slice(1).join(':')} reading={wordInsightByKey[openedWordKey].pronunciation} lineKey={openedWordKey} />
                                   <div className="flex flex-wrap items-center gap-1">
                                     <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${wordInsightByKey[openedWordKey].usageLevel === 'high' ? 'border-blue-300 bg-blue-50 text-blue-700' : wordInsightByKey[openedWordKey].usageLevel === 'low' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-emerald-300 bg-emerald-50 text-emerald-700'}`}>
                                       {wordInsightByKey[openedWordKey].usageLevel === 'high' ? localText('Dùng nhiều', 'High use') : wordInsightByKey[openedWordKey].usageLevel === 'low' ? localText('Ít dùng', 'Low use') : localText('Dùng trung bình', 'Medium use')}
@@ -11316,7 +11405,6 @@ export default function HocTiengAnhAiClientPage() {
                           meaning={speechIntent.meaning}
                           meaningBusy={speechIntent.meaningBusy}
                           continueBusy={busy || awaitingTeacherReply}
-                          languageCode={languageCode}
                           nativeLanguageCode={nativeLanguageCode}
                           localText={localText}
                           onContinue={(learnerMeaning) => {
@@ -11344,87 +11432,20 @@ export default function HocTiengAnhAiClientPage() {
                           ) : (
                             <p className="text-base leading-relaxed">{m.text}</p>
                           )}
-                          <NativePhoneticLine
-                            text={m.text}
-                            targetLanguageCode={languageCode}
-                            nativeLanguageCode={nativeLanguageCode}
-                            localText={localText}
-                            coachUsageContext={englishCoachUsageContext}
-                          />
                         </div>
                       )}
-                      {m.role === 'teacher' && learningMode !== 'reflex' ? (
+                      {m.role === 'teacher' && learningMode !== 'reflex' && idx !== 0 ? (
                         <div className="mt-2 flex flex-wrap gap-2">
-                          {idx === 0 ? (
-                            <>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => void replayTeacherMessage(m.id, m.text)}
-                                disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
-                              >
-                                <Volume2 className="mr-2 h-4 w-4" />
-                                {localText('Nghe câu mở đầu', 'Play opening sentence')}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => void translateOpeningMessage(m.id, m.text)}
-                                disabled={Boolean(openingTranslateBusyByMessageId[m.id])}
-                              >
-                                {openingTranslateBusyByMessageId[m.id]
-                                  ? processingLabel(localText('Đang dịch...', 'Translating...'))
-                                  : openingTranslateByMessageId[m.id]
-                                    ? localText('Ẩn dịch câu đầu bài', 'Hide opening translation')
-                                    : localText('Dịch câu đầu bài', 'Translate opening line')}
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => void replayTeacherCorrectionNote(m.id)}
-                                disabled={isReplayButtonDisabled(`${m.id}__correction_note`, hasCachedTeacherAudio(`${m.id}__correction_note`))}
-                              >
-                                <Volume2 className="mr-2 h-4 w-4" />
-                                {localText('Nghe ý 1', 'Play idea 1')}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => void replayTeacherMainSentence(m.id, m.text)}
-                                disabled={isReplayButtonDisabled(`${m.id}__main`, hasCachedTeacherAudio(`${m.id}__main`))}
-                              >
-                                <Volume2 className="mr-2 h-4 w-4" />
-                                {localText('Nghe ý 2', 'Play idea 2')}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => void replayTeacherIntentAnswer(m.id)}
-                                disabled={isReplayButtonDisabled(`${m.id}__intent_answer`, hasCachedTeacherAudio(`${m.id}__intent_answer`))}
-                              >
-                                <Volume2 className="mr-2 h-4 w-4" />
-                                {localText('Nghe ý 3', 'Play idea 3')}
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => void replayTeacherMessage(m.id, m.text)}
-                                disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
-                              >
-                                <Volume2 className="mr-2 h-4 w-4" />
-                                {localText('Nghe ý 1,2,3', 'Play ideas 1, 2, 3')}
-                              </Button>
-                            </>
-                          )}
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => void replayTeacherMessage(m.id, m.text)}
+                            disabled={isReplayButtonDisabled(`${m.id}__full`, hasCachedTeacherAudio(m.id))}
+                          >
+                            <Volume2 className="mr-2 h-4 w-4" />
+                            {localText('Nghe ý 1,2,3', 'Play ideas 1, 2, 3')}
+                          </Button>
                         </div>
                       ) : m.role === 'student' && speechIntent?.messageId !== m.id ? (
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -11440,12 +11461,6 @@ export default function HocTiengAnhAiClientPage() {
                             </Button>
                           ) : null}
                         </div>
-                      ) : null}
-                      {m.role === 'teacher' && learningMode !== 'reflex' && openingTranslateByMessageId[m.id] ? (
-                        <p className="mt-2 text-xs text-slate-600">
-                          <span className="font-semibold">{localText('Dịch ngữ cảnh:', 'Context translation:')}</span>{' '}
-                          {openingTranslateByMessageId[m.id]}
-                        </p>
                       ) : null}
                     </div>
                   ))}

@@ -100,7 +100,7 @@ export function ReviewItemsPanel({
             </Button>
           </div>
           {showPinyin && (pinyin || busyPinyin) ? (
-            <PronunciationReveal localText={localText} reading={pinyin} busy={!pinyin && Boolean(busyPinyin)} lineKey={cleanExampleText} />
+            <PronunciationReveal localText={localText} source={cleanExampleText} reading={pinyin} busy={!pinyin && Boolean(busyPinyin)} lineKey={cleanExampleText} />
           ) : null}
           {exampleNative ? (
             <p className="text-muted-foreground">
@@ -139,7 +139,7 @@ export function ReviewItemsPanel({
                 </button>{' '}
                 - {(item.meaning || localText('Chưa có nghĩa', 'No meaning yet'))}
               </p>
-              <PronunciationReveal localText={localText} reading={item.pronunciation || item.word} lineKey={item.id} />
+              <PronunciationReveal localText={localText} source={item.word} reading={item.pronunciation || item.word} lineKey={item.id} />
               <div className="mt-1 flex flex-wrap items-center gap-1">
                 <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${usageTagClass(item.usageLevel)}`}>
                   {usageTagLabel(item.usageLevel)}
@@ -181,6 +181,7 @@ export function ReviewItemsPanel({
                         {showPinyin ? (
                           <PronunciationReveal
                             localText={localText}
+                            source={exampleTarget}
                             reading={pinyin}
                             busy={!pinyin && busy}
                             lineKey={`${item.id}:${exampleTarget}`}

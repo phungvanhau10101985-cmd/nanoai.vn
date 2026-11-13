@@ -17,7 +17,7 @@ async function buildCacheKey(text: string, targetLanguageCode: string, nativeLan
   const hex = Array.from(new Uint8Array(h))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
-  return `opening:${hex}`
+  return `direct-v2:${hex}`
 }
 
 type Payload = {
@@ -48,6 +48,17 @@ function normalizeVietnameseLearnerAddressing(text: string): string {
     .replace(/\bcon\b/g, 'em')
 }
 
+function pickDirectTranslation(value: unknown): string {
+  if (!value || typeof value !== 'object') return ''
+  const row = value as Record<string, unknown>
+  for (const key of ['explanation', 'translation', 'meaning', 'text']) {
+    const line = String(row[key] || '').trim()
+    if (line) return line
+  }
+  const only = Object.values(row).filter((item) => typeof item === 'string' && String(item).trim())
+  return only.length === 1 ? String(only[0]).trim() : ''
+}
+
 function safeParse(text: string): { explanation: string } | null {
   const cleaned = String(text || '')
     .replace(/^```json\s*/i, '')
@@ -55,8 +66,7 @@ function safeParse(text: string): { explanation: string } | null {
     .replace(/```$/i, '')
     .trim()
   const tryParse = (candidate: string): { explanation: string } | null => {
-    const parsed = JSON.parse(candidate) as { explanation?: unknown }
-    const explanation = String(parsed.explanation || '').trim()
+    const explanation = pickDirectTranslation(JSON.parse(candidate))
     if (!explanation) return null
     return { explanation }
   }
@@ -111,31 +121,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const ideaLabel = explainType === 'idea2' ? 'Ý 2' : 'Ý 3'
-    const prompt = `Bạn là giáo viên ngôn ngữ đa ngữ.
-Nhiệm vụ: chỉ DỊCH ${ideaLabel} theo đúng ngữ cảnh hội thoại, viết bằng ${nativeLanguage}.
+    const prompt = `Dịch thẳng sang ${nativeLanguage}. Không giải thích.
 
-Ngữ cảnh:
-- Câu học sinh vừa nói: ${studentText || '(không có)'}
-- Ý 1 (sửa lỗi): ${correctionNote || '(không có)'}
-- Ý 2 (câu sửa hoàn chỉnh): ${correctedSentence || '(không có)'}
-- Ý 3 (trả lời tự nhiên): ${intentAnswer || '(không có)'}
-- ${ideaLabel} cần giải thích: ${textToExplain}
-- Chủ đề buổi học: ${topicLabel || '(không có)'}
+Câu cần dịch:
+${textToExplain}
+
+Chỉ dùng ngữ cảnh để chọn đúng nghĩa. Không viết ngữ cảnh vào bản dịch.
+- Học sinh vừa nói: ${studentText || '(không có)'}
+- Câu sửa: ${correctedSentence || '(không có)'}
+- Chủ đề: ${topicLabel || '(không có)'}
 - Ngôn ngữ đang học: ${targetLanguage}
 
-Yêu cầu:
-1) Trả về đúng nghĩa của ${ideaLabel} theo ngữ cảnh hiện tại, diễn đạt rõ ràng cho người học.
-2) Viết 2-3 câu ngắn, bám sát ngữ cảnh thực tế.
-3) Không phân tích ngữ pháp, không liệt kê thêm, không ghi chú ngoài lề.
-4) Không dùng ngôn ngữ thứ ba ngoài ${nativeLanguage}.
-5) Nếu có từ dễ nhầm, chọn nghĩa đúng ngữ cảnh và dịch luôn, không diễn giải thêm.
-6) Nếu ${nativeLanguage} là tiếng Việt: xưng hô người học là "em", tuyệt đối không dùng "con".
+Quy tắc:
+- Mỗi câu gốc thành đúng một câu dịch, giữ thứ tự và dấu câu.
+- Nhãn vai trong ngoặc vuông là chức danh. Dịch từ trong nhãn. Ví dụ tiếng Việt: [司書] thành [Thủ thư].
+- いらっしゃいませ là lời chào khách khi khách bước vào cửa hàng, quán hoặc nơi phục vụ. Nếu ${nativeLanguage} là tiếng Việt, dịch là "Chào mừng quý khách" hoặc "Kính chào quý khách", không dịch "xin chào". Ngôn ngữ mẹ đẻ khác thì dùng lời chào khách lịch sự tương đương.
+- Bỏ chú giải tiếng mẹ đẻ đã có sẵn trong ngoặc đơn. Chỉ dịch phần ngôn ngữ đang học.
+- Cấm giảng nghĩa, cấm "đây là lời chào", cấm phiên âm, cấm chú thích.
+- Nếu ${nativeLanguage} là tiếng Việt và câu xưng hô với người học, gọi là "em". Không dùng "con".
 
-Trả về JSON hợp lệ, không markdown:
-{
-  "explanation": "..."
-}`
+Ví dụ khi ${nativeLanguage} là tiếng Việt:
+[司書] いらっしゃいませ。図書館へようこそ。本、好きですか。
+→ [Thủ thư] Chào mừng quý khách. Chào mừng quý khách đến thư viện. Bạn có thích sách không?
+
+Chỉ JSON, không markdown:
+{"explanation":"..."}`
 
     const ai = new GoogleGenerativeAI(apiKey)
     const model = ai.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
@@ -151,11 +161,8 @@ Trả về JSON hợp lệ, không markdown:
     const parsed = safeParse(text)
 
     if (!parsed) {
-      return NextResponse.json({
-        explanation: nativeLanguage.toLowerCase().includes('vietnamese')
-          ? `${ideaLabel} là câu trong ngữ cảnh hiện tại.`
-          : `${ideaLabel} is the sentence in this context.`,
-      })
+      console.error('[intent-explain] unparsed model text', text.slice(0, 240))
+      return NextResponse.json({ error: 'Không dịch được câu này.' }, { status: 502 })
     }
 
     const explanation = normalizeVietnameseLearnerAddressing(normalizeShortMeaning(parsed.explanation))

@@ -87,8 +87,104 @@ export function pronunciationUnits(text: string): string[] {
 function readingTokens(reading: string): string[] {
   return stripReadingCommentary(reading)
     .split(/\s+/)
-    .map((token) => token.replace(/^[，。！？、；：,.!?;:]+|[，。！？、；：,.!?;:]+$/g, ''))
+    .map((token) => token.replace(/^[，。！？、；：,.!?;:/]+|[，。！？、；：,.!?;:/]+$/g, ''))
     .filter(Boolean)
+}
+
+export type PairedReadingPart =
+  | { kind: 'gap'; text: string }
+  | { kind: 'pair'; text: string; reading: string }
+
+const HAN_CHAR = /[\u4E00-\u9FFF]/u
+const KANA_CHAR = /[\u3040-\u30FF\u30FB\u3005]/u
+const HANGUL_CHAR = /[\uAC00-\uD7AF]/u
+const THAI_CHAR = /[\u0E00-\u0E7F]/u
+const DEVA_CHAR = /[\u0900-\u097F]/u
+
+function scriptKind(ch: string): 'han' | 'kana' | 'hangul' | 'thai' | 'deva' | 'latin' | '' {
+  if (HAN_CHAR.test(ch)) return 'han'
+  if (KANA_CHAR.test(ch)) return 'kana'
+  if (HANGUL_CHAR.test(ch)) return 'hangul'
+  if (THAI_CHAR.test(ch)) return 'thai'
+  if (DEVA_CHAR.test(ch)) return 'deva'
+  if (LATIN_UNIT.test(ch)) return 'latin'
+  return ''
+}
+
+type ReadingChunk = { gapBefore: string; text: string }
+
+function readingChunks(text: string, mode: 'char' | 'word'): { chunks: ReadingChunk[]; tail: string } {
+  const chars = Array.from(String(text || '').normalize('NFC'))
+  const chunks: ReadingChunk[] = []
+  let gap = ''
+  let index = 0
+  while (index < chars.length) {
+    const kind = scriptKind(chars[index])
+    if (!kind) {
+      gap += chars[index]
+      index += 1
+      continue
+    }
+    let token = ''
+    if (kind === 'latin') {
+      while (index < chars.length && (scriptKind(chars[index]) === 'latin' || (token && chars[index] === "'"))) {
+        token += chars[index]
+        index += 1
+      }
+    } else if (mode === 'char') {
+      token = chars[index]
+      index += 1
+    } else {
+      while (index < chars.length && scriptKind(chars[index]) === kind) {
+        token += chars[index]
+        index += 1
+      }
+    }
+    chunks.push({ gapBefore: gap, text: token })
+    gap = ''
+  }
+  return { chunks, tail: gap }
+}
+
+function sameReading(text: string, reading: string): boolean {
+  return text.localeCompare(reading, undefined, { sensitivity: 'accent' }) === 0
+}
+
+/** Ghép mỗi từ hoặc mỗi chữ với một âm: I(aɪ), 今(jīn). Không khớp số âm thì gom cả cụm. */
+export function pairedReading(source: string, reading: string): PairedReadingPart[] {
+  const tokens = readingTokens(reading)
+  if (!tokens.length) return []
+  const raw = String(source || '').normalize('NFC')
+  if (!raw.trim()) return [{ kind: 'pair', text: '', reading: tokens.join(' ') }]
+
+  const charSplit = readingChunks(raw, 'char')
+  const wordSplit = readingChunks(raw, 'word')
+  let chosen = charSplit.chunks.length === tokens.length
+    ? charSplit
+    : wordSplit.chunks.length === tokens.length
+      ? wordSplit
+      : null
+  let readings = tokens
+  if (!chosen && wordSplit.chunks.length === 1) {
+    chosen = wordSplit
+    readings = [tokens.join('')]
+  }
+  if (!chosen) return [{ kind: 'pair', text: '', reading: tokens.join(' ') }]
+
+  const parts: PairedReadingPart[] = []
+  chosen.chunks.forEach((chunk, index) => {
+    const kind = scriptKind(Array.from(chunk.text)[0] || '')
+    if (!chunk.gapBefore && index > 0 && kind && kind !== 'latin') parts.push({ kind: 'gap', text: ' ' })
+    else if (chunk.gapBefore) parts.push({ kind: 'gap', text: chunk.gapBefore })
+    const phonetic = readings[index] || ''
+    parts.push({
+      kind: 'pair',
+      text: chunk.text,
+      reading: sameReading(chunk.text, phonetic) ? '' : phonetic,
+    })
+  })
+  if (chosen.tail) parts.push({ kind: 'gap', text: chosen.tail })
+  return parts
 }
 
 function sameUnits(left: string[], right: string[]): boolean {

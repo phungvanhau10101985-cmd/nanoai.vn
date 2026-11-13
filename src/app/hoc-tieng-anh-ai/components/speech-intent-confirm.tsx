@@ -4,7 +4,6 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { RotateCcw, Volume2 } from 'lucide-react'
 import { ProcessingRow } from './processing-status'
 import { LessonImeField } from '../ime/lesson-ime-field'
-import { NativePhoneticLine } from './native-phonetic-line'
 import { Button } from '@/components/ui/button'
 
 type LocalText = (vi: string, en: string) => string
@@ -62,7 +61,6 @@ export function SpeechIntentConfirm({
   onReplay,
   onRecordAgain,
   localText,
-  languageCode,
   nativeLanguageCode = '',
 }: {
   text: string
@@ -73,7 +71,6 @@ export function SpeechIntentConfirm({
   onReplay?: () => void
   onRecordAgain?: () => void
   localText: LocalText
-  languageCode: string
   nativeLanguageCode?: string
 }) {
   const flushRef = useRef<(() => string) | null>(null)
@@ -154,12 +151,6 @@ export function SpeechIntentConfirm({
       <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-base leading-relaxed text-slate-900">
         {text}
       </p>
-      <NativePhoneticLine
-        text={text}
-        targetLanguageCode={languageCode}
-        nativeLanguageCode={nativeLanguageCode}
-        localText={localText}
-      />
       {meaningLine}
       {phone ? <div aria-hidden style={{ height: spacerHeight }} /> : null}
       <div

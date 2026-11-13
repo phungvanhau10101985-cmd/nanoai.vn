@@ -66,6 +66,7 @@ import {
   type WeddingSampleComposeFields,
 } from '@/lib/wedding/wedding-sample-compose'
 import { isWeddingInsufficientCredit } from '@/lib/wedding/wedding-credit-shortfall'
+import { rememberWeddingCreateSource } from '@/lib/wedding/wedding-create-source'
 import { findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingPairedFrameSectionPatch, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { weddingStyleIdFromPrompt } from '@/lib/wedding/build-wedding-image-prompt'
 import {
@@ -745,7 +746,7 @@ export default function WeddingCardAiClientPage() {
         }
         if ('empty' in result) {
           if (pendingSampleUseRef.current) {
-            const created = await createNewWeddingCard()
+            const created = await createNewWeddingCard(undefined, undefined, null, rememberWeddingCreateSource())
             if (!mounted) return
             if (!('error' in created)) {
               showLoadedWorkspace(created)
@@ -2134,7 +2135,7 @@ export default function WeddingCardAiClientPage() {
         await commitSaveBrief(true, { hideSuccess: true, ignoreNotFound: true })
       }
       const opening = weddingCardOpeningFromCompose(copy, resolveWeddingDateIso(eventDate ?? '') || eventDate)
-      const result = await createNewWeddingCard(nextOccasion, 'single', opening)
+      const result = await createNewWeddingCard(nextOccasion, 'single', opening, rememberWeddingCreateSource())
       if ('error' in result) {
         toast({ title: 'Không tạo được thiệp mới', description: result.error, variant: 'destructive' })
         return

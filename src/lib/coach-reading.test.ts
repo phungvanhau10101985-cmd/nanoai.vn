@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { alignReadingToCut, readingForCutSentence, readingStoredForShownText } from './coach-reading'
+import { alignReadingToCut, pairedReading, readingForCutSentence, readingStoredForShownText } from './coach-reading'
 
 describe('alignReadingToCut', () => {
   const full = '今天天气很好。我们去公园。'
@@ -54,6 +54,58 @@ describe('readingForCutSentence', () => {
       ]),
       'jīn tiān tiān qì hěn hǎo'
     )
+  })
+})
+
+describe('pairedReading', () => {
+  it('pairs each English word and keeps the period outside', () => {
+    const parts = pairedReading('I go to the stadium.', 'aɪ ɡoʊ tə ðə ˈsteɪdiəm')
+    assert.deepEqual(parts, [
+      { kind: 'pair', text: 'I', reading: 'aɪ' },
+      { kind: 'gap', text: ' ' },
+      { kind: 'pair', text: 'go', reading: 'ɡoʊ' },
+      { kind: 'gap', text: ' ' },
+      { kind: 'pair', text: 'to', reading: 'tə' },
+      { kind: 'gap', text: ' ' },
+      { kind: 'pair', text: 'the', reading: 'ðə' },
+      { kind: 'gap', text: ' ' },
+      { kind: 'pair', text: 'stadium', reading: 'ˈsteɪdiəm' },
+      { kind: 'gap', text: '.' },
+    ])
+  })
+
+  it('joins syllable pieces onto one English word', () => {
+    const parts = pairedReading('stadium', 'ˈsteɪ di əm')
+    assert.deepEqual(parts, [{ kind: 'pair', text: 'stadium', reading: 'ˈsteɪdiəm' }])
+  })
+
+  it('pairs each Chinese character', () => {
+    const parts = pairedReading('登机口', 'dēng jī kǒu')
+    assert.deepEqual(parts, [
+      { kind: 'pair', text: '登', reading: 'dēng' },
+      { kind: 'gap', text: ' ' },
+      { kind: 'pair', text: '机', reading: 'jī' },
+      { kind: 'gap', text: ' ' },
+      { kind: 'pair', text: '口', reading: 'kǒu' },
+    ])
+  })
+
+  it('pairs Japanese by character when each sound is separate', () => {
+    const parts = pairedReading('私は', 'watashi wa')
+    assert.deepEqual(parts, [
+      { kind: 'pair', text: '私', reading: 'watashi' },
+      { kind: 'gap', text: ' ' },
+      { kind: 'pair', text: 'は', reading: 'wa' },
+    ])
+  })
+
+  it('pairs a Hindi word run when the reading is one token per word', () => {
+    const parts = pairedReading('मैं जाता', 'maĩ jātā')
+    assert.deepEqual(parts, [
+      { kind: 'pair', text: 'मैं', reading: 'maĩ' },
+      { kind: 'gap', text: ' ' },
+      { kind: 'pair', text: 'जाता', reading: 'jātā' },
+    ])
   })
 })
 

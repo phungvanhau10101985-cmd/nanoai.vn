@@ -20,6 +20,7 @@ import {
   validateLiveLessonPublish,
 } from '../services/english-coach-api'
 import { LIVE_GOAL_OPTIONS, LIVE_TOPIC_OPTIONS } from '../constants/live-topic-catalog'
+import { teacherVoiceStyle } from '@/lib/english-coach/lesson-tts-prompt'
 
 type LessonItem = {
   id: string
@@ -198,8 +199,11 @@ export function LiveLessonsMarketplace() {
       const sourceText = listenText
       if (!sourceText) return
       if (!selectedLesson) return
-      const locale = String(selectedLesson.teacherLocale || '').trim() || 'en-US'
-      const voiceName = 'Kore'
+      const storedLocale = String(selectedLesson.teacherLocale || '').trim() || 'en-US'
+      const targetLanguage = String(selectedLesson.targetLanguage || '').trim() || 'English'
+      const english = /^en([-_]|$)/i.test(storedLocale) || /^english\b/i.test(targetLanguage)
+      const locale = english ? 'en-GB' : storedLocale
+      const voiceName = english ? 'Orus' : 'Kore'
       const cached = await getTtsCache({ text: sourceText, voiceName, locale })
       const cachedPayload = cached.data as { found?: boolean; audioBase64?: string; mimeType?: string }
       if (cached.ok && cachedPayload?.found && String(cachedPayload.audioBase64 || '').trim()) {
@@ -217,7 +221,11 @@ export function LiveLessonsMarketplace() {
         text: sourceText,
         voiceName,
         locale,
-        targetLanguage: String(selectedLesson.targetLanguage || '').trim() || 'English',
+        teacherGender: english ? 'male' : undefined,
+        voiceStyle: english
+          ? teacherVoiceStyle({ gender: 'male', locale, languageLabel: 'English' })
+          : undefined,
+        targetLanguage,
         nativeLanguage: String(selectedLesson.nativeLanguage || '').trim() || 'Vietnamese',
       })
       if (!ttsRes.ok) throw new Error(ttsRes.data?.error || 'Khong tao duoc TTS.')

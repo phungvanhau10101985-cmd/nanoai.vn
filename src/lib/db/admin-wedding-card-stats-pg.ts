@@ -1,4 +1,3 @@
-import { countWeddingCardAdVisits } from '@/lib/db/wedding-card-ad-visits-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 import {
@@ -6,7 +5,6 @@ import {
   weddingCardCompletionPercent,
   weddingCardCompletionScoreSql,
 } from '@/lib/wedding/wedding-card-completion'
-import { emptyWeddingAdVisitCounts, type WeddingAdVisitCounts } from '@/lib/wedding/wedding-ad-source'
 
 export const ADMIN_WEDDING_CARD_STATS_LIMIT = 500
 
@@ -23,7 +21,8 @@ export type AdminWeddingCardStatRow = {
   email: string | null
   completionPercent: number
   missingKeys: string[]
-  adVisits: WeddingAdVisitCounts
+  createdSource: string
+  createdSourceDetail: string
 }
 
 export type AdminWeddingCardStatSummary = {
@@ -46,6 +45,8 @@ type StatQueryRow = {
   email: string | null
   done_count: number | string
   missing_keys: string[] | null
+  created_source: string | null
+  created_source_detail: string | null
 }
 
 type SummaryQueryRow = {
@@ -141,7 +142,9 @@ export async function fetchAdminWeddingCardStats(input: {
                 nullif(p.full_name, '') as full_name,
                 nullif(au.email, '') as email,
                 ${scoreSql}::int as done_count,
-                ${missingSql} as missing_keys
+                ${missingSql} as missing_keys,
+                coalesce(c.created_source, '') as created_source,
+                coalesce(c.created_source_detail, '') as created_source_detail
          ${FROM}
          ${where}
          order by c.created_at desc, c.id desc
@@ -172,12 +175,10 @@ export async function fetchAdminWeddingCardStats(input: {
       email: row.email ? String(row.email) : null,
       completionPercent: weddingCardCompletionPercent(Number(row.done_count ?? 0)),
       missingKeys: Array.isArray(row.missing_keys) ? row.missing_keys.map(String) : [],
+      createdSource: String(row.created_source ?? ''),
+      createdSourceDetail: String(row.created_source_detail ?? ''),
     }))
-    const adVisits = await countWeddingCardAdVisits(mapped.map((row) => row.id))
-    const rows = mapped.map((row) => ({
-      ...row,
-      adVisits: adVisits.get(row.id) ?? emptyWeddingAdVisitCounts(),
-    }))
+    const rows = mapped
 
     return {
       summary,

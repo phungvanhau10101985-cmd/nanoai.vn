@@ -190,9 +190,75 @@ export async function touchDialogueReplayHitPg(
   }
 }
 
+export async function fetchDialogueReplayByMeaningPg(params: {
+  normalizedNativeMeaning: string
+  normalizedNativeLanguage: string
+  normalizedTargetLanguage: string
+  learnerLevel: number
+  normalizedTopicId: string
+}): Promise<{ ok: true; row: DialogueReplayRowPg | null } | { ok: false; message: string }> {
+  if (!isPgConfigured()) return { ok: false, message: 'Database not configured' }
+  const meaning = String(params.normalizedNativeMeaning || '').trim()
+  if (!meaning) return { ok: true, row: null }
+  try {
+    const row = await pgQueryOne<DialogueReplayRowPg>(
+      `select
+         id::text as id,
+         normalized_student_text,
+         student_text,
+         teacher_gender,
+         learner_level,
+         topic_id,
+         normalized_topic_id,
+         topic_label,
+         normalized_topic_label,
+         target_language,
+         normalized_target_language,
+         native_language,
+         normalized_native_language,
+         mode,
+         learning_mode,
+         reply,
+         corrections_json,
+         pronunciation_tips_json,
+         correction_note,
+         corrected_sentence,
+         intent_answer,
+         main_sentence,
+         must_know_text,
+         native_meaning,
+         normalized_native_meaning,
+         updated_at::text as updated_at,
+         last_used_at::text as last_used_at,
+         hit_count
+       from public.language_coach_dialogue_replay_cache
+       where normalized_native_meaning = $1
+         and normalized_native_language = $2
+         and normalized_target_language = $3
+         and learner_level = $4
+         and normalized_topic_id = $5
+       limit 1`,
+      [
+        meaning,
+        params.normalizedNativeLanguage,
+        params.normalizedTargetLanguage,
+        params.learnerLevel,
+        params.normalizedTopicId,
+      ]
+    )
+    return { ok: true, row }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('[language-coach-chat-pg] fetchDialogueReplayByMeaningPg', e)
+    return { ok: false, message: msg }
+  }
+}
+
 export async function upsertDialogueReplayCachePg(input: {
   studentText: string
   normalizedStudentText: string
+  nativeMeaning: string
+  normalizedNativeMeaning: string
   teacherGender: string
   learnerLevel: number
   topicId: string
@@ -221,27 +287,27 @@ export async function upsertDialogueReplayCachePg(input: {
     const pool = getPgPool()
     await pool.query(
       `insert into public.language_coach_dialogue_replay_cache (
-        student_text, normalized_student_text, teacher_gender, learner_level,
+        student_text, normalized_student_text, native_meaning, normalized_native_meaning,
+        teacher_gender, learner_level,
         topic_id, normalized_topic_id, topic_label, normalized_topic_label,
         target_language, normalized_target_language, native_language, normalized_native_language,
         mode, learning_mode, reply, corrections_json, pronunciation_tips_json,
         correction_note, corrected_sentence, intent_answer, main_sentence, must_know_text,
         last_used_at, updated_at
       ) values (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23::timestamptz, $24::timestamptz
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::timestamptz, $26::timestamptz
       )
       on conflict (
-        normalized_student_text,
-        normalized_target_language,
+        normalized_native_meaning,
         normalized_native_language,
-        teacher_gender,
-        mode,
-        learning_mode,
+        normalized_target_language,
         learner_level,
-        normalized_topic_id,
-        normalized_topic_label
-      ) do update set
+        normalized_topic_id
+      ) where normalized_native_meaning <> ''
+      do update set
         student_text = excluded.student_text,
+        normalized_student_text = excluded.normalized_student_text,
+        native_meaning = excluded.native_meaning,
         topic_id = excluded.topic_id,
         topic_label = excluded.topic_label,
         target_language = excluded.target_language,
@@ -259,6 +325,8 @@ export async function upsertDialogueReplayCachePg(input: {
       [
         input.studentText,
         input.normalizedStudentText,
+        input.nativeMeaning,
+        input.normalizedNativeMeaning,
         input.teacherGender,
         input.learnerLevel,
         input.topicId,

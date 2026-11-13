@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { transliterateText } from '../services/english-coach-api'
 import { usableSentenceReading } from '@/lib/coach-reading'
 import { PronunciationReveal } from './pronunciation-reveal'
@@ -76,6 +76,7 @@ export function NativePhoneticLine({
   nativeLanguageCode,
   localText,
   coachUsageContext,
+  actions = null,
 }: {
   text: string
   known?: string
@@ -83,6 +84,7 @@ export function NativePhoneticLine({
   nativeLanguageCode: string
   localText: (vi: string, en: string) => string
   coachUsageContext?: 'live' | 'preset'
+  actions?: ReactNode
 }) {
   const target = normalizeLang(targetLanguageCode)
   const source = readingSource(String(text || '').trim(), target)
@@ -124,13 +126,17 @@ export function NativePhoneticLine({
   }, [cacheKey, coachUsageContext, enabled, preset, source, target])
 
   const shown = usableSentenceReading(target, reading)
-  if (!enabled || (!busy && !shown)) return null
+  if (!enabled || (!busy && !shown)) {
+    return actions ? <span className="inline-flex flex-wrap items-center gap-1">{actions}</span> : null
+  }
   return (
     <PronunciationReveal
       localText={localText}
+      source={source}
       reading={shown}
       busy={busy && !shown}
       lineKey={source}
+      actions={actions}
     />
   )
 }

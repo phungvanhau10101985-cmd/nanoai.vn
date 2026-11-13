@@ -22,10 +22,13 @@ import { simplifyChineseDeep, toSimplifiedChinese, usesSimplifiedChinese } from 
 import { stripReadingCommentary } from '@/lib/coach-reading'
 import { filterListeningOptions, lessonListeningWords, prepareListeningWords, stripReadingLabels } from '@/lib/english-coach/listening-words'
 import { pronunciationMishearGuide, pronunciationMishears } from '@/lib/english-coach/pronunciation-mishear'
+import { normalizeDialogueMeaningKey } from '@/lib/english-coach/dialogue-meaning-key'
+import { applyLearnerMeaningNames } from '@/lib/english-coach/learner-meaning-lock'
+import { appendOpeningQuestion, hasOpeningQuestion, keepInCharacterReply } from '@/lib/english-coach/in-character-reply'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   countCreditEventsByTypePg,
-  fetchDialogueReplayCandidatesPg,
+  fetchDialogueReplayByMeaningPg,
   fetchMessagesRecallCrossSessionPg,
   fetchPhraseCacheBatchByNormalizedSourcesPg,
   fetchPhraseCacheRowPg,
@@ -708,18 +711,6 @@ function hasVietnameseDiacritics(text: string): boolean {
   return /[ăâđêôơưĂÂĐÊÔƠƯáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/u.test(text)
 }
 
-function shouldRepairIntentAnswerToTargetLanguage(intentAnswer: string, targetLanguageCode: string, targetScriptRe: RegExp | null): boolean {
-  const text = String(intentAnswer || '').trim()
-  if (!text) return true
-  if (targetLanguageCode === 'en') {
-    if (hasVietnameseDiacritics(text)) return true
-    if (/[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF\u0E00-\u0E7F\u0900-\u097F]/u.test(text)) return true
-    return false
-  }
-  if (targetScriptRe) return !targetScriptRe.test(text)
-  return false
-}
-
 function localizedCoachLabels(nativeLanguageCode: string) {
   const code = String(nativeLanguageCode || '').toLowerCase()
   const byCode: Record<string, {
@@ -822,47 +813,20 @@ function localizedCoachLabels(nativeLanguageCode: string) {
   return byCode[code] || byCode.en
 }
 
-function hasFollowUpPrompt(reply: string): boolean {
-  const text = String(reply || '').trim()
-  if (!text) return false
-  const followupPatterns = [
-    /Câu hỏi tiếp theo/i,
-    /Em thử/i,
-    /Bạn có thể/i,
-    /Bạn có .* không\?/i,
-    /Can you/i,
-    /Could you/i,
-    /What about/i,
-    /\?\s*$/,
-    /吗？|嗎？|でしょうか？|까요\?|ได้ไหม\?|क्या .* ?\?/u,
-  ]
-  return followupPatterns.some((p) => p.test(text))
-}
-
-function hasQuestionSentence(text: string): boolean {
-  const source = String(text || '').trim()
-  if (!source) return false
-  return /[?？]$/.test(source) || /[?？]/.test(source)
-}
-
-function defaultIdea3LeadByLanguageCode(code: string): string {
-  if (code === 'zh') return '好的，我们继续。'
-  if (code === 'ja') return 'いいですね、続けましょう。'
-  if (code === 'ko') return '좋아요, 계속해 볼게요.'
-  if (code === 'th') return 'ดีมาก เรามาต่อกันนะ'
-  if (code === 'hi') return 'बहुत अच्छा, चलिए आगे बढ़ते हैं।'
-  if (code === 'vi') return 'Tốt lắm, mình tiếp tục nhé.'
-  return "Great, let's continue."
-}
-
-function detailFollowUpByLanguageCode(code: string, targetLanguage: string): string {
-  if (code === 'zh') return '你可以在刚才那句话里再加一个细节吗？'
-  if (code === 'ja') return '今の文に、もう一つ具体的な情報を足して言えますか？'
-  if (code === 'ko') return '방금 문장에 구체적인 정보 하나를 더해서 말해 볼까요?'
-  if (code === 'th') return 'คุณช่วยเพิ่มรายละเอียดอีกหนึ่งอย่างจากประโยคเมื่อกี้ได้ไหม?'
-  if (code === 'hi') return 'क्या आप अभी वाले वाक्य में एक और विवरण जोड़कर बोल सकते हैं?'
-  if (code === 'vi') return 'Em có thể thêm một chi tiết nữa vào câu vừa rồi không?'
-  return `Can you add one more detail to your last sentence in ${targetLanguage}?`
+function inCharacterIntentReady(
+  text: string,
+  targetLanguageCode: string,
+  targetScriptRe: RegExp | null,
+): boolean {
+  const kept = keepInCharacterReply(text)
+  if (!kept) return false
+  if (targetLanguageCode === 'en') {
+    if (hasVietnameseDiacritics(kept)) return acceptsLockedMainSentence(kept, 'en', null)
+    return /[A-Za-z]/u.test(kept)
+  }
+  if (targetLanguageCode === 'vi') return /[A-Za-zĂÂĐÊÔƠƯăâđêôơư]/u.test(kept)
+  if (targetScriptRe) return targetScriptRe.test(kept)
+  return kept.length >= 2
 }
 
 function normalizeForSimilarity(input: string): string {
@@ -1003,6 +967,26 @@ function isLikelyTargetLanguageSentence(
   }
   if (targetScriptRe) return targetScriptRe.test(t)
   return true
+}
+
+function acceptsLockedMainSentence(
+  sentence: string,
+  targetLanguageCode: string,
+  targetScriptRe: RegExp | null,
+): boolean {
+  if (
+    isLikelyTargetLanguageSentence(sentence, targetLanguageCode, targetScriptRe)
+    && isLikelyFullSentence(sentence, targetLanguageCode)
+  ) {
+    return true
+  }
+  if (targetLanguageCode !== 'en' || !hasVietnameseDiacritics(sentence)) return false
+  const stripped = stripVietnameseDiacritics(sentence)
+  if (!isLikelyFullSentence(stripped, 'en')) return false
+  const englishVoice = /\b(i|my|you|we|they|he|she|it|this|that)\b/i.test(stripped)
+  const nativeVoice = /\b(toi|ten|la|cua|em|khong|muon)\b/i.test(stripped)
+  if (nativeVoice && !englishVoice) return false
+  return englishVoice
 }
 
 function correctionHintByNativeLanguageCode(code: string): string {
@@ -1196,29 +1180,10 @@ function applyEnglishWordSwapHint(sentence: string, hint: { prefer: string; avoi
 
 function ensureIntentAnswerTwoPart(
   intentAnswer: string,
-  targetLanguageCode: string,
-  targetLanguage: string
+  _targetLanguageCode: string,
+  _targetLanguage: string
 ): string {
-  const text = String(intentAnswer || '').trim()
-  const fallbackQuestion = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
-  if (!text) {
-    return `${defaultIdea3LeadByLanguageCode(targetLanguageCode)} ${fallbackQuestion}`.trim()
-  }
-
-  const hasQuestion = hasQuestionSentence(text)
-  if (hasQuestion) {
-    // If only a question is provided, prepend a short contextual statement.
-    const chunks = text
-      .split(/(?<=[.!?。！？])\s+/u)
-      .map((x) => x.trim())
-      .filter(Boolean)
-    const hasNonQuestion = chunks.some((x) => !/[?？]$/.test(x))
-    if (hasNonQuestion) return text
-    return `${defaultIdea3LeadByLanguageCode(targetLanguageCode)} ${text}`.trim()
-  }
-
-  // If no question in intentAnswer, append a follow-up question.
-  return `${text} ${fallbackQuestion}`.trim()
+  return keepInCharacterReply(intentAnswer)
 }
 
 function extractLatestTeacherQuestion(history: ChatMessage[], targetLanguageCode: string, targetLanguage: string): string {
@@ -1576,6 +1541,15 @@ Chủ đề đang học:
     const micNativeTranscript = lessonText(String(micAnalysis?.nativeTranscript || '').trim())
     const micMergedTranscript = lessonText(String(micAnalysis?.mergedTranscript || '').trim())
     const micInferredMeaning = lessonText(String(micAnalysis?.inferredMeaning || '').trim())
+    const lockedLearnerMeaning = micAnalysis?.nativeMeaningFromLearner ? micInferredMeaning : ''
+    const typedTargetSentence = inputSource !== 'mic'
+      && isLikelyTargetLanguageSentence(studentText, targetLanguageCode, targetScriptRegexByCode(targetLanguageCode))
+    const dialogueMeaning = (
+      lockedLearnerMeaning
+      || micInferredMeaning
+      || (typedTargetSentence ? '' : studentText)
+    ).trim()
+    const normalizedDialogueMeaning = normalizeDialogueMeaningKey(dialogueMeaning)
     const micPronunciationIssues = Array.isArray(micAnalysis?.pronunciationIssues)
       ? micAnalysis!.pronunciationIssues!.map((x) => lessonText(String(x || '').trim())).filter(Boolean).slice(0, 6)
       : []
@@ -1626,62 +1600,30 @@ Chủ đề đang học:
     const replayRequestId = `replay_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
     const tryLoadReplayFlow = async (): Promise<ReplayCacheRow | null> => {
-      const fetchRes = await fetchDialogueReplayCandidatesPg({
-        teacherGender: gender,
+      if (!normalizedDialogueMeaning) {
+        console.info(`[REPLAY][${replayRequestId}] miss reason=no-native-meaning`)
+        return null
+      }
+      const fetchRes = await fetchDialogueReplayByMeaningPg({
+        normalizedNativeMeaning: normalizedDialogueMeaning,
+        normalizedNativeLanguage,
+        normalizedTargetLanguage,
         learnerLevel,
         normalizedTopicId,
-        normalizedTopicLabel,
-        normalizedTargetLanguage,
-        normalizedNativeLanguage,
-        mode,
-        learningMode,
-        limit: 40,
       })
-      const rows =
-        fetchRes.ok && Array.isArray(fetchRes.rows) ? (fetchRes.rows as ReplayCacheRow[]) : []
-      if (rows.length === 0) {
-        console.info(
-          `[REPLAY][${replayRequestId}] miss reason=no-candidate gender=${gender} mode=${mode} learningMode=${learningMode} pair=${normalizedTargetLanguage}/${normalizedNativeLanguage}`
-        )
+      if (!fetchRes.ok) {
+        console.info(`[REPLAY][${replayRequestId}] miss reason=lookup-failed ${fetchRes.message}`)
         return null
       }
-      let best: ReplayCacheRow | null = null
-      let bestScore = 0
-      for (const row of rows) {
-        const score = similarityScore(studentText, lessonText(String(row.student_text || row.normalized_student_text || '')))
-        if (score > bestScore) {
-          bestScore = score
-          best = row
-        }
-      }
-      if (!best || bestScore < 0.95) {
+      const best = (fetchRes.row || null) as ReplayCacheRow | null
+      if (!best) {
         console.info(
-          `[REPLAY][${replayRequestId}] miss reason=score-below-threshold bestScore=${bestScore.toFixed(3)} threshold=0.950 gender=${gender} mode=${mode} learningMode=${learningMode}`
-        )
-        return null
-      }
-      const cachedSenseText = [
-        best.main_sentence,
-        best.corrected_sentence,
-        best.must_know_text,
-        best.reply,
-        best.intent_answer,
-      ].map((x) => String(x || '')).join('\n')
-      if (topicSenseClash({
-        topicLabel,
-        topicRole,
-        topicObjective,
-        topicKeywords,
-        studentText,
-        candidateText: cachedSenseText,
-      })) {
-        console.info(
-          `[REPLAY][${replayRequestId}] miss reason=topic-sense-clash cacheId=${best.id} topic="${topicLabel}"`
+          `[REPLAY][${replayRequestId}] miss reason=meaning-key pair=${normalizedTargetLanguage}/${normalizedNativeLanguage} level=${learnerLevel} topic=${normalizedTopicId}`
         )
         return null
       }
       console.info(
-        `[REPLAY][${replayRequestId}] hit score=${bestScore.toFixed(3)} cacheId=${best.id} gender=${gender} mode=${mode} learningMode=${learningMode}`
+        `[REPLAY][${replayRequestId}] hit cacheId=${best.id} level=${learnerLevel} topic=${normalizedTopicId} pair=${normalizedTargetLanguage}/${normalizedNativeLanguage}`
       )
       const nowHit = new Date().toISOString()
       void touchDialogueReplayHitPg(String(best.id), Math.max(0, Number(best.hit_count || 0)) + 1, nowHit)
@@ -1698,6 +1640,7 @@ Chủ đề đang học:
       mainSentence: string
       mustKnowText: string
     }) => {
+      if (!normalizedDialogueMeaning) return
       const mainSentenceRaw = String(input.mainSentence || '').trim()
       const replaySenseText = [mainSentenceRaw, input.correctedSentence, input.reply, input.intentAnswer].join('\n')
       if (topicSenseClash({
@@ -1705,7 +1648,7 @@ Chủ đề đang học:
         topicRole,
         topicObjective,
         topicKeywords,
-        studentText,
+        studentText: dialogueMeaning,
         candidateText: replaySenseText,
       })) {
         console.info(
@@ -1728,6 +1671,8 @@ Chủ đề đang học:
       const saveReplay = await upsertDialogueReplayCachePg({
         studentText: studentText,
         normalizedStudentText: normalizedStudentText,
+        nativeMeaning: dialogueMeaning,
+        normalizedNativeMeaning: normalizedDialogueMeaning,
         teacherGender: gender,
         learnerLevel,
         topicId: topicId,
@@ -2294,6 +2239,14 @@ Chủ đề đang học:
       })
     }
 
+    if (inputSource === 'mic' && !dialogueMeaning) {
+      return lessonJson({
+        error: nativeLanguageCode === 'vi'
+          ? 'Thiếu nghĩa tiếng mẹ đẻ. Điền nghĩa rồi gửi lại.'
+          : 'Missing native meaning. Enter the meaning and send again.',
+      }, { status: 400 })
+    }
+
     const replayFlow = await tryLoadReplayFlow()
     if (replayFlow) {
       const replayReply = String(replayFlow.reply || '').trim()
@@ -2477,7 +2430,12 @@ ${latestQuestion}`
       const genAI = new GoogleGenerativeAI(apiKey)
       const model = genAI.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
       const transcript = history
-        .map((m) => `${m.role === 'teacher' ? 'Teacher' : 'Student'}: ${m.text}`)
+        .map((m) => {
+          const line = m.role !== 'teacher' && dialogueMeaning && String(m.text || '').trim() === studentText
+            ? dialogueMeaning
+            : m.text
+          return `${m.role === 'teacher' ? 'Teacher' : 'Student'}: ${line}`
+        })
         .join('\n')
       const reflexPrompt = `Bạn là giáo viên ${targetLanguage} đang luyện PHẢN XẠ NGHE NÓI với học sinh.
 Ngôn ngữ mẹ đẻ: ${nativeLanguage}. Ngôn ngữ đang học: ${targetLanguage}.
@@ -2490,24 +2448,24 @@ QUY TẮC BẮT BUỘC – CHỈ TRẢ VỀ NỘI DUNG BẰNG ${targetLanguage}:
    - Học sinh nói ${nativeLanguage}: trả [câu ${targetLanguage} đúng].
    - Học sinh nói SAI ${targetLanguage}: trả [câu ${targetLanguage} đã sửa].
 
-2) CÂU TRẢ LỜI + CÂU HỎI (nói liền mạch): trả lời câu hỏi/câu nói của học viên, rồi hỏi thêm 1 câu gợi ý.
+2) CÂU TRẢ LỜI: lời người đối thoại nói trong vai, đúng tình huống, rồi đúng một câu hỏi mở chuyện cũng trong vai. Câu hỏi có dấu hỏi. Không bảo học viên nói thêm một câu để tiếp tục.
 
-ĐẦY ĐỦ: [câu sửa]. [câu trả lời]. [câu hỏi gợi ý] – tất cả CHỈ bằng ${targetLanguage}, nói liền mạch.
-Ví dụ: "What dishes do you have? We have pasta, salad and grilled fish. What would you like to try?"
-Ví dụ khác: "Yes, my name is Phung Van Hao. I am an engineer. Nice to meet you, Hao! An engineer, that's interesting. What kind of engineering do you specialize in?"
+ĐẦY ĐỦ: [câu sửa]. [lời thoại trong vai]. [một câu hỏi mở chuyện] – tất cả CHỈ bằng ${targetLanguage}, nói liền mạch.
+Ví dụ: "It's about £15, depending on traffic. What are you going there for?"
+Ví dụ khác: "Yes, my name is Phung Van Hao. Nice to meet you, Hao. What do you do?"
 
 CẤM: Không thêm nhãn tiếng mẹ đẻ, không giải thích ngữ pháp, không dài dòng.
 
 Trả về JSON (chỉ 1 trường, không dịch – dịch gọi sau khi học viên bấm nút):
 {
-  "reply": "[câu sửa]. [câu trả lời]. [câu hỏi gợi ý] – CHỈ bằng ${targetLanguage}"
+  "reply": "[câu sửa]. [lời người đối thoại trong vai]. [một câu hỏi mở chuyện] – CHỈ bằng ${targetLanguage}"
 }
 
 Lịch sử:
 ${transcript}
 
-Học sinh vừa nói:
-${studentText}`
+Học sinh muốn nói (nghĩa tiếng mẹ đẻ):
+${dialogueMeaning || studentText}`
 
       try {
         const reflexResult = await model.generateContent(reflexPrompt)
@@ -2529,9 +2487,7 @@ ${studentText}`
         })()
         const reply = String(reflexParsed?.reply || reflexText || '').trim()
         if (!reply) {
-          const fallback = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
-          const mainSentence = fallback
-          return lessonJson({ mainSentence, learningMode: 'reflex' })
+          return lessonJson({ mainSentence: '', learningMode: 'reflex' })
         }
         let pinyin = ''
         const nonLatinCodes = ['zh', 'ja', 'ko', 'th', 'hi'] as const
@@ -2681,7 +2637,7 @@ ${studentText}`
   2) KHÔNG sửa nhiều; tối đa 1 lỗi trọng tâm nếu lỗi làm sai nghĩa.
   3) corrections chỉ trả tối đa 1 item, pronunciationTips tối đa 1 item.
   4) Giữ phản hồi thật ngắn, thiên về mẫu câu để học sinh nhại lại.
-  5) KHÔNG yêu cầu học sinh lặp lại nguyên văn câu vừa nói/vừa sửa; hãy đưa 1 câu hỏi mới hoặc nhiệm vụ biến đổi câu để tránh vòng lặp.
+  5) KHÔNG yêu cầu học sinh lặp lại nguyên văn câu vừa nói/vừa sửa. Ý 3 là lời người trong tình huống, rồi một câu hỏi mở chuyện trong vai. Không giao bài "nói thêm một câu".
 - Tránh giải thích dài dòng ngữ pháp trong mode này.`
       }
       if (mode === 'roleplay_short') {
@@ -2692,7 +2648,7 @@ ${studentText}`
   2) Mỗi lượt chỉ đẩy 1 bước hội thoại ngắn (1 nhiệm vụ hoặc 1 câu hỏi).
   3) Ưu tiên câu trả lời mẫu tự nhiên, dùng được ngay.
   4) Chỉ sửa 1 lỗi trọng tâm ảnh hưởng rõ nghĩa; tránh phân tích dài.
-  5) Kết thúc mỗi lượt bằng câu hỏi nhập vai tiếp theo để giữ nhịp.
+  5) Ý 3 là lời người trong vai, rồi một câu hỏi mở chuyện đúng việc của vai. Không bảo học sinh nói thêm một câu để tiếp tục.
 - Giữ ngữ cảnh thực chiến (lễ tân, phỏng vấn, gọi món, chăm sóc khách...) thay vì nói chung chung.`
       }
       return `PROMPT MODE CHAT (độc lập):
@@ -2701,17 +2657,17 @@ ${studentText}`
 - Mỗi lượt:
   1) Trả lời đúng ý học sinh.
   2) Sửa lỗi trọng tâm (nếu có) bằng giải thích ngắn.
-  3) Đưa 1 câu hỏi mở tiếp theo để giữ nhịp hội thoại.`
+  3) Ý 3 là lời người đối thoại trong tình huống, rồi một câu hỏi mở chuyện trong vai, không phải câu giao bài.`
     })()
     const responseStyleGuide =
       responseStyle === 'concise'
         ? `Phong cách trả lời: NGẮN GỌN.
-- Mỗi lượt ưu tiên 3 phần: (1) sửa lỗi trọng tâm ngắn, (2) 1 câu mẫu chuẩn bằng ${targetLanguage}, (3) đúng 1 câu hỏi tiếp theo.
+- Mỗi lượt ưu tiên 3 phần: (1) sửa lỗi trọng tâm ngắn, (2) 1 câu mẫu chuẩn bằng ${targetLanguage}, (3) lời người đối thoại trong vai rồi một câu hỏi mở chuyện.
 - Tránh lặp ý, tránh thêm nhiều đoạn phụ như "Dịch nhanh" khi không cần.
 - Tổng phản hồi cố gắng trong 3-5 dòng ngắn.`
         : `Phong cách trả lời: CHI TIẾT.
 - Có thể giải thích đầy đủ hơn cho người mới học.
-- Vẫn tránh lặp ý và vẫn chỉ giữ 1 câu hỏi tiếp theo để không gây rối.
+- Vẫn tránh lặp ý. Ý 3 là lời thoại trong vai rồi một câu hỏi mở chuyện, không thêm câu giao bài.
 - Tổng reply không quá 9 dòng ngắn hoặc khoảng 700 ký tự.`
     const explanationLanguage = `Dùng ${nativeLanguage} đơn giản`
     const bilingualGuide = `Nếu học sinh dùng ngôn ngữ mẹ đẻ ${nativeLanguage} hoặc trộn ngôn ngữ, hãy:
@@ -2765,8 +2721,10 @@ Câu đã sửa, bắt buộc xử lý câu này: ${studentText}
 Khi có pronunciationIssues, corrections và pronunciationTips phải chỉ ra học sinh sai ở đâu + cách sửa cụ thể.
 ${micInferredMeaning
   ? micAnalysis?.nativeMeaningFromLearner
-    ? `Học sinh tự điền nghĩa tiếng mẹ đẻ, đây là ý cần sửa thành câu ${targetLanguage}: ${micInferredMeaning}
-Câu đã nghe vẫn là câu học sinh nói và là câu cần sửa phát âm. Không ghép nghĩa này vào câu nói.`
+    ? `Học sinh tự điền nghĩa tiếng mẹ đẻ. Đây là ý ĐÚNG, ưu tiên hơn câu máy nghe khi hai bên khác tên riêng hoặc khác chữ:
+${micInferredMeaning}
+Ý 1 và câu sửa hoàn chỉnh phải theo đúng nghĩa này. Tên riêng giữ đúng chữ học sinh đã viết trong nghĩa. Cấm đưa vào ý 1 hoặc câu sửa một tên riêng chỉ có trong câu máy nghe mà không có trong nghĩa này.
+Câu đã nghe vẫn là câu học sinh nói và là câu cần sửa phát âm. Không ghép nguyên nghĩa này vào câu nói.`
     : `Nghĩa tiếng mẹ đẻ máy đoán, học sinh không điền: ${micInferredMeaning}
 Dùng nghĩa này để hiểu ý. Câu đã nghe vẫn là câu học sinh nói. Không ghép nghĩa này vào câu nói.`
   : ''}
@@ -2775,8 +2733,8 @@ ${mishearGuide}`
     const speakingModeGuide =
       studentRewroteMicText
         ? `Học sinh đã sửa câu. Hiểu và trả lời đúng câu đã sửa: ${studentText}. Không nhận diện lại nội dung từ transcript audio.`
-        : micAnalysis?.nativeMeaningFromLearner && micInferredMeaning
-          ? `Học sinh tự điền nghĩa tiếng mẹ đẻ: ${micInferredMeaning}. Hiểu ý theo nghĩa này rồi sửa thành câu ${targetLanguage}. Câu đã nghe vẫn là transcript, dùng transcript để sửa phát âm.`
+        : lockedLearnerMeaning
+          ? `Học sinh tự điền nghĩa tiếng mẹ đẻ: ${lockedLearnerMeaning}. Câu sửa hoàn chỉnh phải dịch đúng nghĩa này, kể cả tên riêng. Câu máy nghe chỉ để sửa phát âm, không được lấy tên riêng sai từ câu máy nghe.`
           : speakingMode === 'auto'
         ? `Học sinh đang bật auto-detect. Hãy dùng transcript audio (target/native/merged) để tự nhận diện ngôn ngữ các đoạn học sinh nói rồi phản hồi phù hợp.`
         : speakingMode === 'target'
@@ -2875,11 +2833,16 @@ Yêu cầu triển khai theo chủ đề:
 1) Đóng vai đúng roleplayRole để dẫn dắt tự nhiên (ví dụ phỏng vấn viên, nhân viên cửa hàng...).
 2) Giữ mỗi lượt phản hồi súc tích, ưu tiên dưới 50 từ cho phần chính bằng ngôn ngữ đang học.
 3) Lồng ghép tối thiểu 1 từ khóa chủ đề nếu phù hợp.
-4) Sau mỗi lượt, đưa 1 câu hỏi mở tiếp theo để câu chuyện không bị đứt.
+4) Ý 3 là lời người trong vai theo tình huống, rồi một câu hỏi mở chuyện bằng ngôn ngữ đang học. Không bảo học sinh nói thêm một câu để tiếp tục.
 5) Từ đa nghĩa trong câu học sinh (nước, gọi, đá, đặt, trả, phòng, thuốc, chuyến...) phải thuộc đúng chủ đề này và hội thoại đang diễn ra. Không dịch sang lĩnh vực khác.`
 
     const transcript = history
-      .map((m) => `${m.role === 'teacher' ? 'Teacher' : 'Student'}: ${m.text}`)
+      .map((m) => {
+        const line = m.role !== 'teacher' && dialogueMeaning && String(m.text || '').trim() === studentText
+          ? dialogueMeaning
+          : m.text
+        return `${m.role === 'teacher' ? 'Teacher' : 'Student'}: ${line}`
+      })
       .join('\n')
 
     const genAI = new GoogleGenerativeAI(apiKey)
@@ -2916,7 +2879,14 @@ Yêu cầu triển khai theo chủ đề:
       return ratio < 0.05 // <5% ký tự native → câu thuần target
     })()
 
-    if ((speakingMode === 'mixed' || speakingMode === 'auto') && !studentLooksPureTarget) {
+    const meaningOnlyGuide = dialogueMeaning
+      ? `Câu học viên muốn nói, bằng ${nativeLanguage}, là nghĩa duy nhất để viết ý 1, ý 2 và ý 3:\n${dialogueMeaning}\nKhông dùng câu máy nghe. Ý 1 dạy cách nói nghĩa này bằng ${targetLanguage}. Ý 2 là một câu hoàn chỉnh bằng ${targetLanguage} đúng nghĩa này. Ý 3 là lời trong vai rồi một câu hỏi mở chuyện bằng ${targetLanguage}.`
+      : ''
+
+    if (dialogueMeaning) {
+      mixedAnalysisGuide = meaningOnlyGuide
+      mixedNormalizedStudentText = dialogueMeaning
+    } else if ((speakingMode === 'mixed' || speakingMode === 'auto') && !studentLooksPureTarget) {
       const mixedAnalysisPrompt = `Phân tích câu học viên nói trộn 2 ngôn ngữ:
 - Ngôn ngữ đang học: ${targetLanguage}
 - Ngôn ngữ mẹ đẻ: ${nativeLanguage}
@@ -3017,19 +2987,19 @@ Khi mục nghe nhầm phát âm có nội dung, Ý 1 chỉ hướng dẫn đọc
       explanationLanguage,
       bilingualGuide,
       nativeLanguageGuide,
-      micGuide,
-      speakingModeGuide,
+      micGuide: dialogueMeaning ? meaningOnlyGuide : micGuide,
+      speakingModeGuide: dialogueMeaning ? meaningOnlyGuide : speakingModeGuide,
       strictLanguagePairGuide,
       howToSayGuide,
       contextualReplyGuide,
       mixedAnalysisGuide,
       levelPromptIndependent,
-      micAnalysisGuide,
+      micAnalysisGuide: dialogueMeaning ? 'Không gửi câu máy nghe. Chỉ dùng nghĩa tiếng mẹ đẻ ở trên.' : micAnalysisGuide,
       pinyinGuide,
       topicGuide,
       retrievalGuide,
       transcript,
-      studentText,
+      studentText: dialogueMeaning || studentText,
       mixedNormalizedStudentText,
       speakingMode,
       sessionMemory,
@@ -3081,8 +3051,8 @@ ${text}`
     const openAiApiKey = String(process.env.OPENAI_API_KEY || '').trim()
 
     if (!parsed || !hasCoreChatFields(parsed)) {
-      const strictRetryPrompt = `Bạn là giáo viên ${targetLanguage}. Học sinh vừa nói:
-${studentText}
+      const strictRetryPrompt = `Bạn là giáo viên ${targetLanguage}. Học sinh muốn nói (nghĩa tiếng mẹ đẻ):
+${dialogueMeaning || studentText}
 
 Hãy trả JSON hợp lệ (không markdown, không text thừa) đúng schema:
 {
@@ -3095,9 +3065,10 @@ Hãy trả JSON hợp lệ (không markdown, không text thừa) đúng schema:
 
 Ràng buộc bắt buộc:
 - mainSentence phải là câu sửa hoàn chỉnh, đầy đủ ý câu học sinh, chỉ bằng ${targetLanguage}.
+${dialogueMeaning ? `- Nghĩa tiếng mẹ đẻ cần dịch đúng, kể cả tên riêng: ${dialogueMeaning}.` : ''}
 - Không dùng fragment ngắn kiểu "to eat fish" làm mainSentence.
 - Không lấy nội dung mainSentence từ intentAnswer.
-- intentAnswer gồm 2 câu: (1) trả lời câu/câu hỏi của học sinh (nếu có hỏi phải đáp), (2) câu hỏi mới mở rộng hội thoại.
+- intentAnswer là lời người đối thoại trong vai, rồi một câu hỏi mở chuyện có dấu hỏi, chỉ bằng ${targetLanguage}. Cấm bảo học sinh nói thêm một câu để tiếp tục.
 - ${topicSenseBlock}`
       try {
         const strictRetry = await model.generateContent(strictRetryPrompt)
@@ -3258,10 +3229,6 @@ ${parsed.reply}`
       }
     }
 
-    if (!hasFollowUpPrompt(parsed.reply)) {
-      parsed.reply = `${parsed.reply}\n${fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)}`
-    }
-
     if (asksHowToSay) {
       const hasTargetSentence =
         /Câu (chuẩn|tự nhiên|hoàn chỉnh)\s*\(/i.test(parsed.reply) ||
@@ -3269,7 +3236,7 @@ ${parsed.reply}`
       if (!hasTargetSentence) {
         try {
           const forcePrompt = `Học sinh hỏi cách nói câu sau từ ${nativeLanguage} sang ${targetLanguage}:
-${studentText}
+${dialogueMeaning || studentText}
 
 Trả về JSON hợp lệ, không markdown:
 {
@@ -3399,12 +3366,12 @@ Trả về JSON hợp lệ, không markdown:
       String(parsed.correctionNote || '').trim()
       || String(parsed.corrections?.[0]?.explanationVi || '').trim()
       || ''
-    let intentAnswer = String(parsed.intentAnswer || '').trim()
-    if (shouldRepairIntentAnswerToTargetLanguage(intentAnswer, targetLanguageCode, targetScriptRe)) {
+    let intentAnswer = keepInCharacterReply(String(parsed.intentAnswer || '').trim())
+    if (intentAnswer && !inCharacterIntentReady(intentAnswer, targetLanguageCode, targetScriptRe)) {
       try {
-        const repairIntentPrompt = `Viết lại câu trả lời hội thoại sau thành 1 câu ngắn CHỈ bằng ${targetLanguage}.
-Không dùng ${nativeLanguage}. Không giải thích ngữ pháp.
-Giữ đúng ý hội thoại tự nhiên, giọng giáo viên thân thiện.
+        const repairIntentPrompt = `Viết lại Ý 3, CHỈ bằng ${targetLanguage}.
+Hai người đang vào vai theo chủ đề buổi học. Không giao bài, không bảo học sinh nói thêm một câu để tiếp tục.
+Gồm lời đáp trong vai, rồi đúng một câu hỏi mở chuyện có dấu hỏi, bám việc vừa nói.
 Trả về JSON hợp lệ:
 {"intentAnswer":"..."}
 
@@ -3419,26 +3386,27 @@ ${intentAnswer || parsed.reply}`
           coachUsageContext
         )
         const repairedObj = safeJsonObject(repaired.response.text()?.trim() || '')
-        const repairedIntent = String(repairedObj?.intentAnswer || '').trim()
-        if (repairedIntent) intentAnswer = repairedIntent
+        const repairedIntent = keepInCharacterReply(String(repairedObj?.intentAnswer || '').trim())
+        if (inCharacterIntentReady(repairedIntent, targetLanguageCode, targetScriptRe)) intentAnswer = repairedIntent
       } catch {
-        // keep fallback below
+        // the in-character pass later rewrites this line
       }
     }
-    if (!intentAnswer || shouldRepairIntentAnswerToTargetLanguage(intentAnswer, targetLanguageCode, targetScriptRe)) {
-      intentAnswer = fallbackFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
-    }
     if (isIntentAnswerTooCloseToStudent(intentAnswer, studentText, String(parsed.mainSentence || ''))) {
-      intentAnswer = detailFollowUpByLanguageCode(targetLanguageCode, targetLanguage)
+      intentAnswer = ''
     }
-    intentAnswer = ensureIntentAnswerTwoPart(intentAnswer, targetLanguageCode, targetLanguage)
     const aiMainSentence = String(parsed.mainSentence || '').trim()
     const extractedMainSentence = extractPhraseTargetSentence(parsed.reply)
+    const sentenceMatchesTarget = (sentence: string) => (
+      dialogueMeaning || lockedLearnerMeaning
+        ? acceptsLockedMainSentence(sentence, targetLanguageCode, targetScriptRe)
+        : isLikelyTargetLanguageSentence(sentence, targetLanguageCode, targetScriptRe)
+    )
     const correctedSentence = (parsed.corrections || [])
       .map((row) => String(row?.fixed || '').trim())
       .find((fixed) => (
         Boolean(fixed)
-        && isLikelyTargetLanguageSentence(fixed, targetLanguageCode, targetScriptRe)
+        && sentenceMatchesTarget(fixed)
         && isLikelyFullSentence(fixed, targetLanguageCode)
         && !isTooShortStudentSentence(fixed, targetLanguageCode)
       )) || ''
@@ -3449,9 +3417,13 @@ ${intentAnswer || parsed.reply}`
       targetLanguageCode
     )
     const shouldKeepStudentSentenceAsMain =
-      isLikelyFullSentence(studentMainSentenceCandidate, targetLanguageCode)
+      !dialogueMeaning
+      && !lockedLearnerMeaning
+      && isLikelyFullSentence(studentMainSentenceCandidate, targetLanguageCode)
       && isLikelyTargetLanguageSentence(studentMainSentenceCandidate, targetLanguageCode, targetScriptRe)
       && !hasMeaningfulCorrection
+    const meaningSource = dialogueMeaning || lockedLearnerMeaning || studentText
+    const heardAside = ''
     const intentLead = String(intentAnswer || '')
       .split(/(?<=[.!?。！？])\s+/u)
       .map((x) => x.trim())
@@ -3470,7 +3442,7 @@ ${intentAnswer || parsed.reply}`
     ]
       .map((x) => String(x || '').trim())
       .filter(Boolean)
-      .filter((x) => isLikelyTargetLanguageSentence(x, targetLanguageCode, targetScriptRe))
+      .filter((x) => sentenceMatchesTarget(x))
     const mainSentence =
       shouldKeepStudentSentenceAsMain
         ? studentMainSentenceCandidate
@@ -3500,13 +3472,14 @@ ${intentAnswer || parsed.reply}`
       )
     ) {
       try {
-        const repairMainSentencePrompt = `Sửa lại trường mainSentence thành 1 câu tiếng Anh hoàn chỉnh, tự nhiên, giữ đủ ý từ câu học sinh.
-Ưu tiên giữ thực thể quan trọng như tên bài hát/tên riêng (có thể dùng transliteration Latin).
+        const repairMainSentencePrompt = `Sửa lại trường mainSentence thành 1 câu tiếng Anh hoàn chỉnh, tự nhiên, giữ đủ ý từ nghĩa đúng của học sinh.
+Ưu tiên giữ thực thể quan trọng như tên bài hát/tên riêng đúng theo nghĩa đã gửi (có thể dùng transliteration Latin).
 Không thêm giải thích, chỉ trả JSON:
 {"mainSentence":"..."}
 
-Câu học sinh:
-${studentText}
+Nghĩa đúng của học sinh:
+${meaningSource}
+${heardAside}
 
 mainSentence hiện tại:
 ${mainSentenceFinal}
@@ -3526,7 +3499,12 @@ ${intentAnswer}`
         )
         const repairedObj = safeJsonObject(repairedMain.response.text()?.trim() || '')
         const repairedSentence = String(repairedObj?.mainSentence || '').trim()
-        if (repairedSentence && isLikelyTargetLanguageSentence(repairedSentence, 'en', null)) {
+        if (
+          repairedSentence
+          && (lockedLearnerMeaning
+            ? acceptsLockedMainSentence(repairedSentence, 'en', null)
+            : isLikelyTargetLanguageSentence(repairedSentence, 'en', null))
+        ) {
           mainSentenceFinal = repairedSentence
         }
       } catch {
@@ -3534,16 +3512,19 @@ ${intentAnswer}`
       }
     }
     if (targetLanguageCode === 'en') {
-      mainSentenceFinal = enrichEnglishSongMainSentence(mainSentenceFinal, studentText)
+      mainSentenceFinal = enrichEnglishSongMainSentence(mainSentenceFinal, lockedLearnerMeaning || studentText)
       const swapHint = extractEnglishWordSwapHintFromCorrectionNote(correctionNote)
       mainSentenceFinal = applyEnglishWordSwapHint(mainSentenceFinal, swapHint)
     }
     try {
-      const mainSentenceGatePrompt = `câu "${mainSentenceFinal}" có đủ ý với câu "${studentText}" không?
-ĐỦ Ý nghĩa là đúng nghĩa đã khóa theo chủ đề buổi học, không phải nghĩa từ điển của từ đa nghĩa.
-Nếu câu hiện tại đã đúng nghĩa chủ đề, trả JSON:
+      const mainSentenceGatePrompt = `câu "${mainSentenceFinal}" có đủ ý với nghĩa đúng sau không?
+${meaningSource}
+${heardAside}
+ĐỦ Ý nghĩa là đúng nghĩa đã khóa theo chủ đề buổi học và đúng nghĩa trên, không phải nghĩa từ điển của từ đa nghĩa.
+Nếu học sinh đã gửi nghĩa tiếng mẹ đẻ, tên riêng trong câu sửa phải đúng nghĩa đó, không đúng tên máy nghe nhầm.
+Nếu câu hiện tại đã đúng nghĩa chủ đề và đúng nghĩa trên, trả JSON:
 {"status":"ok"}
-Nếu câu lệch chủ đề (ví dụ buổi gọi đồ uống mà "nước" bị dịch thành quốc gia) hoặc thiếu ý, viết lại câu "${studentText}" bằng "${targetLanguage}" đúng nghĩa chủ đề và chỉ trả JSON:
+Nếu câu lệch chủ đề (ví dụ buổi gọi đồ uống mà "nước" bị dịch thành quốc gia), thiếu ý, hoặc sai tên riêng so với nghĩa đã gửi, viết lại nghĩa đúng bằng "${targetLanguage}" và chỉ trả JSON:
 {"status":"rewrite","complete_sentence":"..."}
 Không phân tích gì thêm.
 
@@ -3571,7 +3552,9 @@ ${String(transcript || '').slice(-800) || '(trống)'}
         ).trim()
         if (
           rewritten
-          && isLikelyTargetLanguageSentence(rewritten, targetLanguageCode, targetScriptRe)
+          && (lockedLearnerMeaning
+            ? acceptsLockedMainSentence(rewritten, targetLanguageCode, targetScriptRe)
+            : isLikelyTargetLanguageSentence(rewritten, targetLanguageCode, targetScriptRe))
           && isLikelyFullSentence(rewritten, targetLanguageCode)
           && !topicSenseClash({
             topicLabel,
@@ -3588,7 +3571,7 @@ ${String(transcript || '').slice(-800) || '(trống)'}
     } catch {
       // keep original mainSentenceFinal when gate prompt fails
     }
-    const senseFields = { topicLabel, topicRole, topicObjective, topicKeywords, studentText }
+    const senseFields = { topicLabel, topicRole, topicObjective, topicKeywords, studentText: dialogueMeaning || studentText }
     const sentenceClashes = topicSenseClash({ ...senseFields, candidateText: mainSentenceFinal })
     const intentClashes = topicSenseClash({ ...senseFields, candidateText: intentAnswer })
     if (sentenceClashes || intentClashes) {
@@ -3596,8 +3579,9 @@ ${String(transcript || '').slice(-800) || '(trống)'}
         const repairSensePrompt = `Câu sửa đang lệch chủ đề buổi học. Viết lại bằng ${targetLanguage}.
 ${topicSenseBlock}
 
-Học sinh vừa nói:
-${studentText}
+Học sinh muốn nói:
+${meaningSource}
+${heardAside}
 
 Câu đang lệch (cấm giữ nghĩa này nếu nó khác chủ đề):
 ${mainSentenceFinal}
@@ -3606,7 +3590,7 @@ Lịch sử gần đây:
 ${String(transcript || '').slice(-800) || '(trống)'}
 
 Chỉ trả JSON:
-{"mainSentence":"một câu đúng nghĩa chủ đề, chỉ bằng ${targetLanguage}","intentAnswer":"hai câu chỉ bằng ${targetLanguage}: trả lời đúng ý học sinh theo chủ đề, rồi hỏi tiếp"}`
+{"mainSentence":"một câu đúng nghĩa chủ đề, chỉ bằng ${targetLanguage}","intentAnswer":"lời người đối thoại trong vai, rồi một câu hỏi mở chuyện có dấu hỏi, chỉ bằng ${targetLanguage}; cấm bảo học sinh nói thêm một câu"}`
         const repairedSense = await model.generateContent(repairSensePrompt)
         trackEnglishCoachGeminiResult(
           repairedSense,
@@ -3620,7 +3604,7 @@ Chỉ trả JSON:
         if (
           sentenceClashes
           && repairedSentence
-          && isLikelyTargetLanguageSentence(repairedSentence, targetLanguageCode, targetScriptRe)
+          && sentenceMatchesTarget(repairedSentence)
           && isLikelyFullSentence(repairedSentence, targetLanguageCode)
           && !topicSenseClash({ ...senseFields, candidateText: repairedSentence })
         ) {
@@ -3636,6 +3620,54 @@ Chỉ trả JSON:
         }
       } catch {
         // keep the sentence when the sense repair call fails
+      }
+    }
+    if (dialogueMeaning) {
+      if (!correctionNote) {
+        correctionNote = String(parsed.corrections?.[0]?.explanationVi || '').trim()
+      }
+      try {
+        const lockPrompt = `Học sinh đã gửi nghĩa tiếng mẹ đẻ. Nghĩa này là ý đúng.
+Nghĩa đã gửi: ${dialogueMeaning}
+Giải thích hiện tại: ${correctionNote}
+Câu sửa hiện tại: ${mainSentenceFinal}
+
+Viết lại cho khớp nghĩa đã gửi:
+- correctionNote: một đoạn ngắn bằng ${nativeLanguage}. Nội dung và tên riêng phải đúng nghĩa đã gửi. Không nhắc tên riêng chỉ có trong câu máy nghe.
+- mainSentence: một câu hoàn chỉnh chỉ bằng ${targetLanguage}, dịch đúng nghĩa đã gửi. Tên riêng giữ đúng chữ trong nghĩa đã gửi, không dịch tên riêng.
+
+Chỉ trả JSON:
+{"correctionNote":"...","mainSentence":"..."}`
+        const locked = await model.generateContent(lockPrompt)
+        trackEnglishCoachGeminiResult(
+          locked,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatRepairMainSentence,
+          userId || null,
+          coachUsageContext
+        )
+        const lockedObj = safeJsonObject(locked.response.text()?.trim() || '')
+        const lockedNote = String(lockedObj?.correctionNote || '').trim()
+        const lockedSentence = String(lockedObj?.mainSentence || '').trim()
+        if (lockedNote) {
+          correctionNote = nativeLanguageCode === 'vi'
+            ? normalizeVietnameseLearnerAddressing(lockedNote)
+            : lockedNote
+        }
+        if (lockedSentence && acceptsLockedMainSentence(lockedSentence, targetLanguageCode, targetScriptRe)) {
+          mainSentenceFinal = lockedSentence
+        }
+      } catch {
+        // keep the sentence, then still align names from the submitted meaning
+      }
+      correctionNote = applyLearnerMeaningNames(correctionNote, dialogueMeaning)
+      mainSentenceFinal = applyLearnerMeaningNames(mainSentenceFinal, dialogueMeaning)
+      if (Array.isArray(parsed.corrections) && parsed.corrections.length > 0) {
+        parsed.corrections = [{
+          original: String(parsed.corrections[0]?.original || studentText || '').trim(),
+          fixed: mainSentenceFinal,
+          explanationVi: correctionNote,
+        }]
       }
     }
     if (Array.isArray(parsed.corrections) && mainSentenceFinal && !topicSenseClash({ ...senseFields, candidateText: mainSentenceFinal })) {
@@ -3654,6 +3686,76 @@ Chỉ trả JSON:
           explanationVi: correctionHintByNativeLanguageCode(nativeLanguageCode),
         }]
         if (!correctionNote) correctionNote = String(parsed.corrections[0]?.explanationVi || '').trim()
+      }
+    }
+    intentAnswer = keepInCharacterReply(intentAnswer)
+    if (isIntentAnswerTooCloseToStudent(intentAnswer, studentText, mainSentenceFinal)) {
+      intentAnswer = ''
+    }
+    if (!inCharacterIntentReady(intentAnswer, targetLanguageCode, targetScriptRe)) {
+      try {
+        const scenePrompt = `Viết Ý 3, chỉ bằng ${targetLanguage}.
+Hai người đang vào vai trong bài học. Đây không phải lời giáo viên giao bài.
+Chủ đề: ${topicLabel || '(chưa có)'}
+Vai người đối thoại: ${topicRole || 'người đang nói chuyện với học sinh'}
+Việc đang làm: ${topicObjective || 'nói chuyện theo chủ đề bài học'}
+Học sinh muốn nói: ${dialogueMeaning || mainSentenceFinal || studentText}
+
+Gồm hai phần liền nhau:
+1) Lời người đối thoại đáp đúng việc học sinh vừa nói.
+2) Đúng một câu hỏi người trong vai hỏi học sinh để mở tiếp chuyện. Câu hỏi phải có dấu hỏi và bám tình huống. Ví dụ vừa nói giá đi từ đây tới đó thì hỏi người kia đến đó làm gì.
+Cấm bảo học sinh nói thêm một câu để tiếp tục. Cấm "let's continue", "say one more sentence", "nói thêm một câu", "kế hoạch hôm nay".
+Chỉ JSON:
+{"intentAnswer":"..."}`
+        const sceneReply = await model.generateContent(scenePrompt)
+        trackEnglishCoachGeminiResult(
+          sceneReply,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatRepairIntent,
+          userId || null,
+          coachUsageContext
+        )
+        const sceneLine = keepInCharacterReply(String(safeJsonObject(sceneReply.response.text()?.trim() || '')?.intentAnswer || '').trim())
+        if (inCharacterIntentReady(sceneLine, targetLanguageCode, targetScriptRe)) intentAnswer = sceneLine
+      } catch {
+        // leave the line empty instead of a practice prompt
+      }
+    }
+    if (
+      inCharacterIntentReady(intentAnswer, targetLanguageCode, targetScriptRe)
+      && !hasOpeningQuestion(intentAnswer)
+    ) {
+      try {
+        const questionPrompt = `Ý 3 đã có lời trả lời trong vai. Giữ nguyên lời đó.
+Viết thêm đúng một câu hỏi, người trong vai hỏi học sinh, chỉ bằng ${targetLanguage}.
+Câu hỏi bám việc vừa nói để học sinh trả lời tiếp. Ví dụ vừa nói giá đi từ đây tới đó thì hỏi người kia đến đó làm gì.
+Câu hỏi phải có dấu hỏi.
+Cấm giao bài. Cấm "say one more sentence", "continue this conversation", "let's continue", "nói thêm một câu", "kế hoạch hôm nay".
+Chủ đề: ${topicLabel || '(chưa có)'}
+Vai: ${topicRole || 'người đang nói chuyện với học sinh'}
+Học sinh muốn nói: ${dialogueMeaning || mainSentenceFinal || studentText}
+Lời đã có: ${intentAnswer}
+Chỉ JSON:
+{"question":"..."}`
+        const questionReply = await model.generateContent(questionPrompt)
+        trackEnglishCoachGeminiResult(
+          questionReply,
+          GEMINI_25_FLASH_NO_THINKING.model,
+          EnglishCoachApiFeature.chatRepairIntent,
+          userId || null,
+          coachUsageContext
+        )
+        const askedObj = safeJsonObject(questionReply.response.text()?.trim() || '')
+        const asked = String(askedObj?.question || askedObj?.intentAnswer || '').trim()
+        const joined = appendOpeningQuestion(intentAnswer, asked)
+        if (
+          hasOpeningQuestion(joined)
+          && inCharacterIntentReady(joined, targetLanguageCode, targetScriptRe)
+        ) {
+          intentAnswer = joined
+        }
+      } catch {
+        // keep the in-character reply when the opening question cannot be written
       }
     }
     const mustKnowText = String(mainSentenceFinal || '').trim()
@@ -3678,13 +3780,10 @@ Chỉ trả JSON:
         topicFocus: topicLabel || previousFacts.topicFocus || '',
       }
       const speakingTargetCandidate = String(mainSentenceFinal || mustKnowText || '').trim()
-      const speakingTargetSentence = isLikelyTargetLanguageSentence(
-        speakingTargetCandidate,
-        targetLanguageCode,
-        targetScriptRe
-      )
-        ? speakingTargetCandidate
-        : ''
+      const speakingTargetOk = lockedLearnerMeaning
+        ? acceptsLockedMainSentence(speakingTargetCandidate, targetLanguageCode, targetScriptRe)
+        : isLikelyTargetLanguageSentence(speakingTargetCandidate, targetLanguageCode, targetScriptRe)
+      const speakingTargetSentence = speakingTargetOk ? speakingTargetCandidate : ''
       const listeningSource = stripReadingLabels(
         String(intentAnswer || '').trim()
         || String(mainSentenceFinal || '').trim()

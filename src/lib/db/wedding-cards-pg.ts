@@ -386,19 +386,29 @@ function mapImage(row: Record<string, unknown>): WeddingAiImage {
   }
 }
 
+const WEDDING_CREATE_SOURCES = new Set(['facebook', 'tiktok', 'google_ads', 'direct', 'other'])
+
 export async function createWeddingCardDraft(
   userId: string,
   styleId = 'luxury',
   occasionKey: unknown = 'wedding',
+  createdFrom?: { source: string; detail: string } | null,
 ): Promise<WeddingCard> {
   requirePg()
   const slug = `thiep-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
   const occasion = normalizeInvitationOccasion(occasionKey)
+  const source = WEDDING_CREATE_SOURCES.has(createdFrom?.source ?? '') ? String(createdFrom?.source) : ''
+  const detail = String(createdFrom?.detail ?? '')
+    .replace(/[\u0000-\u001F<>]/g, '')
+    .trim()
+    .slice(0, 160)
   const res = await getPgPool().query(
-    `insert into public.wedding_cards (user_id, slug, selected_style_id, occasion_key)
-     values ($1::uuid, $2, $3, $4)
+    `insert into public.wedding_cards (
+       user_id, slug, selected_style_id, occasion_key, created_source, created_source_detail
+     )
+     values ($1::uuid, $2, $3, $4, $5, $6)
      returning *, null::text as master_image_url`,
-    [userId, slug, styleId, occasion],
+    [userId, slug, styleId, occasion, source, source ? detail : ''],
   )
   return mapCard(res.rows[0])
 }

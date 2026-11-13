@@ -45,6 +45,21 @@ Do not sound like a textbook reading or a grammar explanation.`
   return ''
 }
 
+/** Giọng đọc của thầy. Tiếng Anh khóa nam Anh, trầm và ấm. */
+export function teacherVoiceStyle(input: { gender?: string; locale?: string; languageLabel?: string }): string {
+  const gender = String(input.gender || '').trim().toLowerCase()
+  const locale = String(input.locale || '').trim().toLowerCase()
+  const label = String(input.languageLabel || '').trim() || 'the target language'
+  const english = locale === 'en-gb' || locale === 'en-us' || /^english\b/i.test(label)
+  if (gender === 'male' && english) {
+    return 'Speak as a deep, warm British man. Low baritone, calm, kind, and unhurried. Southern British English, not American.'
+  }
+  if (gender === 'male') {
+    return `Speak with a deep, warm masculine native ${label} teacher voice. Low pitch, calm, and natural.`
+  }
+  return `Speak with a clearly feminine native ${label} teacher voice. Calm, warm, and natural.`
+}
+
 /** Một thầy của tiếng đang học đọc mọi clip. Clip tiếng mẹ đẻ không đổi sang người khác. */
 export function buildLessonTtsPrompt(input: LessonTtsPromptInput): string {
   const voiceStyle = String(input.voiceStyle || '').trim()

@@ -54,10 +54,10 @@ ${input.modePrompt}
 - "Phần bạn chưa biết (${input.nativeLanguage}) -> ${input.targetLanguage}: ..."
 - "Câu hoàn chỉnh (${input.targetLanguage}): ..."
 20) ${input.strictLanguagePairGuide}
-21) Sau mỗi phản hồi, luôn kết thúc bằng 1 câu gợi ý tiếp theo để học sinh trả lời (câu hỏi ngắn hoặc nhiệm vụ ngắn).
-22) Nếu học sinh vừa nói đúng/ổn, hãy khen ngắn gọn rồi đưa ngay câu gợi ý tiếp theo.
-23) CHỐNG VÒNG LẶP: KHÔNG yêu cầu học sinh nhắc lại nguyên văn câu vừa nói hoặc câu bạn vừa sửa. Hãy đổi sang 1 câu hỏi mới theo cùng ngữ cảnh, hoặc giao nhiệm vụ biến đổi (đổi chủ ngữ/thời gian/địa điểm/từ khóa) để tạo câu mới.
-24) Nếu cần luyện phát âm, chỉ cho lặp 1 từ/cụm từ khó; sau đó phải hỏi thêm 1 câu mới để tiếp tục hội thoại.
+21) Ý 3 là lời người đối thoại nói với học sinh, đúng vai và đúng tình huống, rồi thêm đúng một câu hỏi mở chuyện cũng trong vai. Không phải lời giao bài.
+22) Nếu học sinh vừa nói đúng, người trong vai đáp lại tự nhiên, không khen kiểu giáo viên rồi bảo nói tiếp.
+23) CHỐNG VÒNG LẶP: KHÔNG yêu cầu học sinh nhắc lại nguyên văn câu vừa nói hoặc câu vừa sửa. Câu tiếp theo là lời người kia nói trong tình huống, để hội thoại đi tới bước mới.
+24) Nếu cần luyện phát âm, chỉ nêu 1 từ khó trong phần sửa lỗi. Ý 3 vẫn là lời thoại trong vai, không phải bài tập.
 25) ${input.howToSayGuide}
 26) ${input.contextualReplyGuide}
 27) Nếu speakingMode là mixed hoặc auto, bắt buộc dùng kết quả phân tích 2 ngôn ngữ sau để lọc từ/cụm học sinh còn thiếu trước khi trả lời:
@@ -72,11 +72,12 @@ ${topicSenseLockGuide(input.targetLanguage)}
 
 32) KHÓA GIỚI GIÁO VIÊN: luôn giữ đúng persona ${input.genderLabel}. Không đổi sang giọng/vai nữ nếu đang là nam, và ngược lại.
 ${strictPairLine}
-33) TRƯỜNG intentAnswer (Ý 3 - trả lời ngữ cảnh) PHẢI viết CHỈ bằng ${input.targetLanguage}, bắt buộc gồm đủ 2 câu theo thứ tự:
-- Câu 1: TRẢ LỜI trực tiếp câu của học sinh. Nếu học sinh giới thiệu tên → chào lại, xưng tên. Nếu học sinh hỏi (How are you? What's your name?) → phải TRẢ LỜI câu hỏi đó, không bỏ qua.
-- Câu 2: câu hỏi mới gợi mở để học sinh tiếp tục hội thoại, mở rộng chủ đề.
-- TUYỆT ĐỐI không yêu cầu học sinh nhắc lại nguyên văn câu vừa nói hoặc câu vừa sửa trong Ý 3.
-- Ví dụ: học sinh nói "Hello. My name is Mr. Hậu. How are you? What's your name?" → Ý 3: "Nice to meet you, Mr. Hậu! I'm doing well, thank you. My name is [tên giáo viên]. What would you like to talk about today?" (trả lời câu hỏi + câu hỏi mở rộng).
+33) TRƯỜNG intentAnswer (Ý 3) CHỈ bằng ${input.targetLanguage}. Gồm hai phần liền nhau:
+- Phần trả lời: lời người đối thoại đáp đúng việc học sinh vừa nói, như hội thoại thật.
+- Phần hỏi: đúng một câu hỏi người trong vai hỏi lại học sinh để mở tiếp chuyện. Câu hỏi phải có dấu hỏi và bám tình huống vừa nói.
+- Ví dụ học sinh hỏi giá đi từ đây tới đó → "It's about £15, depending on traffic. What are you going there for?"
+- Nếu học sinh giới thiệu tên, chào lại rồi hỏi một câu trong vai, ví dụ học sinh nói "My name is Hậu." → "Nice to meet you, Hậu. What do you do?"
+- CẤM: "say one more sentence", "continue this conversation", "let's continue", "nói thêm một câu", "kế hoạch hôm nay", giao bài, bảo nhắc lại câu vừa sửa.
 Không trộn ${input.nativeLanguage}.
 34) Tất cả field trong JSON chỉ chứa NỘI DUNG THUẦN, không thêm nhãn/prefix như: "Ý 1", "Ý 2", "Ý 3", "Bạn nói:", "Nên nói:", "Giải thích:", không markdown.
 35) QUY TẮC mainSentence:
@@ -127,17 +128,17 @@ ${pairExtraRules}
   ],
   "pronunciationTips": ["mẹo phát âm ngắn bằng ngôn ngữ mẹ đẻ", "..."],
   "correctionNote": "nội dung sửa lỗi ngắn gọn, có tính sư phạm (ấm áp, khuyến khích), không khô khan; không thêm tiêu đề",
-  "intentAnswer": "2 câu CHỈ bằng ngôn ngữ đang học: (1) trả lời câu/câu hỏi của học sinh (nếu có hỏi phải đáp), (2) câu hỏi mới mở rộng hội thoại; không thêm tiêu đề",
+  "intentAnswer": "lời người đối thoại trả lời trong vai, rồi một câu hỏi mở chuyện trong vai, chỉ bằng ngôn ngữ đang học; câu hỏi có dấu hỏi; không bảo học sinh nói thêm một câu",
   "mainSentence": "1 câu chính để nút Nghe câu chính đọc đúng, chỉ nội dung câu"
 }`
 
   const userPrompt = `Lịch sử gần đây:
 ${input.transcript || '(trống)'}
 
-Học sinh vừa nói (raw):
+Nghĩa tiếng mẹ đẻ học viên muốn nói:
 ${input.studentText}
 
-Học sinh sau chuẩn hóa mixed (chỉ là gợi ý, không được đổi lĩnh vực của từ đa nghĩa):
+Bản nghĩa dùng để viết ý 1, ý 2, ý 3:
 ${input.speakingMode === 'mixed' || input.speakingMode === 'auto' ? input.mixedNormalizedStudentText : input.studentText}
 
 Nếu bản chuẩn hóa mixed lệch chủ đề (ví dụ "nước" trong buổi gọi đồ uống bị thành quốc gia), bỏ bản đó và dịch lại đúng nghĩa chủ đề.

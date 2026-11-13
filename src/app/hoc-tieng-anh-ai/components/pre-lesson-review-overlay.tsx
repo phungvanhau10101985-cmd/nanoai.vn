@@ -436,7 +436,7 @@ export function PreLessonReviewOverlay({
             </p>
             <p className="mt-2 text-lg font-semibold text-slate-900">{wrongHint.word.charAt(0).toUpperCase() + wrongHint.word.slice(1)}</p>
             {wrongHint.pronunciation ? (
-              <PronunciationReveal localText={localText} reading={wrongHint.pronunciation} lineKey={wrongHint.word} />
+              <PronunciationReveal localText={localText} source={wrongHint.word} reading={wrongHint.pronunciation} lineKey={wrongHint.word} />
             ) : null}
             {wrongHint.meaning ? (
               <p className="mt-1 text-sm text-slate-600">{localText('Nghĩa:', 'Meaning:')} {wrongHint.meaning}</p>

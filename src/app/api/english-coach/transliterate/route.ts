@@ -52,47 +52,51 @@ Văn bản gốc:
 ${text}`
   }
   if (languageCode === 'ja') {
-    return `Convert the following Japanese text to Latin romaji (Hepburn style).
+    return `Convert the following Japanese text to Hepburn romaji.
 Requirements:
-- Return exactly one line of romaji.
-- No explanation, no markdown.
+- One romaji token per character (each kanji or kana), separated by spaces.
+- Example: 私は → watashi wa
+- Return exactly one line. No explanation, no markdown.
 
 Original text:
 ${text}`
   }
   if (languageCode === 'ko') {
-    return `Convert the following Korean text to Latin romanization (Revised Romanization).
+    return `Convert the following Korean text to Revised Romanization.
 Requirements:
-- Return exactly one line of romanization.
-- No explanation, no markdown.
+- One token per hangul syllable block, separated by spaces.
+- Example: 안녕 → an nyeong
+- Return exactly one line. No explanation, no markdown.
 
 Original text:
 ${text}`
   }
   if (languageCode === 'th') {
-    return `Convert the following Thai text to Latin romanization (RTGS or similar).
+    return `Convert the following Thai text to Latin romanization (RTGS).
 Requirements:
-- Return exactly one line of romanization.
-- No explanation, no markdown.
+- If the text has spaces, one token per spaced word.
+- If it has no spaces, one token per character.
+- Separate tokens with spaces. Return exactly one line. No explanation, no markdown.
 
 Original text:
 ${text}`
   }
   if (languageCode === 'hi') {
-    return `Convert the following Hindi (Devanagari) text to Latin romanization (IAST or similar).
+    return `Convert the following Hindi text to Latin romanization (IAST).
 Requirements:
-- Return exactly one line of romanization.
-- No explanation, no markdown.
+- One token per word, separated by spaces. The number of tokens must match the number of words.
+- Example: मैं जाता → maĩ jātā
+- Return exactly one line. No explanation, no markdown.
 
 Original text:
 ${text}`
   }
-  return `Write one IPA pronunciation of this English text, without slash marks.
-Example: hello → həˈloʊ
+  return `Write the IPA of this English text, without slash marks.
 Requirements:
-- One line only.
-- Do not translate. Do not use Vietnamese spelling.
-- No explanation, no markdown.
+- One IPA token per word, separated by spaces. Do not put spaces inside a word.
+- Example: I go to the stadium → aɪ ɡoʊ tə ðə ˈsteɪdiəm
+- Keep the stress mark. Weak forms are allowed.
+- One line only. Do not translate. No explanation, no markdown.
 
 Original text:
 ${text}`

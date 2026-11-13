@@ -188,7 +188,7 @@ export default function TuMoiClientPage() {
                     {item.meaning || localText('Chưa có nghĩa', 'No meaning yet')}
                   </p>
                   {item.pronunciation ? (
-                    <PronunciationReveal localText={localText} reading={item.pronunciation} lineKey={item.id} />
+                    <PronunciationReveal localText={localText} source={item.word} reading={item.pronunciation} lineKey={item.id} />
                   ) : null}
                   <div className="mt-2 flex flex-wrap gap-1">
                     {item.usageLevel ? (

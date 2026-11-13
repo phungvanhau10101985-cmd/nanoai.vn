@@ -61,6 +61,8 @@ import { partnerSitePwaManifestPath } from '@/lib/partner-website/shop/partner-s
 import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { partnerShopDocumentVerification } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 import { weddingDesignViewportBootScript } from '@/lib/wedding/wedding-design-viewport'
+import { weddingCreateSourceBootstrapJs } from '@/lib/wedding/wedding-create-source'
+import { WeddingCreateSourceCapture } from '@/components/wedding/wedding-create-source-capture'
 import {
   AnalyticsTracker,
   CreditFeatureAccessGuard,
@@ -540,6 +542,7 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
+        <script id="wedding-create-source" dangerouslySetInnerHTML={{ __html: weddingCreateSourceBootstrapJs() }} />
         {dictionaryScriptSrc ? (
           <Script id="nanoai-dictionary" strategy="beforeInteractive" src={dictionaryScriptSrc} />
         ) : null}
@@ -615,6 +618,7 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <MobileKeyboardPin />
+        <WeddingCreateSourceCapture />
         {shopMetaPixel ? (
           <noscript>
             {/* eslint-disable-next-line @next/next/no-img-element */}

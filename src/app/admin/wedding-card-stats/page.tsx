@@ -16,7 +16,7 @@ import {
   isWeddingCardCompletionKey,
   type WeddingCardCompletionKey,
 } from '@/lib/wedding/wedding-card-completion'
-import type { WeddingAdVisitCounts } from '@/lib/wedding/wedding-ad-source'
+import { weddingCreateSourceView } from '@/lib/wedding/wedding-create-source'
 import { ApiStatsDateFilter } from '../api-stats/api-stats-date-filter'
 import { ictDayEndIso, ictDayStartIso, ictYearStartYmd, ictYmd } from '../api-stats/ict-date'
 
@@ -36,24 +36,6 @@ function cardTitle(groomName: string, brideName: string): string {
   const bride = brideName.trim()
   if (groom && bride) return `${groom} & ${bride}`
   return groom || bride || '—'
-}
-
-function AdSourceCounts({ counts }: { counts: WeddingAdVisitCounts }) {
-  const lines = [
-    ['Facebook', counts.facebook],
-    ['TikTok', counts.tiktok],
-    ['Google Ads', counts.googleAds],
-  ] as const
-  return (
-    <div className="grid grid-cols-[auto_2.25rem] gap-x-3 gap-y-0.5 text-xs tabular-nums">
-      {lines.map(([label, visits]) => (
-        <div key={label} className="contents">
-          <span className={visits > 0 ? 'text-foreground' : 'text-muted-foreground'}>{label}</span>
-          <span className={visits > 0 ? 'text-right font-medium' : 'text-right text-muted-foreground'}>{visits}</span>
-        </div>
-      ))}
-    </div>
-  )
 }
 
 export default async function AdminWeddingCardStatsPage({
@@ -120,6 +102,23 @@ export default async function AdminWeddingCardStatsPage({
     }).format(date)
   }
 
+  const sourceLabel = (source: string, detail: string) => {
+    const view = weddingCreateSourceView(source, detail)
+    const title =
+      view.kind === 'facebook'
+        ? 'Facebook'
+        : view.kind === 'tiktok'
+          ? 'TikTok'
+          : view.kind === 'google_ads'
+            ? 'Google Ads'
+            : view.kind === 'direct'
+              ? tr('Trực tiếp', 'Direct', '直接访问', '直接', '직접')
+              : view.kind === 'other'
+                ? view.text || tr('Khác', 'Other', '其他', 'その他', '기타')
+                : tr('Chưa ghi', 'Not recorded', '未记录', '未記録', '기록 없음')
+    return { title, extra: view.extra, muted: view.kind === 'unknown' }
+  }
+
   const origin = defaultPublicOrigin()
 
   return (
@@ -139,11 +138,11 @@ export default async function AdminWeddingCardStatsPage({
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           {tr(
-            'Cột Nguồn đếm lượt khách mở thiệp đã xuất bản từ Facebook (gồm Instagram), TikTok và Google Ads. Mỗi trình duyệt, mỗi nguồn, mỗi ngày tính một lượt.',
-            'The Source column counts opens of a published card from Facebook (including Instagram), TikTok, and Google Ads. One browser, one source, and one day count as one visit.',
-            '「来源」列统计已发布请柬的打开次数：Facebook（含 Instagram）、TikTok 和 Google Ads。同一浏览器、同一来源、同一天计为 1 次。',
-            '「流入元」列は公開済み招待状を開いた回数です。Facebook（Instagram を含む）、TikTok、Google Ads。同じブラウザ、同じ流入元、同じ日は 1 回です。',
-            '출처 열은 게시된 청첩장을 연 횟수입니다. Facebook(Instagram 포함), TikTok, Google Ads. 같은 브라우저, 같은 출처, 같은 날은 1회입니다.',
+            'Cột Nguồn là kênh lúc khách bấm tạo thiệp: Facebook (gồm Instagram), TikTok, Google Ads, hoặc trang đưa khách tới (Google, Zalo…). Trực tiếp là không thấy quảng cáo hay trang giới thiệu. Thiệp tạo trước khi ghi kênh hiện Chưa ghi.',
+            'The Source column is the channel when the customer tapped create: Facebook (including Instagram), TikTok, Google Ads, or the site that sent them (Google, Zalo…). Direct means no ad and no referring site. Cards created before this was saved show Not recorded.',
+            '「来源」列是客户点击创建时的渠道：Facebook（含 Instagram）、TikTok、Google Ads，或带来客户的网站（Google、Zalo…）。直接访问表示没有广告也没有来源网站。开始记录之前创建的请柬显示未记录。',
+            '「流入元」列は作成を押したときの経路です。Facebook（Instagram を含む）、TikTok、Google Ads、または送客元（Google、Zalo…）。直接は広告も参照元もない場合です。記録を始める前の招待状は未記録です。',
+            '출처 열은 만들기를 누른 경로입니다. Facebook(Instagram 포함), TikTok, Google Ads, 또는 들여보낸 사이트(Google, Zalo…). 직접은 광고와 참조 사이트가 없다는 뜻입니다. 기록을 시작하기 전에 만든 청첩장은 기록 없음입니다.',
           )}
         </p>
       </div>
@@ -258,6 +257,7 @@ export default async function AdminWeddingCardStatsPage({
                     result.rows.map((row) => {
                       const href = `${origin}/thiep-moi-cuoi/${encodeURIComponent(row.slug)}`
                       const missing = row.missingKeys.filter(isWeddingCardCompletionKey).map(missingLabel)
+                      const source = sourceLabel(row.createdSource, row.createdSourceDetail)
                       return (
                         <TableRow key={row.id}>
                           <TableCell className="min-w-[180px] align-top">
@@ -300,17 +300,13 @@ export default async function AdminWeddingCardStatsPage({
                               </p>
                             )}
                           </TableCell>
-                          <TableCell
-                            className="min-w-[9.5rem] align-top"
-                            title={tr(
-                              'Mỗi trình duyệt, mỗi nguồn, mỗi ngày tính một lượt.',
-                              'One browser, one source, and one day count as one visit.',
-                              '同一浏览器、同一来源、同一天计为 1 次。',
-                              '同じブラウザ、同じ流入元、同じ日は 1 回です。',
-                              '같은 브라우저, 같은 출처, 같은 날은 1회입니다.',
-                            )}
-                          >
-                            <AdSourceCounts counts={row.adVisits} />
+                          <TableCell className="min-w-[9.5rem] align-top">
+                            <div title={source.extra || source.title}>
+                              <div className={source.muted ? 'text-sm text-muted-foreground' : 'text-sm'}>{source.title}</div>
+                              {source.extra ? (
+                                <div className="mt-0.5 text-xs text-muted-foreground">{source.extra}</div>
+                              ) : null}
+                            </div>
                           </TableCell>
                           <TableCell className="min-w-[160px] align-top">
                             <div className="flex items-center gap-2">
