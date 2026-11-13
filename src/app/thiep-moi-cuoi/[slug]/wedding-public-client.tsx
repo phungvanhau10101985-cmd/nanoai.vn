@@ -101,6 +101,7 @@ import {
   upsertAlbumPhotoCrop,
   shiftAlbumPhotoCropsAfterRemove,
   clampWeddingFrameScale,
+  weddingCoverFrameScaleFloor,
   type WeddingDeviceShell,
   type WeddingTextRole,
 } from '@/lib/wedding/wedding-section-config'
@@ -1509,14 +1510,19 @@ export default function WeddingPublicClient({
     setSectionRaw((current) => mergeWeddingSectionConfig(current, weddingPortraitCropPatch(side, patch)))
     markPreview('shell')
   }
+  const coverFrameFloor = weddingCoverFrameScaleFloor(sectionConfig.coverPresetId)
   const coverFrameScaleEdit = visualEdit
     ? {
         scale: resolveCoverFrameScale(sectionConfig),
+        minScale: coverFrameFloor,
         label: tCover.frameSizeLabel,
         zoomOutLabel: tCover.coverPhotoZoomOut,
         zoomInLabel: tCover.coverPhotoZoomIn,
         onChange: (scale: number) => {
-          setSectionRaw((current) => mergeWeddingSectionConfig(current, { coverFrameScale: clampWeddingFrameScale(scale) }))
+          setSectionRaw((current) => {
+            const floor = weddingCoverFrameScaleFloor(parseWeddingSectionConfig(current).coverPresetId)
+            return mergeWeddingSectionConfig(current, { coverFrameScale: clampWeddingFrameScale(scale, floor) })
+          })
           markPreview('shell')
         },
       }

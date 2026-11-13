@@ -1,7 +1,7 @@
 import { findWeddingBackgroundPreset, weddingThemeOpenCelebration } from '@/lib/wedding/wedding-background-presets'
 import { WEDDING_STYLE_PRESETS } from '@/lib/wedding/wedding-style-presets'
 import { isWeddingButtonColorId, type WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
-import { findWeddingCoverPreset, weddingCoverPresetFollowsBackground } from '@/lib/wedding/wedding-cover-presets'
+import { findWeddingCoverPreset, weddingCoverPhotoHead, weddingCoverPresetFollowsBackground } from '@/lib/wedding/wedding-cover-presets'
 import type { WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 
 export type WeddingCoverAiFrameHole = { x: number; y: number; w: number; h: number }
@@ -209,10 +209,17 @@ export const WEDDING_FRAME_SCALE_MIN = 1.2
 export const WEDDING_FRAME_SCALE_MAX = 1.8
 /** Một nấc trên thanh = 5 điểm phần trăm. */
 export const WEDDING_FRAME_SCALE_STEP = 0.06
+/** Ngôi sao mở sẵn ở 120% trên thanh cỡ khung. 1.2 là 100%, nên 120% là 1.44. */
+export const WEDDING_STAR_FRAME_SCALE = 1.44
 
-export function clampWeddingFrameScale(value: number): number {
-  const num = Number.isFinite(value) ? value : WEDDING_FRAME_SCALE_MIN
-  return Math.max(WEDDING_FRAME_SCALE_MIN, Math.min(WEDDING_FRAME_SCALE_MAX, Math.round(num * 100) / 100))
+export function weddingCoverFrameScaleFloor(coverPresetId: string | null | undefined): number {
+  return weddingCoverPhotoHead(coverPresetId) === 'star' ? WEDDING_STAR_FRAME_SCALE : WEDDING_FRAME_SCALE_MIN
+}
+
+export function clampWeddingFrameScale(value: number, floor = WEDDING_FRAME_SCALE_MIN): number {
+  const min = Number.isFinite(floor) ? floor : WEDDING_FRAME_SCALE_MIN
+  const num = Number.isFinite(value) ? value : min
+  return Math.max(min, Math.min(WEDDING_FRAME_SCALE_MAX, Math.round(num * 100) / 100))
 }
 
 /** 1.2 hiện là 100%. 1.8 hiện là 150%. */
@@ -251,10 +258,10 @@ function readFrameScale(value: unknown): number | undefined {
   return clampWeddingFrameScale(num)
 }
 
-function writeFrameScale(payload: WeddingSectionConfig, key: 'coverFrameScale' | 'groomPortraitFrameScale' | 'bridePortraitFrameScale', value: number | undefined) {
+function writeFrameScale(payload: WeddingSectionConfig, key: 'coverFrameScale' | 'groomPortraitFrameScale' | 'bridePortraitFrameScale', value: number | undefined, floor = WEDDING_FRAME_SCALE_MIN) {
   const scale = readFrameScale(value)
-  if (scale === undefined || scale === WEDDING_FRAME_SCALE_MIN) return
-  payload[key] = scale
+  if (scale === undefined || scale <= floor) return
+  payload[key] = clampWeddingFrameScale(scale, floor)
 }
 
 function readHoleNumber(value: unknown): number | undefined {
@@ -628,7 +635,7 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (typeof config.coverPhotoPositionX === 'number') payload.coverPhotoPositionX = readPercent(config.coverPhotoPositionX)
   if (typeof config.coverPhotoPositionY === 'number') payload.coverPhotoPositionY = readPercent(config.coverPhotoPositionY)
   if (typeof config.coverPhotoScale === 'number') payload.coverPhotoScale = readScale(config.coverPhotoScale)
-  writeFrameScale(payload, 'coverFrameScale', config.coverFrameScale)
+  writeFrameScale(payload, 'coverFrameScale', config.coverFrameScale, weddingCoverFrameScaleFloor(config.coverPresetId))
   const aiFrameUrl = config.coverAiFrameUrl?.trim()
   const aiFrameHole = readCoverAiFrameHole(config.coverAiFrameHole)
   if (aiFrameUrl && aiFrameHole) {
@@ -754,9 +761,10 @@ function writePortraitCrop(payload: WeddingSectionConfig, side: 'groom' | 'bride
   payload[scaleKey] = frame.scale
 }
 
-/** Cỡ khung vỏ. Chưa chỉnh thì mức 100% (số 120 cũ). */
+/** Cỡ khung vỏ. Chưa chỉnh thì mức 100% (số 120 cũ). Ngôi sao luôn mở ở 120%. */
 export function resolveCoverFrameScale(config: WeddingSectionConfig): number {
-  return readFrameScale(config.coverFrameScale) ?? WEDDING_FRAME_SCALE_MIN
+  const floor = weddingCoverFrameScaleFloor(config.coverPresetId)
+  return clampWeddingFrameScale(readFrameScale(config.coverFrameScale) ?? floor, floor)
 }
 
 /** Cỡ khung chân dung. Chưa chỉnh thì mức 100% (số 120 cũ). */

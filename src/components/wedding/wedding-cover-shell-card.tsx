@@ -13,7 +13,7 @@ import './wedding-cover-intro.css'
 import { getOrnamentComposition, type OrnamentComposition } from '@/lib/wedding/wedding-ornament-layouts'
 import { WeddingOrnamentStage } from '@/components/wedding/wedding-ornament-stage'
 import type { WeddingCoverFrameAsset } from '@/lib/wedding/wedding-cover-frame-assets'
-import { WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, albumPhotoFrameStyle, centeredFrameBoxStyle, clampWeddingFrameScale, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingCoverFrameOpen, type WeddingCoverPhotoOpen, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
+import { WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, albumPhotoFrameStyle, centeredFrameBoxStyle, clampWeddingFrameScale, weddingCoverFrameScaleFloor, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingCoverFrameOpen, type WeddingCoverPhotoOpen, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
 import { type WeddingStackedFrameScaleEdit, type WeddingStackedNameEdit, type WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingCoupleNames, type WeddingCoupleNameEdit } from '@/components/wedding/wedding-couple-names'
@@ -164,6 +164,8 @@ type WeddingCoverShellCardProps = {
 
 export type FrameScaleEdit = {
   scale: number
+  /** Mức nhỏ nhất của thanh. Ngôi sao là 120%. */
+  minScale?: number
   onChange: (scale: number) => void
   label: string
   zoomOutLabel: string
@@ -187,10 +189,10 @@ function clampCoverScale(value: number) {
   return Math.max(1, Math.min(3, Math.round(value * 100) / 100))
 }
 
-function frameScaleOf(value: number | undefined) {
-  const num = value ?? WEDDING_FRAME_SCALE_MIN
-  if (!Number.isFinite(num)) return WEDDING_FRAME_SCALE_MIN
-  return clampWeddingFrameScale(num)
+function frameScaleOf(value: number | undefined, floor = WEDDING_FRAME_SCALE_MIN) {
+  const num = value ?? floor
+  if (!Number.isFinite(num)) return floor
+  return clampWeddingFrameScale(num, floor)
 }
 
 function frameWidthPercent(base: number, scale: number) {
@@ -212,8 +214,9 @@ function centeredWidthStyle(style: CSSProperties | undefined): { centered: boole
 
 function useFrameScaleDrag(edit: FrameScaleEdit, sign: number) {
   const dragRef = useRef<{ pointerId: number; x: number; scale: number } | null>(null)
-  const scale = frameScaleOf(edit.scale)
-  const emit = (value: number) => edit.onChange(frameScaleOf(Math.round(value * 100) / 100))
+  const floor = edit.minScale ?? WEDDING_FRAME_SCALE_MIN
+  const scale = frameScaleOf(edit.scale, floor)
+  const emit = (value: number) => edit.onChange(frameScaleOf(Math.round(value * 100) / 100, floor))
   return {
     scale,
     step: (delta: number) => emit(scale + delta),
@@ -282,8 +285,9 @@ export function FrameEdgeGrips(props: { edit: FrameScaleEdit }) {
 
 export function FrameScaleDragBar(props: { edit: FrameScaleEdit; className?: string }) {
   const drag = useFrameScaleDrag(props.edit, 1)
+  const floor = props.edit.minScale ?? WEDDING_FRAME_SCALE_MIN
   const percent = weddingFrameScalePercent(drag.scale)
-  const atMin = drag.scale <= WEDDING_FRAME_SCALE_MIN
+  const atMin = drag.scale <= floor
   const atMax = drag.scale >= WEDDING_FRAME_SCALE_MAX
   return (
     <div
@@ -306,7 +310,7 @@ export function FrameScaleDragBar(props: { edit: FrameScaleEdit; className?: str
       <div
         role="slider"
         aria-label={props.edit.label}
-        aria-valuemin={100}
+        aria-valuemin={weddingFrameScalePercent(floor)}
         aria-valuemax={weddingFrameScalePercent(WEDDING_FRAME_SCALE_MAX)}
         aria-valuenow={percent}
         tabIndex={0}
@@ -1997,8 +2001,9 @@ function SongHyCoverPhoto(props: WeddingCoverShellCardProps) {
   const frame = songHyFrameClass(head, compact)
   const square = head === 'star' || head === 'moon'
   const frameOwned = head === 'fan' || head === 'leaf' || square
+  const shapedScale = frameScaleOf(props.frameScale, weddingCoverFrameScaleFloor(props.presetId))
   const ownedWidth = head === 'fan' || square
-    ? frameWidthFromMin(100, props.frameScale)
+    ? frameWidthFromMin(100, shapedScale)
     : head === 'leaf'
       ? frameWidthFromMin(compact ? 100 : 86, props.frameScale)
       : null
@@ -2169,7 +2174,7 @@ function SongHyArchPhoto(props: WeddingCoverShellCardProps) {
   if (head === 'fan' || head === 'leaf' || head === 'star' || head === 'moon') {
     return (
       <CoverPhotoSlot>
-        <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidthFromMin(head === 'leaf' ? 86 : 100, props.frameScale)}%` }}>
+        <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidthFromMin(head === 'leaf' ? 86 : 100, frameScaleOf(props.frameScale, weddingCoverFrameScaleFloor(props.presetId)))}%` }}>
           <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId} fillParent frameScale={WEDDING_FRAME_SCALE_MIN}>
             {shot}
           </SongHyPhotoMount>

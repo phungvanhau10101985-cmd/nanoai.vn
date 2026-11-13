@@ -4,7 +4,8 @@ import sharp from 'sharp'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox } from './cover-frame-hole-mask'
 import { buildWeddingCoverFramePrompt } from './build-wedding-cover-frame-prompt'
 import { measureCoverFrameHole } from './measure-cover-frame-hole'
-import { coverPhotoUrlUnlessBackground, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverFrameScale, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitFrameScale, resolvePortraitShell, centeredFrameSlackPercent, weddingFrameScalePercent } from './wedding-section-config'
+import { coverPhotoUrlUnlessBackground, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverFrameScale, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitFrameScale, resolvePortraitShell, centeredFrameSlackPercent, stringifyWeddingSectionConfig, weddingCoverFrameScaleFloor, WEDDING_FRAME_SCALE_MIN, WEDDING_STAR_FRAME_SCALE, weddingFrameScalePercent } from './wedding-section-config'
+import { WEDDING_MOON_CARDS } from './wedding-cover-presets'
 
 test('cover frame prompt keeps one flat canvas so the logo mask can open the center', () => {
   const prompt = buildWeddingCoverFramePrompt({
@@ -196,6 +197,32 @@ test('frame size stays per photo and 120% is the 100% floor', () => {
   assert.equal(JSON.parse(saved).groomPortraitFrameScale, undefined)
   const clamped = mergeWeddingSectionConfig(saved, { coverFrameScale: 9 })
   assert.equal(resolveCoverFrameScale(parseWeddingSectionConfig(clamped)), 1.8)
+})
+
+test('star card frames always open at 120 percent', () => {
+  const stars = WEDDING_MOON_CARDS.filter((card) => card.shape === 'star')
+  assert.equal(stars.length, 5)
+  assert.equal(weddingFrameScalePercent(WEDDING_STAR_FRAME_SCALE), 120)
+  assert.equal(Math.round(100 * (WEDDING_STAR_FRAME_SCALE / WEDDING_FRAME_SCALE_MIN) * 10) / 10, 120)
+  for (const card of stars) {
+    assert.equal(weddingCoverFrameScaleFloor(card.coverId), WEDDING_STAR_FRAME_SCALE, card.coverId)
+    const fresh = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', { coverPresetId: card.coverId }))
+    assert.equal(resolveCoverFrameScale(fresh), WEDDING_STAR_FRAME_SCALE, card.coverId)
+    const storedFloor = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', {
+      coverPresetId: card.coverId,
+      coverFrameScale: WEDDING_FRAME_SCALE_MIN,
+    }))
+    assert.equal(resolveCoverFrameScale(storedFloor), WEDDING_STAR_FRAME_SCALE, card.coverId)
+    assert.equal(JSON.parse(stringifyWeddingSectionConfig(storedFloor)).coverFrameScale, undefined, card.coverId)
+  }
+  const moon = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', { coverPresetId: 'trang_tron' }))
+  assert.equal(resolveCoverFrameScale(moon), WEDDING_FRAME_SCALE_MIN)
+  const enlarged = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', {
+    coverPresetId: 'ngoi_sao_sen',
+    coverFrameScale: 1.56,
+  }))
+  assert.equal(resolveCoverFrameScale(enlarged), 1.56)
+  assert.equal(JSON.parse(stringifyWeddingSectionConfig(enlarged)).coverFrameScale, 1.56)
 })
 
 test('bride and groom portraits keep their own frame choice', () => {
