@@ -123,7 +123,8 @@ export async function sendMetaPurchaseConversionsApi(params: {
     contents: cd.contents,
     order_id: cd.order_id,
   }
-  if (cd.remarketing_id) custom_data.remarketing_id = cd.remarketing_id.slice(0, 128)
+  const remarketing = typeof cd.remarketing_id === 'string' ? cd.remarketing_id.slice(0, 128) : ''
+  if (remarketing) custom_data.remarketing_id = remarketing
 
   const body = {
     data: [
@@ -132,7 +133,7 @@ export async function sendMetaPurchaseConversionsApi(params: {
         event_time: eventTime,
         event_id: params.eventId,
         action_source: 'website' as const,
-        event_source_url: params.eventSourceUrl.slice(0, 2000),
+        event_source_url: typeof params.eventSourceUrl === 'string' ? params.eventSourceUrl.slice(0, 2000) : '',
         user_data,
         custom_data,
       },

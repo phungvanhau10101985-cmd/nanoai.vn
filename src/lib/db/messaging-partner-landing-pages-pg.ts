@@ -221,6 +221,8 @@ export async function insertPartnerLandingPagePg(input: {
     )
     return row ? mapLandingRow(row) : null
   } catch (e) {
+    const code = e && typeof e === 'object' && 'code' in e ? String((e as { code?: unknown }).code ?? '') : ''
+    if (code === '23505') return null
     console.error('[messaging-partner-landing-pages-pg] insertPartnerLandingPagePg', e)
     return null
   }

@@ -44,6 +44,14 @@ export type PartnerShippingOpsCopy = {
     codNone: string
     codPaidOn: string
     codCollectedPending: string
+    codReconciledMismatch: string
+    codConfirmedFull: string
+    confirmEmsPaidFull: string
+    confirmEmsPaidFullTitle: string
+    confirmEmsPaidFullBody: string
+    confirmEmsPaidFullYes: string
+    confirmEmsPaidFullNo: string
+    confirmEmsPaidFullDone: string
     shopDelivering: string
     shopSentEms: string
     shopReceived: string
@@ -287,6 +295,14 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
       codNone: 'Không thu hộ (0 đ)',
       codPaidOn: 'EMS trả shop: {date}',
       codCollectedPending: 'EMS đã thu COD từ khách — chưa trả shop (chờ file đối soát)',
+      codReconciledMismatch: 'Đã đối soát nhưng lệch',
+      codConfirmedFull: 'Đã xác nhận trả đủ',
+      confirmEmsPaidFull: 'Xác nhận EMS đã trả đủ',
+      confirmEmsPaidFullTitle: 'Xác nhận EMS đã trả đủ',
+      confirmEmsPaidFullBody: 'Đơn {code} thu hộ {amount}. File đối soát đang lệch. Xác nhận EMS đã trả đủ số thu hộ cho shop?',
+      confirmEmsPaidFullYes: 'Xác nhận',
+      confirmEmsPaidFullNo: 'Hủy',
+      confirmEmsPaidFullDone: 'Đã ghi nhận EMS trả đủ.',
       shopDelivering: 'EMS đang giao tới bạn',
       shopSentEms: 'Đã gửi EMS',
       shopReceived: 'Đã nhận hàng',
@@ -529,6 +545,14 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
       codNone: 'No COD (0)',
       codPaidOn: 'EMS paid the shop: {date}',
       codCollectedPending: 'EMS collected COD from the customer — not yet paid to the shop',
+      codReconciledMismatch: 'Reconciled, amount differs',
+      codConfirmedFull: 'Confirmed paid in full',
+      confirmEmsPaidFull: 'Confirm EMS paid in full',
+      confirmEmsPaidFullTitle: 'Confirm EMS paid in full',
+      confirmEmsPaidFullBody: 'Order {code} COD is {amount}. The settlement file does not match. Confirm EMS has paid the shop the full COD?',
+      confirmEmsPaidFullYes: 'Confirm',
+      confirmEmsPaidFullNo: 'Cancel',
+      confirmEmsPaidFullDone: 'Recorded that EMS paid in full.',
       shopDelivering: 'EMS is delivering to you',
       shopSentEms: 'Handed to EMS',
       shopReceived: 'Received',
@@ -767,6 +791,14 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
       codNone: '不代收（0）',
       codPaidOn: 'EMS 付给店铺：{date}',
       codCollectedPending: 'EMS 已向客户收 COD — 尚未付给店铺',
+      codReconciledMismatch: '已对账但金额不符',
+      codConfirmedFull: '已确认付清',
+      confirmEmsPaidFull: '确认 EMS 已付清',
+      confirmEmsPaidFullTitle: '确认 EMS 已付清',
+      confirmEmsPaidFullBody: '订单 {code} 代收 {amount}。对账文件金额不符。确认 EMS 已向店铺付清代收？',
+      confirmEmsPaidFullYes: '确认',
+      confirmEmsPaidFullNo: '取消',
+      confirmEmsPaidFullDone: '已记录 EMS 付清。',
       shopDelivering: 'EMS 正在配送',
       shopSentEms: '已交给 EMS',
       shopReceived: '已签收',
@@ -1006,6 +1038,14 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
       codNone: '代引なし（0）',
       codPaidOn: 'EMS が店舗へ支払: {date}',
       codCollectedPending: 'EMS は顧客から COD を回収済み — 店舗への支払いは未了',
+      codReconciledMismatch: '精算済み・金額不一致',
+      codConfirmedFull: '全額支払いを確定',
+      confirmEmsPaidFull: 'EMS が全額支払ったと確定',
+      confirmEmsPaidFullTitle: 'EMS が全額支払ったと確定',
+      confirmEmsPaidFullBody: '注文 {code} の代引は {amount} です。精算ファイルは不一致です。EMS が店舗へ代引を全額支払ったと確定しますか？',
+      confirmEmsPaidFullYes: '確定',
+      confirmEmsPaidFullNo: 'キャンセル',
+      confirmEmsPaidFullDone: 'EMS の全額支払いを記録しました。',
       shopDelivering: 'EMS が配達中です',
       shopSentEms: 'EMS に引き渡し済み',
       shopReceived: '受取済み',
@@ -1245,6 +1285,14 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
       codNone: '착불 없음 (0)',
       codPaidOn: 'EMS가 매장에 지급: {date}',
       codCollectedPending: 'EMS가 고객에게 COD를 받았으나 매장 지급은 대기 중',
+      codReconciledMismatch: '정산했으나 금액 불일치',
+      codConfirmedFull: '전액 지급 확인됨',
+      confirmEmsPaidFull: 'EMS 전액 지급 확인',
+      confirmEmsPaidFullTitle: 'EMS 전액 지급 확인',
+      confirmEmsPaidFullBody: '주문 {code} 착불은 {amount}입니다. 정산 파일이 일치하지 않습니다. EMS가 매장에 착불 전액을 지급했다고 확인할까요?',
+      confirmEmsPaidFullYes: '확인',
+      confirmEmsPaidFullNo: '취소',
+      confirmEmsPaidFullDone: 'EMS 전액 지급을 기록했습니다.',
       shopDelivering: 'EMS가 배송 중입니다',
       shopSentEms: 'EMS에 인계됨',
       shopReceived: '수령 완료',

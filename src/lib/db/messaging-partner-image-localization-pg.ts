@@ -426,7 +426,11 @@ export async function applyImageLocProductResultFromPg(opts: {
   } else {
     await pgQuery(sql, params)
   }
-  bumpInventoryCacheLater(opts.partnerId)
+  const storefrontChanged =
+    opts.status === 'localized' ||
+    opts.status === 'skipped' ||
+    Boolean(opts.imageUrl || opts.galleryUrls || opts.detailImageUrls || opts.materialDetailImageUrl)
+  if (storefrontChanged) bumpInventoryCacheLater(opts.partnerId)
 }
 
 function isMissingImageConsultContextColumnError(error: unknown): boolean {

@@ -1,3 +1,4 @@
+import { languageCoachCacheStatDayIct } from '@/lib/db/language-coach-cache-day'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 
@@ -207,7 +208,10 @@ export async function incrementWordCacheStatPg(metric: 'word_hit' | 'word_miss')
   if (!isPgConfigured()) return
   try {
     const pool = getPgPool()
-    await pool.query('select public.increment_language_coach_cache_stat($1::text, 1)', [metric])
+    await pool.query('select public.increment_language_coach_cache_stat($1::text, 1, $2::date)', [
+      metric,
+      languageCoachCacheStatDayIct(),
+    ])
   } catch {
     // Giữ lookup nhanh nếu RPC lỗi (giống route cũ).
   }

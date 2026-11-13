@@ -15,6 +15,9 @@ import {
   aggregateEnglishCoachApiCostByLessonKind,
   aggregateLanguageCoachCredits,
 } from './language-coach-financials'
+import { buildLanguageCoachCacheReport } from './language-coach-cache-savings'
+import { fetchLanguageCoachCacheDailyTotals } from './fetch-language-coach-cache-daily'
+import { LanguageCoachCachePanel } from './language-coach-cache-panel'
 import { fetchAllApiUsageLogsInRange, sortApiUsageLogsNewestFirst } from './fetch-api-usage-logs-range'
 import { ApiUsageCharts } from './api-usage-charts'
 import { buildApiUsageChartData } from './build-api-usage-chart-data'
@@ -56,11 +59,12 @@ export default async function AdminApiStatsPage({
   const toIso = ictDayEndIso(toDate)
   const usdToVnd = getPartnerAiTokenCostUsdToVnd()
 
-  const [logFetch, revenueInRange, languageCoachCreditEvents, shopTokenRowsByModel] = await Promise.all([
+  const [logFetch, revenueInRange, languageCoachCreditEvents, shopTokenRowsByModel, cacheDaily] = await Promise.all([
     fetchAllApiUsageLogsInRange(fromIso, toIso),
     fetchRevenueFromCompletedPaymentsInRange(fromIso, toIso),
     fetchLanguageCoachCreditEventsInRange(fromIso, toIso),
     fetchMessagingPartnerTokenUsageByShopModelInRange(fromIso, toIso),
+    fetchLanguageCoachCacheDailyTotals(fromDate, toDate),
   ])
 
   const { data: logsRaw, error } = logFetch
@@ -82,6 +86,8 @@ export default async function AdminApiStatsPage({
   const coachLogsInRange = logsList.filter((l) => isEnglishCoachApiUsageFeature(l.feature))
   const languageCoachCreditAgg = aggregateLanguageCoachCredits(languageCoachCreditEvents || [])
   const coachApiByKind = aggregateEnglishCoachApiCostByLessonKind(coachLogsInRange)
+  const coachCacheReport = buildLanguageCoachCacheReport(cacheDaily.totals, coachLogsInRange)
+  const coachApiCostVnd = coachApiByKind.liveVnd + coachApiByKind.presetVnd + coachApiByKind.legacyVnd
   const featureLabelsMerged = mergeApiFeatureLabelsForLogs(logsList.map((l) => l.feature))
 
   type AggBucket = {
@@ -455,6 +461,15 @@ export default async function AdminApiStatsPage({
           ).replace('{rate}', usdToVnd.toLocaleString('vi-VN'))}
         </p>
         <p className="text-sm mt-2 flex flex-wrap gap-x-4 gap-y-1">
+          <Link href="#hoc-ngoai-ngu-cache" className="text-primary underline underline-offset-2 hover:text-primary/80">
+            {tr(
+              'Cache học ngoại ngữ: tỷ lệ hit và tiền tiết kiệm',
+              'Language-coach cache: hit rate and savings',
+              '外语学习缓存：命中率与节省',
+              '語学キャッシュ：ヒット率と節約',
+              '외국어 캐시: 히트율과 절감'
+            )}
+          </Link>
           <Link href="/admin/api-stats/english-coach" className="text-primary underline underline-offset-2 hover:text-primary/80">
             {tr(
               'Báo cáo riêng: Học ngoại ngữ AI (english-coach)',
@@ -630,6 +645,14 @@ export default async function AdminApiStatsPage({
           ) : null}
         </CardContent>
       </Card>
+
+      <LanguageCoachCachePanel
+        locale={uiLocale}
+        rangeLabel={rangeLabel}
+        coachApiCostVnd={coachApiCostVnd}
+        report={coachCacheReport}
+        loadError={cacheDaily.error}
+      />
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>

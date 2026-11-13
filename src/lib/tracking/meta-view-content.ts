@@ -71,17 +71,29 @@ export function buildMetaViewContentFromInventoryRow(
   }
 }
 
-function capiCustomDataPayload(data: MetaCommerceCustomData) {
+function clipText(value: unknown, max: number): string {
+  if (typeof value === 'string') return value.slice(0, max)
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value).slice(0, max)
+  return ''
+}
+
+/** Beacon thiếu `content_name` không được ném TypeError (nginx 500 trên `/tracking/meta-capi`). */
+export function capiCustomDataPayload(data: MetaCommerceCustomData | null | undefined) {
+  const row = data ?? ({} as MetaCommerceCustomData)
+  const remarketing = clipText(row.remarketing_id, 128)
+  const contentIds = Array.isArray(row.content_ids)
+    ? row.content_ids.map((id) => clipText(id, 128)).filter(Boolean)
+    : []
   return {
-    content_ids: data.content_ids,
-    content_name: data.content_name.slice(0, 500),
-    content_type: data.content_type,
-    currency: data.currency,
-    value: data.value,
-    ...(data.remarketing_id ? { remarketing_id: data.remarketing_id.slice(0, 128) } : {}),
-    ...(data.contents ? { contents: data.contents } : {}),
-    ...(data.num_items != null ? { num_items: data.num_items } : {}),
-    ...(data.order_id ? { order_id: data.order_id } : {}),
+    content_ids: contentIds,
+    content_name: clipText(row.content_name, 500) || 'Product',
+    content_type: 'product' as const,
+    currency: row.currency || 'VND',
+    value: Number.isFinite(row.value) ? row.value : 0,
+    ...(remarketing ? { remarketing_id: remarketing } : {}),
+    ...(row.contents ? { contents: row.contents } : {}),
+    ...(row.num_items != null ? { num_items: row.num_items } : {}),
+    ...(row.order_id ? { order_id: clipText(row.order_id, 128) } : {}),
   }
 }
 
@@ -120,7 +132,7 @@ export async function sendMetaConversionsApiBatch(params: {
       event_time: eventTime,
       event_id: ev.event_id,
       action_source: 'website' as const,
-      event_source_url: params.eventSourceUrl.slice(0, 2000),
+      event_source_url: clipText(params.eventSourceUrl, 2000),
       user_data,
       custom_data: capiCustomDataPayload(ev.custom_data),
     })),

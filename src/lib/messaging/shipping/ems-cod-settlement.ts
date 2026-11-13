@@ -1,8 +1,10 @@
 import {
   applyPartnerEmsCodSettlementFromPg,
   clearPartnerEmsCodSettlementOnRecordFromPg,
+  fetchPartnerEmsRecordByIdFromPg,
   findPartnerEmsRecordByTokenFromPg,
 } from '@/lib/db/messaging-partner-ems-shipping-pg'
+import { isCodAmountMismatch, vnCalendarDate } from '@/lib/messaging/shipping/ems-cod-status'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -257,6 +259,34 @@ export async function importCodSettlementExcel(input: {
     import_batch,
     rows: reconciled,
   }
+}
+
+export async function confirmPartnerCodPaidInFull(input: { partnerId: string; recordId: string }) {
+  if (!isPgConfigured()) throw new Error('Database not configured')
+  const recordId = input.recordId.trim()
+  const record = await fetchPartnerEmsRecordByIdFromPg(input.partnerId, recordId)
+  if (!record) throw new Error('Không tìm thấy vận đơn.')
+  const status = (record.cod_settlement_status || '').trim().toLowerCase()
+  if (status === 'confirmed_full') throw new Error('Đơn này đã được xác nhận EMS trả đủ.')
+  if (!isCodAmountMismatch(status)) throw new Error('Chỉ xác nhận được đơn đã đối soát nhưng lệch tiền.')
+  const cod = Math.round(Number(record.cod_amount || 0))
+  if (!Number.isFinite(cod) || cod <= 0) throw new Error('Vận đơn không có tiền thu hộ để xác nhận.')
+  const saved = await pgQueryOne<{ id: string }>(
+    `update public.messaging_partner_ems_shipping_records
+     set cod_paid_amount = $3,
+         cod_paid_date = $4::date,
+         cod_settlement_status = 'confirmed_full',
+         cod_settlement_message = $5,
+         updated_at = now()
+     where partner_id = $1::uuid and id = $2::uuid
+       and lower(coalesce(cod_settlement_status, '')) = 'amount_mismatch'
+     returning id::text`,
+    [input.partnerId, recordId, cod, vnCalendarDate(), 'Shop xác nhận EMS đã trả đủ thu hộ.'],
+  )
+  if (!saved?.id) throw new Error('Không ghi được xác nhận. Tải lại danh sách rồi thử lại.')
+  const fresh = await fetchPartnerEmsRecordByIdFromPg(input.partnerId, recordId)
+  if (!fresh) throw new Error('Không đọc lại được vận đơn sau khi xác nhận.')
+  return fresh
 }
 
 export async function listCodSettlementBatchesFromPg(partnerId: string) {

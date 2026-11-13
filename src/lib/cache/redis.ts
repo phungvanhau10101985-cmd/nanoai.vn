@@ -47,13 +47,20 @@ function redisCoolingDown(): boolean {
   return Date.now() < redisSkipUntil
 }
 
-let lastStallWarnAt = 0
+type StallWarnSlot = { at: number }
+
+function stallWarnSlot(): StallWarnSlot {
+  const g = globalThis as typeof globalThis & { __nanoaiRedisStallWarn?: StallWarnSlot }
+  if (!g.__nanoaiRedisStallWarn) g.__nanoaiRedisStallWarn = { at: 0 }
+  return g.__nanoaiRedisStallWarn
+}
 
 function noteRedisDown(op: string, key: string, err: unknown): void {
   const now = Date.now()
   if (!redisFailureTriggersCooldown(err, eventLoopStalledRecently(now))) {
-    if (now - lastStallWarnAt < 60_000) return
-    lastStallWarnAt = now
+    const slot = stallWarnSlot()
+    if (now - slot.at < 60_000) return
+    slot.at = now
     console.warn('[redis]', op, 'timed out during a Node event-loop stall, Redis kept on', key)
     return
   }

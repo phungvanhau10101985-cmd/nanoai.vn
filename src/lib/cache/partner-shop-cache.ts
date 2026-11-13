@@ -138,8 +138,23 @@ function bumpLater(task: Promise<unknown>): void {
   })
 }
 
+/**
+ * Job kiểm kho / dịch ảnh ghi từng SP. Mỗi INCR làm mọi trang shop mất id-list và
+ * kẹt event loop (log: redis timeout trên `pw:inv:…:ids:shop`). Gộp trong 2 giây.
+ */
+const INVENTORY_BUMP_COALESCE_MS = 2000
+const inventoryBumpTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
 export function bumpInventoryCacheLater(partnerId: string | null | undefined): void {
-  bumpLater(bumpInventoryCache(partnerId))
+  const id = String(partnerId ?? '').trim()
+  if (!id) return
+  if (inventoryBumpTimers.has(id)) return
+  const timer = setTimeout(() => {
+    inventoryBumpTimers.delete(id)
+    bumpLater(bumpInventoryCache(id))
+  }, INVENTORY_BUMP_COALESCE_MS)
+  timer.unref?.()
+  inventoryBumpTimers.set(id, timer)
 }
 
 /** Cache cây danh mục dùng chung — không gắn một shop. */

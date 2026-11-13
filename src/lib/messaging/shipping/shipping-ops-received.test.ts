@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PartnerEmsRecord } from './ems-types'
+import { isCodAmountMismatch, isCodSettlementPaid, shouldPreserveConfirmedFull } from './ems-cod-status'
 import {
+  accumulateOpsStats,
   buildReceivedTimeline,
   filterRecordsForReceivedPeriod,
+  matchesOpsBucket,
   receivedPeriodCalendar,
   receivedPeriodKey,
 } from './shipping-ops'
@@ -168,5 +171,40 @@ describe('received timeline matches 188 actual-receipt axis', () => {
     assert.equal(week.label, 'Tuần 40/2026')
     assert.equal(week.startYmd, '2026-09-28')
     assert.equal(week.endYmd, '2026-10-04')
+  })
+})
+
+describe('reconciled COD mismatches stay in the unpaid delivered report until confirmed', () => {
+  it('keeps amount_mismatch unpaid and treats a full confirmation as paid', () => {
+    const mismatch = sampleRecord({
+      id: 'mis',
+      ems_phase: 'delivered',
+      ems_status: 'Phát thành công',
+      cod_amount: 1026000,
+      cod_paid_amount: 638000,
+      cod_settlement_status: 'amount_mismatch',
+      cod_settlement_message: 'Lệch tiền',
+    })
+    const confirmed = sampleRecord({
+      id: 'ok',
+      ems_phase: 'delivered',
+      ems_status: 'Phát thành công',
+      cod_amount: 1026000,
+      cod_paid_amount: 1026000,
+      cod_paid_date: '2026-11-13',
+      cod_settlement_status: 'confirmed_full',
+    })
+    assert.equal(isCodAmountMismatch(mismatch.cod_settlement_status), true)
+    assert.equal(isCodSettlementPaid(confirmed.cod_settlement_status), true)
+    assert.equal(shouldPreserveConfirmedFull('confirmed_full', 'amount_mismatch'), true)
+    assert.equal(shouldPreserveConfirmedFull('confirmed_full', 'matched'), false)
+    assert.equal(matchesOpsBucket(mismatch, 'cod_delivered_unpaid'), true)
+    assert.equal(matchesOpsBucket(mismatch, 'cod_paid'), false)
+    assert.equal(matchesOpsBucket(confirmed, 'cod_delivered_unpaid'), false)
+    assert.equal(matchesOpsBucket(confirmed, 'cod_paid'), true)
+    const stats = accumulateOpsStats([mismatch, confirmed])
+    assert.equal(stats.cod_delivered_unpaid_count, 1)
+    assert.equal(stats.cod_delivered_unpaid_total, 1026000)
+    assert.equal(stats.cod_paid_count, 1)
   })
 })

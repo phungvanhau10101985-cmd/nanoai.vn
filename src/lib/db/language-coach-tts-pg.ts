@@ -1,3 +1,4 @@
+import { languageCoachCacheStatDayIct } from '@/lib/db/language-coach-cache-day'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
@@ -105,7 +106,10 @@ export async function incrementLanguageCoachCacheStatPg(metric: 'tts_hit' | 'tts
   if (!isPgConfigured()) return
   try {
     const pool = getPgPool()
-    await pool.query('select public.increment_language_coach_cache_stat($1::text, 1)', [metric])
+    await pool.query('select public.increment_language_coach_cache_stat($1::text, 1, $2::date)', [
+      metric,
+      languageCoachCacheStatDayIct(),
+    ])
   } catch {
     // Giữ đường TTS nhanh nếu RPC lỗi (giống catch trong route cũ).
   }

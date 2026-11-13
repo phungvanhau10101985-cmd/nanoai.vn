@@ -1,3 +1,4 @@
+import { isCodSettlementPaid } from '@/lib/messaging/shipping/ems-cod-status'
 import type { PartnerEmsRecord } from '@/lib/messaging/shipping/ems-types'
 import type { OpsBucketKey } from '@/lib/messaging/shipping/ems-types'
 
@@ -63,7 +64,7 @@ export function deliveryBucket(record: PartnerEmsRecord): DeliveryBucket {
   if (isEmsRecordShopReturnReceived(record)) return 'return_shop_received'
   if (isEmsReturnPendingShop(record.ems_status)) return 'return_pending_shop'
   if (isEmsDelivered(record.ems_phase, record.ems_status)) return 'delivered'
-  if ((record.cod_settlement_status || '').trim().toLowerCase() === 'matched') return 'delivered'
+  if (isCodSettlementPaid(record.cod_settlement_status)) return 'delivered'
   if (isEmsInTransit(record.ems_phase, record.ems_status)) return 'in_transit'
   return 'pending'
 }
@@ -77,7 +78,7 @@ export function recordCodAmount(record: Pick<PartnerEmsRecord, 'cod_amount'>): n
 }
 
 export function isCodPaid(record: Pick<PartnerEmsRecord, 'cod_settlement_status'>): boolean {
-  return (record.cod_settlement_status || '').trim().toLowerCase() === 'matched'
+  return isCodSettlementPaid(record.cod_settlement_status)
 }
 
 export function matchesOpsBucket(record: PartnerEmsRecord, bucket: OpsBucketKey): boolean {
@@ -297,7 +298,7 @@ const RECEIVED_DELIVERED_PHASES = new Set(['delivered', 'cod_collected', 'cod_se
 
 /** Cùng điều kiện 188: bỏ vận đơn đã giao và vận đơn EMS đã trả COD. */
 export function shipmentQualifiesAsReceivedShopReturn(record: Pick<PartnerEmsRecord, 'ems_status' | 'ems_phase' | 'cod_settlement_status'>): boolean {
-  if ((record.cod_settlement_status || '').trim().toLowerCase() === 'matched') return false
+  if (isCodSettlementPaid(record.cod_settlement_status)) return false
   const phase = (record.ems_phase || '').trim().toLowerCase()
   if (RECEIVED_DELIVERED_PHASES.has(phase)) return false
   const text = (record.ems_status || '').toLowerCase()

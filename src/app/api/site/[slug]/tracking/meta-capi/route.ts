@@ -38,6 +38,7 @@ function firstMetaId(
  * docs/188_BEHAVIOR_SPEC.md mục E.3.
  */
 export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
+  try {
   const { slug } = await ctx.params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
@@ -122,4 +123,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     return NextResponse.json({ ok: false, error: result.error }, { status: 200 })
   }
   return NextResponse.json({ ok: true })
+  } catch (e) {
+    console.warn('[site tracking meta-capi] failed', e instanceof Error ? e.message : e)
+    return NextResponse.json({ ok: false, error: 'capi_failed' }, { status: 200 })
+  }
 }

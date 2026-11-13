@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast'
 import type { WebLocale } from '@/lib/i18n/config'
 import { partnerShippingOpsCopy, type PartnerShippingOpsCopy } from '@/lib/i18n/partner-shipping-ops-copy'
 import { messagingSettingsSectionHref } from '@/lib/messaging/messaging-settings-section-href'
+import { isCodAmountMismatch, isCodSettlementPaid } from '@/lib/messaging/shipping/ems-cod-status'
 import type { OpsBucketKey, PartnerEmsRecord, EmsImportSummary, EmsTrackingEvent } from '@/lib/messaging/shipping/ems-types'
 import { Loader2 } from 'lucide-react'
 
@@ -313,8 +314,14 @@ function codReconcileLabel(t: PartnerShippingOpsCopy, status: string | null | un
   return status || '—'
 }
 
+function codRecordStatusLabel(t: PartnerShippingOpsCopy, status: string | null | undefined): string {
+  if (isCodAmountMismatch(status)) return t.searchCard.codReconciledMismatch
+  if ((status || '').trim().toLowerCase() === 'confirmed_full') return t.searchCard.codConfirmedFull
+  return codReconcileLabel(t, status)
+}
+
 function codReconcileBadge(status: string | null | undefined): string {
-  if (status === 'matched') return 'border-emerald-200 bg-emerald-100 text-emerald-800'
+  if (status === 'matched' || status === 'confirmed_full') return 'border-emerald-200 bg-emerald-100 text-emerald-800'
   if (status === 'amount_mismatch') return 'border-amber-200 bg-amber-100 text-amber-900'
   if (status === 'record_not_found') return 'border-red-200 bg-red-100 text-red-800'
   return 'border-gray-200 bg-gray-100 text-gray-800'
@@ -372,7 +379,7 @@ function emsTimelineText(t: PartnerShippingOpsCopy, step: string | null | undefi
 }
 
 function codCollectedPending(row: PartnerEmsRecord): boolean {
-  if ((row.cod_settlement_status || '').trim().toLowerCase() === 'matched') return false
+  if (isCodSettlementPaid(row.cod_settlement_status) || isCodAmountMismatch(row.cod_settlement_status)) return false
   if (!row.cod_amount || row.cod_amount <= 0) return false
   const phase = (row.ems_phase || '').trim().toLowerCase()
   const status = (row.ems_status || '').toLowerCase()
@@ -401,6 +408,7 @@ function EmsSearchResultCard({
   refreshing,
   onViewStatus,
   onRefresh,
+  onConfirmCodFull,
 }: {
   partnerId: string
   row: PartnerEmsRecord
@@ -408,10 +416,13 @@ function EmsSearchResultCard({
   refreshing: boolean
   onViewStatus: (row: PartnerEmsRecord) => void
   onRefresh: (id: string) => void
+  onConfirmCodFull?: (row: PartnerEmsRecord) => void
 }) {
   const c = t.searchCard
-  const paidDate = (row.cod_settlement_status || '').trim().toLowerCase() === 'matched' ? formatCodPaidDate(row.cod_paid_date) : null
-  const paidAmount = (row.cod_settlement_status || '').trim().toLowerCase() === 'matched' ? row.cod_paid_amount ?? row.cod_amount : null
+  const paid = isCodSettlementPaid(row.cod_settlement_status)
+  const mismatch = isCodAmountMismatch(row.cod_settlement_status)
+  const paidDate = paid ? formatCodPaidDate(row.cod_paid_date) : null
+  const paidAmount = paid ? row.cod_paid_amount ?? row.cod_amount : null
   return (
     <article className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -434,9 +445,16 @@ function EmsSearchResultCard({
             )}
           </div>
         </div>
-        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${syncBadgeClass(row.sync_status)}`}>
-          {syncLabel(t, row.sync_status)}
-        </span>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {mismatch ? (
+            <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">
+              {c.codReconciledMismatch}
+            </span>
+          ) : null}
+          <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${syncBadgeClass(row.sync_status)}`}>
+            {syncLabel(t, row.sync_status)}
+          </span>
+        </div>
       </div>
       <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
         <SearchDetail label={c.fieldEmsCode}>{row.ems_tracking_code || '—'}</SearchDetail>
@@ -447,9 +465,17 @@ function EmsSearchResultCard({
             <>
               <span>{paidAmount == null ? '—' : vnd(paidAmount)}</span>
               {paidDate ? <span className="mt-0.5 block text-xs font-medium text-emerald-700">{c.codPaidOn.replace('{date}', paidDate)}</span> : null}
+              {(row.cod_settlement_status || '').trim().toLowerCase() === 'confirmed_full' ? (
+                <span className="mt-0.5 block text-xs font-medium text-emerald-700">{c.codConfirmedFull}</span>
+              ) : null}
             </>
           )}
-          {codCollectedPending(row) ? (
+          {mismatch ? (
+            <span className="mt-0.5 block text-xs font-medium text-amber-800">
+              {c.codReconciledMismatch}
+              {row.cod_settlement_message ? <span className="mt-0.5 block font-normal">{row.cod_settlement_message}</span> : null}
+            </span>
+          ) : codCollectedPending(row) ? (
             <span className="mt-0.5 block text-xs font-medium text-amber-800">{c.codCollectedPending}</span>
           ) : null}
         </SearchDetail>
@@ -481,6 +507,15 @@ function EmsSearchResultCard({
         >
           {refreshing ? c.refreshing : t.trackingRefresh}
         </button>
+        {mismatch && onConfirmCodFull ? (
+          <button
+            type="button"
+            className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-950 hover:bg-amber-50"
+            onClick={() => onConfirmCodFull(row)}
+          >
+            {c.confirmEmsPaidFull}
+          </button>
+        ) : null}
       </div>
     </article>
   )
@@ -638,6 +673,8 @@ export function PartnerShopShippingOpsPanel({
   const [warehouseSize, setWarehouseSize] = useState('')
   const [warehouseColor, setWarehouseColor] = useState('')
   const [warehouseAfter, setWarehouseAfter] = useState<string>('')
+  const [codFullConfirm, setCodFullConfirm] = useState<PartnerEmsRecord | null>(null)
+  const [codFullConfirmBusy, setCodFullConfirmBusy] = useState(false)
 
   const timelineQs = useMemo(() => {
     const q = new URLSearchParams({ granularity })
@@ -841,6 +878,29 @@ export function PartnerShopShippingOpsPanel({
 
   const openBucket = async (key: OpsBucketKey, label: string) => {
     await openRecords({ key, label, axis: 'ops' })
+  }
+
+  const submitCodFullConfirm = async () => {
+    if (!codFullConfirm) return
+    setCodFullConfirmBusy(true)
+    try {
+      const res = await fetch(`${api}/cod-confirm-full`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ record_id: codFullConfirm.id }),
+      })
+      const data = (await res.json().catch(() => null)) as { error?: string; detail?: string } | null
+      if (!res.ok) throw new Error(String(data?.detail || data?.error || t.loadError))
+      setCodFullConfirm(null)
+      toast({ title: t.searchCard.confirmEmsPaidFullDone })
+      await loadList()
+      await loadOps()
+      if (activeBucket) await openRecords({ ...activeBucket, skip: bucketSkip })
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : t.loadError, variant: 'destructive' })
+    } finally {
+      setCodFullConfirmBusy(false)
+    }
   }
 
   const refreshOne = async (id: string) => {
@@ -1241,6 +1301,7 @@ export function PartnerShopShippingOpsPanel({
                       refreshing={busy === 'tracking'}
                       onViewStatus={(item) => void viewStatus(item)}
                       onRefresh={(id) => void refreshOne(id)}
+                      onConfirmCodFull={setCodFullConfirm}
                     />
                   ))}
                   {total > EMS_SEARCH_PREVIEW || skip > 0 ? (
@@ -1500,7 +1561,10 @@ export function PartnerShopShippingOpsPanel({
             {bucketLoading ? <Loader2 className="mb-2 h-4 w-4 animate-spin" /> : null}
             <ul className="mb-3 space-y-0.5 text-xs text-muted-foreground">
               {bucketRows.map((r) => (
-                <li key={`code-${r.id}`}>{[r.order_code, r.ems_tracking_code, r.reference_code].filter(Boolean).join(' · ') || '—'}</li>
+                <li key={`code-${r.id}`}>
+                  {[r.order_code, r.ems_tracking_code, r.reference_code].filter(Boolean).join(' · ') || '—'}
+                  {isCodAmountMismatch(r.cod_settlement_status) ? ` · ${t.searchCard.codReconciledMismatch}` : ''}
+                </li>
               ))}
             </ul>
             <div className="space-y-3">
@@ -1513,6 +1577,7 @@ export function PartnerShopShippingOpsPanel({
                   refreshing={busy === `one-${r.id}`}
                   onViewStatus={(row) => void viewStatus(row)}
                   onRefresh={(id) => void refreshOne(id)}
+                  onConfirmCodFull={setCodFullConfirm}
                 />
               ))}
             </div>
@@ -1522,6 +1587,28 @@ export function PartnerShopShippingOpsPanel({
                 <Button type="button" size="sm" variant="outline" disabled={bucketSkip <= 0 || bucketLoading} onClick={() => void openRecords({ ...activeBucket, skip: Math.max(0, bucketSkip - 25) })}>{t.prevPage}</Button>
                 <Button type="button" size="sm" variant="outline" disabled={bucketSkip + 25 >= bucketTotal || bucketLoading} onClick={() => void openRecords({ ...activeBucket, skip: bucketSkip + 25 })}>{t.nextPage}</Button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {codFullConfirm ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" onClick={() => { if (!codFullConfirmBusy) setCodFullConfirm(null) }}>
+          <div className="w-full max-w-md rounded-xl border bg-background p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold">{t.searchCard.confirmEmsPaidFullTitle}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t.searchCard.confirmEmsPaidFullBody
+                .replace('{code}', codFullConfirm.order_code || codFullConfirm.ems_tracking_code || codFullConfirm.reference_code || '—')
+                .replace('{amount}', vnd(codFullConfirm.cod_amount))}
+            </p>
+            {codFullConfirm.cod_settlement_message ? (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">{codFullConfirm.cod_settlement_message}</p>
+            ) : null}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" disabled={codFullConfirmBusy} onClick={() => setCodFullConfirm(null)}>{t.searchCard.confirmEmsPaidFullNo}</Button>
+              <Button type="button" size="sm" disabled={codFullConfirmBusy} onClick={() => void submitCodFullConfirm()}>
+                {codFullConfirmBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : t.searchCard.confirmEmsPaidFullYes}
+              </Button>
             </div>
           </div>
         </div>
@@ -2192,7 +2279,8 @@ export function PartnerShopShippingOpsPanel({
                   </td>
                 </tr>
               ) : rows.map((r) => {
-                const paidMatched = (r.cod_settlement_status || '').trim().toLowerCase() === 'matched'
+                const paidMatched = isCodSettlementPaid(r.cod_settlement_status)
+                const codMismatch = isCodAmountMismatch(r.cod_settlement_status)
                 const paidDate = paidMatched ? formatCodPaidDate(r.cod_paid_date) : null
                 const paidAmount = paidMatched ? r.cod_paid_amount ?? r.cod_amount : null
                 const rawShop = r.shop_order_status || r.order_status
@@ -2223,11 +2311,20 @@ export function PartnerShopShippingOpsPanel({
                           {paidDate ? <div className="mt-0.5 text-[11px] font-medium text-emerald-700">{t.searchCard.codPaidOn.replace('{date}', paidDate)}</div> : null}
                         </>
                       )}
-                      {codCollectedPending(r) ? <div className="mt-0.5 max-w-[180px] text-[11px] font-medium text-amber-800">{t.searchCard.codCollectedPending}</div> : null}
+                      {codMismatch ? (
+                        <div className="mt-0.5 max-w-[180px] text-[11px] font-medium text-amber-800">{t.searchCard.codReconciledMismatch}</div>
+                      ) : codCollectedPending(r) ? (
+                        <div className="mt-0.5 max-w-[180px] text-[11px] font-medium text-amber-800">{t.searchCard.codCollectedPending}</div>
+                      ) : null}
                       {r.cod_settlement_status ? (
                         <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${codReconcileBadge(r.cod_settlement_status)}`}>
-                          {codReconcileLabel(t, r.cod_settlement_status)}
+                          {codRecordStatusLabel(t, r.cod_settlement_status)}
                         </span>
+                      ) : null}
+                      {codMismatch ? (
+                        <button type="button" className="mt-1 block text-left text-[11px] font-medium text-amber-900 underline" onClick={() => setCodFullConfirm(r)}>
+                          {t.searchCard.confirmEmsPaidFull}
+                        </button>
                       ) : null}
                     </td>
                     <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">

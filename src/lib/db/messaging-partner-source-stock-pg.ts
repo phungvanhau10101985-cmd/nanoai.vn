@@ -406,9 +406,10 @@ export async function commitSourceStockResultFromPg(opts: {
     [opts.partnerId, opts.inventoryId]
   )
   if (!rows[0]) return false
+  const previousQty = Number(rows[0].stock_qty || 0)
   const stockQty = nextStockQtyAfterSourceCheck({
     status: opts.status,
-    stockQty: Number(rows[0].stock_qty || 0),
+    stockQty: previousQty,
     previousStatus: opts.previousStatus,
   })
   await getPgPool().query(
@@ -433,7 +434,7 @@ export async function commitSourceStockResultFromPg(opts: {
       stockQty,
     ]
   )
-  bumpInventoryCacheLater(opts.partnerId)
+  if (stockQty !== previousQty) bumpInventoryCacheLater(opts.partnerId)
   return true
 }
 

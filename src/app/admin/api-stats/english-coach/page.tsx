@@ -7,17 +7,17 @@ import { LogsTableWithDetail } from '../logs-table-with-detail'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { calcCostVnd, calcCostVndSplit, USD_TO_VND } from '../api-cost'
+import { ictDayEndIso, ictDayStartIso, ictShiftDays, ictYmd } from '../ict-date'
 import { buildEnglishCoachFeatureLabelsForLogs } from '../english-coach-feature-labels'
 import {
   aggregateEnglishCoachApiCostByLessonKind,
   aggregateLanguageCoachCredits,
 } from '../language-coach-financials'
+import { buildLanguageCoachCacheReport } from '../language-coach-cache-savings'
+import { fetchLanguageCoachCacheDailyTotals } from '../fetch-language-coach-cache-daily'
+import { LanguageCoachCachePanel } from '../language-coach-cache-panel'
 import { fetchAllApiUsageLogsInRange, sortApiUsageLogsNewestFirst } from '../fetch-api-usage-logs-range'
 import { fetchLanguageCoachCreditEventsInRange } from '@/lib/db/admin-api-stats-pg'
-
-function toYMD(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 export default async function AdminEnglishCoachApiStatsPage({
   searchParams = {},
@@ -34,21 +34,18 @@ export default async function AdminEnglishCoachApiStatsPage({
   }
   const params = searchParams ?? {}
 
-  const today = new Date()
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(today.getDate() - 30)
-
   const fromParam = params.from?.trim()
   const toParam = params.to?.trim()
-  const fromDate = fromParam || toYMD(thirtyDaysAgo)
-  const toDate = toParam || toYMD(today)
+  const fromDate = fromParam || ictShiftDays(-30)
+  const toDate = toParam || ictYmd()
 
-  const fromIso = fromDate + 'T00:00:00'
-  const toIso = toDate + 'T23:59:59.999'
+  const fromIso = ictDayStartIso(fromDate)
+  const toIso = ictDayEndIso(toDate)
 
-  const [logFetch, creditEvents] = await Promise.all([
+  const [logFetch, creditEvents, cacheDaily] = await Promise.all([
     fetchAllApiUsageLogsInRange(fromIso, toIso, { featureLike: 'english-coach-%' }),
     fetchLanguageCoachCreditEventsInRange(fromIso, toIso),
+    fetchLanguageCoachCacheDailyTotals(fromDate, toDate),
   ])
 
   const { data: logsRaw, error } = logFetch
@@ -178,6 +175,7 @@ export default async function AdminEnglishCoachApiStatsPage({
   }
   const apiCostVndInRange = totals.totalCostVnd
   const apiCostUsdInRange = apiCostVndInRange / USD_TO_VND
+  const coachCacheReport = buildLanguageCoachCacheReport(cacheDaily.totals, logsList)
 
   const formatNum = (n: number) => n.toLocaleString('vi-VN')
   const formatVnd = (n: number) => `${n.toLocaleString('vi-VN')}₫`
@@ -215,11 +213,11 @@ export default async function AdminEnglishCoachApiStatsPage({
         </p>
         <p className="text-xs text-amber-800/90 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-3">
           {tr(
-            'Lưu ý: TTS OpenAI / Gemini TTS và DeepSeek fallback không ghi vào bảng này. Chỉ có lượt Gemini có usageMetadata mới xuất hiện sau khi deploy bản ghi log.',
-            'Note: OpenAI / Gemini TTS and DeepSeek fallback are not logged here. Only Gemini calls with usageMetadata appear after the logging deploy.',
-            '说明：OpenAI/Gemini TTS 与 DeepSeek 兜底不会记入此表。部署记录逻辑后，仅含 usageMetadata 的 Gemini 调用会出现。',
-            '注: OpenAI/Gemini TTS と DeepSeek フォールバックはここに含まれません。ログ実装後、usageMetadata 付き Gemini のみ表示されます。',
-            '참고: OpenAI/Gemini TTS·DeepSeek 폴백은 여기에 없습니다. 로깅 배포 후 usageMetadata가 있는 Gemini만 표시됩니다.'
+            'Đọc câu (TTS) và tra từ chỉ ghi log khi gọi API. Lượt cache hit không có dòng log — tiền tiết kiệm ở khối trên lấy đơn giá từ các lượt miss trong cùng khoảng ngày.',
+            'Read-aloud (TTS) and word lookup are logged only when the API is called. Cache hits have no log row — savings above use the miss price from the same date range.',
+            '朗读 (TTS) 和查词只在调用 API 时记日志。缓存命中没有日志行 — 上方节省按同一日期内未命中的单价估算。',
+            '読み上げ（TTS）と単語検索は API を呼んだときだけ記録します。キャッシュヒットにログ行はありません。上の節約額は同じ期間のミス単価です。',
+            '읽어 주기(TTS)와 단어 조회는 API를 호출할 때만 기록합니다. 캐시 히트에는 로그가 없고, 위 절감은 같은 기간의 미스 단가입니다.'
           )}
         </p>
       </div>
@@ -229,6 +227,14 @@ export default async function AdminEnglishCoachApiStatsPage({
         defaultFrom={fromDate}
         defaultTo={toDate}
         basePath="/admin/api-stats/english-coach"
+      />
+
+      <LanguageCoachCachePanel
+        locale={uiLocale}
+        rangeLabel={rangeLabel}
+        coachApiCostVnd={apiCostVndInRange}
+        report={coachCacheReport}
+        loadError={cacheDaily.error}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">

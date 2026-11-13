@@ -1,5 +1,6 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { isCodSettlementPaid } from '@/lib/messaging/shipping/ems-cod-status'
 import type { PartnerEmsRecord, EmsSyncStatus, EmsImportSummary } from '@/lib/messaging/shipping/ems-types'
 import { returnToShopLabel } from '@/lib/messaging/shipping/shipping-ops'
 import { partnerOrderShippingTransitionSql } from '@/lib/messaging/fulfillment/order-lifecycle-transition'
@@ -372,7 +373,7 @@ export async function upsertPartnerEmsRecordFromPg(
   if (!ref) return null
   const existing = await fetchPartnerEmsRecordByReferenceFromPg(input.partnerId, ref)
   const shopConfirmed = Boolean(existing?.shop_return_received_at) || (existing?.order_status || '').toLowerCase() === 'returned'
-  const keepCodPaid = (existing?.cod_settlement_status || '').toLowerCase() === 'matched'
+  const keepCodPaid = isCodSettlementPaid(existing?.cod_settlement_status)
   const pool = getPgPool()
   if (!existing) {
     const row = await pgQueryOne(
@@ -521,19 +522,26 @@ export async function applyPartnerEmsCodSettlementFromPg(input: {
   message?: string | null
 }): Promise<void> {
   if (!isPgConfigured()) return
-  const matched = input.status === 'matched'
   await pgQuery(
     `update public.messaging_partner_ems_shipping_records
-     set cod_paid_amount = $3,
-         cod_paid_date = $4::date,
-         cod_settlement_status = $5,
-         cod_settlement_message = $6,
+     set cod_paid_amount = case
+           when lower(coalesce(cod_settlement_status, '')) = 'confirmed_full' and $5 <> 'matched' then cod_paid_amount
+           else $3 end,
+         cod_paid_date = case
+           when lower(coalesce(cod_settlement_status, '')) = 'confirmed_full' and $5 <> 'matched' then cod_paid_date
+           else $4::date end,
+         cod_settlement_status = case
+           when lower(coalesce(cod_settlement_status, '')) = 'confirmed_full' and $5 <> 'matched' then cod_settlement_status
+           else $5 end,
+         cod_settlement_message = case
+           when lower(coalesce(cod_settlement_status, '')) = 'confirmed_full' and $5 <> 'matched' then cod_settlement_message
+           else $6 end,
          updated_at = now()
      where partner_id = $1::uuid and id = $2::uuid`,
     [
       input.partnerId,
       input.recordId,
-      matched ? input.paidAmount : input.paidAmount,
+      input.paidAmount,
       input.paymentDate,
       input.status,
       input.message || null,
@@ -547,7 +555,8 @@ export async function clearPartnerEmsCodSettlementOnRecordFromPg(partnerId: stri
     `update public.messaging_partner_ems_shipping_records
      set cod_paid_amount = null, cod_paid_date = null,
          cod_settlement_status = null, cod_settlement_message = null, updated_at = now()
-     where partner_id = $1::uuid and id = $2::uuid`,
+     where partner_id = $1::uuid and id = $2::uuid
+       and lower(coalesce(cod_settlement_status, '')) <> 'confirmed_full'`,
     [partnerId, recordId],
   )
 }

@@ -14,7 +14,7 @@ import {
   summarizePartnerEmsRecordsFromPg,
 } from '@/lib/db/messaging-partner-ems-shipping-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { importCodSettlementExcel, listCodSettlementBatchesFromPg } from '@/lib/messaging/shipping/ems-cod-settlement'
+import { confirmPartnerCodPaidInFull, importCodSettlementExcel, listCodSettlementBatchesFromPg } from '@/lib/messaging/shipping/ems-cod-settlement'
 import {
   buildCodSettlementSampleXlsx,
   buildEmsShipmentSampleXlsx,
@@ -335,6 +335,13 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         userId: access.userId,
       })
       return NextResponse.json(result)
+    }
+    if (route === 'cod-confirm-full') {
+      const body = (await req.json().catch(() => null)) as { record_id?: string } | null
+      const recordId = String(body?.record_id || '').trim()
+      if (!recordId) return jsonError('Thiếu vận đơn cần xác nhận.')
+      const row = await confirmPartnerCodPaidInFull({ partnerId, recordId })
+      return NextResponse.json({ ok: true, row })
     }
     if (route === 'freight-settlement-import') {
       const uploaded = await readUpload(req)

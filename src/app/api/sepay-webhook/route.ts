@@ -56,6 +56,15 @@ import {
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
 
+const missingPaymentWarned = new Set<string>()
+
+function warnMissingPendingPayment(content: string): void {
+  if (missingPaymentWarned.has(content)) return
+  if (missingPaymentWarned.size > 400) missingPaymentWarned.clear()
+  missingPaymentWarned.add(content)
+  console.warn('No pending payment found for content:', content)
+}
+
 const toStringValue = (value: SePayBody[string]): string | undefined => {
   if (value === null || value === undefined) return undefined
   return String(value).trim()
@@ -573,7 +582,7 @@ export async function POST(request: NextRequest) {
       }
     }
     if (!pending) {
-      console.warn('No pending payment found for content:', normalizedContent)
+      warnMissingPendingPayment(normalizedContent)
       return NextResponse.json({ error: 'Pending payment not found' }, { status: 404 })
     }
 
