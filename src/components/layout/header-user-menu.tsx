@@ -44,6 +44,7 @@ import {
 import type { AppUser } from '@/lib/auth/app-user'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { clearPlatformMetaAdvancedMatching } from '@/lib/tracking/platform-meta-advanced-matching-client'
 
 interface HeaderUserMenuProps {
   user: AppUser
@@ -310,7 +311,14 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
             </DropdownMenuItem>
           )}
           <DropdownMenuItem asChild>
-            <form action="/auth/signout" method="post" className="w-full">
+            <form
+              action="/auth/signout"
+              method="post"
+              className="w-full"
+              onSubmit={() => {
+                clearPlatformMetaAdvancedMatching()
+              }}
+            >
               <button
                 type="submit"
                 className="flex w-full items-center cursor-pointer"

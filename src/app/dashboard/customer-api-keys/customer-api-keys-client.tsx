@@ -27,6 +27,7 @@ import type { UserAiApiKeyPublicRow } from '@/lib/db/user-ai-api-keys-pg'
 import type { ByokPlanPaymentRow, ByokSubscriptionRow } from '@/lib/db/user-ai-api-key-billing-pg'
 import { PaymentQrImage } from '@/components/payment-qr-image'
 import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
+import { trackConfirmedPaymentPurchase } from '@/lib/tracking/nanoai-platform-commerce-client'
 
 export type CustomerApiKeyPlanCopy = {
   id: 'basic' | 'pro' | 'business'
@@ -208,7 +209,15 @@ export function CustomerApiKeysClient({
       setActivePayment(result.payment.status === 'pending' ? result.payment : null)
       setPayments((cur) => [result.payment, ...cur.filter((p) => p.id !== result.payment.id)])
       await refreshStatus()
-      if (result.payment.status === 'completed') toast({ title: copy.paymentCompleted })
+      if (result.payment.status === 'completed') {
+        trackConfirmedPaymentPurchase({
+          paymentId: result.payment.id,
+          amountVnd: result.payment.amount,
+          contentId: 'feature_byok_plan',
+          contentName: `Gói API ${result.payment.plan_id}`,
+        })
+        toast({ title: copy.paymentCompleted })
+      }
     })
   }
 
@@ -220,6 +229,12 @@ export function CustomerApiKeysClient({
         setActivePayment(result.payment.status === 'pending' ? result.payment : null)
         setPayments((cur) => [result.payment, ...cur.filter((p) => p.id !== result.payment.id)])
         if (result.payment.status === 'completed') {
+          trackConfirmedPaymentPurchase({
+            paymentId: result.payment.id,
+            amountVnd: result.payment.amount,
+            contentId: 'feature_byok_plan',
+            contentName: `Gói API ${result.payment.plan_id}`,
+          })
           await refreshStatus()
           toast({ title: copy.paymentCompleted })
         }

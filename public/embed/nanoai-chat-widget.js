@@ -102,6 +102,48 @@
     if (!shopName) shopName = 'Chat'
 
     var logoUrl = getAttr('data-logo-url', '')
+
+    /** Logo mặc định nền tảng trong mã nhúng → icon tư vấn của shop (theme / file công khai). */
+    function isPlatformEmbedLogo(url) {
+      return /\/icons\/icon-(?:192x192|512x512)\.png(?:[?#]|$)/i.test(String(url || ''))
+    }
+
+    function applyEmbedChatIcon(img, url) {
+      var next = String(url || '').trim()
+      if (!/^https:\/\/.+/i.test(next) || !img) return
+      if (img.getAttribute('src') === next) return
+      img.src = next
+      try {
+        script.setAttribute('data-logo-url', next)
+      } catch (_) {}
+    }
+
+    function upgradeEmbedLogo(img) {
+      if (!img || !isPlatformEmbedLogo(logoUrl) || !widgetScriptOrigin) return
+      var slug = extractGuestSlugFromChatUrl(chatUrl)
+      if (!slug) return
+      var brandUrl = widgetScriptOrigin + '/api/messaging/guest/' + encodeURIComponent(slug) + '/brand'
+      fetch(brandUrl, { credentials: 'omit', mode: 'cors' })
+        .then(function (r) {
+          return r.ok ? r.json() : null
+        })
+        .then(function (j) {
+          var fromBrand = j && (j.chatIconLogoUrl || j.chatIconUrl)
+          if (fromBrand) {
+            applyEmbedChatIcon(img, fromBrand)
+            return null
+          }
+          return fetch(widgetScriptOrigin + '/embed/chat-icons.json', { credentials: 'omit', mode: 'cors' })
+            .then(function (r) {
+              return r.ok ? r.json() : null
+            })
+            .then(function (map) {
+              if (map && typeof map === 'object' && map[slug]) applyEmbedChatIcon(img, map[slug])
+            })
+        })
+        .catch(function () {})
+    }
+
     var side = getAttr('data-side', 'right') === 'left' ? 'left' : 'right'
     var bottom = num(getAttr('data-bottom', '24'), 24, 0, 800)
     var offsetX = num(getAttr('data-offset-x', '16'), 16, 0, 300)
@@ -199,6 +241,7 @@
         if (primaryTryOn && tryOnBubbleLabel) bubble.style.fontSize = '11px'
       }
       logoMask.appendChild(logo)
+      upgradeEmbedLogo(logo)
       bubble.appendChild(logoMask)
     } else {
       bubble.textContent = primaryTryOn && tryOnBubbleLabel ? tryOnBubbleLabel.slice(0, 12) : 'AI'

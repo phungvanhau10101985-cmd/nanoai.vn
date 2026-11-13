@@ -36,6 +36,16 @@ function readCookie(name: string): string {
   return ''
 }
 
+function readClickId(cookieName: '_fbc' | '_fbp', storageKey: 'nano_meta_fbc' | 'nano_meta_fbp'): string {
+  const fromCookie = readCookie(cookieName)
+  if (fromCookie) return fromCookie
+  try {
+    return window.localStorage.getItem(storageKey) || ''
+  } catch {
+    return ''
+  }
+}
+
 export type MetaStandardEventName =
   | 'CompleteRegistration'
   | 'StartTrial'
@@ -69,8 +79,8 @@ function sendMetaStandardEventToServer(params: {
     eventId: params.eventId,
     eventSourceUrl: window.location.href.slice(0, 2000),
     customData: params.customData,
-    fbc: readCookie('_fbc'),
-    fbp: readCookie('_fbp'),
+    fbc: readClickId('_fbc', 'nano_meta_fbc'),
+    fbp: readClickId('_fbp', 'nano_meta_fbp'),
     externalId,
   }
   void fetch('/api/tracking/meta-standard-event', {
@@ -137,8 +147,17 @@ export function fireMetaStandardEvent(
     : undefined
   const requestedId = String(options?.eventId || '').trim()
   const eventId = /^[A-Za-z0-9._:-]{8,128}$/.test(requestedId) ? requestedId : createEventId()
-  if (hasFbq()) {
-    window.fbq!('track', eventName, customData ?? {}, { eventID: eventId })
+  const payload = customData ?? {}
+  const sendPixel = () => {
+    if (!hasFbq()) return false
+    window.fbq!('track', eventName, payload, { eventID: eventId })
+    return true
+  }
+  if (!sendPixel()) {
+    const started = Date.now()
+    const timer = window.setInterval(() => {
+      if (sendPixel() || Date.now() - started > 8000) window.clearInterval(timer)
+    }, 250)
   }
   sendMetaStandardEventToServer({
     eventName,

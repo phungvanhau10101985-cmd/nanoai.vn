@@ -50,7 +50,7 @@ export function trackWeddingViewContent(): boolean {
   return fire('ViewContent', weddingViewContentCustomData(), { skipDedupe: true })
 }
 
-/** Tạo thiệp mới thành công. Cùng sự kiện thêm giỏ, id và giá niêm yết khớp feed catalog. */
+/** Tạo thiệp thành công = thêm giỏ trên Facebook, Google và TikTok. Một thiệp một lần. */
 export function trackWeddingAddToCart(cardId: string): boolean {
   const id = cardId.trim()
   if (!id) return false
@@ -83,7 +83,7 @@ export function trackWeddingGuestPackCheckout(input: {
   return accepted
 }
 
-/** Ngân hàng báo tiền về (quét QR thành công). Giá trị đơn = số tiền của gói vừa trả. */
+/** Mua gói đã xác nhận thanh toán. Trừ credit là một lượt mua riêng, không gộp vào giao dịch này. */
 export function trackWeddingGuestPackPurchase(input: {
   packId: WeddingGuestPackId
   amountVnd: number

@@ -194,7 +194,42 @@ export function broadcastNanoAiCommerce(input: {
   return true
 }
 
-/** Đọc cookie server vừa ghi khi trừ credit / mua gói, bắn Purchase một lần rồi xóa. */
+const CREDIT_TOPUP_CONTENT_ID = 'feature_wallet_topup'
+
+/** Nạp credit đã xác nhận = mua hàng trên Facebook, Google và TikTok. */
+export function trackCreditTopupPurchase(paymentId: string, amountVnd: number): boolean {
+  return trackConfirmedPaymentPurchase({
+    paymentId,
+    amountVnd,
+    contentId: CREDIT_TOPUP_CONTENT_ID,
+    contentName: 'Nạp credit',
+  })
+}
+
+/** Thanh toán đã xác nhận = mua hàng trên Facebook, Google và TikTok. */
+export function trackConfirmedPaymentPurchase(input: {
+  paymentId: string
+  amountVnd: number
+  contentId: string
+  contentName: string
+}): boolean {
+  const paymentId = input.paymentId.trim()
+  const amount = Math.round(Number(input.amountVnd) || 0)
+  const contentId = input.contentId.trim()
+  if (!paymentId || amount <= 0 || !contentId) return false
+  const safeId = paymentId.replace(/[^A-Za-z0-9._:-]/g, '').slice(0, 70)
+  return broadcastNanoAiCommerce({
+    event: 'Purchase',
+    contentId,
+    contentName: input.contentName.trim().slice(0, 200) || contentId,
+    valueVnd: amount,
+    orderId: paymentId.slice(0, 80),
+    eventId: `Purchase_${safeId || 'paid'}`,
+    dedupeKey: `pay_${paymentId}`,
+  })
+}
+
+/** Đọc cookie server vừa ghi khi trừ credit, bắn Purchase một lần rồi xóa. */
 export function flushPlatformPurchaseCookie(): void {
   if (!canTrack()) return
   const raw = readCookie(NANO_PLATFORM_PURCHASE_COOKIE)

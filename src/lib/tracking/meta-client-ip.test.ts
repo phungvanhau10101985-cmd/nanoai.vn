@@ -26,6 +26,15 @@ test('meta client ip keeps a public IPv4 when no IPv6 is present', () => {
   assert.equal(ip, '203.0.113.9')
 })
 
+test('meta client ip reads a public IPv6 from the Forwarded header', () => {
+  const ip = metaClientIpFromHeaders(
+    headers({
+      forwarded: 'for=203.0.113.8, for="[2001:db8::44]";proto=https',
+    })
+  )
+  assert.equal(ip, '2001:db8::44')
+})
+
 test('meta client ip drops link-local IPv6 and uses Cloudflare client IP', () => {
   const ip = metaClientIpFromHeaders(
     headers({

@@ -142,6 +142,13 @@ export async function saveAdminIntegrationsConfigAction(
 
   const result = await upsertAdminIntegrationsValueJson(SETTINGS_KEY, payload, gate.user.id)
   if ('error' in result) return { error: result.error }
+  if (payload.facebookPixelId && payload.facebookCapiAccessToken) {
+    const { ensureMetaPixelAutomaticMatching } = await import('@/lib/tracking/meta-pixel-automatic-matching')
+    await Promise.race([
+      ensureMetaPixelAutomaticMatching(payload.facebookPixelId, payload.facebookCapiAccessToken, { force: true }),
+      new Promise((resolve) => setTimeout(resolve, 4000)),
+    ])
+  }
   revalidatePath('/admin/integrations')
   return { ok: true }
 }

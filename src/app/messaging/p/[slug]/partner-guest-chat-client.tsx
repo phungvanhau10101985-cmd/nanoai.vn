@@ -148,6 +148,7 @@ import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
 import { buildNanoAiCreditMetaCustomData } from '@/lib/catalog/nanoai-facebook-catalog'
+import { trackCreditTopupPurchase } from '@/lib/tracking/nanoai-platform-commerce-client'
 import {
   MESSAGING_GUEST_SESSION_STORAGE_KEY,
   MESSAGING_GUEST_SESSION_STORAGE_KEY_LEGACY,
@@ -5114,6 +5115,7 @@ export function PartnerGuestChatClient({
               creditsAdded: Math.max(0, Math.round(Number(j.payment.credits_added) || 0)),
             }),
           })
+          trackCreditTopupPurchase(id, Number(j.payment.amount) || 0)
           void loadTryOnCreditsBalance()
         }
       } catch {

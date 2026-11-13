@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { pgQueryOne } from '@/lib/db/pg-query'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
+
+function httpsUrlOrNull(raw: unknown): string | null {
+  const t = String(raw || '').trim()
+  return /^https:\/\//i.test(t) ? t : null
+}
 
 /** Tên hiển thị shop cho widget nhúng (script trên domain khác cần CORS). */
 export const dynamic = 'force-dynamic'
@@ -21,8 +27,21 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ slug: stri
     return NextResponse.json({ error: 'not_found' }, { status: 404, headers: CORS })
   }
   const displayName = partner.display_name?.trim() ?? ''
+  let chatIconLogoUrl: string | null = null
+  try {
+    const row = await pgQueryOne<{ chat_icon_url: string | null }>(
+      `select nullif(btrim(w.theme_json->>'chatIconLogoUrl'), '') as chat_icon_url
+         from public.messaging_partner_websites w
+        where w.partner_id = $1::uuid
+        limit 1`,
+      [partner.id]
+    )
+    chatIconLogoUrl = httpsUrlOrNull(row?.chat_icon_url)
+  } catch {
+    chatIconLogoUrl = null
+  }
   return NextResponse.json(
-    { displayName },
+    { displayName, ...(chatIconLogoUrl ? { chatIconLogoUrl } : {}) },
     {
       headers: {
         'Access-Control-Allow-Origin': '*',

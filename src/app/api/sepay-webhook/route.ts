@@ -42,6 +42,7 @@ import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order
 import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
 import { sendPartnerMetaPurchaseCapiOnPaymentConfirmed } from '@/lib/tracking/meta-purchase-after-order'
 import { sendWeddingGuestPackPurchaseCapi } from '@/lib/tracking/wedding-purchase-capi'
+import { sendPlatformPaidPurchaseCapi } from '@/lib/tracking/platform-paid-purchase-capi'
 import { sendWeddingGuestPackPurchaseTikTok } from '@/lib/tracking/wedding-purchase-tiktok'
 import {
   notifyPartnerOwnerPaymentNeedsReview,
@@ -276,6 +277,17 @@ export async function POST(request: NextRequest) {
         console.error('Failed to complete BYOK plan payment:', completed.error)
         return NextResponse.json({ error: completed.error }, { status: 500 })
       }
+      sendPlatformPaidPurchaseCapi({
+        request,
+        paymentId: pendingByok.id,
+        amountVnd: amountIn,
+        userId: pendingByok.user_id,
+        contentId: 'feature_byok_plan',
+        contentName: `Gói API ${pendingByok.plan_id}`,
+        eventPath: '/dashboard/customer-api-keys',
+      }).catch((error) => {
+        console.warn('[sepay-webhook] BYOK Purchase CAPI', error)
+      })
       return NextResponse.json({
         success: true,
         message: 'BYOK plan payment processed successfully',
@@ -620,6 +632,17 @@ export async function POST(request: NextRequest) {
     const newBalance = settled.newBalance
 
     console.log(`Payment completed: User ${userId} received ${creditsToAdd} credits (${amountIn} VND)`)
+    sendPlatformPaidPurchaseCapi({
+      request,
+      paymentId,
+      amountVnd: amountIn,
+      userId,
+      contentId: 'feature_wallet_topup',
+      contentName: 'Nạp credit',
+      eventPath: '/dashboard/deposit',
+    }).catch((error) => {
+      console.warn('[sepay-webhook] Credit top-up Purchase CAPI', error)
+    })
 
     try {
       await deliverUserNotificationPg({

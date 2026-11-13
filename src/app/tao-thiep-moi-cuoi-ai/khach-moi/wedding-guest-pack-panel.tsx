@@ -74,11 +74,7 @@ export function WeddingGuestPackPanel({ cardId, side, quota, listedCount = 0, op
   }, [])
 
   useEffect(() => {
-    if (!open) setPayment(null)
-  }, [open])
-
-  useEffect(() => {
-    if (!open || !payment || payment.status === 'completed') return
+    if (!payment || payment.status === 'completed') return
     const timer = window.setInterval(async () => {
       const result = await readWeddingGuestPackPayment(payment.id)
       if ('error' in result && result.error) return
@@ -98,7 +94,7 @@ export function WeddingGuestPackPanel({ cardId, side, quota, listedCount = 0, op
       })
     }, 2000)
     return () => window.clearInterval(timer)
-  }, [onOpenChange, open, payment, side, toast])
+  }, [onOpenChange, payment, side, toast])
 
   const buy = async (packId: WeddingGuestPackId) => {
     if (buying) return

@@ -133,7 +133,31 @@ export function PartnerDevIntegrationGuide({
   )
 
   const slug = selectedPartner?.slug ?? ''
-  const logoUrl = selectedPartner?.logo_url?.trim() || `${baseUrl}/icons/icon-192x192.png`
+  const partnerLogoUrl = selectedPartner?.logo_url?.trim() || ''
+  const [chatIconLogoUrl, setChatIconLogoUrl] = useState('')
+  useEffect(() => {
+    const slugNow = slug.trim()
+    if (!slugNow) {
+      setChatIconLogoUrl('')
+      return
+    }
+    let cancel = false
+    const origin = String(baseUrl || '').replace(/\/$/, '')
+    fetch(`${origin}/api/messaging/guest/${encodeURIComponent(slugNow)}/brand`, { credentials: 'omit' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { chatIconLogoUrl?: unknown } | null) => {
+        if (cancel) return
+        const next = String(j?.chatIconLogoUrl || '').trim()
+        setChatIconLogoUrl(/^https:\/\//i.test(next) ? next : '')
+      })
+      .catch(() => {
+        if (!cancel) setChatIconLogoUrl('')
+      })
+    return () => {
+      cancel = true
+    }
+  }, [baseUrl, slug])
+  const logoUrl = chatIconLogoUrl || partnerLogoUrl || `${baseUrl}/icons/icon-192x192.png`
   const partnerId = selectedPartner?.id ?? ''
   const embedKeyForExamples = (selectedPartner?.embed_key ?? '').trim() || 'YOUR_EMBED_KEY'
   const guestBase = `${baseUrl}/api/messaging/guest/${slug}`

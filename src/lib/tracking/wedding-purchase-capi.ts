@@ -4,6 +4,12 @@ import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { metaClientIpFromHeaders } from '@/lib/tracking/meta-client-ip'
 import { normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
 import { sendMetaPurchaseConversionsApi } from '@/lib/tracking/meta-purchase-events'
+import { loadPlatformMetaClientMatch } from '@/lib/tracking/platform-meta-client-match'
+import {
+  partnerSiteMetaCapiCustomerInfo,
+  partnerSiteMetaMatchingParams,
+} from '@/lib/partner-website/shop/partner-site-meta-advanced-matching'
+import { loadPlatformMetaProfile } from '@/lib/tracking/platform-meta-profile'
 import { weddingPackPaymentCustomData, weddingPurchaseEventId } from '@/lib/wedding/wedding-commerce-events'
 import type { WeddingGuestPackId } from '@/lib/wedding/wedding-guest-pack'
 
@@ -58,17 +64,32 @@ export async function sendWeddingGuestPackPurchaseCapi(input: {
   })
   const origin = getPublicAppUrlForServer(input.request)
   const email = await getAuthUserEmailFromPg(input.userId).catch(() => null)
+  const profile = await loadPlatformMetaProfile(input.userId)
+  const stored = await loadPlatformMetaClientMatch(input.userId)
+  const cookieFbc = normalizeMetaFbc(cookieFromRequest(input.request, '_fbc'))
+  const cookieFbp = normalizeMetaFbp(cookieFromRequest(input.request, '_fbp'))
+  const fromBrowser = Boolean(cookieFbc || cookieFbp)
+  const matching = partnerSiteMetaMatchingParams({
+    email,
+    phone: profile.phone,
+    fullName: profile.fullName,
+    gender: profile.gender,
+    dateOfBirth: profile.birthDate,
+    externalId: input.userId,
+  })
   const sent = await sendMetaPurchaseConversionsApi({
     pixelId,
     accessToken,
     eventId: weddingPurchaseEventId(paymentId),
     eventSourceUrl: `${origin}/tao-thiep-moi-cuoi-ai/khach-moi`,
-    clientIp: clientIpFromRequest(input.request),
-    userAgent: input.request.headers.get('user-agent'),
-    fbc: normalizeMetaFbc(cookieFromRequest(input.request, '_fbc')),
-    fbp: normalizeMetaFbp(cookieFromRequest(input.request, '_fbp')),
-    customerEmail: email,
-    externalId: input.userId,
+    clientIp: stored?.clientIp || (fromBrowser ? clientIpFromRequest(input.request) : null),
+    userAgent: stored?.userAgent || (fromBrowser ? input.request.headers.get('user-agent') : null),
+    fbc: cookieFbc || stored?.fbc || null,
+    fbp: cookieFbp || stored?.fbp || null,
+    customerEmail: matching.em || email,
+    customerPhone: matching.ph || profile.phone,
+    externalId: matching.external_id || input.userId,
+    customerInfo: partnerSiteMetaCapiCustomerInfo(matching),
     customData: {
       value: custom.value,
       currency: custom.currency,

@@ -9,6 +9,7 @@ import {
   getGuestCreditTrialRemainingCount,
   isGuestTrialUser,
 } from '@/lib/guest-credit-trial'
+import { rememberDesignCreditPurchase } from '@/lib/tracking/nanoai-platform-purchase-queue'
 
 function requireCreditsPg(): void {
   if (!isPgConfigured()) {
@@ -96,12 +97,16 @@ export async function spendCreditsIdempotent(input: {
   )
   const row = res.rows[0]
   if (!row) throw new Error('spend_credits_idempotent returned no row')
-  return {
+  const result = {
     ok: Boolean(row.ok),
     alreadyApplied: Boolean(row.already_applied),
     newBalance: Number(row.new_balance ?? 0),
     error: String(row.error ?? '').trim(),
   }
+  if (result.ok && !result.alreadyApplied && input.amount > 0) {
+    rememberDesignCreditPurchase(input.chargeType, input.amount, input.eventKey)
+  }
+  return result
 }
 
 /**

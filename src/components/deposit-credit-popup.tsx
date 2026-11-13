@@ -26,6 +26,7 @@ import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { trackCreditTopupPurchase } from '@/lib/tracking/nanoai-platform-commerce-client'
 import { fireNanoAiFacebookDynamicEvent } from '@/lib/tracking/nanoai-facebook-dynamic-events-client'
 import { buildNanoAiCreditMetaCustomData } from '@/lib/catalog/nanoai-facebook-catalog'
 
@@ -294,6 +295,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
             creditsAdded: Math.max(0, Math.round(Number(data.credits_added) || 0)),
           }),
         })
+        trackCreditTopupPurchase(paymentId, Number(data.amount) || 0)
         onCreditsUpdated?.()
         window.dispatchEvent(new CustomEvent('credits-updated'))
         router.refresh()

@@ -3,6 +3,17 @@ import { getJwtUserFromRequest } from '@/lib/auth/email-jwt-middleware'
 import { loadAdminIntegrationsValueJsonByKey } from '@/lib/db/admin-integrations-settings-pg'
 import { buildMetaCapiUserData } from '@/lib/tracking/meta-capi-user-data'
 import { metaClientIpFromHeaders } from '@/lib/tracking/meta-client-ip'
+import { ensureMetaPixelAutomaticMatching } from '@/lib/tracking/meta-pixel-automatic-matching'
+import {
+  partnerSiteMetaCapiCustomerInfo,
+  partnerSiteMetaMatchingParams,
+} from '@/lib/partner-website/shop/partner-site-meta-advanced-matching'
+import { loadPlatformMetaProfile } from '@/lib/tracking/platform-meta-profile'
+import {
+  loadPlatformMetaClientMatch,
+  mergePlatformMetaClientMatch,
+  savePlatformMetaClientMatch,
+} from '@/lib/tracking/platform-meta-client-match'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,15 +144,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'missing_pixel_or_token' })
   }
 
+  void ensureMetaPixelAutomaticMatching(pixelId, token)
+
   const sessionUser = await getJwtUserFromRequest(request).catch(() => null)
-  const user_data = buildMetaCapiUserData({
-    clientIp: clientIpFromRequest(request),
-    userAgent: request.headers.get('user-agent'),
+  const profile = sessionUser?.sub ? await loadPlatformMetaProfile(sessionUser.sub) : null
+  const requestIp = clientIpFromRequest(request)
+  const requestUa = request.headers.get('user-agent')
+  const stored = sessionUser?.sub ? await loadPlatformMetaClientMatch(sessionUser.sub) : null
+  const clientMatch = mergePlatformMetaClientMatch(stored, {
     fbc: fbc || request.cookies.get('_fbc')?.value,
     fbp: fbp || request.cookies.get('_fbp')?.value,
-    customerEmail: sessionUser?.email || readString(body, 'customerEmail'),
-    customerPhone: readString(body, 'customerPhone'),
+    clientIp: requestIp,
+    userAgent: requestUa,
+  })
+  if (sessionUser?.sub) void savePlatformMetaClientMatch(sessionUser.sub, clientMatch)
+  const matching = partnerSiteMetaMatchingParams({
+    email: sessionUser?.email || readString(body, 'customerEmail'),
+    phone: profile?.phone || readString(body, 'customerPhone'),
+    fullName: profile?.fullName,
+    gender: profile?.gender,
+    dateOfBirth: profile?.birthDate,
     externalId: sessionUser?.sub || readString(body, 'externalId'),
+  })
+  const user_data = buildMetaCapiUserData({
+    clientIp: clientMatch.clientIp || requestIp,
+    userAgent: clientMatch.userAgent || requestUa,
+    fbc: clientMatch.fbc,
+    fbp: clientMatch.fbp,
+    customerEmail: matching.em || sessionUser?.email || readString(body, 'customerEmail'),
+    customerPhone: matching.ph || profile?.phone || readString(body, 'customerPhone'),
+    externalId: matching.external_id || sessionUser?.sub || readString(body, 'externalId'),
+    customerInfo: partnerSiteMetaCapiCustomerInfo(matching),
   })
 
   const custom_data = sanitizeCustomData(body.customData)

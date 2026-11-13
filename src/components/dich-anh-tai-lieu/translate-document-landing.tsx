@@ -161,8 +161,8 @@ export function TranslateDocumentLanding({
             <img
               src="/dich-anh-tai-lieu/xe-tron-be-tong-tieng-viet.webp"
               alt={copy.sampleTranslatedAlt}
-              width={1024}
-              height={1536}
+              width={1029}
+              height={1529}
               className="h-auto w-full"
             />
           </figure>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getWalletSessionUser } from '@/lib/auth'
 import { readGuestSessionIdFromRequestStrictOrLoose } from '@/lib/messaging/guest-auth-session'
 import { syncBrowserGuestSessionToUser } from '@/lib/messaging/sync-browser-guest-session-to-user'
+import { loadPlatformMetaProfile } from '@/lib/tracking/platform-meta-profile'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,8 +15,16 @@ export async function GET(request: NextRequest) {
       userId: user.id,
       email: user.email,
     })
+    const profile = await loadPlatformMetaProfile(user.id)
     return NextResponse.json({
-      user: { id: user.id, email: user.email ?? '' },
+      user: {
+        id: user.id,
+        email: user.email ?? '',
+        fullName: profile.fullName,
+        gender: profile.gender,
+        birthDate: profile.birthDate,
+        phone: profile.phone,
+      },
     })
   }
   return NextResponse.json({ user: null }, { status: 401 })

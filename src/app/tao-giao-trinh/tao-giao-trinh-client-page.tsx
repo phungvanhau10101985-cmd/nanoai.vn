@@ -4792,6 +4792,7 @@ export default function TaoGiaoTrinhClientPage({
                     />
                   </div>
                   <Button
+                    data-nano-cart="1"
                     onClick={() => void handleSubmit()}
                     disabled={
                       (step as Step) === 'GENERATING' ||

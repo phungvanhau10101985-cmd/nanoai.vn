@@ -1,11 +1,10 @@
 import { cookies } from 'next/headers'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
-import { nanoAiFeatureRemarketing } from '@/lib/catalog/nanoai-feature-remarketing'
 import {
   CURRICULUM_CONTENT_ID,
   NANO_PLATFORM_PURCHASE_COOKIE,
   STUDENT_PLAN_CONTENT_ID,
-  designPurchaseHref,
+  creditPurchaseContent,
   parsePlatformPurchases,
   serializePlatformPurchases,
   type PlatformPurchaseRow,
@@ -28,18 +27,19 @@ function remember(row: PlatformPurchaseRow): void {
   }
 }
 
-/** Trừ credit thành công trên tính năng ảnh/thiết kế. Giá trị = số credit × đơn giá. */
-export function rememberDesignCreditPurchase(feature: string, credits: number): void {
-  const href = designPurchaseHref(feature)
+/** Trừ credit thành công = mua hàng. Giá trị = số credit × đơn giá. */
+export function rememberDesignCreditPurchase(feature: string, credits: number, orderId?: string): void {
   const charged = Number(credits)
-  if (!href || !Number.isFinite(charged) || charged <= 0) return
-  const { contentId } = nanoAiFeatureRemarketing(href)
+  if (!Number.isFinite(charged) || charged <= 0) return
+  const target = creditPurchaseContent(feature)
+  if (!target) return
   const valueVnd = Math.max(1, Math.round(charged * CREDIT_UNIT_PRICE_VND))
+  const explicit = String(orderId || '').trim()
   remember({
-    contentId,
+    contentId: target.contentId,
     valueVnd,
-    orderId: `cr_${contentId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-    contentName: href,
+    orderId: (explicit || `cr_${target.contentId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`).slice(0, 80),
+    contentName: target.contentName,
   })
 }
 

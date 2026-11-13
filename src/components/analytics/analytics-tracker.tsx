@@ -4,8 +4,9 @@ import { useEffect } from 'react'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { syncPlatformMetaAdvancedMatching } from '@/lib/tracking/platform-meta-advanced-matching-client'
 import { nanoAiFeatureRemarketing } from '@/lib/catalog/nanoai-feature-remarketing'
-import { isFeatureCreateLabel } from '@/lib/tracking/nanoai-platform-commerce'
+import { isFeatureCartAction, languageCartRouteForLocation } from '@/lib/tracking/nanoai-platform-commerce'
 import {
   broadcastNanoAiCommerce,
   flushPlatformPurchaseCookie,
@@ -140,6 +141,58 @@ function fireMetaFeatureViewContent() {
   trackNanoAiFeatureView(matched, contentName)
 }
 
+function cartRouteForCurrentPage(): string | null {
+  const path = window.location.pathname || '/'
+  return languageCartRouteForLocation(path, window.location.search || '') || findMatchedFeatureRoute(path)
+}
+
+function controlLabel(control: HTMLElement): string {
+  return (control.textContent || control.getAttribute('aria-label') || control.getAttribute('value') || '').trim()
+}
+
+function rememberFeatureCart(route: string, label: string) {
+  const cartKey = `${route}|${label.slice(0, 40).toLowerCase()}`
+  const now = Date.now()
+  const lastMap = window.__nanoCartClickAt || {}
+  if (now - (lastMap[cartKey] || 0) < 1200) return
+  lastMap[cartKey] = now
+  window.__nanoCartClickAt = lastMap
+  const { contentId, valueVnd } = nanoAiFeatureRemarketing(route)
+  broadcastNanoAiCommerce({
+    event: 'AddToCart',
+    contentId,
+    contentName: label.slice(0, 200) || route,
+    valueVnd,
+    skipDedupe: true,
+    extra: { feature_route: route },
+  })
+}
+
+/** Thiệp và lớp học không tính lúc bấm. Thiệp chỉ khi tạo thiệp thành công. */
+function rememberFeatureCartClick(control: HTMLElement | null) {
+  if (!control || control.getAttribute('data-nano-cart') === '0') return
+  const route = cartRouteForCurrentPage()
+  if (!route || route === WEDDING_COMMERCE_PATH || route === '/lop') return
+  const label = controlLabel(control)
+  const explicit = control.getAttribute('data-nano-cart') === '1'
+  if (!explicit && !isFeatureCartAction(route, label)) return
+  rememberFeatureCart(route, label || route)
+}
+
+function rememberStudySendOnEnter(evt: KeyboardEvent) {
+  if (evt.key !== 'Enter' || evt.shiftKey || evt.altKey || evt.ctrlKey || evt.metaKey) return
+  const target = evt.target as HTMLElement | null
+  const form = target?.closest('form')
+  if (!form) return
+  const route = cartRouteForCurrentPage()
+  if (route !== '/ho-tro-lam-bai' && route !== '/gia-su-ai') return
+  const send = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+  if (!send || send.disabled || send.getAttribute('data-nano-cart') === '0') return
+  const label = (send.getAttribute('aria-label') || send.textContent || '').trim()
+  if (!isFeatureCartAction(route, label)) return
+  rememberFeatureCart(route, label)
+}
+
 function handleMetaSignupFlagsFromUrl() {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
@@ -159,10 +212,15 @@ function handleMetaSignupFlagsFromUrl() {
  */
 export function AnalyticsTracker() {
   useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      await syncPlatformMetaAdvancedMatching()
+      if (cancelled) return
+      handleMetaSignupFlagsFromUrl()
+      fireMetaFeatureViewContent()
+    })()
     firePageView()
-    fireMetaFeatureViewContent()
     flushPlatformPurchaseCookie()
-    handleMetaSignupFlagsFromUrl()
     const origFetch = window.fetch.bind(window)
     window.fetch = async (...args) => {
       const response = await origFetch(...args)
@@ -175,6 +233,7 @@ export function AnalyticsTracker() {
       flushPlatformPurchaseCookie()
     })
     return () => {
+      cancelled = true
       window.fetch = origFetch
       unsubscribe()
     }
@@ -241,31 +300,7 @@ export function AnalyticsTracker() {
       }
 
       const control = target.closest<HTMLElement>('button, input[type="submit"]')
-      const featureRoute = findMatchedFeatureRoute(window.location.pathname || '/')
-      if (control && featureRoute && control.getAttribute('data-nano-cart') !== '0') {
-        const label = (control.textContent || control.getAttribute('aria-label') || control.getAttribute('value') || '').trim()
-        const explicit = control.getAttribute('data-nano-cart') === '1'
-        if (explicit || isFeatureCreateLabel(label)) {
-          const weddingClick = /thiệp/.test(label.toLowerCase())
-          const cartKey = weddingClick ? featureRoute : `${featureRoute}|${label.slice(0, 40).toLowerCase()}`
-          const now = Date.now()
-          const lastMap = window.__nanoCartClickAt || {}
-          const gap = weddingClick ? 20000 : 1200
-          if (now - (lastMap[cartKey] || 0) >= gap) {
-            lastMap[cartKey] = now
-            window.__nanoCartClickAt = lastMap
-            const { contentId, valueVnd } = nanoAiFeatureRemarketing(featureRoute)
-            broadcastNanoAiCommerce({
-              event: 'AddToCart',
-              contentId,
-              contentName: label.slice(0, 200) || featureRoute,
-              valueVnd,
-              skipDedupe: true,
-              extra: { feature_route: featureRoute },
-            })
-          }
-        }
-      }
+      rememberFeatureCartClick(control)
 
       const button = target.closest<HTMLButtonElement>('button')
       if (button) {
@@ -308,6 +343,7 @@ export function AnalyticsTracker() {
     }
 
     document.addEventListener('click', onClick, true)
+    document.addEventListener('keydown', rememberStudySendOnEnter, true)
     document.addEventListener('submit', onSubmit, true)
     document.addEventListener('change', onChange, true)
     window.addEventListener('error', onError)
@@ -315,6 +351,7 @@ export function AnalyticsTracker() {
 
     return () => {
       document.removeEventListener('click', onClick, true)
+      document.removeEventListener('keydown', rememberStudySendOnEnter, true)
       document.removeEventListener('submit', onSubmit, true)
       document.removeEventListener('change', onChange, true)
       window.removeEventListener('error', onError)

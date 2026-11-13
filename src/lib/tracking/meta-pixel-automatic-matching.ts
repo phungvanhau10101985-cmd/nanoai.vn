@@ -21,6 +21,7 @@ export const META_AUTOMATIC_MATCHING_FIELDS = [
 
 const enabledPixelIds = new Set<string>()
 const failedUntilMs = new Map<string, number>()
+const inflight = new Map<string, Promise<'enabled' | 'failed' | 'skipped'>>()
 const FAIL_COOLDOWN_MS = 60 * 60 * 1000
 
 export function metaAutomaticMatchingUpdateBody(accessToken: string): {
@@ -46,6 +47,20 @@ export async function ensureMetaPixelAutomaticMatching(
   if (!/^\d{10,20}$/.test(id) || token.length < 20) return 'skipped'
   if (enabledPixelIds.has(id)) return 'skipped'
   if (!options?.force && Date.now() < (failedUntilMs.get(id) || 0)) return 'skipped'
+  const pending = inflight.get(id)
+  if (pending && !options?.force) return pending
+  const job = postMetaPixelAutomaticMatching(id, token)
+  inflight.set(id, job)
+  void job.finally(() => {
+    if (inflight.get(id) === job) inflight.delete(id)
+  })
+  return job
+}
+
+async function postMetaPixelAutomaticMatching(
+  id: string,
+  token: string
+): Promise<'enabled' | 'failed' | 'skipped'> {
   try {
     const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(id)}`, {
       method: 'POST',

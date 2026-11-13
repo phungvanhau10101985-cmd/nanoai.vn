@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   metaPixelInitArgsJs,
+  PLATFORM_META_AM_STORAGE_KEY,
+  platformMetaPixelInitArgsJs,
   partnerSiteMetaAmStorageKey,
   partnerSiteMetaMatchingParams,
 } from '@/lib/partner-website/shop/partner-site-meta-advanced-matching'
@@ -66,6 +68,16 @@ test('pixel init reads stored customer data and does not embed a sample email', 
   assert.match(js, /'em','ph','fn','ln','ge','db','ct','st','zp','country','external_id'/)
   assert.match(js, /ud=\{em:'',ph:'',fn:'',ln:'',ge:'',db:'',ct:'',st:'',zp:'',country:'',external_id:''\}/)
   assert.doesNotMatch(js, /email@email\.com/)
+})
+
+test('platform pixel init passes the customer fields Meta lists as the third argument', () => {
+  const js = platformMetaPixelInitArgsJs('2801362693568461')
+  assert.equal(PLATFORM_META_AM_STORAGE_KEY, 'nano_meta_am')
+  assert.match(js, /nano_meta_am/)
+  assert.match(js, /'em','ph','fn','ln','ge','db','ct','st','zp','country','external_id'/)
+  assert.match(js, /__nanoPlatformMetaPixelId='2801362693568461'/)
+  assert.doesNotMatch(js, /email@email\.com/)
+  assert.doesNotMatch(js, /__nanoShopMetaPixels/)
 })
 
 test('automatic matching update asks Meta for every customer field in the checklist', () => {

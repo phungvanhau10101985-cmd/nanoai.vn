@@ -66,6 +66,7 @@ import {
 } from '@/lib/wedding/wedding-sample-compose'
 import { isWeddingInsufficientCredit } from '@/lib/wedding/wedding-credit-shortfall'
 import { rememberWeddingCreateSource } from '@/lib/wedding/wedding-create-source'
+import { trackWeddingAddToCart } from '@/lib/tracking/wedding-commerce-client'
 import { findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingPairedFrameSectionPatch, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { weddingStyleIdFromPrompt } from '@/lib/wedding/build-wedding-image-prompt'
 import {
@@ -748,6 +749,7 @@ export default function WeddingCardAiClientPage() {
             const created = await createNewWeddingCard(undefined, undefined, null, rememberWeddingCreateSource())
             if (!mounted) return
             if (!('error' in created)) {
+              trackWeddingAddToCart(created.card.id)
               showLoadedWorkspace(created)
               return
             }
@@ -2139,6 +2141,7 @@ export default function WeddingCardAiClientPage() {
         toast({ title: 'Không tạo được thiệp mới', description: result.error, variant: 'destructive' })
         return
       }
+      trackWeddingAddToCart(result.card.id)
       showWorkspace(result)
       setOccasionPickerOpen(false)
       document.getElementById('wedding-card-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })

@@ -10,6 +10,7 @@ import {
   writeGuestAuthRememberDevicePreference,
 } from '@/lib/auth/guest-auth-remember-device-client'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { syncPlatformMetaAdvancedMatching } from '@/lib/tracking/platform-meta-advanced-matching-client'
 import { ExternalLink, Mail } from 'lucide-react'
 import { getWebmailInfo } from '@/lib/auth/email-webmail-helper'
 
@@ -151,6 +152,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         return
       }
       if (data.autoSignedIn) {
+        await syncPlatformMetaAdvancedMatching()
         if (data.isNewUser) {
           fireMetaStandardEvent('CompleteRegistration', { dedupeKey: 'auth_new_user_complete_registration' })
         }
@@ -218,6 +220,7 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
         return
       }
       const okData = (await res.json().catch(() => ({}))) as { isNewUser?: boolean }
+      await syncPlatformMetaAdvancedMatching()
       if (okData.isNewUser) {
         fireMetaStandardEvent('CompleteRegistration', { dedupeKey: 'auth_new_user_complete_registration' })
       }

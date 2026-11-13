@@ -43,12 +43,21 @@ function pushCandidates(into: string[], raw: string | null | undefined): void {
   }
 }
 
+function pushForwarded(into: string[], raw: string | null | undefined): void {
+  const text = String(raw ?? '')
+  const matches = text.matchAll(/(?:^|[,\s])for=(?:"\[([^\]"]+)\]"|([^;,"\s]+))/gi)
+  for (const match of matches) {
+    pushCandidates(into, match[1] || match[2])
+  }
+}
+
 /** Ưu tiên IPv6 công cộng, rồi tới IPv4. `cf-connecting-ip` đứng trước chuỗi proxy. */
 export function metaClientIpFromHeaders(headers: { get(name: string): string | null }): string | null {
   const found: string[] = []
   pushCandidates(found, headers.get('cf-connecting-ip'))
   pushCandidates(found, headers.get('true-client-ip'))
   pushCandidates(found, headers.get('x-real-ip'))
+  pushForwarded(found, headers.get('forwarded'))
   pushCandidates(found, headers.get('x-forwarded-for'))
   return found.find((ip) => ip.includes(':')) || found[0] || null
 }

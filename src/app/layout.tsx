@@ -7,6 +7,8 @@ import Script from "next/script";
 import { loadAdminIntegrationsValueJsonByKey } from "@/lib/db/admin-integrations-settings-pg";
 import { normalizeGoogleAdsConversionLabel } from "@/lib/partner-website/shop/normalize-ads-conversion-label";
 import { metaClickIdHeadBootstrapJs } from "@/lib/tracking/meta-click-ids";
+import { ensureMetaPixelAutomaticMatching } from "@/lib/tracking/meta-pixel-automatic-matching";
+import { platformMetaPixelInitArgsJs } from "@/lib/partner-website/shop/partner-site-meta-advanced-matching";
 import { fetchMessagingPartnerBySlugFromPg } from "@/lib/db/messaging-partners-pg";
 import { isPgConfigured } from "@/lib/db/pool";
 import { headers } from "next/headers";
@@ -87,6 +89,7 @@ type AdminIntegrationsSettings = {
   googleAnalyticsId?: string;
   googleTagManagerId?: string;
   facebookPixelId?: string;
+  facebookCapiAccessToken?: string;
   googleAdsId?: string;
   googleAdsViewLabel?: string;
   googleAdsAddToCartLabel?: string;
@@ -391,6 +394,7 @@ export default async function RootLayout({
   const gtmContainerId = String(settings.googleTagManagerId || "").trim()
     || (legacyGoogleTag.startsWith("GTM-") ? legacyGoogleTag : "");
   const facebookPixelId = String(settings.facebookPixelId || '').trim()
+  const facebookCapiAccessToken = String(settings.facebookCapiAccessToken || '').trim()
   const googleAdsIdRaw = String(settings.googleAdsId || '').trim().toUpperCase()
   const googleAdsId = /^AW-[A-Z0-9]+$/.test(googleAdsIdRaw) ? googleAdsIdRaw : ''
   const googleAdsLabelsJson = JSON.stringify({
@@ -512,6 +516,9 @@ export default async function RootLayout({
   const shouldRenderGlobalMetaPixel =
     Boolean(facebookPixelId) &&
     !isCustomerOwnedSurface
+  if (shouldRenderGlobalMetaPixel && facebookCapiAccessToken) {
+    void ensureMetaPixelAutomaticMatching(facebookPixelId, facebookCapiAccessToken)
+  }
   const shouldRenderGlobalGoogleTags = !isCustomerOwnedSurface
   const shouldRenderNanoAiSiteTags = !isCustomerOwnedSurface
   const platformTiktok = shouldRenderNanoAiSiteTags ? buildPartnerShopTiktokPixelInstall(tiktokPixelIdRaw) : null
@@ -702,7 +709,7 @@ export default async function RootLayout({
                 s.parentNode.insertBefore(t,s)}(window, document,'script',
                 'https://connect.facebook.net/en_US/fbevents.js');
                 if (!window.__nanoMetaPixelInited) {
-                  fbq('init', '${facebookPixelId}');
+                  fbq('init', ${JSON.stringify(facebookPixelId)}, ${platformMetaPixelInitArgsJs(facebookPixelId)});
                   window.__nanoMetaPixelInited = true;
                 }
                 if (!window.__nanoMetaPageViewTracked) {

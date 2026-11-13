@@ -19,6 +19,7 @@ import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
 import { buildNanoAiCreditMetaCustomData } from '@/lib/catalog/nanoai-facebook-catalog'
+import { trackCreditTopupPurchase } from '@/lib/tracking/nanoai-platform-commerce-client'
 
 type PaymentConfig = {
   id: string
@@ -296,6 +297,7 @@ export default function DepositClient() {
             creditsAdded: data.credits_added,
           }),
         })
+        trackCreditTopupPurchase(paymentId, data.amount)
         fetchUserCredits()
         toast({
           title: tr('Thành công', 'Success', '成功', '成功', '성공'),
