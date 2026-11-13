@@ -9823,7 +9823,7 @@ export default function HocBaiHocCoSanClientPage() {
                             const correctionItems = correctionsByMessageId[m.id] || []
                             const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer || correctionItems.length > 0)
                             if (!hasStructured) {
-                              const openingActions = idx === 0 && learningMode !== 'reflex' ? (
+                              const openingActions = idx === 0 ? (
                                 <>
                                   <Button
                                     type="button"

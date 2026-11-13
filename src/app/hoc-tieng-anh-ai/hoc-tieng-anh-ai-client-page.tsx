@@ -4927,7 +4927,7 @@ export default function HocTiengAnhAiClientPage() {
   useEffect(() => {
     const leave = () => {
       const current = speechIntentRef.current
-      if (!String(current?.text || '').trim()) return
+      if (!current || !String(current.text || '').trim()) return
       postPendingSpeechKeepalive(current)
     }
     const onVis = () => {
@@ -11046,7 +11046,7 @@ export default function HocTiengAnhAiClientPage() {
                             }
                             const hasStructured = Boolean(correctionNote || correctedSentence || intentAnswer || correctionItems.length > 0)
                             if (!hasStructured) {
-                              const openingActions = idx === 0 && learningMode !== 'reflex' ? (
+                              const openingActions = idx === 0 ? (
                                 <>
                                   <Button
                                     type="button"

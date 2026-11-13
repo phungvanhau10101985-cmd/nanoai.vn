@@ -40,7 +40,7 @@ function nameRuns(text: string): NameRun[] {
     const nameLike = !isFunctionToken(token) && (isCapitalized(token) || hasDiacritic(token))
     const prev = i > 0 ? matches[i - 1] : null
     const gap = prev ? source.slice((prev.index ?? 0) + prev[0].length, start) : ''
-    const sameCase = Boolean(current) && isCapitalized(current.tokens[0]) === isCapitalized(token)
+    const sameCase = current != null && isCapitalized(current.tokens[0]) === isCapitalized(token)
     const continues = Boolean(current) && sameCase && /^\s+$/u.test(gap)
     if (nameLike && continues && current) {
       current.tokens.push(token)
