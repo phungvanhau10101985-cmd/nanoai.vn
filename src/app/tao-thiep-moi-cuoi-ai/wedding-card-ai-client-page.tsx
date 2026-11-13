@@ -43,7 +43,6 @@ import {
 } from '@/lib/wedding/invitation-occasion'
 import { omitWeddingAddressesFromSharedCopy, stripSharedWeddingCopy, weddingSharedCopyAddresses } from '@/lib/wedding/wedding-shared-copy'
 import { resolveWeddingDateIso } from '@/lib/wedding/wedding-date-normalize'
-import { WEDDING_MOBILE_HEIGHT, WEDDING_MOBILE_WIDTH } from '@/lib/wedding/wedding-design-viewport'
 import { splitLibraryByRecommendation } from '@/lib/wedding/wedding-ai-library-match'
 import { WeddingLandingThemes } from '@/components/wedding/wedding-landing-themes'
 import { WeddingSampleGallery, WeddingSampleLookStrip } from '@/components/wedding/wedding-sample-card-picker'
@@ -2634,40 +2633,6 @@ export default function WeddingCardAiClientPage() {
                 </Button>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader className="gap-2">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="space-y-1.5">
-                    <CardTitle>{tImage.workspaceDemoTitle}</CardTitle>
-                    <CardDescription>{tImage.workspaceDemoHint}</CardDescription>
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={() => (oneVenue ? void openLetterView('groom') : setLetterAskOpen(true))}
-                    disabled={previewBusy || !card.id}
-                  >
-                    {previewBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eye className="mr-2 h-4 w-4" />}
-                    {txPublic.previewTryFab}
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {demoSampleId || card.slug ? (
-                  <WeddingCardPhoneDemo
-                    slug={card.slug}
-                    sampleId={demoSampleId}
-                    view={oneVenue ? 'groom' : previewLetterView}
-                    guestName={previewDemo.guestDisplayName}
-                    title={tImage.workspaceDemoTitle}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">{tImage.workspaceDemoEmpty}</p>
-                )}
-              </CardContent>
-            </Card>
-
-
           </div>
 
         </div>
@@ -2830,55 +2795,5 @@ export default function WeddingCardAiClientPage() {
       {card.id ? previewFab : null}
     </>
     </WeddingCreditTopUpProvider>
-  )
-}
-
-
-function WeddingCardPhoneDemo(props: {
-  slug: string
-  sampleId?: string
-  view: 'groom' | 'bride'
-  guestName: string
-  title: string
-}) {
-  const boxRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(0.72)
-  const width = WEDDING_MOBILE_WIDTH
-  const height = WEDDING_MOBILE_HEIGHT
-  useEffect(() => {
-    const box = boxRef.current
-    if (!box) return
-    const fit = () => setScale(box.clientWidth / width)
-    fit()
-    const observer = new ResizeObserver(fit)
-    observer.observe(box)
-    return () => observer.disconnect()
-  }, [width])
-  const venue = props.view === 'bride' ? 'bride_home' : 'groom_home'
-  const query = new URLSearchParams({
-    view: props.view,
-    venue,
-    guest: props.guestName,
-    device: 'mobile',
-  })
-  if (props.sampleId && props.slug) query.set('look', props.sampleId)
-  const src = props.slug
-    ? `/thiep-moi-cuoi/${encodeURIComponent(props.slug)}?${query.toString()}`
-    : `/thiep-mau/${encodeURIComponent(props.sampleId || '')}?quiet=1&device=mobile`
-  return (
-    <div
-      ref={boxRef}
-      className="relative mx-auto w-full max-w-[22rem] overflow-hidden rounded-[1.75rem] border bg-white shadow-sm"
-      style={{ height: Math.max(240, Math.round(height * scale)) }}
-    >
-      <iframe
-        key={src}
-        title={props.title}
-        src={src}
-        scrolling="no"
-        className="absolute left-0 top-0 border-0 bg-white"
-        style={{ width, height, transform: `scale(${scale})`, transformOrigin: 'top left' }}
-      />
-    </div>
   )
 }

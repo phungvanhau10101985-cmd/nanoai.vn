@@ -1410,6 +1410,13 @@ const LOCAL_TEXT_TRANSLATIONS: Record<string, Partial<Record<UiLocale, string>>>
     th: 'เล่นเสียงคำนี้',
     hi: 'शब्द का उच्चारण चलाएँ',
   },
+  'Play this word again': {
+    zh: '再听这个词',
+    ja: 'この単語をもう一度聞く',
+    ko: '이 단어 다시 듣기',
+    th: 'ฟังคำนี้อีกครั้ง',
+    hi: 'यह शब्द फिर सुनें',
+  },
   'Listen word:': {
     zh: '听读音：',
     ja: '単語を聞く：',
@@ -10991,11 +10998,31 @@ export default function HocTiengAnhAiClientPage() {
                                       </div>
                                       {wordInsightByKey[openedWordKey] ? (
                                         <div className="space-y-1">
-                                          {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
-                                            <p><span className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}</span> {wordInsightByKey[openedWordKey].meaning}</p>
-                                          ) : (
-                                            <p className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}</p>
-                                          )}
+                                          <p className="text-slate-800">
+                                            <span className="font-semibold">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}</span>
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon"
+                                              className="ml-0.5 inline-flex h-7 w-7 shrink-0 align-middle"
+                                              title={localText('Nghe lại từ này', 'Play this word again')}
+                                              aria-label={localText('Nghe lại từ này', 'Play this word again')}
+                                              onClick={(event) => {
+                                                event.stopPropagation()
+                                                void playWordPronunciation(openedWordKey.split(':').slice(1).join(':'))
+                                              }}
+                                            >
+                                              <Volume2 className="h-4 w-4" />
+                                            </Button>
+                                            {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
+                                              <>
+                                                {' '}
+                                                <span className="font-semibold">{localText('nghĩa là:', 'means:')}</span>
+                                                {' '}
+                                                {wordInsightByKey[openedWordKey].meaning}
+                                              </>
+                                            ) : null}
+                                          </p>
                                           <PronunciationReveal localText={localText} source={openedWordKey.split(':').slice(1).join(':')} reading={wordInsightByKey[openedWordKey].pronunciation} lineKey={openedWordKey} />
                                           <div className="flex flex-wrap items-center gap-1">
                                             <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${wordInsightByKey[openedWordKey].usageLevel === 'high' ? 'border-blue-300 bg-blue-50 text-blue-700' : wordInsightByKey[openedWordKey].usageLevel === 'low' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-emerald-300 bg-emerald-50 text-emerald-700'}`}>
@@ -11091,7 +11118,7 @@ export default function HocTiengAnhAiClientPage() {
                                   <div className="mt-1 space-y-1.5 text-slate-700">
                                     {correctionItems.length > 0 ? (
                                       correctionItems.map((item, itemIdx) => (
-                                        <p key={`${item.original}-${item.fixed}-${itemIdx}`} className="leading-relaxed">
+                                        <p key={`${item.original}-${item.fixed}-${itemIdx}`} className="whitespace-pre-wrap leading-relaxed">
                                           {item.explanationVi?.trim() ? (
                                             item.explanationVi.trim()
                                           ) : (
@@ -11322,11 +11349,31 @@ export default function HocTiengAnhAiClientPage() {
                               </div>
                               {wordInsightByKey[openedWordKey] ? (
                                 <div className="space-y-1">
-                                  {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
-                                    <p><span className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')} {localText('nghĩa là:', 'means:')}</span> {wordInsightByKey[openedWordKey].meaning}</p>
-                                  ) : (
-                                    <p className="font-semibold text-slate-800">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}</p>
-                                  )}
+                                  <p className="text-slate-800">
+                                    <span className="font-semibold">{capitalizeWordForDisplay(openedWordKey.split(':').slice(1).join(':')) || localText('Từ này', 'This word')}</span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="ml-0.5 inline-flex h-7 w-7 shrink-0 align-middle"
+                                      title={localText('Nghe lại từ này', 'Play this word again')}
+                                      aria-label={localText('Nghe lại từ này', 'Play this word again')}
+                                      onClick={(event) => {
+                                        event.stopPropagation()
+                                        void playWordPronunciation(openedWordKey.split(':').slice(1).join(':'))
+                                      }}
+                                    >
+                                      <Volume2 className="h-4 w-4" />
+                                    </Button>
+                                    {((wordInsightByKey[openedWordKey].senses ?? []).length === 0) ? (
+                                      <>
+                                        {' '}
+                                        <span className="font-semibold">{localText('nghĩa là:', 'means:')}</span>
+                                        {' '}
+                                        {wordInsightByKey[openedWordKey].meaning}
+                                      </>
+                                    ) : null}
+                                  </p>
                                   <PronunciationReveal localText={localText} source={openedWordKey.split(':').slice(1).join(':')} reading={wordInsightByKey[openedWordKey].pronunciation} lineKey={openedWordKey} />
                                   <div className="flex flex-wrap items-center gap-1">
                                     <span className={`inline-flex rounded border px-1.5 py-0.5 text-[10px] font-semibold ${wordInsightByKey[openedWordKey].usageLevel === 'high' ? 'border-blue-300 bg-blue-50 text-blue-700' : wordInsightByKey[openedWordKey].usageLevel === 'low' ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-emerald-300 bg-emerald-50 text-emerald-700'}`}>
@@ -11359,7 +11406,25 @@ export default function HocTiengAnhAiClientPage() {
                                             <div key={si} className="rounded-md border border-slate-200 bg-slate-50/70 px-2 py-1.5">
                                               <p className="font-semibold text-slate-800">{localText(`Nghĩa ${si + 1}`, `Sense ${si + 1}`)}</p>
                                               {gloss ? <p className="mt-0.5"><span className="font-semibold text-slate-700">{localText('Giải nghĩa:', 'Gloss:')}</span> {gloss}</p> : null}
-                                              {exampleText ? <p className="mt-0.5"><span className="font-semibold text-slate-700">{localText('Ví dụ:', 'Example:')}</span> {exampleText}</p> : null}
+                                              {exampleText ? (
+                                                <p className="mt-0.5">
+                                                  <span className="font-semibold text-slate-700">{localText('Ví dụ:', 'Example:')}</span> {exampleText}{' '}
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="ml-0.5 inline-flex h-7 w-7 shrink-0 align-middle"
+                                                    title={localText('Nghe ví dụ', 'Play example')}
+                                                    aria-label={localText('Nghe ví dụ', 'Play example')}
+                                                    onClick={(event) => {
+                                                      event.stopPropagation()
+                                                      void playWordSenseExampleTarget(exampleText)
+                                                    }}
+                                                  >
+                                                    <Volume2 className="h-4 w-4" />
+                                                  </Button>
+                                                </p>
+                                              ) : null}
                                               <NativePhoneticLine
                                                 text={exampleText}
                                                 known={storedPinyin}
@@ -11369,10 +11434,11 @@ export default function HocTiengAnhAiClientPage() {
                                                 coachUsageContext={englishCoachUsageContext}
                                               />
                                               {exampleNative ? <p className="mt-0.5 text-muted-foreground"><span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}</p> : null}
-                                              <div className="mt-1 flex flex-wrap gap-1.5">
-                                                {gloss ? <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void playWordSenseGloss(openedWordKey.split(':').slice(1).join(':'), gloss)}><Volume2 className="mr-1 h-3.5 w-3.5" />{localText('Nghe nghĩa này', 'Play this meaning')}</Button> : null}
-                                                {exampleText ? <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void playWordSenseExampleTarget(exampleText)}><Volume2 className="mr-1 h-3.5 w-3.5" />{localText('Nghe ví dụ', 'Play example')}</Button> : null}
-                                              </div>
+                                              {gloss ? (
+                                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                                  <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void playWordSenseGloss(openedWordKey.split(':').slice(1).join(':'), gloss)}><Volume2 className="mr-1 h-3.5 w-3.5" />{localText('Nghe nghĩa này', 'Play this meaning')}</Button>
+                                                </div>
+                                              ) : null}
                                             </div>
                                           )
                                         })}
@@ -12212,7 +12278,7 @@ export default function HocTiengAnhAiClientPage() {
                 ) : (
                   <div className="mt-2 space-y-2">
                     {corrections.map((c, idx) => (
-                      <p key={`${c.original}-${idx}`} className="min-w-0 rounded-xl border border-border/70 bg-slate-50/80 p-2.5 break-words text-xs leading-relaxed">
+                      <p key={`${c.original}-${idx}`} className="min-w-0 whitespace-pre-wrap rounded-xl border border-border/70 bg-slate-50/80 p-2.5 break-words text-xs leading-relaxed">
                         {c.explanationVi?.trim() ? (
                           c.explanationVi.trim()
                         ) : (

@@ -4,6 +4,7 @@ import test from 'node:test'
 import { isWeddingButtonColorId } from './wedding-button-colors'
 import { WEDDING_BACKGROUND_PRESETS, applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingHeroPhotoLayout, weddingKitFramePatch, weddingPairedFrameSectionPatch, weddingReadingPlate, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame } from './wedding-background-presets'
 import { findWeddingCoverPreset, WEDDING_COVER_PRESETS, WEDDING_FAN_CLOSED_CLIP, WEDDING_FAN_PHOTO_CLIP, WEDDING_LEAF_CARDS, WEDDING_LEAF_FRAME, WEDDING_LEAF_FRAMES, WEDDING_MOON_CARDS, weddingCoverGateTone, weddingCoverPhotoClip, weddingCoverPhotoHead, weddingLeafFrameFor } from './wedding-cover-presets'
+import { WEDDING_SAMPLE_CARDS } from './wedding-sample-cards'
 import { WEDDING_ORNAMENT_CATALOG } from './wedding-background-ornament-store'
 import { getOrnamentComposition } from './wedding-ornament-layouts'
 import { weddingStyleIdFromPrompt } from './build-wedding-image-prompt'
@@ -595,9 +596,10 @@ test('song hy red is a gate card on lacquer paper with cream reading cards', () 
   assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('do-son'), '/wedding/backgrounds/do-son.jpg', true), 'rgba(110,24,32,0.9)')
   assert.equal(findWeddingBackgroundPreset('do-son')?.look.textPlate, 'rgba(110,24,32,0.9)')
   assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('doi-anh-do-son'), '/wedding/backgrounds/do-son.jpg', true), 'rgba(110,24,32,0.9)')
-  assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('long-phung-do'), '/wedding/backgrounds/long-phung-do-1.jpg', true), 'rgba(92,16,24,0.9)')
-  assert.equal(findWeddingBackgroundPreset('long-phung-do')?.look.textPlate, 'rgba(92,16,24,0.9)')
-  assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('doi-anh-long-phung'), '/wedding/backgrounds/long-phung-do-1.jpg', true), 'rgba(92,16,24,0.9)')
+  assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('long-phung-do'), '/wedding/backgrounds/long-phung-do-1.jpg', true), undefined)
+  assert.equal(findWeddingBackgroundPreset('long-phung-do')?.look.textPlate, 'rgba(92,16,24,0)')
+  assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('doi-anh-long-phung'), '/wedding/backgrounds/long-phung-do-1.jpg', true), undefined)
+  assert.equal(findWeddingBackgroundPreset('doi-anh-long-phung')?.look.textPlate, 'rgba(92,16,24,0)')
   assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('doi-anh-the'), '/wedding/backgrounds/long-phung-do-1.jpg', true), 'rgba(92,16,24,0.9)')
   assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('dem-vang'), '/wedding/backgrounds/dem-vang-paper.jpg', true), '#0c1830')
   assert.equal(weddingReadingPlate(undefined, 'https://cdn.example/master.png', false), undefined)
@@ -714,7 +716,7 @@ test('moon photo heads keep their shape on the papers people already use', () =>
   assert.equal(weddingCoverPhotoClip('moon'), 'circle(50% at 50% 50%)')
 })
 
-test('maple leaf frames sit on the papers people use most', () => {
+test('maple leaf frames stay readable after they leave the picker', () => {
   const plates: Record<string, string> = {
     lacquer: '/wedding/backgrounds/song-hy-do.svg',
     lotus: '/wedding/backgrounds/sen-vang.jpg',
@@ -722,6 +724,9 @@ test('maple leaf frames sit on the papers people use most', () => {
     sea: '/wedding/backgrounds/bien-paper.jpg',
   }
   assert.equal(WEDDING_LEAF_CARDS.length, 4)
+  assert.equal(WEDDING_BACKGROUND_PRESETS.some((item) => item.id === 'la-bau-duc' || item.id.startsWith('la-bau-duc-')), false)
+  assert.equal(WEDDING_COVER_PRESETS.some((item) => item.id === 'la_bau_duc' || item.id.startsWith('la_bau_duc_')), false)
+  assert.equal(WEDDING_SAMPLE_CARDS.some((item) => item.id === 'la-bau-duc' || item.id.startsWith('la-bau-duc-')), false)
   for (const card of WEDDING_LEAF_CARDS) {
     const preset = findWeddingBackgroundPreset(card.backgroundId)
     assert.ok(preset, card.backgroundId)

@@ -23,6 +23,7 @@ import { stripReadingCommentary } from '@/lib/coach-reading'
 import { filterListeningOptions, lessonListeningWords, prepareListeningWords, stripReadingLabels } from '@/lib/english-coach/listening-words'
 import { pronunciationMishearGuide, pronunciationMishears } from '@/lib/english-coach/pronunciation-mishear'
 import { normalizeDialogueMeaningKey } from '@/lib/english-coach/dialogue-meaning-key'
+import { idea1LockInstruction, idea1TeachingRules, idea1Teaches } from '@/lib/english-coach/idea1-teaching'
 import { applyLearnerMeaningNames } from '@/lib/english-coach/learner-meaning-lock'
 import { appendOpeningQuestion, hasOpeningQuestion, keepInCharacterReply } from '@/lib/english-coach/in-character-reply'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -1641,6 +1642,12 @@ Chủ đề đang học:
       mustKnowText: string
     }) => {
       if (!normalizedDialogueMeaning) return
+      if (!idea1Teaches(String(input.correctionNote || ''), nativeLanguageCode)) {
+        console.info(
+          `[REPLAY][${replayRequestId}] skip-save reason=idea1-empty note="${String(input.correctionNote || '').slice(0, 80)}"`
+        )
+        return
+      }
       const mainSentenceRaw = String(input.mainSentence || '').trim()
       const replaySenseText = [mainSentenceRaw, input.correctedSentence, input.reply, input.intentAnswer].join('\n')
       if (topicSenseClash({
@@ -2262,9 +2269,15 @@ Chủ đề đang học:
         targetLanguageCode,
         targetScriptRegexByCode(targetLanguageCode)
       )
+      const replayIdea1 = replayCorrectionNote || String(replayCorrections[0]?.explanationVi || '').trim()
+      const replayIdea1Teaches = idea1Teaches(replayIdea1, nativeLanguageCode)
       if (!replayMainSentenceValid) {
         console.info(
           `[REPLAY][${replayRequestId}] skip-cache reason=invalid-main-sentence cacheId=${replayFlow.id} lang=${targetLanguageCode} main="${replayMainSentence.slice(0, 80)}"`
+        )
+      } else if (!replayIdea1Teaches) {
+        console.info(
+          `[REPLAY][${replayRequestId}] skip-cache reason=idea1-empty cacheId=${replayFlow.id} note="${replayIdea1.slice(0, 80)}"`
         )
       } else {
       const replayIntentAnswer = ensureIntentAnswerTwoPart(
@@ -2880,7 +2893,7 @@ Yêu cầu triển khai theo chủ đề:
     })()
 
     const meaningOnlyGuide = dialogueMeaning
-      ? `Câu học viên muốn nói, bằng ${nativeLanguage}, là nghĩa duy nhất để viết ý 1, ý 2 và ý 3:\n${dialogueMeaning}\nKhông dùng câu máy nghe. Ý 1 dạy cách nói nghĩa này bằng ${targetLanguage}. Ý 2 là một câu hoàn chỉnh bằng ${targetLanguage} đúng nghĩa này. Ý 3 là lời trong vai rồi một câu hỏi mở chuyện bằng ${targetLanguage}.`
+      ? `Câu học viên muốn nói, bằng ${nativeLanguage}, là nghĩa duy nhất để viết ý 1, ý 2 và ý 3:\n${dialogueMeaning}\nKhông dùng câu máy nghe.\n${idea1TeachingRules({ nativeLanguage, targetLanguage, nativeLanguageCode })}\nÝ 2 là một câu hoàn chỉnh bằng ${targetLanguage} đúng nghĩa này. Ý 3 là lời trong vai rồi một câu hỏi mở chuyện bằng ${targetLanguage}.`
       : ''
 
     if (dialogueMeaning) {
@@ -3069,6 +3082,7 @@ ${dialogueMeaning ? `- Nghĩa tiếng mẹ đẻ cần dịch đúng, kể cả 
 - Không dùng fragment ngắn kiểu "to eat fish" làm mainSentence.
 - Không lấy nội dung mainSentence từ intentAnswer.
 - intentAnswer là lời người đối thoại trong vai, rồi một câu hỏi mở chuyện có dấu hỏi, chỉ bằng ${targetLanguage}. Cấm bảo học sinh nói thêm một câu để tiếp tục.
+- ${idea1TeachingRules({ nativeLanguage, targetLanguage, nativeLanguageCode })}
 - ${topicSenseBlock}`
       try {
         const strictRetry = await model.generateContent(strictRetryPrompt)
@@ -3626,18 +3640,18 @@ Chỉ trả JSON:
       if (!correctionNote) {
         correctionNote = String(parsed.corrections?.[0]?.explanationVi || '').trim()
       }
+      const polishIdea1 = (note: string) => (
+        nativeLanguageCode === 'vi' ? normalizeVietnameseLearnerAddressing(note) : note
+      )
       try {
-        const lockPrompt = `Học sinh đã gửi nghĩa tiếng mẹ đẻ. Nghĩa này là ý đúng.
-Nghĩa đã gửi: ${dialogueMeaning}
-Giải thích hiện tại: ${correctionNote}
-Câu sửa hiện tại: ${mainSentenceFinal}
-
-Viết lại cho khớp nghĩa đã gửi:
-- correctionNote: một đoạn ngắn bằng ${nativeLanguage}. Nội dung và tên riêng phải đúng nghĩa đã gửi. Không nhắc tên riêng chỉ có trong câu máy nghe.
-- mainSentence: một câu hoàn chỉnh chỉ bằng ${targetLanguage}, dịch đúng nghĩa đã gửi. Tên riêng giữ đúng chữ trong nghĩa đã gửi, không dịch tên riêng.
-
-Chỉ trả JSON:
-{"correctionNote":"...","mainSentence":"..."}`
+        const lockPrompt = idea1LockInstruction({
+          nativeLanguage,
+          targetLanguage,
+          nativeLanguageCode,
+          meaning: dialogueMeaning,
+          sentence: mainSentenceFinal,
+          currentNote: correctionNote,
+        })
         const locked = await model.generateContent(lockPrompt)
         trackEnglishCoachGeminiResult(
           locked,
@@ -3647,24 +3661,33 @@ Chỉ trả JSON:
           coachUsageContext
         )
         const lockedObj = safeJsonObject(locked.response.text()?.trim() || '')
-        const lockedNote = String(lockedObj?.correctionNote || '').trim()
+        let lockedNote = polishIdea1(String(lockedObj?.correctionNote || '').trim())
         const lockedSentence = String(lockedObj?.mainSentence || '').trim()
-        if (lockedNote) {
-          correctionNote = nativeLanguageCode === 'vi'
-            ? normalizeVietnameseLearnerAddressing(lockedNote)
-            : lockedNote
-        }
         if (lockedSentence && acceptsLockedMainSentence(lockedSentence, targetLanguageCode, targetScriptRe)) {
           mainSentenceFinal = lockedSentence
         }
+        if (lockedNote && !idea1Teaches(lockedNote, nativeLanguageCode)) {
+          const retry = await model.generateContent(`${lockPrompt}\nLần trước quá dài hoặc thiếu nhãn. correctionNote chỉ ba dòng, mỗi nhãn một dòng, danh từ chỉ viết từ = nghĩa.`)
+          trackEnglishCoachGeminiResult(
+            retry,
+            GEMINI_25_FLASH_NO_THINKING.model,
+            EnglishCoachApiFeature.chatRepairMainSentence,
+            userId || null,
+            coachUsageContext
+          )
+          const retryObj = safeJsonObject(retry.response.text()?.trim() || '')
+          const retryNote = polishIdea1(String(retryObj?.correctionNote || '').trim())
+          if (idea1Teaches(retryNote, nativeLanguageCode)) lockedNote = retryNote
+        }
+        if (idea1Teaches(lockedNote, nativeLanguageCode)) correctionNote = lockedNote
       } catch {
         // keep the sentence, then still align names from the submitted meaning
       }
       correctionNote = applyLearnerMeaningNames(correctionNote, dialogueMeaning)
       mainSentenceFinal = applyLearnerMeaningNames(mainSentenceFinal, dialogueMeaning)
-      if (Array.isArray(parsed.corrections) && parsed.corrections.length > 0) {
+      if (correctionNote && mainSentenceFinal) {
         parsed.corrections = [{
-          original: String(parsed.corrections[0]?.original || studentText || '').trim(),
+          original: dialogueMeaning || String(parsed.corrections?.[0]?.original || studentText || '').trim(),
           fixed: mainSentenceFinal,
           explanationVi: correctionNote,
         }]

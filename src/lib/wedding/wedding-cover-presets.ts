@@ -261,7 +261,7 @@ const MOON_PAPER_SLUG: Record<WeddingGateToneId, string> = {
 
 const MOON_PAPERS: readonly WeddingGateToneId[] = ['lacquer', 'lotus', 'pearl', 'night', 'sea']
 
-/** Bốn nền khách hay chọn. Khung ảnh là lá phong chụp thật, đục lỗ theo mép lá. */
+/** Đã dỡ khỏi kho chọn. Thiệp đã lưu vẫn đục ảnh theo lá phong. */
 const LEAF_PAPERS = ['lacquer', 'lotus', 'pearl', 'sea'] as const
 
 const LEAF_SLUG: Record<(typeof LEAF_PAPERS)[number], string> = {
@@ -1096,10 +1096,6 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
     const face = MOON_GATE_FACE[card.paper]
     return gateCover(card.coverId, card.paper, face.styleId, face.ornament, face.paper, face.accent, face.textClass, card.label, card.shape)
   }),
-  ...WEDDING_LEAF_CARDS.map((card) => {
-    const face = MOON_GATE_FACE[card.paper]
-    return gateCover(card.coverId, card.paper, face.styleId, face.ornament, face.paper, face.accent, face.textClass, card.label, 'leaf')
-  }),
   {
     id: 'linen_polaroid',
     layout: 'composed',
@@ -1356,8 +1352,14 @@ const WEDDING_RETIRED_FAN_COVERS: WeddingCoverPreset[] = [
   }, 'fan'),
 ]
 
+/** Đã dỡ khỏi kho chọn. Thiệp đã lưu vẫn đục ảnh theo lá phong. */
+const WEDDING_RETIRED_LEAF_COVERS: WeddingCoverPreset[] = WEDDING_LEAF_CARDS.map((card) => {
+  const face = MOON_GATE_FACE[card.paper]
+  return gateCover(card.coverId, card.paper, face.styleId, face.ornament, face.paper, face.accent, face.textClass, card.label, 'leaf')
+})
+
 const COVER_BY_ID = new Map(
-  [...WEDDING_COVER_PRESETS, ...WEDDING_RETIRED_FAN_COVERS].map((preset) => [preset.id, preset]),
+  [...WEDDING_COVER_PRESETS, ...WEDDING_RETIRED_FAN_COVERS, ...WEDDING_RETIRED_LEAF_COVERS].map((preset) => [preset.id, preset]),
 )
 
 export const DEFAULT_WEDDING_COVER_PRESET_ID = WEDDING_COVER_PRESETS[0]?.id ?? 'dragon_phoenix'

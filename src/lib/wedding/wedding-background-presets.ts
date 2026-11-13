@@ -564,6 +564,12 @@ const RED_LOOK: WeddingKitLook = {
   paper: '#5c1018',
 }
 
+/** Long phụng: chữ vàng nằm thẳng trên ảnh rồng phượng, không tấm đỏ. */
+const LONG_PHUNG_LOOK: WeddingKitLook = {
+  ...RED_LOOK,
+  textPlate: 'rgba(92,16,24,0)',
+}
+
 /** Dấu song hỷ, mây vàng và hai tim vàng, bám mép. */
 const SONG_HY_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(SONG_HY_SEAL, GOLD_HEARTS, SONG_HY_CLOUD, GOLD_BLOSSOM)
 
@@ -1046,7 +1052,7 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     plates: ['/wedding/backgrounds/long-phung-do-1.jpg', '/wedding/backgrounds/long-phung-do-2.jpg'],
     ornaments: LONG_PHUNG_ORNAMENTS,
     coverPresetId: 'plain_photo',
-    look: RED_LOOK,
+    look: LONG_PHUNG_LOOK,
     label: {
       vi: 'Long phụng đỏ',
       en: 'Red dragon and phoenix',
@@ -1144,7 +1150,6 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     },
   },
   ...WEDDING_MOON_CARDS.map(moonBackgroundPreset),
-  ...WEDDING_LEAF_CARDS.map(leafBackgroundPreset),
   {
     id: 'sen-vang',
     plates: ['/wedding/backgrounds/sen-vang.jpg'],
@@ -1210,7 +1215,7 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     plates: ['/wedding/backgrounds/long-phung-do-1.jpg', '/wedding/backgrounds/long-phung-do-2.jpg'],
     ornaments: LONG_PHUNG_ORNAMENTS,
     coverPresetId: 'pair_long_phung',
-    look: RED_LOOK,
+    look: LONG_PHUNG_LOOK,
     label: {
       vi: 'Đôi ảnh long phụng',
       en: 'Two dragon photos',
@@ -1765,8 +1770,11 @@ const WEDDING_RETIRED_FAN_BACKGROUNDS: WeddingBackgroundPreset[] = [
   },
 ]
 
+/** Đã dỡ khỏi kho chọn. Thiệp đã lưu vẫn đọc được nền lá phong. */
+const WEDDING_RETIRED_LEAF_BACKGROUNDS: WeddingBackgroundPreset[] = WEDDING_LEAF_CARDS.map(leafBackgroundPreset)
+
 const PRESET_BY_ID = new Map(
-  [...WEDDING_BACKGROUND_PRESETS, ...WEDDING_RETIRED_FAN_BACKGROUNDS].map((preset) => [preset.id, preset]),
+  [...WEDDING_BACKGROUND_PRESETS, ...WEDDING_RETIRED_FAN_BACKGROUNDS, ...WEDDING_RETIRED_LEAF_BACKGROUNDS].map((preset) => [preset.id, preset]),
 )
 
 export function findWeddingBackgroundPreset(id: string | null | undefined): WeddingBackgroundPreset | undefined {
@@ -2082,7 +2090,7 @@ export function weddingTextUsesVeil(preset: WeddingBackgroundPreset | null | und
   return Boolean(preset && SEE_THROUGH_TEXT_IDS.has(preset.id))
 }
 
-/** Mặt đọc phía sau chữ khi hoa văn nền cắt ngang nét chữ. Đỏ son và long phụng dùng tấm cùng màu giấy, trong suốt khoảng 10%. Giấy trơn và kho AI thì không phủ. */
+/** Mặt đọc phía sau chữ khi hoa văn nền cắt ngang nét chữ. Đỏ son dùng tấm cùng màu giấy, trong suốt khoảng 10%. Long phụng không phủ tấm. Giấy trơn và kho AI thì không phủ. */
 export function weddingReadingPlate(
   preset: WeddingBackgroundPreset | null | undefined,
   pageBackground: string,
@@ -2090,6 +2098,7 @@ export function weddingReadingPlate(
 ): string | undefined {
   if (!pageBackground.trim()) return undefined
   if (preset?.look.contentCard === 'scallop') return undefined
+  if (preset?.look === LONG_PHUNG_LOOK) return undefined
   if (preset?.look === RED_LOOK || preset?.look === SCARLET_LOOK) return preset.look.textPlate
   if (preset?.look.surface === 'dark' && preset.look.paper) return preset.look.paper
   if (weddingTextUsesVeil(preset)) return preset?.look.textPlate

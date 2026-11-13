@@ -9892,14 +9892,17 @@ export default function HocBaiHocCoSanClientPage() {
                               <div className="space-y-1 break-words text-base">
                                 <p className="whitespace-pre-wrap">
                                   <span className="font-semibold text-rose-700">{localText('Ý 1 - Sửa lỗi:', 'Idea 1 - Error fix:')}</span>{' '}
-                                  {correctionItems.length > 0
-                                    ? (() => {
-                                        const pairs = correctionItems.slice(0, 5).map((c) => `${(c.original || '-').trim()} → ${(c.fixed || '-').trim()}`).filter(Boolean)
-                                        return pairs.join('; ') || localText('Xem chi tiết bên dưới.', 'See details below.')
-                                      })()
-                                    : correctionNote
+                                  {(() => {
+                                    const taught = correctionItems.map((c) => String(c.explanationVi || '').trim()).filter(Boolean).join('\n\n')
+                                    if (taught) return taught
+                                    if (correctionItems.length > 0) {
+                                      const pairs = correctionItems.slice(0, 5).map((c) => `${(c.original || '-').trim()} → ${(c.fixed || '-').trim()}`).filter(Boolean)
+                                      return pairs.join('; ') || localText('Xem chi tiết bên dưới.', 'See details below.')
+                                    }
+                                    return correctionNote
                                       ? transformCorrectionNoteForDisplay(correctionNote, correctionLabels.original, correctionLabels.fixed)
-                                      : localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')}
+                                      : localText('Không có lỗi lớn cần sửa.', 'No major correction needed.')
+                                  })()}
                                   {' '}
                                   <span className="inline-flex flex-wrap items-center gap-2 align-middle">
                                     <Button
@@ -10206,7 +10209,21 @@ export default function HocBaiHocCoSanClientPage() {
                                               ) : null}
                                               {exampleText ? (
                                                 <p className="mt-0.5">
-                                                  <span className="font-semibold text-slate-700">{localText('Ví dụ:', 'Example:')}</span> {exampleText}
+                                                  <span className="font-semibold text-slate-700">{localText('Ví dụ:', 'Example:')}</span> {exampleText}{' '}
+                                                  <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="ml-0.5 inline-flex h-7 w-7 shrink-0 align-middle"
+                                                    title={localText('Nghe ví dụ', 'Play example')}
+                                                    aria-label={localText('Nghe ví dụ', 'Play example')}
+                                                    onClick={(event) => {
+                                                      event.stopPropagation()
+                                                      void playWordSenseExampleTarget(exampleText)
+                                                    }}
+                                                  >
+                                                    <Volume2 className="h-4 w-4" />
+                                                  </Button>
                                                 </p>
                                               ) : null}
                                               <NativePhoneticLine
@@ -10222,8 +10239,8 @@ export default function HocBaiHocCoSanClientPage() {
                                                   <span className="font-semibold text-slate-800">{localText('Dịch:', 'Translation:')}</span> {exampleNative}
                                                 </p>
                                               ) : null}
-                                              <div className="mt-1 flex flex-wrap gap-1.5">
-                                                {gloss ? (
+                                              {gloss ? (
+                                                <div className="mt-1 flex flex-wrap gap-1.5">
                                                   <Button
                                                     type="button"
                                                     variant="outline"
@@ -10234,20 +10251,8 @@ export default function HocBaiHocCoSanClientPage() {
                                                     <Volume2 className="mr-1 h-3.5 w-3.5" />
                                                     {localText('Nghe nghĩa này', 'Play this meaning')}
                                                   </Button>
-                                                ) : null}
-                                                {exampleText ? (
-                                                  <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-7 px-2 text-[11px]"
-                                                    onClick={() => void playWordSenseExampleTarget(exampleText)}
-                                                  >
-                                                    <Volume2 className="mr-1 h-3.5 w-3.5" />
-                                                    {localText('Nghe ví dụ', 'Play example')}
-                                                  </Button>
-                                                ) : null}
-                                              </div>
+                                                </div>
+                                              ) : null}
                                             </div>
                                           )
                                         })}

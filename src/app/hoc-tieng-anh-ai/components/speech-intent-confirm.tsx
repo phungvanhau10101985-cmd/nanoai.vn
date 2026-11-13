@@ -87,6 +87,9 @@ export function SpeechIntentConfirm({
     'Leave blank if the meaning above is right',
   )
   const meaningLanguage = nativeLanguageCode || 'en'
+  const typedMeaning = meaningDraft.trim()
+  const systemMeaning = meaning.trim()
+  const canContinue = !meaningBusy && !continueBusy && Boolean(text.trim()) && Boolean(systemMeaning || typedMeaning)
 
   useLayoutEffect(() => {
     const query = window.matchMedia('(max-width: 1023px)')
@@ -129,10 +132,11 @@ export function SpeechIntentConfirm({
       viewport?.removeEventListener('scroll', sync)
       window.removeEventListener('orientationchange', schedule)
     }
-  }, [phone])
+  }, [phone, canContinue])
 
   const continueWith = () => {
     const flushed = (flushRef.current?.() ?? inputRef.current?.value ?? meaningDraft).trim()
+    if (meaningBusy || continueBusy || !text.trim() || !(flushed || systemMeaning)) return
     inputRef.current?.blur()
     onContinue(flushed)
   }
@@ -178,16 +182,17 @@ export function SpeechIntentConfirm({
               className="bg-white text-slate-900"
             />
           </div>
-          <Button
-            type="button"
-            size="sm"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={continueWith}
-            disabled={continueBusy || !text.trim()}
-            className="h-11 min-h-11 shrink-0 whitespace-nowrap px-3.5 text-sm font-semibold"
-          >
-            {localText('Tiếp', 'Continue')}
-          </Button>
+          {canContinue ? (
+            <Button
+              type="button"
+              size="sm"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={continueWith}
+              className="h-11 min-h-11 shrink-0 whitespace-nowrap px-3.5 text-sm font-semibold"
+            >
+              {localText('Tiếp', 'Continue')}
+            </Button>
+          ) : null}
         </div>
       </div>
       <div className="flex flex-wrap gap-2">

@@ -1,3 +1,4 @@
+import { idea1TeachingRules } from '@/lib/english-coach/idea1-teaching'
 import { topicSenseLockGuide } from './topic-sense-lock'
 import type { BuildChatPromptsInput } from './types'
 
@@ -48,7 +49,7 @@ ${input.modePrompt}
 14) Bắt buộc suy luận "học sinh muốn hỏi gì" trước khi trả lời; không trả lời chung chung.
 15) Nếu câu hỏi đến từ ngôn ngữ mẹ đẻ, phải trả lời đúng ý bằng ${input.nativeLanguage} và đồng thời đưa mẫu câu chuẩn bằng ${input.targetLanguage}.
 16) Không thuyết trình dài hoàn toàn bằng ${input.targetLanguage} khi chưa có giải thích bằng ${input.nativeLanguage}.
-17) corrections[].explanationVi và pronunciationTips[] phải viết bằng ${input.nativeLanguage} (ngắn, dễ hiểu, có tính sư phạm – ấm áp khuyến khích, không khô khan).
+17) corrections[].explanationVi và correctionNote bằng ${input.nativeLanguage}, ngắn ba dòng: một điểm cần chú ý, danh từ mới viết từ = nghĩa, một hoặc hai ví dụ đổi từ. pronunciationTips[] viết bằng ${input.nativeLanguage}, chỉ một mẹo đọc.
 18) ${input.speakingModeGuide}
 19) Nếu speakingMode là mixed hoặc auto (và câu có trộn), reply phải có thêm đoạn:
 - "Phần bạn chưa biết (${input.nativeLanguage}) -> ${input.targetLanguage}: ..."
@@ -64,6 +65,7 @@ ${input.modePrompt}
 ${input.mixedAnalysisGuide}
 28) Áp dụng DUY NHẤT prompt level sau (không trộn level khác):
 ${input.levelPromptIndependent}
+28.1) correctionNote là ba dòng ngắn: điểm cần chú ý, danh từ mới dạng từ = nghĩa, một hoặc hai ví dụ. Không bài giảng.
 29) ${input.micAnalysisGuide}
 30) ${input.pinyinGuide}
 31) ${input.topicGuide}
@@ -95,8 +97,8 @@ Không trộn ${input.nativeLanguage}.
 - Nếu câu học sinh thuần 1 ngôn ngữ (chỉ ${input.targetLanguage} hoặc chỉ ${input.nativeLanguage}) thì KHÔNG coi là MIXED.
 - Tuyệt đối không chỉ sửa một mảnh nhỏ rồi bỏ phần còn lại (ví dụ chỉ sửa "I am forty years old" nhưng quên vế "I am a construction engineer").
 - QUY TẮC corrections (Ý 1): Sửa TẤT CẢ các lỗi ngữ pháp/từ vựng trong câu; có lỗi gì sửa lỗi đó. Mỗi lỗi phải có 1 item trong corrections (original → fixed). Không bỏ sót lỗi.
-- Ý 1 PHẢI CÓ TÍNH SƯ PHẠM: correctionNote và corrections[].explanationVi phải ấm áp, khuyến khích, dễ hiểu như giáo viên thật; không khô khan, không chỉ liệt kê lạnh lùng. Ví dụ: thay vì "Sai. Đúng là X" → dùng giọng "Em nói X, đúng rồi! Còn chỗ này nên là Y vì..." hoặc "Chỗ này ta dùng Y nhé, vì..."
-- KHI HỌC VIÊN NÓI TIẾNG MẸ ĐẺ (native): KHÔNG dùng format khô khan "Tiếng X nói là: ..., Tiếng Y nói là: ...". Thay vào đó, thuyết giảng: "Để nói câu "[câu tiếng mẹ đẻ]" nói tiếng ${input.targetLanguage} là "[bản dịch]". Câu "[câu tiếng mẹ đẻ]" tiếng ${input.targetLanguage} nói là [bản dịch]. Cấu trúc ngữ pháp của câu này là "..." (giải thích ngắn, dễ hiểu)." Nếu câu dịch sai ngữ pháp thì sửa lại; sai gì sửa đó, có tính sư phạm, không dài dòng. Ví dụ: "Để nói câu "Ta có thể chuyển chủ đề khác được không?" nói tiếng ${input.targetLanguage} là "Can we move on to another topic?". Cấu trúc ngữ pháp: dùng "Can we + V...?" để hỏi xin phép."
+- ${idea1TeachingRules({ nativeLanguage: input.nativeLanguage, targetLanguage: input.targetLanguage, nativeLanguageCode: input.nativeLanguageCode })}
+- corrections[].explanationVi phải cùng nội dung với correctionNote, cùng ba nhãn. Không viết lời khen vào explanationVi rồi để correctionNote trống.
 - Với câu MIX có phần ${input.nativeLanguage} học sinh cố ý nói vì chưa biết từ, corrections phải có item thể hiện rõ cặp native -> target cho phần bị thiếu đó.
 - NGHE NHẦM PHÁT ÂM: từ tiếng mẹ đẻ trong câu máy nghe, nếu phần so sánh câu nghe với nghĩa muốn nói xác định đó là phát âm bị nghe nhầm, thì Ý 1 chỉ hướng dẫn cách đọc từ ${input.targetLanguage} tương ứng. Cấm giải thích từ tiếng mẹ đẻ ấy như lỗi ngữ pháp, và cấm nói học sinh không biết từ ấy không dùng được.
 - RÀNG BUỘC NHẤT QUÁN corrections <-> mainSentence: nếu có ít nhất 1 lỗi thật sự trong corrections (original != fixed), thì mainSentence BẮT BUỘC phải phản ánh bản đã sửa; không được giữ nguyên cụm sai trong câu gốc.
@@ -124,10 +126,10 @@ ${pairExtraRules}
 Đầu ra BẮT BUỘC là JSON hợp lệ, không markdown. Trường corrections phải liệt kê TẤT CẢ lỗi (mỗi lỗi 1 item).
 {
   "corrections": [
-    { "original": "câu tiếng mẹ đẻ hoặc cụm sai", "fixed": "bản dịch/câu sửa", "explanationVi": "Để nói câu \"...\" nói tiếng [đích] là \"...\". Cấu trúc ngữ pháp: ... (khi native→target); hoặc giải thích sư phạm ngắn (khi sửa lỗi)" }
+    { "original": "câu tiếng mẹ đẻ hoặc cụm sai", "fixed": "bản dịch/câu sửa", "explanationVi": "cùng correctionNote, ba dòng ngắn" }
   ],
   "pronunciationTips": ["mẹo phát âm ngắn bằng ngôn ngữ mẹ đẻ", "..."],
-  "correctionNote": "nội dung sửa lỗi ngắn gọn, có tính sư phạm (ấm áp, khuyến khích), không khô khan; không thêm tiêu đề",
+  "correctionNote": "ba dòng: điểm cần chú ý, danh từ mới dạng từ = nghĩa, một hoặc hai ví dụ; không bài giảng",
   "intentAnswer": "lời người đối thoại trả lời trong vai, rồi một câu hỏi mở chuyện trong vai, chỉ bằng ngôn ngữ đang học; câu hỏi có dấu hỏi; không bảo học sinh nói thêm một câu",
   "mainSentence": "1 câu chính để nút Nghe câu chính đọc đúng, chỉ nội dung câu"
 }`

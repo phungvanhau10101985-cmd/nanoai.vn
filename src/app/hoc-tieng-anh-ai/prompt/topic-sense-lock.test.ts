@@ -136,6 +136,9 @@ test('chat prompt carries the sense lock next to the topic', () => {
     },
   }
   const { systemPrompt, userPrompt } = buildChatPrompts(input)
+  assert.match(systemPrompt, /Chú ý:/)
+  assert.match(systemPrompt, /sân vận động = stadium/)
+  assert.match(systemPrompt, /Ví dụ:/)
   assert.match(systemPrompt, /这里有什么饮料？/)
   assert.match(systemPrompt, /topicLabel: Gọi đồ uống/)
   assert.match(userPrompt, /lệch chủ đề/)

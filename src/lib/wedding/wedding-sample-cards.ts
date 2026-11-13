@@ -6,7 +6,7 @@
  */
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import { findWeddingBackgroundPreset, labelForWeddingBackgroundPreset, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingKitFramePatch, weddingReadyBackgroundSectionPatch, weddingThemeOpenCelebration } from '@/lib/wedding/wedding-background-presets'
-import { WEDDING_LEAF_CARDS, WEDDING_MOON_CARDS, type WeddingGateToneId, type WeddingMoonShape } from '@/lib/wedding/wedding-cover-presets'
+import { WEDDING_MOON_CARDS, type WeddingGateToneId, type WeddingMoonShape } from '@/lib/wedding/wedding-cover-presets'
 import { weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornament-store'
 import { clearWeddingFrameChoice, mergeWeddingSectionConfig, parseWeddingSectionConfig, stringifyWeddingSectionConfig, withoutPrivateShell } from '@/lib/wedding/wedding-section-config'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -132,29 +132,6 @@ function moonSamplePositionY(shape: WeddingMoonShape): number {
   return 18
 }
 
-function leafSamplePositionY(paper: WeddingGateToneId): number {
-  // Lá phong vàng: mép trên giữ nguyên để khuyết giữa lá không cắt trán chú rể.
-  if (paper === 'lotus') return 0
-  return 22
-}
-
-function leafSampleCards(): WeddingSampleCard[] {
-  return WEDDING_LEAF_CARDS.map((card) => {
-    const photo = MOON_SAMPLE_PHOTO[card.paper]
-    const folder = `/wedding/samples/${photo.folder}`
-    return {
-      id: card.backgroundId,
-      backgroundPresetId: card.backgroundId,
-      coverPhotoUrl: `${folder}/cover.png`,
-      groomImageUrl: `${folder}/groom.png`,
-      brideImageUrl: `${folder}/bride.png`,
-      albumImageUrls: [`${folder}/album-1.png`, `${folder}/album-2.png`],
-      dressCode: photo.dressCode,
-      coverPhotoPositionY: leafSamplePositionY(card.paper),
-    }
-  })
-}
-
 export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
   {
     id: 'toi-gian-nau',
@@ -246,7 +223,6 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
     coverPhotoPositionY: 0,
   },
   ...moonSampleCards(),
-  ...leafSampleCards(),
   {
     id: 'sen-vang',
     backgroundPresetId: 'sen-vang',
