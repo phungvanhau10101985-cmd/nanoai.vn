@@ -1181,9 +1181,11 @@ function applyEnglishWordSwapHint(sentence: string, hint: { prefer: string; avoi
 
 function ensureIntentAnswerTwoPart(
   intentAnswer: string,
-  _targetLanguageCode: string,
-  _targetLanguage: string
+  targetLanguageCode: string,
+  targetLanguage: string
 ): string {
+  void targetLanguageCode
+  void targetLanguage
   return keepInCharacterReply(intentAnswer)
 }
 
