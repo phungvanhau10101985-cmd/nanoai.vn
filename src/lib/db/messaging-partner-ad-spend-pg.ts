@@ -1,3 +1,4 @@
+import { openNullableSecret, resealNullableSecret } from '@/lib/security/secret-vault'
 import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import {
@@ -48,11 +49,11 @@ function blankCreds(): AdSpendCredentials {
 function credsFromRow(row: SecretRow | null): AdSpendCredentials {
   if (!row) return blankCreds()
   return {
-    googleDeveloperToken: String(row.google_developer_token ?? '').trim(),
+    googleDeveloperToken: openNullableSecret(row.google_developer_token, 'ad-google-dev-token') ?? '',
     googleCustomerId: normalizeCustomerId(row.google_customer_id),
     googleLoginCustomerId: normalizeCustomerId(row.google_login_customer_id),
-    googleServiceAccountJson: String(row.google_service_account_json ?? '').trim(),
-    metaAccessToken: String(row.meta_access_token ?? '').trim(),
+    googleServiceAccountJson: openNullableSecret(row.google_service_account_json, 'ad-google-sa') ?? '',
+    metaAccessToken: openNullableSecret(row.meta_access_token, 'ad-meta-token') ?? '',
     metaAdAccountId: normalizeAdAccountId(row.meta_ad_account_id),
   }
 }
@@ -167,14 +168,14 @@ export async function savePartnerAdSpendSettingsFromPg(input: {
        updated_at = now()`,
     [
       input.partnerId,
-      next.googleDeveloperToken || null,
+      resealNullableSecret(next.googleDeveloperToken, 'ad-google-dev-token'),
       null,
       null,
       null,
       next.googleCustomerId || null,
       next.googleLoginCustomerId || null,
-      next.googleServiceAccountJson || null,
-      next.metaAccessToken || null,
+      resealNullableSecret(next.googleServiceAccountJson, 'ad-google-sa'),
+      resealNullableSecret(next.metaAccessToken, 'ad-meta-token'),
       next.metaAdAccountId || null,
     ],
   )

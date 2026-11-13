@@ -1,7 +1,7 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'crypto'
+import { createDecipheriv, createHash, timingSafeEqual } from 'crypto'
+import { isSealedSecret, openStoredSecret, sealStoredSecret } from '@/lib/security/secret-vault'
 
 const ALGORITHM = 'aes-256-gcm'
-const IV_BYTES = 12
 const AUTH_TAG_BYTES = 16
 
 export type EncryptedCustomerApiKey = {
@@ -31,14 +31,12 @@ function buildKeyHint(apiKey: string): string {
 export function encryptCustomerApiKey(apiKey: string): EncryptedCustomerApiKey {
   const plaintext = apiKey.trim()
   if (!plaintext) throw new Error('API key is empty')
-  const iv = randomBytes(IV_BYTES)
-  const cipher = createCipheriv(ALGORITHM, getEncryptionKey(), iv, { authTagLength: AUTH_TAG_BYTES })
-  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
-  const authTag = cipher.getAuthTag()
+  const sealed = sealStoredSecret(plaintext, 'customer-gemini')
+  const parts = sealed.split('.')
   return {
-    encryptedKey: encrypted.toString('base64'),
-    iv: iv.toString('base64'),
-    authTag: authTag.toString('base64'),
+    encryptedKey: sealed,
+    iv: parts[2] || '',
+    authTag: parts[3] || '',
     keyHint: buildKeyHint(plaintext),
   }
 }
@@ -48,6 +46,7 @@ export function decryptCustomerApiKey(input: {
   iv: string
   authTag: string
 }): string {
+  if (isSealedSecret(input.encryptedKey)) return openStoredSecret(input.encryptedKey, 'customer-gemini')
   const decipher = createDecipheriv(ALGORITHM, getEncryptionKey(), Buffer.from(input.iv, 'base64'), {
     authTagLength: AUTH_TAG_BYTES,
   })

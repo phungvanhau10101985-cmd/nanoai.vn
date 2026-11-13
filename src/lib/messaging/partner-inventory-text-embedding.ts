@@ -12,6 +12,7 @@ import {
 import { insertMessagingPartnerTextEmbedUsageFromPg } from '@/lib/db/messaging-partner-text-embed-usage-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
+import { clipGeminiError, geminiJsonHeaders, geminiModelUrl } from '@/lib/ai/gemini-http'
 import type { Database } from '@/types/database.types'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -258,9 +259,7 @@ async function embedTextWithGemini(
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) throw new Error('Missing GOOGLE_API_KEY for Gemini text embeddings.')
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    GEMINI_EMBED_MODEL
-  )}:embedContent?key=${encodeURIComponent(apiKey)}`
+  const endpoint = geminiModelUrl(GEMINI_EMBED_MODEL, 'embedContent')
 
   const buildBody = (withTask: boolean): Record<string, unknown> => {
     const b: Record<string, unknown> = {
@@ -278,20 +277,20 @@ async function embedTextWithGemini(
 
   let res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: geminiJsonHeaders(apiKey),
     body: JSON.stringify(buildBody(true)),
   })
   let raw = await res.text()
   if (!res.ok && /task/i.test(raw)) {
     res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: geminiJsonHeaders(apiKey),
       body: JSON.stringify(buildBody(false)),
     })
     raw = await res.text()
   }
   if (!res.ok) {
-    throw new Error(`Gemini text embed failed (${res.status}): ${raw.slice(0, 300)}`)
+    throw new Error(`Gemini text embed failed (${res.status}): ${clipGeminiError(raw, apiKey)}`)
   }
 
   let payload: unknown

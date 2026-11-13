@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getUserForAction } from '@/lib/auth'
+import { clipGeminiError, geminiJsonHeaders, geminiModelUrl } from '@/lib/ai/gemini-http'
 import { encryptCustomerApiKey } from '@/lib/security/customer-api-key-vault'
 import {
   deleteUserAiApiKey,
@@ -41,11 +42,9 @@ export async function getCustomerGeminiApiKeyStatusAction(): Promise<{
 async function testGeminiApiKey(apiKey: string): Promise<{ ok: true } | { error: string }> {
   const key = apiKey.trim()
   if (!key) return { error: 'API key trống.' }
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`,
-    {
+  const res = await fetch(geminiModelUrl('gemini-2.0-flash', 'generateContent'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: geminiJsonHeaders(key),
       body: JSON.stringify({
         contents: [{ parts: [{ text: 'Reply with exactly: ok' }] }],
         generationConfig: { maxOutputTokens: 4, temperature: 0 },
@@ -54,7 +53,7 @@ async function testGeminiApiKey(apiKey: string): Promise<{ ok: true } | { error:
   )
   if (!res.ok) {
     const raw = await res.text().catch(() => '')
-    const message = raw ? raw.slice(0, 220) : `Gemini HTTP ${res.status}`
+    const message = raw ? clipGeminiError(raw, key, 220) : `Gemini HTTP ${res.status}`
     return { error: message }
   }
   return { ok: true }

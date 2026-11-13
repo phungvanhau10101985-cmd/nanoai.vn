@@ -28,6 +28,7 @@ import {
   paymentReferenceLookupKeys,
 } from '@/lib/messaging/shop-payment-reference'
 import { vietnamSlaBadge } from '@/lib/messaging/fulfillment/vietnam-order-sla'
+import { openStoredSecret, resealSecret, rethrowVaultError } from '@/lib/security/secret-vault'
 import {
   partnerOrderPaymentTransitionSql,
   partnerOrderShippingTransitionSql,
@@ -458,8 +459,8 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
           : String(row.sepay_qr_template ?? 'compact') === ''
             ? ''
             : 'compact',
-      sepay_webhook_token: String(row.sepay_webhook_token ?? ''),
-      sepay_secret_key: String(row.sepay_secret_key ?? ''),
+      sepay_webhook_token: openStoredSecret(String(row.sepay_webhook_token ?? ''), 'sepay-shop-token'),
+      sepay_secret_key: openStoredSecret(String(row.sepay_secret_key ?? ''), 'sepay-shop-hmac'),
       shipping_fee_amount: Math.max(0, num(row.shipping_fee_amount, 0)),
       shipping_free_threshold_amount:
         row.shipping_free_threshold_amount == null ? null : Math.max(0, num(row.shipping_free_threshold_amount, 0)),
@@ -490,6 +491,7 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
       return fetchPartnerPaymentSettingsFromPg(partnerId)
     }
     if (isMissingPaymentSettingsTableError(e)) return null
+    rethrowVaultError(e)
     console.warn('[fetchPartnerPaymentSettingsFromPg]', e)
     return null
   }
@@ -593,8 +595,8 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
         String(input.sepayBankCode ?? '').trim().slice(0, 40),
         String(input.sepayAccountNumber ?? '').trim().slice(0, 40),
         input.sepayQrTemplate === 'qronly' ? 'qronly' : input.sepayQrTemplate === '' ? '' : 'compact',
-        String(input.sepayWebhookToken ?? '').trim().slice(0, 120),
-        String(input.sepaySecretKey ?? '').trim().slice(0, 256),
+        resealSecret(input.sepayWebhookToken, 'sepay-shop-token', 120),
+        resealSecret(input.sepaySecretKey, 'sepay-shop-hmac', 256),
         Math.max(0, Math.round(num(input.shippingFeeAmount, 0))),
         input.shippingFreeThresholdAmount == null ? null : Math.max(0, Math.round(num(input.shippingFreeThresholdAmount, 0))),
         input.ewalletEnabled === true,
@@ -1712,10 +1714,11 @@ export async function fetchPartnerOrderByPaymentReferenceFromPg(
       payment_reference: String(row.payment_reference ?? ''),
       required_amount: num(row.required_amount, 0),
       expected_account_number: String(row.expected_account_number ?? ''),
-      sepay_webhook_token: String(row.sepay_webhook_token ?? ''),
-      sepay_secret_key: String(row.sepay_secret_key ?? ''),
+      sepay_webhook_token: openStoredSecret(String(row.sepay_webhook_token ?? ''), 'sepay-shop-token'),
+      sepay_secret_key: openStoredSecret(String(row.sepay_secret_key ?? ''), 'sepay-shop-hmac'),
     }
   } catch (e) {
+    rethrowVaultError(e)
     console.warn('[fetchPartnerOrderByPaymentReferenceFromPg]', e)
     return null
   }

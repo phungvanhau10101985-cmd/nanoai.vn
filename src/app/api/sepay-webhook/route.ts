@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isVaultError } from '@/lib/security/secret-vault'
 import { createHash } from 'node:crypto'
 import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-notification-pg'
 import { authorizePartnerSePayWebhook, verifySePayWebhookAuth } from '@/lib/sepay-webhook-auth'
@@ -127,8 +128,10 @@ export async function POST(request: NextRequest) {
 
     console.log('SePay IPN received:', {
       contentType,
-      headers: Object.fromEntries(request.headers.entries()),
-      body: JSON.stringify(body, null, 2)
+      hasAuthorization: Boolean(request.headers.get('authorization')),
+      hasSignature: Boolean(request.headers.get('x-sepay-signature') || request.headers.get('signature')),
+      transferType: toStringValue(body.transferType || body.transfer_type) || '',
+      status: toStringValue(body.status || body.transaction_status) || '',
     })
 
     const url = new URL(request.url)
@@ -649,8 +652,8 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: unknown) {
-    console.error('SePay webhook error:', error)
-    const details = error instanceof Error ? error.message : 'Unknown error'
+    console.error('SePay webhook error:', error instanceof Error ? error.message : error)
+    const details = isVaultError(error) ? 'secret_unavailable' : error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: 'Internal server error', details }, { status: 500 })
   }
 }

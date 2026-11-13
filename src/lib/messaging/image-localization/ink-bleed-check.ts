@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import { clipGeminiError, geminiJsonHeaders, geminiModelUrl } from '@/lib/ai/gemini-http'
 import { imageLocInkBleedModel } from './image-localization-config'
 import { ImageLocalizationError } from './gemini-adapter'
 import { parseInkBleedVerdict } from './gpt-verify'
@@ -31,14 +32,14 @@ export async function detectInkBleed(imageBytes: Buffer): Promise<{ bleed: boole
   }
   const jpeg = await previewJpeg(imageBytes)
   const model = imageLocInkBleedModel()
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+  const url = geminiModelUrl(model, 'generateContent')
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), 45_000)
   let res: Response
   try {
     res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: geminiJsonHeaders(apiKey),
       signal: ac.signal,
       body: JSON.stringify({
         contents: [
@@ -58,7 +59,7 @@ export async function detectInkBleed(imageBytes: Buffer): Promise<{ bleed: boole
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new ImageLocalizationError(`Kiểm tra mực loang lỗi HTTP ${res.status}: ${text.slice(0, 300)}`)
+    throw new ImageLocalizationError(`Kiểm tra mực loang lỗi HTTP ${res.status}: ${clipGeminiError(text, apiKey)}`)
   }
   const body = (await res.json().catch(() => null)) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>

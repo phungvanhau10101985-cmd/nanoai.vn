@@ -1,5 +1,6 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
+import { openStoredSecret, resealSecret, rethrowVaultError } from '@/lib/security/secret-vault'
 import {
   PARTNER_OUTBOUND_WEBHOOK_EVENTS,
   type PartnerOutboundWebhookEvent,
@@ -36,7 +37,7 @@ function mapRow(r: {
   return {
     partnerId: r.partner_id,
     webhookUrl: String(r.webhook_url ?? '').trim(),
-    webhookSecret: String(r.webhook_secret ?? ''),
+    webhookSecret: openStoredSecret(String(r.webhook_secret ?? ''), 'outbound-webhook'),
     isEnabled: r.is_enabled === true,
     events: parseEvents(r.events),
     updatedAt: String(r.updated_at ?? ''),
@@ -59,6 +60,7 @@ export async function fetchPartnerOutboundWebhookFromPg(
     )
     return row ? mapRow(row) : null
   } catch (e) {
+    rethrowVaultError(e)
     console.warn('[fetchPartnerOutboundWebhookFromPg]', e)
     return null
   }
@@ -92,7 +94,13 @@ export async function upsertPartnerOutboundWebhookFromPg(input: {
              webhook_secret = excluded.webhook_secret,
              updated_at = now()
            returning partner_id::text, webhook_url, webhook_secret, is_enabled, events, updated_at`,
-          [pid, input.webhookUrl.trim().slice(0, 2000), input.isEnabled, eventsJson, String(input.webhookSecret).trim().slice(0, 256)]
+          [
+            pid,
+            input.webhookUrl.trim().slice(0, 2000),
+            input.isEnabled,
+            eventsJson,
+            resealSecret(input.webhookSecret, 'outbound-webhook', 256),
+          ]
         )
       : await pgQueryOne<Parameters<typeof mapRow>[0]>(
           `insert into public.messaging_partner_outbound_webhooks (
@@ -128,7 +136,7 @@ export async function setPartnerOutboundWebhookSecretFromPg(
        on conflict (partner_id) do update set
          webhook_secret = excluded.webhook_secret,
          updated_at = now()`,
-      [pid, sec.slice(0, 256)]
+      [pid, resealSecret(sec, 'outbound-webhook', 256)]
     )
     return true
   } catch (e) {
@@ -148,8 +156,9 @@ export async function peekPartnerOutboundWebhookSecretFromPg(
       [partnerId.trim()]
     )
     if (!row) return { secret: '' }
-    return { secret: String(row.webhook_secret ?? '').trim() }
+    return { secret: openStoredSecret(String(row.webhook_secret ?? ''), 'outbound-webhook').trim() }
   } catch (e) {
+    rethrowVaultError(e)
     console.warn('[peekPartnerOutboundWebhookSecretFromPg]', e)
     return null
   }

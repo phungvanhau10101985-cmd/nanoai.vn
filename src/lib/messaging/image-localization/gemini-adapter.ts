@@ -7,8 +7,7 @@ import {
   normalizeGeminiImageSize,
   sanitizeModelId,
 } from './image-localization-config'
-
-const GEMINI_GENERATE_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+import { clipGeminiError, geminiJsonHeaders, geminiModelUrl } from '@/lib/ai/gemini-http'
 
 export class ImageLocalizationError extends Error {
   constructor(message: string) {
@@ -113,7 +112,7 @@ export async function geminiProcessImage(opts: {
   if (apiKey.length < 10) throw new ImageLocalizationError('Thiếu GEMINI_API_KEY cho chế độ Gemini API.')
   const model = sanitizeModelId(opts.imageModel, imageLocGeminiImageModel())
   const timeout = imageLocGeminiApiTimeoutMs()
-  const url = `${GEMINI_GENERATE_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+  const url = geminiModelUrl(model, 'generateContent')
   const prompt = languagePrompt(opts.language, { removeModel: opts.removeModel })
   const mime = mimeForImageFilename(opts.filename)
   const size = normalizeGeminiImageSize(opts.imageSize) || imageLocGeminiDefaultImageSize()
@@ -137,7 +136,7 @@ export async function geminiProcessImage(opts: {
   try {
     res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: geminiJsonHeaders(apiKey),
       body: JSON.stringify(payload),
       signal: ac.signal,
     })
@@ -146,7 +145,7 @@ export async function geminiProcessImage(opts: {
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new ImageLocalizationError(`Gemini API ảnh lỗi HTTP ${res.status}: ${text.slice(0, 500)}`)
+    throw new ImageLocalizationError(`Gemini API ảnh lỗi HTTP ${res.status}: ${clipGeminiError(text, apiKey, 500)}`)
   }
   const body = (await res.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) throw new ImageLocalizationError('Gemini API trả JSON không đọc được')

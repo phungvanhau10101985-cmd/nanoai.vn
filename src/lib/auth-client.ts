@@ -9,7 +9,8 @@ export function isLocalhost(): boolean {
   return h === 'localhost' || h === '127.0.0.1'
 }
 
-/** Lấy dev user ID khi chạy local - cần NEXT_PUBLIC_AUTH_DEV_USER_ID trong .env.local */
+/** Lấy dev user ID khi chạy local. Production build bỏ biến này khỏi bundle. */
 export function getDevUserId(): string {
+  if (process.env.NODE_ENV === 'production') return '00000000-0000-0000-0000-000000000001'
   return process.env.NEXT_PUBLIC_AUTH_DEV_USER_ID || '00000000-0000-0000-0000-000000000001'
 }

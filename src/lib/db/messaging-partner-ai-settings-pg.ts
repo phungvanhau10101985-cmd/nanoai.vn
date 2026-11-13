@@ -9,6 +9,7 @@ import {
 } from '@/lib/messaging/guest-purchase-flow'
 import { resolvePartnerSaasCartAddPreview } from '@/lib/messaging/resolve-partner-saas-cart-add-url'
 import { normalizeShopCheckoutLoginRequired } from '@/lib/partner-website/shop/shop-checkout-auth'
+import { openNullableSecret, resealNullableSecret, rethrowVaultError } from '@/lib/security/secret-vault'
 
 export type MessagingPartnerAiSettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 
@@ -90,7 +91,7 @@ function mapPgRowToAiSettingsFull(row: {
     vision_index_synced_at: tsIso(row.vision_index_synced_at),
     vision_index_error: String(row.vision_index_error ?? ''),
     image_search_api_enabled: row.image_search_api_enabled !== false,
-    image_search_api_secret: row.image_search_api_secret ?? null,
+    image_search_api_secret: openNullableSecret(row.image_search_api_secret, 'image-search'),
     vision_bg_sync_status: String(row.vision_bg_sync_status ?? ''),
     vision_bg_sync_resume_after_id: row.vision_bg_sync_resume_after_id ?? null,
     vision_bg_sync_rounds: num(row.vision_bg_sync_rounds, 0),
@@ -108,7 +109,7 @@ function mapPgRowToAiSettingsFull(row: {
     shop_checkout_login_required: normalizeShopCheckoutLoginRequired(row.shop_checkout_login_required),
     after_sales_return_address: String(row.after_sales_return_address ?? '').trim().slice(0, 2000),
     shipping_lookup_url: String(row.shipping_lookup_url ?? '').trim().slice(0, 2048),
-    shipping_lookup_api_key: row.shipping_lookup_api_key != null ? String(row.shipping_lookup_api_key) : null,
+    shipping_lookup_api_key: openNullableSecret(row.shipping_lookup_api_key, 'shipping-lookup'),
     updated_at: tsIsoReq(row.updated_at),
   }
 }
@@ -165,6 +166,7 @@ export async function fetchMessagingPartnerAiSettingsFullFromPg(
     if (!row) return null
     return mapPgRowToAiSettingsFull(row)
   } catch (e) {
+    rethrowVaultError(e)
     console.warn('[fetchMessagingPartnerAiSettingsFullFromPg]', e)
     return null
   }
@@ -217,9 +219,10 @@ export async function fetchMessagingPartnerAiImageSearchAuthFromPg(
     if (!row) return null
     return {
       image_search_api_enabled: row.image_search_api_enabled !== false,
-      image_search_api_secret: row.image_search_api_secret ?? null,
+      image_search_api_secret: openNullableSecret(row.image_search_api_secret, 'image-search'),
     }
   } catch (e) {
+    rethrowVaultError(e)
     console.warn('[fetchMessagingPartnerAiImageSearchAuthFromPg]', e)
     return null
   }
@@ -259,9 +262,10 @@ export async function fetchMessagingPartnerAiUpsertPrereqFromPg(partnerId: strin
             ? String(row.vision_index_synced_at)
             : null,
       vision_index_error: String(row.vision_index_error ?? ''),
-      image_search_api_secret: row.image_search_api_secret ?? null,
+      image_search_api_secret: openNullableSecret(row.image_search_api_secret, 'image-search'),
     }
   } catch (e) {
+    rethrowVaultError(e)
     console.warn('[fetchMessagingPartnerAiUpsertPrereqFromPg]', e)
     return null
   }
@@ -393,7 +397,7 @@ export async function upsertMessagingPartnerAiSettingsDashboardFromPg(
         row.vision_index_synced_at,
         row.vision_index_error,
         row.image_search_api_enabled,
-        row.image_search_api_secret,
+        resealNullableSecret(row.image_search_api_secret, 'image-search'),
         row.vision_bg_sync_status,
         row.vision_bg_sync_resume_after_id,
         row.vision_bg_sync_rounds,
@@ -429,7 +433,7 @@ export async function updateMessagingPartnerAiImageSearchSecretFromPg(
       `update public.messaging_partner_ai_settings
        set image_search_api_secret = $2, updated_at = $3::timestamptz
        where partner_id = $1::uuid`,
-      [partnerId, secret, updatedAt]
+      [partnerId, resealNullableSecret(secret, 'image-search'), updatedAt]
     )
     return (r.rowCount ?? 0) > 0
   } catch (e) {
@@ -481,9 +485,10 @@ export async function fetchMessagingPartnerShippingLookupAuthFromPg(
     if (!row) return null
     return {
       shipping_lookup_url: String(row.shipping_lookup_url ?? '').trim().slice(0, 2048),
-      shipping_lookup_api_key: row.shipping_lookup_api_key != null ? String(row.shipping_lookup_api_key) : null,
+      shipping_lookup_api_key: openNullableSecret(row.shipping_lookup_api_key, 'shipping-lookup'),
     }
   } catch (e) {
+    rethrowVaultError(e)
     console.warn('[fetchMessagingPartnerShippingLookupAuthFromPg]', e)
     return null
   }
@@ -500,7 +505,7 @@ export async function updateMessagingPartnerShippingLookupApiKeyFromPg(
       `update public.messaging_partner_ai_settings
        set shipping_lookup_api_key = $2, updated_at = $3::timestamptz
        where partner_id = $1::uuid`,
-      [partnerId, apiKey, updatedAt]
+      [partnerId, resealNullableSecret(apiKey, 'shipping-lookup', 512), updatedAt]
     )
     return (r.rowCount ?? 0) > 0
   } catch (e) {
@@ -601,9 +606,9 @@ export async function peekMessagingPartnerAiImageSearchSecretFromPg(
       [partnerId]
     )
     if (!row) return null
-    const t = row.s?.trim()
-    return { secret: t || null }
+    return { secret: openNullableSecret(row.s, 'image-search') }
   } catch (e) {
+    rethrowVaultError(e)
     console.warn('[peekMessagingPartnerAiImageSearchSecretFromPg]', e)
     return null
   }

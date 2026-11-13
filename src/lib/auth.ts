@@ -129,7 +129,7 @@ export function isAuthRequired(): boolean {
 
 /** Tạo user giả cho môi trường local khi bypass auth */
 function getDevUser(): AppUser {
-  const fromEnv = process.env.AUTH_DEV_USER_ID?.trim()
+  const fromEnv = process.env.NODE_ENV === 'production' ? '' : process.env.AUTH_DEV_USER_ID?.trim()
   const devUserId =
     fromEnv && isValidUuidString(fromEnv)
       ? fromEnv

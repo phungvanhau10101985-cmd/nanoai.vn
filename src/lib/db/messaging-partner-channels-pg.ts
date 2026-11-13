@@ -1,6 +1,13 @@
 import type { Database } from '@/types/database.types'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import {
+  openNullableSecret,
+  openStoredSecret,
+  resealNullableSecret,
+  rethrowVaultError,
+  secretsEqual,
+} from '@/lib/security/secret-vault'
 
 export type MessagingPartnerChannelRow = Database['public']['Tables']['messaging_partner_channels']['Row']
 
@@ -18,8 +25,8 @@ export async function findFacebookChannelByPageIdFromPg(facebookPageId: string):
   if (!row) return null
   return {
     partner_id: String(row.partner_id),
-    page_access_token: row.page_access_token != null ? String(row.page_access_token) : null,
-    webhook_verify_token: row.webhook_verify_token != null ? String(row.webhook_verify_token) : null,
+    page_access_token: openNullableSecret(row.page_access_token, 'fb-page-token'),
+    webhook_verify_token: openNullableSecret(row.webhook_verify_token, 'fb-verify'),
   }
 }
 
@@ -29,19 +36,30 @@ export async function findFacebookChannelByVerifyTokenFromPg(verifyToken: string
   external_page_id: string
 } | null> {
   if (!isPgConfigured()) return null
-  const row = await pgQueryOne<Record<string, unknown>>(
-    `select id::text as id, partner_id::text, external_page_id
+  const needle = verifyToken.trim()
+  if (!needle) return null
+  const rows = await pgQuery<Record<string, unknown>>(
+    `select id::text as id, partner_id::text, external_page_id, webhook_verify_token
      from public.messaging_partner_channels
-     where provider = 'facebook_messenger' and webhook_verify_token = $1
-     limit 1`,
-    [verifyToken]
+     where provider = 'facebook_messenger' and coalesce(webhook_verify_token, '') <> ''`
   )
-  if (!row) return null
-  return {
-    id: String(row.id),
-    partner_id: String(row.partner_id),
-    external_page_id: String(row.external_page_id ?? ''),
+  let found: { id: string; partner_id: string; external_page_id: string } | null = null
+  for (const row of rows) {
+    let opened = ''
+    try {
+      opened = openStoredSecret(String(row.webhook_verify_token ?? ''), 'fb-verify').trim()
+    } catch {
+      continue
+    }
+    if (!found && secretsEqual(opened, needle)) {
+      found = {
+        id: String(row.id),
+        partner_id: String(row.partner_id),
+        external_page_id: String(row.external_page_id ?? ''),
+      }
+    }
   }
+  return found
 }
 
 export async function findZaloChannelByWebhookSecretFromPg(secret: string): Promise<{
@@ -49,18 +67,29 @@ export async function findZaloChannelByWebhookSecretFromPg(secret: string): Prom
   zalo_access_token: string | null
 } | null> {
   if (!isPgConfigured()) return null
-  const row = await pgQueryOne<Record<string, unknown>>(
-    `select partner_id::text, zalo_access_token
+  const needle = secret.trim()
+  if (!needle) return null
+  const rows = await pgQuery<Record<string, unknown>>(
+    `select partner_id::text, zalo_access_token, zalo_webhook_secret
      from public.messaging_partner_channels
-     where provider = 'zalo_oa' and zalo_webhook_secret = $1
-     limit 1`,
-    [secret]
+     where provider = 'zalo_oa' and coalesce(zalo_webhook_secret, '') <> ''`
   )
-  if (!row) return null
-  return {
-    partner_id: String(row.partner_id),
-    zalo_access_token: row.zalo_access_token != null ? String(row.zalo_access_token) : null,
+  let found: { partner_id: string; zalo_access_token: string | null } | null = null
+  for (const row of rows) {
+    let opened = ''
+    try {
+      opened = openStoredSecret(String(row.zalo_webhook_secret ?? ''), 'zalo-webhook').trim()
+    } catch {
+      continue
+    }
+    if (!found && secretsEqual(opened, needle)) {
+      found = {
+        partner_id: String(row.partner_id),
+        zalo_access_token: openNullableSecret(row.zalo_access_token, 'zalo-access'),
+      }
+    }
   }
+  return found
 }
 
 export async function getFacebookSendTokenFromPg(
@@ -74,7 +103,7 @@ export async function getFacebookSendTokenFromPg(
      limit 1`,
     [partnerId, facebookPageId]
   )
-  return row?.t ?? null
+  return openNullableSecret(row?.t, 'fb-page-token')
 }
 
 export async function getZaloSendTokenFromPg(partnerId: string): Promise<string | null> {
@@ -85,7 +114,7 @@ export async function getZaloSendTokenFromPg(partnerId: string): Promise<string 
      limit 1`,
     [partnerId]
   )
-  return row?.t ?? null
+  return openNullableSecret(row?.t, 'zalo-access')
 }
 
 export async function findFacebookChannelRowByPageForUpsertFromPg(
@@ -133,7 +162,13 @@ export async function upsertFacebookMessengerChannelPg(params: {
          webhook_verify_token = $3,
          updated_at = $4::timestamptz
        where id = $5::uuid`,
-      [partnerId, pageAccessToken, webhookVerifyToken ?? null, now, existing.id]
+      [
+        partnerId,
+        resealNullableSecret(pageAccessToken, 'fb-page-token'),
+        resealNullableSecret(webhookVerifyToken, 'fb-verify'),
+        now,
+        existing.id,
+      ]
     )
     if ((u.rowCount ?? 0) < 1) {
       return { error: 'Could not save Facebook channel (row missing or conflict).' }
@@ -143,7 +178,13 @@ export async function upsertFacebookMessengerChannelPg(params: {
       `insert into public.messaging_partner_channels (
          partner_id, provider, external_page_id, page_access_token, webhook_verify_token, created_at, updated_at
        ) values ($1::uuid, 'facebook_messenger', $2, $3, $4, $5::timestamptz, $5::timestamptz)`,
-      [partnerId, facebookPageId, pageAccessToken, webhookVerifyToken ?? null, now]
+      [
+        partnerId,
+        facebookPageId,
+        resealNullableSecret(pageAccessToken, 'fb-page-token'),
+        resealNullableSecret(webhookVerifyToken, 'fb-verify'),
+        now,
+      ]
     )
     if ((ins.rowCount ?? 0) < 1) {
       return { error: 'Could not create Facebook channel.' }
@@ -170,7 +211,12 @@ export async function upsertZaloOaChannelPg(params: {
          webhook_verify_token = null,
          updated_at = $3::timestamptz
        where id = $4::uuid`,
-      [zaloAccessToken, zaloWebhookSecret, now, existing.id]
+      [
+        resealNullableSecret(zaloAccessToken, 'zalo-access'),
+        resealNullableSecret(zaloWebhookSecret, 'zalo-webhook'),
+        now,
+        existing.id,
+      ]
     )
     if ((u.rowCount ?? 0) < 1) {
       return { error: 'Could not save Zalo channel (row missing or conflict).' }
@@ -181,7 +227,12 @@ export async function upsertZaloOaChannelPg(params: {
          partner_id, provider, external_page_id, page_access_token, webhook_verify_token,
          zalo_access_token, zalo_webhook_secret, created_at, updated_at
        ) values ($1::uuid, 'zalo_oa', 'default', null, null, $2, $3, $4::timestamptz, $4::timestamptz)`,
-      [partnerId, zaloAccessToken, zaloWebhookSecret, now]
+      [
+        partnerId,
+        resealNullableSecret(zaloAccessToken, 'zalo-access'),
+        resealNullableSecret(zaloWebhookSecret, 'zalo-webhook'),
+        now,
+      ]
     )
     if ((ins.rowCount ?? 0) < 1) {
       return { error: 'Could not create Zalo channel.' }
@@ -204,7 +255,7 @@ export async function deleteFacebookMessengerChannelForPartnerFromPg(
     [partnerId, pageId]
   )
   if ((deleted.rowCount ?? 0) < 1) return { error: 'Facebook Page is not linked to this workspace.' }
-  return { ok: true, pageAccessToken: deleted.rows[0]?.page_access_token ?? null }
+  return { ok: true, pageAccessToken: openNullableSecret(deleted.rows[0]?.page_access_token, 'fb-page-token') }
 }
 
 /** Đọc kênh FB/Zalo cho dashboard (embed API integration). */
@@ -238,19 +289,20 @@ export async function fetchPartnerChannelStatusRowsFromPg(partnerId: string): Pr
       if (p === 'facebook_messenger') {
         facebookPages.push({
           external_page_id: String(r.external_page_id ?? ''),
-          page_access_token: r.page_access_token != null ? String(r.page_access_token) : null,
-          webhook_verify_token: r.webhook_verify_token != null ? String(r.webhook_verify_token) : null,
+          page_access_token: openNullableSecret(r.page_access_token, 'fb-page-token'),
+          webhook_verify_token: openNullableSecret(r.webhook_verify_token, 'fb-verify'),
         })
       }
       if (p === 'zalo_oa') {
         zalo = {
-          zalo_access_token: r.zalo_access_token != null ? String(r.zalo_access_token) : null,
-          zalo_webhook_secret: r.zalo_webhook_secret != null ? String(r.zalo_webhook_secret) : null,
+          zalo_access_token: openNullableSecret(r.zalo_access_token, 'zalo-access'),
+          zalo_webhook_secret: openNullableSecret(r.zalo_webhook_secret, 'zalo-webhook'),
         }
       }
     }
     return { facebook: facebookPages[0] ?? null, facebookPages, zalo }
   } catch (e) {
+    rethrowVaultError(e)
     console.error('[messaging-partner-channels-pg] fetchPartnerChannelStatusRowsFromPg', e)
     return null
   }

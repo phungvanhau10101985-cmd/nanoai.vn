@@ -1,5 +1,6 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { openNullableSecret, resealNullableSecret, rethrowVaultError } from '@/lib/security/secret-vault'
 
 export type PartnerGoogleSheetsSettingsRow = {
   partner_id: string
@@ -68,11 +69,11 @@ export async function fetchPartnerGoogleSheetsServiceAccountJsonFromPg(
        limit 1`,
       [pid]
     )
-    const j = row?.j != null ? String(row.j).trim() : ''
-    return j || null
+    return openNullableSecret(row?.j, 'gsheets-sa')
   } catch (e) {
     const err = e as { code?: string }
     if (err.code === '42P01') return null
+    rethrowVaultError(e)
     console.warn('[fetchPartnerGoogleSheetsServiceAccountJsonFromPg]', e)
     return null
   }
@@ -97,16 +98,16 @@ export async function fetchPartnerGoogleSheetsSettingsForSyncFromPg(
       [pid]
     )
     if (!row) return null
-    const raw = row.service_account_json != null ? String(row.service_account_json).trim() : ''
     return {
       enabled: row.enabled === true,
       spreadsheet_id: String(row.spreadsheet_id ?? '').trim(),
       sheet_name: String(row.sheet_name ?? '').trim() || 'Don hang',
-      service_account_json: raw || null,
+      service_account_json: openNullableSecret(row.service_account_json, 'gsheets-sa'),
     }
   } catch (e) {
     const err = e as { code?: string }
     if (err.code === '42P01') return null
+    rethrowVaultError(e)
     console.warn('[fetchPartnerGoogleSheetsSettingsForSyncFromPg]', e)
     return null
   }
@@ -125,7 +126,7 @@ export async function upsertPartnerGoogleSheetsSettingsFromPg(input: {
   if (!pid) return false
   const sid = String(input.spreadsheetId ?? '').trim().slice(0, 120)
   const sn = String(input.sheetName ?? '').trim().slice(0, 80) || 'Don hang'
-  const saj = input.serviceAccountJson != null ? String(input.serviceAccountJson).trim() : null
+  const saj = resealNullableSecret(input.serviceAccountJson, 'gsheets-sa')
   try {
     await pgQuery(
       `insert into public.messaging_partner_google_sheets_settings (

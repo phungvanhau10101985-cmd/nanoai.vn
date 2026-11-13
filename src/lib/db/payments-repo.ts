@@ -1,5 +1,6 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { openStoredSecret, resealSecret, rethrowVaultError } from '@/lib/security/secret-vault'
 
 export type PaymentListRow = {
   id: string
@@ -358,11 +359,12 @@ export async function getSepayWebhookHmacSecretFromPg(): Promise<string | null> 
     const row = await pgQueryOne<{ hmac_secret: string | null }>(
       'select hmac_secret from public.sepay_webhook_settings where id = 1 limit 1'
     )
-    const v = String(row?.hmac_secret ?? '').trim()
+    const v = openStoredSecret(String(row?.hmac_secret ?? ''), 'sepay-platform-hmac').trim()
     return v || null
   } catch (e) {
     const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code || '') : ''
     if (code === '42P01') return null
+    rethrowVaultError(e)
     console.warn('[getSepayWebhookHmacSecretFromPg]', e)
     return null
   }
@@ -388,7 +390,7 @@ export async function upsertSepayWebhookHmacSecretPg(
       `insert into public.sepay_webhook_settings (id, hmac_secret, updated_at)
        values (1, $1, timezone('utc'::text, now()))
        on conflict (id) do update set hmac_secret = excluded.hmac_secret, updated_at = excluded.updated_at`,
-      [v]
+      [resealSecret(v, 'sepay-platform-hmac', 256)]
     )
     return { ok: true }
   } catch (e) {

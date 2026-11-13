@@ -11,6 +11,7 @@ import { fetchRemoteImageForCatalog, sniffImageContentType } from '@/lib/fetch-i
 import type { Database } from '@/types/database.types'
 import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
 import { inventoryImageReadyForImageEmbedding } from '@/lib/messaging/inventory-image-embedding-gate'
+import { clipGeminiError, geminiJsonHeaders, geminiModelUrl } from '@/lib/ai/gemini-http'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 const DB_VECTOR_DIMS = 768
@@ -192,9 +193,7 @@ export async function embedImageBufferWithGemini(
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
   if (!apiKey) throw new Error('Missing GOOGLE_API_KEY for Gemini image embeddings.')
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    GEMINI_EMBED_MODEL
-  )}:embedContent?key=${encodeURIComponent(apiKey)}`
+  const endpoint = geminiModelUrl(GEMINI_EMBED_MODEL, 'embedContent')
 
   const body = {
     model: `models/${GEMINI_EMBED_MODEL}`,
@@ -213,12 +212,12 @@ export async function embedImageBufferWithGemini(
 
   const res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: geminiJsonHeaders(apiKey),
     body: JSON.stringify(body),
   })
   const text = await res.text()
   if (!res.ok) {
-    throw new Error(`Gemini embed failed (${res.status}): ${text.slice(0, 300)}`)
+    throw new Error(`Gemini embed failed (${res.status}): ${clipGeminiError(text, apiKey)}`)
   }
 
   let payload: unknown
