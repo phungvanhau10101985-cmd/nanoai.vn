@@ -23,7 +23,7 @@ import {
   type WeddingOrnamentSurface,
 } from '@/lib/wedding/wedding-background-ornament-store'
 import { findWeddingBackgroundPreset, resolveWeddingChromeKit } from '@/lib/wedding/wedding-background-presets'
-import { findWeddingSampleCard, isWeddingSamplePhotoUrl, weddingSampleLookOnCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
+import { findWeddingSampleCard, isWeddingSamplePhotoUrl, weddingEntryLookForNewCard, weddingSampleLookOnCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
 import {
   WEDDING_COUPLE_PHOTO_RESTYLE_CREDIT,
   WEDDING_COUPLE_PHOTO_RESTYLE_QUALITY,
@@ -1117,6 +1117,7 @@ export async function createNewWeddingCard(
   _heroPhotoLayout?: string,
   opening?: WeddingCardOpeningCopy | null,
   createSource?: WeddingCreateSourcePayload | null,
+  options?: { skipEntryLook?: boolean },
 ) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
@@ -1163,6 +1164,24 @@ export async function createNewWeddingCard(
         thankYouText,
         weddingDate,
       })) ?? seeded
+  }
+  if (!options?.skipEntryLook) {
+    const entryLook = weddingEntryLookForNewCard(seeded)
+    if (entryLook) {
+      const savedLook = await saveWeddingCardSampleLook({
+        cardId: seeded.id,
+        userId: ownerUserId,
+        sectionConfig: entryLook.sectionConfig,
+        selectedStyleId: entryLook.selectedStyleId,
+        colorPalette: entryLook.colorPalette,
+        groomImageUrl: entryLook.groomImageUrl,
+        brideImageUrl: entryLook.brideImageUrl,
+        albumImageUrls: entryLook.albumImageUrls,
+        clearMaster: true,
+        occasionKey: seeded.occasionKey,
+      })
+      if (savedLook) seeded = (await getWeddingCardForUser(seeded.id, ownerUserId)) ?? seeded
+    }
   }
   const card = (await publishWeddingCard(seeded.id, ownerUserId)) ?? seeded
   if (card.slug) revalidatePath(`/thiep-moi-cuoi/${card.slug}`)

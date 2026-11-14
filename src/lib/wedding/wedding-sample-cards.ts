@@ -745,11 +745,21 @@ for (const sample of WEDDING_SAMPLE_CARDS) {
 
 const OCCASION_ALIAS_ID = /^(day-thang|thoi-noi|sinh-nhat|mung-tho|khai-truong|tan-gia|lien-hoan|tot-nghiep|su-kien)-/
 
-/** Demo của một loại thiệp. Cưới hiện cả kho nền, không chỉ 5 mẫu đầu. */
+/** Kiểu khách thấy lúc tạo thiệp cưới lần đầu: phong bì hồng. */
+export const DEFAULT_WEDDING_ENTRY_SAMPLE_ID = 'phong-bi-hong'
+
+function withEntrySampleFirst(samples: WeddingSampleCard[], entryId: string): WeddingSampleCard[] {
+  const index = samples.findIndex((sample) => sample.id === entryId)
+  if (index <= 0) return samples
+  return [samples[index], ...samples.slice(0, index), ...samples.slice(index + 1)]
+}
+
+/** Demo của một loại thiệp. Cưới hiện cả kho nền, phong bì hồng đứng đầu. */
 export function weddingOccasionDemos(raw: unknown): WeddingSampleCard[] {
   const key = normalizeInvitationOccasion(raw)
   if (key === 'wedding') {
-    return WEDDING_SAMPLE_CARDS.filter((sample) => !OCCASION_ALIAS_ID.test(sample.id))
+    const catalog = WEDDING_SAMPLE_CARDS.filter((sample) => !OCCASION_ALIAS_ID.test(sample.id))
+    return withEntrySampleFirst(catalog, DEFAULT_WEDDING_ENTRY_SAMPLE_ID)
   }
   const ids = OCCASION_DEMO_IDS[key]
   return ids.flatMap((id) => {
@@ -779,6 +789,20 @@ export function findWeddingSampleCard(id: string | null | undefined): WeddingSam
   const key = id?.trim() || ''
   if (!key) return undefined
   return SAMPLE_BY_ID.get(key) ?? SAMPLE_BY_PRESET.get(key)
+}
+
+/** Nền, khung và màu của phong bì hồng. Không kèm ảnh hay tên trên thiệp mẫu. */
+export function weddingEntryLookForNewCard<T extends {
+  occasionKey?: string
+  sectionConfig: string
+  groomImageUrl: string
+  brideImageUrl: string
+  albumImageUrls: string[]
+}>(card: T) {
+  if (normalizeInvitationOccasion(card.occasionKey || 'wedding') !== 'wedding') return null
+  const sample = findWeddingSampleCard(DEFAULT_WEDDING_ENTRY_SAMPLE_ID)
+  if (!sample) return null
+  return weddingSampleLookOnCard(card, sample)
 }
 
 /** Mẫu đang gắn trên thiệp. Nền có sẵn thắng kit, kit thắng ảnh kho còn sót. */

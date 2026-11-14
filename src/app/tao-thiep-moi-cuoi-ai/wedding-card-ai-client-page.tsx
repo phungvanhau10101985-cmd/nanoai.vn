@@ -746,7 +746,7 @@ export default function WeddingCardAiClientPage() {
         }
         if ('empty' in result) {
           if (pendingSampleUseRef.current) {
-            const created = await createNewWeddingCard(undefined, undefined, null, rememberWeddingCreateSource())
+            const created = await createNewWeddingCard(undefined, undefined, null, rememberWeddingCreateSource(), { skipEntryLook: true })
             if (!mounted) return
             if (!('error' in created)) {
               trackWeddingAddToCart(created.card.id)

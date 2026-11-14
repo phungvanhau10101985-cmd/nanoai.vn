@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { INVITATION_OCCASION_KEYS } from './invitation-occasion'
 import { findWeddingBackgroundPreset } from './wedding-background-presets'
-import { WEDDING_SAMPLE_CARDS, buildWeddingSampleDemoCard, findWeddingSampleCard, findWeddingSampleInUse, stripWeddingSamplePhotos, weddingOccasionDemos, weddingSampleLookOnCard, weddingSamplePhotoUrls, weddingSampleSharedLayoutKey, weddingSamplesWithActiveFirst } from './wedding-sample-cards'
+import { WEDDING_SAMPLE_CARDS, buildWeddingSampleDemoCard, findWeddingSampleCard, findWeddingSampleInUse, stripWeddingSamplePhotos, weddingEntryLookForNewCard, weddingOccasionDemos, weddingSampleLookOnCard, weddingSamplePhotoUrls, weddingSampleSharedLayoutKey, weddingSamplesWithActiveFirst } from './wedding-sample-cards'
 
 test('a sample card is one background and five couple photos', () => {
   assert.ok(WEDDING_SAMPLE_CARDS.length >= 1)
@@ -124,6 +124,39 @@ test('the sample in use stays first and a preset wins over a leftover library im
   assert.equal(ordered[0]?.id, library.id)
   assert.equal(ordered.length, WEDDING_SAMPLE_CARDS.length)
   assert.equal(new Set(ordered.map((sample) => sample.id)).size, WEDDING_SAMPLE_CARDS.length)
+})
+
+test('a new wedding card starts as the blush envelope', () => {
+  const demos = weddingOccasionDemos('wedding')
+  assert.equal(demos[0]?.id, 'phong-bi-hong')
+  assert.equal(demos.filter((sample) => sample.id === 'phong-bi-hong').length, 1)
+  const look = weddingEntryLookForNewCard({
+    occasionKey: 'wedding',
+    sectionConfig: '{}',
+    groomImageUrl: '',
+    brideImageUrl: '',
+    albumImageUrls: [],
+    groomName: 'An',
+  })
+  assert.ok(look)
+  const section = JSON.parse(look.sectionConfig) as { backgroundPresetId?: string; coverPresetId?: string; coverPhotoUrl?: string }
+  assert.equal(section.backgroundPresetId, 'phong-bi-hong')
+  assert.equal(section.coverPresetId, 'phong_bi_hong')
+  assert.equal(section.coverPhotoUrl, undefined)
+  assert.equal(look.groomImageUrl, '')
+  assert.equal(look.brideImageUrl, '')
+  assert.equal(look.groomName, 'An')
+  assert.equal(look.selectedStyleId, 'floral')
+  assert.equal(
+    weddingEntryLookForNewCard({
+      occasionKey: 'birthday',
+      sectionConfig: '{}',
+      groomImageUrl: '',
+      brideImageUrl: '',
+      albumImageUrls: [],
+    }),
+    null,
+  )
 })
 
 test('each card type has its own demos, and wedding keeps the full catalog', () => {
