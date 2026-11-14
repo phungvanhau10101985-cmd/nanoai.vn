@@ -6,7 +6,7 @@
  *
  * On VPS:
  *   cd /var/www/Thu-do-online
- *   pm2 delete thu-do-online worksheet-worker 2>/dev/null || true
+ *   pm2 delete thu-do-online worksheet-worker nanoai-shop-cron 2>/dev/null || true
  *   pm2 start ecosystem.config.cjs
  *   pm2 save
  */
@@ -61,6 +61,29 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         NODE_OPTIONS: '--max-old-space-size=768',
+      },
+    },
+    {
+      name: 'nanoai-shop-cron',
+      cwd: '/var/www/Thu-do-online',
+      script: 'scripts/nanoai-shop-cron-worker.ts',
+      interpreter: 'node',
+      // --import tsx keeps this the real Node process so max_memory_restart
+      // applies here, not to an npm/npx parent. Heavy shop jobs stay off :3000.
+      node_args: '--max-old-space-size=1024 --import tsx',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '1280M',
+      kill_timeout: 15000,
+      exp_backoff_restart_delay: 200,
+      max_restarts: 30,
+      min_uptime: '15s',
+      env: {
+        NODE_ENV: 'production',
+        NODE_OPTIONS: '--max-old-space-size=1024',
+        NANOAI_SHOP_CRON_WORKER: '1',
       },
     },
   ],

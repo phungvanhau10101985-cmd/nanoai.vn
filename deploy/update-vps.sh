@@ -95,21 +95,20 @@ ensure_cron() {
   (crontab -l 2>/dev/null | grep -v "${marker}"; echo "${line}") | crontab -
 }
 
-# Job bản địa hóa queued/running chết cùng PM2. Gọi ngay sau health, không chờ cron phút sau.
-resume_unfinished_image_localization() {
-  local secret
-  secret="$(env_read MESSAGING_PARTNER_AI_CRON_SECRET)"
-  if [[ -z "${secret}" ]]; then secret="$(env_read CRON_SECRET)"; fi
-  if [[ -z "${secret}" ]]; then
-    echo "  Cảnh báo: thiếu cron secret — không resume bản địa hóa ảnh."
+remove_cron() {
+  local marker="$1"
+  local next
+  next="$(crontab -l 2>/dev/null | grep -v "${marker}" || true)"
+  if [[ -z "${next//[[:space:]]/}" ]]; then
+    crontab -r 2>/dev/null || true
     return 0
   fi
-  local body
-  if body="$(curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/image-localization-resume -H "Authorization: Bearer ${secret}")"; then
-    echo "  Resume bản địa hóa ảnh: ${body}"
-  else
-    echo "  Cảnh báo: gọi image-localization-resume thất bại — cron mỗi phút sẽ thử lại."
-  fi
+  printf '%s\n' "${next}" | crontab - || true
+}
+
+# Job bản địa hóa queued/running chết cùng PM2. Gọi ngay sau health, không chờ cron phút sau.
+resume_unfinished_image_localization() {
+  echo "  Bản địa hóa ảnh, cào listing và kiểm nguồn chạy trong PM2 nanoai-shop-cron, không gọi :3000."
 }
 
 # Tắt toàn bộ PM2 + build tay + process mồ côi — không app web nào chạy trong lúc lint/build.
@@ -119,6 +118,7 @@ stop_all_apps_for_deploy() {
   pkill -f "next build" 2>/dev/null || true
   pkill -f "next/dist/bin/next build" 2>/dev/null || true
   pkill -f "next start" 2>/dev/null || true
+  pkill -f "[n]anoai-shop-cron-worker" 2>/dev/null || true
   if [[ "${DEPLOY_STOP_PM2_BEFORE_BUILD}" == "1" ]]; then
     if [[ "${DEPLOY_DELETE_PM2_BEFORE_BUILD}" == "1" ]]; then
       pm2 delete all 2>/dev/null || true
@@ -431,12 +431,12 @@ else
 fi
 echo "  DONE [9/15]"
 
-echo "[10/15] Start NanoAI PM2 (thu-do-online + worksheet-worker)"
+echo "[10/15] Start NanoAI PM2 (thu-do-online + worksheet-worker + nanoai-shop-cron)"
 # Chỉ khởi động NanoAI — 188 start ở bước 15 sau khi health NanoAI OK.
 # Khởi động next binary trực tiếp (không qua npm) để max_memory_restart bắt đúng heap.
 # Tránh process «online giả» khi chỉ npm cha còn sống sau OOM.
 if [[ -f "${APP_DIR}/ecosystem.config.cjs" ]]; then
-  pm2 delete thu-do-online worksheet-worker >/dev/null 2>&1 || true
+  pm2 delete thu-do-online worksheet-worker nanoai-shop-cron >/dev/null 2>&1 || true
   pm2 start "${APP_DIR}/ecosystem.config.cjs" --update-env
 else
   echo "  Cảnh báo: thiếu ecosystem.config.cjs — fallback npm start."
@@ -458,90 +458,45 @@ echo "  DONE [10/15]"
 echo "[11/15] Ensure cron jobs"
 if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
   mkdir -p /root/logs /tmp/nanoai-cron-locks
-  AI_SECRET="$(env_read MESSAGING_PARTNER_AI_CRON_SECRET)"
-  CRON_SECRET_FALLBACK="$(env_read CRON_SECRET)"
-  INV_SECRET="$(env_read MESSAGING_INVENTORY_EMBED_CRON_SECRET)"
-  LOGO_SECRET="$(env_read MESSAGING_LOGO_CLEANUP_CRON_SECRET)"
-  MKT_SECRET="$(env_read MESSAGING_PARTNER_MARKETING_CRON_SECRET)"
-  WEDDING_SECRET="$(env_read WEDDING_REMINDER_CRON_SECRET)"
-  PARTNER_SSL_SECRET="$(env_read PARTNER_DOMAIN_SSL_CRON_SECRET)"
-
-  if [[ -z "${AI_SECRET}" ]]; then AI_SECRET="${CRON_SECRET_FALLBACK}"; fi
-  if [[ -z "${INV_SECRET}" ]]; then INV_SECRET="${AI_SECRET}"; fi
-  if [[ -z "${LOGO_SECRET}" ]]; then LOGO_SECRET="${AI_SECRET}"; fi
-  if [[ -z "${MKT_SECRET}" ]]; then MKT_SECRET="${AI_SECRET}"; fi
-  if [[ -z "${CRON_SECRET_FALLBACK}" ]]; then CRON_SECRET_FALLBACK="${AI_SECRET}"; fi
-  if [[ -z "${PARTNER_SSL_SECRET}" ]]; then PARTNER_SSL_SECRET="${CRON_SECRET_FALLBACK}"; fi
-
   # Gỡ cron Vision đã remove khỏi codebase (tránh POST treo khi app yếu).
   (crontab -l 2>/dev/null | grep -vE 'vision-catalog-sync|vision-bg-sync-enqueue|vision-warehouse-reindex' || true) | crontab - || true
 
-  if [[ -n "${AI_SECRET}" ]]; then
-    ensure_cron "messaging-partner-ai" "* * * * * curl -fsS -m 90 -X POST http://127.0.0.1:3000/api/cron/messaging-partner-ai -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/messaging-partner-ai.log 2>&1"
-    ensure_cron "listing-import-resume" "* * * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/listing-import-resume -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/listing-import-resume.log 2>&1"
-    ensure_cron "source-stock-check" "* * * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/source-stock-check -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/source-stock-check.log 2>&1"
-    ensure_cron "image-localization-resume" "* * * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/image-localization-resume -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/image-localization-resume.log 2>&1"
-    ensure_cron "partner-inventory-bunny-delete" "*/5 * * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/partner-inventory-bunny-delete -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/partner-inventory-bunny-delete.log 2>&1"
-    ensure_cron "partner-bunny-cdn-provision" "* * * * * flock -n /tmp/nanoai-cron-locks/bunny-cdn-provision.lock -c 'curl -fsS -m 90 -X POST \"http://127.0.0.1:3000/api/cron/partner-bunny-cdn-provision?limit=1\" -H \"Authorization: Bearer ${AI_SECRET}\"' >> /root/logs/partner-bunny-cdn-provision.log 2>&1"
-    ensure_cron "partner-order-shipment-timeline" "*/15 * * * * curl -fsS -m 280 -X POST http://127.0.0.1:3000/api/cron/partner-order-shipment-timeline -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/partner-order-shipment-timeline.log 2>&1"
-    ensure_cron "partner-review-reminders" "0 */6 * * * curl -fsS -m 280 -X POST http://127.0.0.1:3000/api/cron/partner-review-reminders -H \"Authorization: Bearer ${AI_SECRET}\" >> /root/logs/partner-review-reminders.log 2>&1"
-    ensure_cron "partner-outfit-picks" "* * * * * flock -n /tmp/nanoai-cron-locks/outfit-picks.lock -c 'curl -fsS -m 55 -X POST \"http://127.0.0.1:3000/api/cron/partner-outfit-picks?limit=6\" -H \"Authorization: Bearer ${AI_SECRET}\"' >> /root/logs/partner-outfit-picks.log 2>&1"
-    ensure_cron "partner-ladipage-on-view" "* * * * * flock -n /tmp/nanoai-cron-locks/ladipage-on-view.lock -c 'curl -fsS -m 55 -X POST \"http://127.0.0.1:3000/api/cron/partner-ladipage-on-view?limit=1\" -H \"Authorization: Bearer ${AI_SECRET}\"' >> /root/logs/partner-ladipage-on-view.log 2>&1"
-  else
-    echo "  Cảnh báo: thiếu MESSAGING_PARTNER_AI_CRON_SECRET/CRON_SECRET, bỏ qua cron messaging-partner-ai."
-  fi
-
-  if [[ -n "${INV_SECRET}" ]]; then
-    # 1 lần/ngày 03:20 VN — backfill vector ảnh/chữ. flock tránh chồng nếu lượt trước chưa xong.
-    ensure_cron "messaging-inventory-embed-backfill" "20 3 * * * flock -n /tmp/nanoai-cron-locks/inventory-embed.lock -c 'curl -fsS -m 600 -X POST http://127.0.0.1:3000/api/cron/messaging-inventory-embed-backfill -H \"Authorization: Bearer ${INV_SECRET}\"' >> /root/logs/inventory-embed-backfill.log 2>&1"
-  else
-    echo "  Cảnh báo: thiếu secret inventory cron, bỏ qua cron inventory-embed-backfill."
-  fi
+  # Việc nền shop chạy trong PM2 nanoai-shop-cron. Gỡ curl :3000 để không cộng heap web.
+  for marker in \
+    messaging-partner-ai \
+    listing-import-resume \
+    source-stock-check \
+    image-localization-resume \
+    partner-inventory-bunny-delete \
+    partner-bunny-cdn-provision \
+    partner-order-shipment-timeline \
+    partner-review-reminders \
+    partner-outfit-picks \
+    partner-ladipage-on-view \
+    messaging-inventory-embed-backfill \
+    messaging-logo-cleanup \
+    partner-marketing-campaign \
+    partner-customer-notifications \
+    partner-marketing-banners \
+    partner-email-daily \
+    homework-unsolved-digest \
+    wedding-reminder \
+    partner-custom-domain-ssl
+  do
+    remove_cron "${marker}"
+  done
 
   # 1 lần/ngày 03:05 VN — CLI ngoài process Next.js (tránh heap OOM / curl empty reply).
   # HTTP POST /api/cron/messaging-external-catalog-sync vẫn dùng được tay (cần secret).
   ensure_cron "messaging-external-catalog-sync" "5 3 * * * flock -n /tmp/nanoai-cron-locks/external-catalog-sync.lock -c 'cd ${APP_DIR} && PATH=/usr/local/bin:/usr/bin:/bin NODE_OPTIONS=--max-old-space-size=2048 timeout 600 ./node_modules/.bin/tsx scripts/run-external-catalog-sync.ts' >> /root/logs/messaging-external-catalog-sync.log 2>&1"
-
-  if [[ -n "${LOGO_SECRET}" ]]; then
-    ensure_cron "messaging-logo-cleanup" "30 3 * * * curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/messaging-logo-cleanup -H \"Authorization: Bearer ${LOGO_SECRET}\" >> /root/logs/messaging-logo-cleanup.log 2>&1"
-  else
-    echo "  Cảnh báo: thiếu secret logo cleanup cron, bỏ qua cron messaging-logo-cleanup."
-  fi
-
-  if [[ -n "${MKT_SECRET}" ]]; then
-    ensure_cron "partner-marketing-campaign" "* * * * * curl -fsS -m 280 -X POST http://127.0.0.1:3000/api/cron/partner-marketing-campaign -H \"Authorization: Bearer ${MKT_SECRET}\" >> /root/logs/partner-marketing-campaign.log 2>&1"
-    ensure_cron "partner-customer-notifications" "* * * * * curl -fsS -m 160 -X POST http://127.0.0.1:3000/api/cron/partner-customer-notifications -H \"Authorization: Bearer ${MKT_SECRET}\" >> /root/logs/partner-customer-notifications.log 2>&1"
-  else
-    echo "  Cảnh báo: thiếu secret marketing cron, bỏ qua cron partner-marketing-campaign."
-  fi
-
-  if [[ -n "${CRON_SECRET_FALLBACK}" ]]; then
-    ensure_cron "partner-marketing-banners" "25 2 * * * curl -fsS -m 300 -X POST http://127.0.0.1:3000/api/cron/partner-marketing-banners -H \"Authorization: Bearer ${CRON_SECRET_FALLBACK}\" >> /root/logs/partner-marketing-banners.log 2>&1"
-    ensure_cron "partner-marketing-banners-catchup" "5-59/10 * * * * curl -fsS -m 280 -X POST \"http://127.0.0.1:3000/api/cron/partner-marketing-banners?maxGenerate=1\" -H \"Authorization: Bearer ${CRON_SECRET_FALLBACK}\" >> /root/logs/partner-marketing-banners-catchup.log 2>&1"
-    ensure_cron "partner-email-daily" "0 9 * * * curl -fsS -m 300 -X POST http://127.0.0.1:3000/api/cron/partner-email-daily -H \"Authorization: Bearer ${CRON_SECRET_FALLBACK}\" >> /root/logs/partner-email-daily.log 2>&1"
-    ensure_cron "homework-unsolved-digest" "30 8 * * * curl -fsS -m 60 -X POST http://127.0.0.1:3000/api/cron/homework-unsolved-digest -H \"Authorization: Bearer ${CRON_SECRET_FALLBACK}\" >> /root/logs/homework-unsolved-digest.log 2>&1"
-  else
-    echo "  Cảnh báo: thiếu CRON_SECRET, bỏ qua cron partner-marketing-banners / partner-email-daily."
-  fi
-
-  if [[ -n "${WEDDING_SECRET}" ]]; then
-    ensure_cron "wedding-reminder" "0 8 * * * curl -fsS -m 120 -X GET http://127.0.0.1:3000/api/cron/wedding-reminder -H \"Authorization: Bearer ${WEDDING_SECRET}\" >> /root/logs/wedding-reminder.log 2>&1"
-  else
-    echo "  Cảnh báo: thiếu WEDDING_REMINDER_CRON_SECRET, bỏ qua cron wedding-reminder."
-  fi
-
-  if [[ -n "${PARTNER_SSL_SECRET}" ]]; then
-    ensure_cron "partner-custom-domain-ssl" "*/3 * * * * curl -fsS -m 300 -X POST http://127.0.0.1:3000/api/cron/partner-custom-domain-ssl -H \"Authorization: Bearer ${PARTNER_SSL_SECRET}\" >> /root/logs/partner-custom-domain-ssl.log 2>&1"
-  else
-    echo "  Cảnh báo: thiếu PARTNER_DOMAIN_SSL_CRON_SECRET/CRON_SECRET, bỏ qua cron partner-custom-domain-ssl."
-  fi
 
   # Heap spiral keeps PM2 "online" under the RSS kill line. Probe :3000 every minute.
   chmod +x "${APP_DIR}/deploy/nanoai-health-watchdog.sh" 2>/dev/null || true
   ensure_cron "nanoai-health-watchdog" "* * * * * ${APP_DIR}/deploy/nanoai-health-watchdog.sh >> /root/logs/nanoai-health-watchdog.log 2>&1"
 
   echo "  Cron hiện tại:"
-  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-external-catalog-sync|messaging-logo-cleanup|partner-marketing-campaign|partner-customer-notifications|partner-marketing-banners|partner-email-daily|partner-order-shipment-timeline|partner-review-reminders|partner-outfit-picks|partner-ladipage-on-view|wedding-reminder|partner-custom-domain-ssl|nanoai-health-watchdog|vision-" || true
+  crontab -l | grep -E "messaging-external-catalog-sync|nanoai-health-watchdog|vision-" || true
+  echo "  Shop cron: PM2 nanoai-shop-cron (không curl :3000)."
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi
@@ -556,6 +511,9 @@ PM2_LOG_SNAPSHOT="${LOG_DIR}/pm2-snapshot-${APP_NAME}-$(date +%Y%m%d-%H%M%S).log
   echo ""
   echo "========== worksheet-worker (same snapshot) =========="
   pm2 logs worksheet-worker --lines "${DEPLOY_PM2_LOG_LINES}" --nostream 2>&1 || true
+  echo ""
+  echo "========== nanoai-shop-cron (same snapshot) =========="
+  pm2 logs nanoai-shop-cron --lines "${DEPLOY_PM2_LOG_LINES}" --nostream 2>&1 || true
   for name in 188-web 188-api; do
     if pm2 describe "${name}" >/dev/null 2>&1; then
       echo ""

@@ -7,24 +7,15 @@ import { useRouter } from 'next/navigation'
 import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { getBatchProgress, cancelBatchTranslate, resumeBatchTranslate } from '../actions'
-import { FileText, CheckCircle2, Loader2, XCircle, Download, Image as ImageIcon } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { getBatchProgress, resumeBatchTranslate, pauseBatchTranslate, continueBatchTranslate } from '../actions'
+import { pdfPageNumberFromUrl } from '@/lib/dich-anh-tai-lieu/pdf-page-selection'
+import { FileText, CheckCircle2, Loader2, Download, Image as ImageIcon, Pause, Play } from 'lucide-react'
+import { TranslateImageEditor, type TranslateEditPage } from '@/components/dich-anh-tai-lieu/translate-image-editor'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 
-const CANCEL_CONFIRM_TEXT = 'HỦY'
 const POLL_INTERVAL_MS = 4000
 const RESUME_INTERVAL_MS = 30000
-const STORAGE_KEY = 'lastTranslateBatchId'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
 function getWebLocaleFromCookie(): UiLocale {
@@ -36,11 +27,13 @@ function getWebLocaleFromCookie(): UiLocale {
 
 interface TranslateProgressPanelProps {
   batchId: string
+  startedAt?: string | null
+  memberIds?: string[]
   embedded?: boolean
   onClose?: () => void
 }
 
-export function TranslateProgressPanel({ batchId, embedded = false, onClose }: TranslateProgressPanelProps) {
+export function TranslateProgressPanel({ batchId, startedAt = null, memberIds, embedded = false, onClose }: TranslateProgressPanelProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
@@ -61,20 +54,23 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
       original_image_url?: string
       result_image_url?: string
       error_message?: string | null
-      batch_type?: string
+      batch_type?: string | null
+      job_status?: string | null
     }>
     cancelled?: number
     isCancelled?: boolean
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [cancelOpen, setCancelOpen] = useState(false)
-  const [cancelConfirm, setCancelConfirm] = useState('')
-  const [cancelLoading, setCancelLoading] = useState(false)
-  const [cancelError, setCancelError] = useState<string | null>(null)
+  const [pauseLoading, setPauseLoading] = useState(false)
   const [zipLoading, setZipLoading] = useState(false)
   const [originalZipLoading, setOriginalZipLoading] = useState(false)
-  const [cachedUrls, setCachedUrls] = useState<{ zipUrl?: string; pdfUrl?: string; originalZipUrl?: string } | null>(null)
   const [pdfLoading, setPdfLoading] = useState(false)
+  const [retryLoading, setRetryLoading] = useState(false)
+  const [editorIndex, setEditorIndex] = useState<number | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const seenDoneRef = useRef(new Set<string>())
+  const memberIdsRef = useRef(memberIds)
+  memberIdsRef.current = memberIds
   const dataRef = useRef(data)
   dataRef.current = data
 
@@ -111,15 +107,13 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
     window.addEventListener('focus', syncLocale)
     document.addEventListener('visibilitychange', syncLocale)
     if (!batchId) return
-    try {
-      localStorage.setItem(STORAGE_KEY, batchId)
-    } catch {
-      //
-    }
-    setCachedUrls(null)
     resumeBatchTranslate(batchId)
     void fetchProgress()
-    const interval = setInterval(() => { void fetchProgress() }, POLL_INTERVAL_MS)
+    const interval = setInterval(() => {
+      const rows = dataRef.current?.items ?? []
+      const settled = rows.length > 0 && rows.every((item) => item.status === 'completed' || item.status === 'failed' || item.status === 'cancelled')
+      if (!settled) void fetchProgress()
+    }, POLL_INTERVAL_MS)
     return () => {
       clearInterval(interval)
       window.removeEventListener('focus', syncLocale)
@@ -131,11 +125,81 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
   useEffect(() => {
     if (!batchId) return
     const resumeInterval = setInterval(() => {
-      const d = dataRef.current
-      if (d?.items?.some((x) => x.status === 'processing')) resumeBatchTranslate(batchId)
+      const items = dataRef.current?.items ?? []
+      const running = items.some((item) => item.job_status === 'processing')
+      const pending = items.some((item) => item.job_status === 'pending')
+      if (pending && !running) resumeBatchTranslate(batchId)
     }, RESUME_INTERVAL_MS)
     return () => clearInterval(resumeInterval)
   }, [batchId])
+
+  useEffect(() => {
+    const allow = memberIdsRef.current && memberIdsRef.current.length > 0 ? new Set(memberIdsRef.current) : null
+    const fresh = (data?.items ?? []).filter((item) => (!allow || allow.has(item.id)) && item.status === 'completed' && item.result_image_url && !seenDoneRef.current.has(item.id))
+    if (fresh.length === 0) return
+    for (const item of fresh) seenDoneRef.current.add(item.id)
+    setSelected((prev) => {
+      const next = new Set(prev)
+      for (const item of fresh) next.add(item.id)
+      return next
+    })
+  }, [data])
+
+  function toggleSelected(id: string, on: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  async function downloadPicked(kind: 'pdf' | 'zip' | 'original', ids: string[]) {
+    if (ids.length === 0) {
+      toast({
+        title: tr('Chưa chọn trang', 'No pages selected', '未选择页面', 'ページが未選択です', '페이지를 선택하지 않았습니다'),
+        description: tr('Chọn ảnh đã xong rồi hãy tải.', 'Select finished images, then download.', '请选择已完成的图片再下载。', '完了した画像を選んでからダウンロードしてください。', '끝난 이미지를 고른 뒤 받으세요.'),
+        variant: 'destructive',
+      })
+      return
+    }
+    const params = new URLSearchParams({ batchId, ids: ids.join(',') })
+    if (kind === 'pdf') params.set('format', 'pdf')
+    if (kind === 'pdf') setPdfLoading(true)
+    else if (kind === 'zip') setZipLoading(true)
+    else setOriginalZipLoading(true)
+    try {
+      const r = await fetch(`/api/dich-anh-tai-lieu/batch-download?${params.toString()}`)
+      const res = await r.json()
+      if (!r.ok || res.error) {
+        toast({
+          title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+          description: res.error || tr('Không tạo được file.', 'Cannot create file.', '无法创建文件。', 'ファイルを作成できません。', '파일을 생성할 수 없습니다.'),
+          variant: 'destructive',
+        })
+        return
+      }
+      const rowsNow = dataRef.current?.items ?? []
+      const pdfBatch = rowsNow.some((item) => item.batch_type === 'pdf' || pdfPageNumberFromUrl(item.original_image_url) != null)
+      const pdfName = 'dich-tai-lieu.pdf'
+      const zipName = pdfBatch ? 'dich-tai-lieu.zip' : 'dich-anh.zip'
+      const originalName = pdfBatch ? 'tai-lieu-goc.zip' : 'anh-goc.zip'
+      if (kind === 'pdf' && res.pdfUrl) downloadFile(res.pdfUrl, pdfName)
+      else if (kind === 'zip' && res.zipUrl) downloadFile(res.zipUrl, zipName)
+      else if (kind === 'original' && res.originalZipUrl) downloadFile(res.originalZipUrl, originalName)
+      else {
+        toast({
+          title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+          description: tr('Không có ảnh để tải.', 'No images to download.', '没有可下载的图片。', 'ダウンロードする画像がありません。', '다운로드할 이미지가 없습니다.'),
+          variant: 'destructive',
+        })
+      }
+    } finally {
+      setPdfLoading(false)
+      setZipLoading(false)
+      setOriginalZipLoading(false)
+    }
+  }
 
   if (!batchId) return null
 
@@ -168,10 +232,30 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
     )
   }
 
-  const { done, total, items } = data
+  const allowIds = memberIds && memberIds.length > 0 ? new Set(memberIds) : null
+  const items = allowIds ? data.items.filter((item) => allowIds.has(item.id)) : data.items
+  const done = items.filter((item) => item.status === 'completed').length
+  const total = items.length
+  const pickedIds = items.filter((item) => selected.has(item.id)).map((item) => item.id)
   const percent = total > 0 ? Math.round((done / total) * 100) : 0
-  const isComplete = total > 0 && items.every((x) => x.status === 'completed' || x.status === 'failed' || x.status === 'cancelled')
-  const hasProcessing = items.some((x) => x.status === 'processing')
+  const isComplete = total > 0 && items.every((x) => x.status === 'completed')
+  const running = items.some((item) => item.job_status === 'processing')
+  const canPause = items.some((item) => item.job_status === 'pending' || item.job_status === 'processing')
+  const canContinue = !running && items.some((item) => item.status !== 'completed' && item.job_status !== 'processing')
+  const isPdfBatch = items.some((item) => item.batch_type === 'pdf' || pdfPageNumberFromUrl(item.original_image_url) != null)
+  const editPages: TranslateEditPage[] = [...items]
+    .map((item, index) => ({
+      id: item.id,
+      src: item.result_image_url || '',
+      page: pdfPageNumberFromUrl(item.original_image_url) ?? index + 1,
+    }))
+    .filter((item) => item.src)
+    .sort((a, b) => a.page - b.page)
+    .map((item) => ({
+      id: item.id,
+      src: item.src,
+      label: `${isPdfBatch ? tr('Trang', 'Page', '页', 'ページ', '페이지') : tr('Ảnh', 'Image', '图片', '画像', '이미지')} ${item.page}`,
+    }))
 
   return (
     <>
@@ -179,12 +263,24 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-600" /> {tr('Tiến trình dịch ảnh', 'Image translation progress', '图片翻译进度', '画像翻訳の進捗', '이미지 번역 진행 상황')}
+              <FileText className="h-4 w-4 text-slate-600" /> {tr('Đợt dịch', 'Translation run', '翻译批次', '翻訳の回', '번역 회차')}
+              {startedAt ? <span className="text-sm font-normal text-muted-foreground">{new Date(startedAt).toLocaleString(uiLocale === 'vi' ? 'vi-VN' : uiLocale === 'zh' ? 'zh-CN' : uiLocale === 'ja' ? 'ja-JP' : uiLocale === 'ko' ? 'ko-KR' : 'en-US')}</span> : null}
             </CardTitle>
             <span className="text-lg font-bold text-slate-800">{percent}%</span>
           </div>
           <p className="text-sm font-medium text-muted-foreground">
-            {done}/{total} {items.some((x) => x.batch_type === 'pdf') ? tr('trang', 'pages', '页', 'ページ', '페이지') : tr('ảnh', 'images', '张', '枚', '장')} {tr('đã xong', 'completed', '已完成', '完了', '완료')}
+            {total === 0
+              ? tr('Đang xếp trang vào hàng chờ...', 'Queuing pages...', '正在把页面排入队列...', 'ページを順番待ちに入れています...', '페이지를 대기열에 넣는 중...')
+              : `${done}/${total} ${isPdfBatch ? tr('trang', 'pages', '页', 'ページ', '페이지') : tr('ảnh', 'images', '张', '枚', '장')} ${tr('đã xong', 'completed', '已完成', '完了', '완료')}`}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {tr(
+              'Trang nào xong thì được lưu ngay. Dừng rồi bấm Chạy tiếp sẽ đi từ trang chưa xong, không dịch lại từ đầu.',
+              'Each finished page is saved immediately. Stop, then Continue, resumes at the unfinished page.',
+              '完成一页就保存一页。停止后再点继续，会从还没完成的页接着跑。',
+              '終わったページはその場で保存されます。停止してから続行すると、未完了のページから再開します。',
+              '끝난 페이지는 바로 저장됩니다. 멈춘 뒤 계속을 누르면 아직 안 끝난 페이지부터 이어집니다.'
+            )}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -193,9 +289,56 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {!isComplete && hasProcessing && (
-              <Button variant="destructive" size="sm" onClick={() => { setCancelOpen(true); setCancelConfirm(''); setCancelError(null) }}>
-                <XCircle className="mr-2 h-4 w-4" /> {tr('Hủy tiến trình', 'Cancel progress', '取消进度', '進行をキャンセル', '진행 취소')}
+            {canPause && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pauseLoading || retryLoading}
+                onClick={async () => {
+                  setPauseLoading(true)
+                  const res = await pauseBatchTranslate(batchId)
+                  setPauseLoading(false)
+                  if ('error' in res) {
+                    toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error, variant: 'destructive' })
+                    return
+                  }
+                  toast({
+                    title: tr('Đã dừng', 'Stopped', '已停止', '停止しました', '멈춤'),
+                    description: tr(
+                      'Trang đang dịch vẫn được lưu khi xong. Bấm Chạy tiếp để đi tiếp.',
+                      'The page already running is still saved when it finishes. Continue picks up the rest.',
+                      '正在翻译的页完成后仍会保存。点继续接着跑。',
+                      '実行中のページは完了時に保存されます。続行で残りを進めます。',
+                      '이미 돌아가던 페이지는 끝나면 저장됩니다. 계속을 눌러 나머지를 진행하세요.'
+                    ),
+                  })
+                  void fetchProgress()
+                }}
+              >
+                <Pause className="mr-2 h-4 w-4" /> {pauseLoading ? tr('Đang dừng...', 'Stopping...', '正在停止...', '停止しています...', '멈추는 중...') : tr('Dừng', 'Stop', '停止', '停止', '멈춤')}
+              </Button>
+            )}
+            {canContinue && (
+              <Button
+                size="sm"
+                disabled={pauseLoading || retryLoading}
+                onClick={async () => {
+                  setRetryLoading(true)
+                  const res = await continueBatchTranslate(batchId)
+                  setRetryLoading(false)
+                  if ('error' in res) {
+                    toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error, variant: 'destructive' })
+                    return
+                  }
+                  toast({
+                    title: tr('Đang chạy tiếp', 'Continuing', '正在继续', '続行しています', '이어서 실행'),
+                    description: `${res.retried} ${tr('trang chưa xong', 'unfinished pages', '个未完成页', '未完了ページ', '미완료 페이지')}`,
+                  })
+                  setData(null)
+                  void fetchProgress()
+                }}
+              >
+                <Play className="mr-2 h-4 w-4" /> {retryLoading ? tr('Đang mở lại...', 'Resuming...', '正在继续...', '再開しています...', '다시 여는 중...') : tr('Chạy tiếp', 'Continue', '继续', '続行', '계속')}
               </Button>
             )}
             {embedded && onClose && (
@@ -213,151 +356,136 @@ export function TranslateProgressPanel({ batchId, embedded = false, onClose }: T
             )}
           </div>
 
-          {isComplete && done > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {items.some((x) => x.batch_type === 'pdf') && (
+          {done > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {tr(
+                  `Đã chọn ${pickedIds.length} ảnh. Bỏ chọn những trang không muốn đưa vào PDF hoặc ZIP.`,
+                  `${pickedIds.length} images selected. Uncheck pages you do not want in the PDF or ZIP.`,
+                  `已选 ${pickedIds.length} 张。取消不想放进 PDF 或 ZIP 的页。`,
+                  `${pickedIds.length} 枚を選択中。PDF や ZIP に入れないページは外してください。`,
+                  `${pickedIds.length}장 선택됨. PDF나 ZIP에 넣지 않을 페이지는 해제하세요.`
+                )}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {isPdfBatch && (
+                  <Button size="sm" disabled={zipLoading || pdfLoading || originalZipLoading || pickedIds.length === 0} onClick={() => void downloadPicked('pdf', pickedIds)}>
+                    <Download className="mr-2 h-4 w-4" /> {pdfLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : tr('Tạo PDF đã chọn', 'Create selected PDF', '生成所选 PDF', '選択したPDFを作成', '선택한 PDF 만들기')}
+                  </Button>
+                )}
                 <Button
                   size="sm"
-                  disabled={zipLoading || pdfLoading || originalZipLoading}
-                  onClick={async () => {
-                    if (cachedUrls?.pdfUrl) {
-                      downloadFile(cachedUrls.pdfUrl, 'dich-tai-lieu.pdf')
-                      return
-                    }
-                    setPdfLoading(true)
-                    try {
-                      const r = await fetch(`/api/dich-anh-tai-lieu/batch-download?batchId=${encodeURIComponent(batchId)}&format=pdf`)
-                      const res = await r.json()
-                      if (!r.ok || res.error) {
-                        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error || tr('Không tạo được file.', 'Cannot create file.', '无法创建文件。', 'ファイルを作成できません。', '파일을 생성할 수 없습니다.'), variant: 'destructive' })
-                        return
-                      }
-                      if (res.pdfUrl) {
-                        setCachedUrls((p) => ({ ...p, pdfUrl: res.pdfUrl, originalZipUrl: res.originalZipUrl || p?.originalZipUrl }))
-                        downloadFile(res.pdfUrl, 'dich-tai-lieu.pdf')
-                      }
-                    } finally {
-                      setPdfLoading(false)
-                    }
-                  }}
+                  variant={isPdfBatch ? 'outline' : 'default'}
+                  disabled={zipLoading || pdfLoading || originalZipLoading || pickedIds.length === 0}
+                  onClick={() => void downloadPicked('zip', pickedIds)}
                 >
-                  <Download className="mr-2 h-4 w-4" /> {pdfLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : tr('Tải file PDF', 'Download PDF', '下载 PDF', 'PDFをダウンロード', 'PDF 다운로드')}
+                  <Download className="mr-2 h-4 w-4" /> {zipLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : tr('Tải ZIP đã chọn', 'Download selected ZIP', '下载所选 ZIP', '選択したZIP', '선택한 ZIP')}
                 </Button>
-              )}
-              <Button
-                size="sm"
-                variant={items.some((x) => x.batch_type === 'pdf') ? 'outline' : 'default'}
-                disabled={zipLoading || pdfLoading || originalZipLoading}
-                onClick={async () => {
-                  if (cachedUrls?.zipUrl) {
-                    downloadFile(cachedUrls.zipUrl, items.some((x) => x.batch_type === 'pdf') ? 'dich-tai-lieu.zip' : 'dich-anh.zip')
-                    return
-                  }
-                  setZipLoading(true)
-                  try {
-                    const r = await fetch(`/api/dich-anh-tai-lieu/batch-download?batchId=${encodeURIComponent(batchId)}`)
-                    const res = await r.json()
-                    if (!r.ok || res.error) {
-                      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error || tr('Không tạo được file.', 'Cannot create file.', '无法创建文件。', 'ファイルを作成できません。', '파일을 생성할 수 없습니다.'), variant: 'destructive' })
-                      return
-                    }
-                    if (res.zipUrl) {
-                      setCachedUrls((p) => ({ ...p, zipUrl: res.zipUrl, originalZipUrl: res.originalZipUrl || p?.originalZipUrl }))
-                      downloadFile(res.zipUrl, items.some((x) => x.batch_type === 'pdf') ? 'dich-tai-lieu.zip' : 'dich-anh.zip')
-                    }
-                  } finally {
-                    setZipLoading(false)
-                  }
-                }}
-              >
-                <Download className="mr-2 h-4 w-4" /> {zipLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : items.some((x) => x.batch_type === 'pdf') ? tr('Tải ZIP từng trang', 'Download page ZIP', '下载逐页 ZIP', 'ページごとのZIP', '페이지 ZIP 다운로드') : tr('Tải ảnh kết quả', 'Download results', '下载结果图片', '結果画像をダウンロード', '결과 이미지 다운로드')}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={zipLoading || originalZipLoading}
-                onClick={async () => {
-                  if (cachedUrls?.originalZipUrl) {
-                    downloadFile(cachedUrls.originalZipUrl, items.some((x) => x.batch_type === 'pdf') ? 'tai-lieu-goc.zip' : 'anh-goc.zip')
-                    return
-                  }
-                  setOriginalZipLoading(true)
-                  try {
-                    const r = await fetch(`/api/dich-anh-tai-lieu/batch-download?batchId=${encodeURIComponent(batchId)}`)
-                    const res = await r.json()
-                    if (!r.ok || res.error) {
-                      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error || tr('Không tạo được file.', 'Cannot create file.', '无法创建文件。', 'ファイルを作成できません。', '파일을 생성할 수 없습니다.'), variant: 'destructive' })
-                      return
-                    }
-                    if (res.originalZipUrl) {
-                      setCachedUrls((p) => ({ ...p, zipUrl: res.zipUrl, originalZipUrl: res.originalZipUrl }))
-                      downloadFile(res.originalZipUrl, items.some((x) => x.batch_type === 'pdf') ? 'tai-lieu-goc.zip' : 'anh-goc.zip')
-                    } else {
-                      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không có ảnh gốc để tải.', 'No original images to download.', '没有可下载的原图。', 'ダウンロードする元画像がありません。', '다운로드할 원본 이미지가 없습니다.'), variant: 'destructive' })
-                    }
-                  } finally {
-                    setOriginalZipLoading(false)
-                  }
-                }}
-              >
-                <ImageIcon className="mr-2 h-4 w-4" aria-hidden /> {originalZipLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : tr('Tải ảnh gốc', 'Download originals', '下载原图', '元画像をダウンロード', '원본 다운로드')}
-              </Button>
+                <Button size="sm" variant="outline" disabled={zipLoading || pdfLoading || originalZipLoading || pickedIds.length === 0} onClick={() => void downloadPicked('original', pickedIds)}>
+                  <ImageIcon className="mr-2 h-4 w-4" aria-hidden /> {originalZipLoading ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...') : tr('Tải ảnh gốc đã chọn', 'Download selected originals', '下载所选原图', '選択した元画像', '선택한 원본')}
+                </Button>
+              </div>
             </div>
           )}
+          {isPdfBatch && (
+            <div className="max-h-96 space-y-1 overflow-auto rounded border border-slate-200 p-2">
+              {[...items]
+                .map((item, index) => ({ item, index, page: pdfPageNumberFromUrl(item.original_image_url) ?? index + 1 }))
+                .sort((a, b) => a.page - b.page)
+                .map(({ item, page }) => {
+                  const state = item.status === 'completed'
+                    ? 'done'
+                    : item.job_status === 'processing'
+                      ? 'running'
+                      : item.job_status === 'paused' || item.job_status === 'cancelled' || item.status === 'cancelled'
+                        ? 'paused'
+                        : item.job_status === 'failed' || item.status === 'failed'
+                          ? 'failed'
+                          : 'queued'
+                  const label = state === 'done'
+                    ? tr('Xong', 'Done', '完成', '完了', '완료')
+                    : state === 'running'
+                      ? tr('Đang dịch', 'Translating', '翻译中', '翻訳中', '번역 중')
+                      : state === 'paused'
+                        ? tr('Đã dừng', 'Stopped', '已停止', '停止', '멈춤')
+                        : state === 'failed'
+                          ? tr('Lỗi', 'Failed', '失败', '失敗', '실패')
+                          : tr('Chờ', 'Waiting', '等待', '待機', '대기')
+                  const preview = item.result_image_url || item.original_image_url
+                  return (
+                    <div key={item.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 shrink-0"
+                        aria-label={tr(`Chọn trang ${page}`, `Select page ${page}`, `选择第 ${page} 页`, `${page}ページを選ぶ`, `${page}페이지 선택`)}
+                        disabled={state !== 'done'}
+                        checked={selected.has(item.id)}
+                        onChange={(event) => toggleSelected(item.id, event.target.checked)}
+                      />
+                      {preview ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- ảnh CDN của trang đã dịch
+                        <img src={preview} alt="" loading="lazy" className="h-14 w-20 shrink-0 rounded border bg-slate-50 object-contain" />
+                      ) : (
+                        <span className="h-14 w-20 shrink-0 rounded border bg-slate-100" />
+                      )}
+                      <span className="min-w-0 flex-1">
+                        {tr('Trang', 'Page', '页', 'ページ', '페이지')} {page}
+                        <span className={state === 'failed' ? 'ml-2 text-red-600' : 'ml-2 text-muted-foreground'}>{label}</span>
+                      </span>
+                      {state === 'done' ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const index = editPages.findIndex((pageItem) => pageItem.id === item.id)
+                            if (index >= 0) setEditorIndex(index)
+                          }}
+                        >
+                          {tr('Sửa ảnh', 'Edit image', '编辑图片', '画像を編集', '이미지 편집')}
+                        </Button>
+                      ) : state === 'failed' && item.error_message ? (
+                        <span className="max-w-[14rem] truncate text-xs text-red-600">{item.error_message}</span>
+                      ) : null}
+                    </div>
+                  )
+                })}
+            </div>
+          )}
+          {!isPdfBatch && editPages.length > 0 ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {editPages.map((page, index) => (
+                <figure key={page.id} className="min-w-0">
+                  <figcaption className="mb-1 flex items-center gap-2 text-xs font-medium">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      aria-label={tr(`Chọn ${page.label}`, `Select ${page.label}`, `选择 ${page.label}`, `${page.label}を選ぶ`, `${page.label} 선택`)}
+                      checked={selected.has(page.id)}
+                      onChange={(event) => toggleSelected(page.id, event.target.checked)}
+                    />
+                    {page.label}
+                  </figcaption>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- ảnh CDN của khách */}
+                  <img src={page.src} alt="" loading="lazy" className="max-h-64 w-full rounded border bg-slate-50 object-contain" />
+                  <Button type="button" size="sm" variant="outline" className="mt-1 w-full" onClick={() => setEditorIndex(index)}>
+                    {tr('Sửa ảnh', 'Edit image', '编辑图片', '画像を編集', '이미지 편집')}
+                  </Button>
+                </figure>
+              ))}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
-
-      <Dialog open={cancelOpen} onOpenChange={(open) => { setCancelOpen(open); if (!open) { setCancelConfirm(''); setCancelError(null) } }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{tr('Hủy tiến trình dịch', 'Cancel translation progress', '取消翻译进度', '翻訳進行をキャンセル', '번역 진행 취소')}</DialogTitle>
-            <DialogDescription>
-              {tr('Gõ chính xác', 'Type exactly', '请准确输入', '正確に入力', '정확히 입력')} <strong>{CANCEL_CONFIRM_TEXT}</strong> {tr('để xác nhận.', 'to confirm.', '以确认。', 'して確認。', '하여 확인하세요.')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Input
-              placeholder={`${tr('Gõ', 'Type', '输入', '入力', '입력')} "${CANCEL_CONFIRM_TEXT}" ${tr('để xác nhận', 'to confirm', '以确认', 'して確認', '하여 확인')}`}
-              value={cancelConfirm}
-              onChange={(e) => setCancelConfirm(e.target.value)}
-              className="font-mono uppercase"
-              disabled={cancelLoading}
-            />
-            {cancelError && <p className="text-sm text-red-600">{cancelError}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={cancelLoading}>{tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}</Button>
-            <Button
-              variant="destructive"
-              disabled={cancelLoading || cancelConfirm.trim().toUpperCase() !== CANCEL_CONFIRM_TEXT}
-              onClick={async () => {
-                setCancelLoading(true)
-                setCancelError(null)
-                const res = await cancelBatchTranslate(batchId, cancelConfirm)
-                setCancelLoading(false)
-                if ('error' in res) {
-                  setCancelError(res.error)
-                  if ('cancelled' in res && res.cancelled) {
-                    setCancelOpen(false)
-                    setData(null)
-                    const fresh = await getBatchProgress(batchId)
-                    if (!('error' in fresh)) setData(fresh)
-                  }
-                  return
-                }
-                setCancelOpen(false)
-                if (res.zipUrl) downloadFile(res.zipUrl, items.some((x) => x.batch_type === 'pdf') ? 'dich-tai-lieu.zip' : 'dich-anh.zip')
-                setData(null)
-                const fresh = await getBatchProgress(batchId)
-                if (!('error' in fresh)) setData(fresh)
-              }}
-            >
-              {cancelLoading ? tr('Đang xử lý...', 'Processing...', '处理中...', '処理中...', '처리 중...') : tr('Xác nhận hủy', 'Confirm cancel', '确认取消', 'キャンセル確認', '취소 확인')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Toaster />
+      {editorIndex != null && editPages[editorIndex] ? (
+        <TranslateImageEditor
+          pages={editPages}
+          startIndex={editorIndex}
+          locale={uiLocale}
+          onClose={() => setEditorIndex(null)}
+        />
+      ) : null}
+      {embedded ? null : <Toaster />}
     </>
   )
 }

@@ -14,6 +14,9 @@ import { getUserForCreditAction, getUserOrBypass } from '@/lib/auth'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import {
   cancelTranslateBatchPendingPg,
+  continueTranslateBatchPg,
+  countRunnableTranslateJobsPg,
+  fetchPdfCheckpointRowsPg,
   fetchTryOnHistoryBatchDownloadRowsPg,
   fetchTryOnHistoryBatchProgressRowsPg,
   fetchTryOnHistoryBatchRowsForCancelPg,
@@ -21,13 +24,40 @@ import {
   insertTranslateJobPendingPg,
   insertTryOnHistoryTranslateCompletedPg,
   insertTryOnHistoryTranslateProcessingPg,
+  listRecentTranslateBatchesPg,
+  markUnfinishedTranslateHistoriesProcessingPg,
+  moveTranslateHistoriesToBatchPg,
+  pauseTranslateBatchPg,
+  reopenFailedTranslateBatchPg,
+  requeueTranslateJobsPg,
 } from '@/lib/db/translate-process-pg'
+import {
+  allPdfPages,
+  parsePdfPageSelection,
+  parseThumbPageList,
+  pdfPageNumberFromUrl,
+  type PdfPageSelectionError,
+} from '@/lib/dich-anh-tai-lieu/pdf-page-selection'
+import { parseKeepTerms } from '@/lib/dich-anh-tai-lieu/pdf-keep-terms'
+import { describePdfDocument, type PdfPageDescription } from '@/lib/dich-anh-tai-lieu/pdf-source'
+import {
+  finishedPdfPages,
+  MAX_PDF_PAGES,
+  pdfCheckpointLikePattern,
+  pdfCheckpointObjectPath,
+  planPdfCheckpoint,
+  TRANSLATE_JOB_STALE_MS,
+  type CheckpointRow,
+} from '@/lib/dich-anh-tai-lieu/pdf-checkpoint'
+import { metaPathForImagePath, type PdfPageMeta } from '@/lib/dich-anh-tai-lieu/pdf-job-files'
+import { translatePdfPageFromParts } from '@/lib/dich-anh-tai-lieu/translate-pdf-page'
+import { buildPdfFromTranslatedPages } from '@/lib/dich-anh-tai-lieu/pdf-page-paint'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
 import { DOCUMENT_TRANSLATE_GEMINI_CREDITS } from '@/lib/document-translate-pricing'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
-import { uploadTryOnImagePublic, downloadTryOnObject } from '@/lib/storage/try-on-public-upload'
+import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
 const TRANSLATE_COSTS = DOCUMENT_TRANSLATE_GEMINI_CREDITS
@@ -39,7 +69,64 @@ function translateCharge(formData: FormData, imageQuality: '2K' | '4K') {
   }
   return charge
 }
-const MAX_PDF_PAGES = 50
+const PDF_PREVIEW_PAGES = 8
+const PDF_PREVIEW_DPI = 96
+const PDF_THUMB_DPI = 72
+const PDF_THUMB_BATCH = 8
+const PDF_SOURCE_CACHE_TTL_MS = 20 * 60 * 1000
+const pdfSourceCache = new Map<string, { buffer: Buffer; pageCount: number; createdAt: number }>()
+
+function rememberPdfSource(buffer: Buffer, pageCount: number): string {
+  const hash = hashPdfBuffer(buffer)
+  const now = Date.now()
+  for (const [key, entry] of pdfSourceCache) {
+    if (now - entry.createdAt > PDF_SOURCE_CACHE_TTL_MS) pdfSourceCache.delete(key)
+  }
+  pdfSourceCache.delete(hash)
+  pdfSourceCache.set(hash, { buffer, pageCount, createdAt: now })
+  while (pdfSourceCache.size > 2) {
+    const oldest = pdfSourceCache.keys().next().value
+    if (!oldest) break
+    pdfSourceCache.delete(oldest)
+  }
+  return hash
+}
+
+function readPdfSource(hash: string): { buffer: Buffer; pageCount: number } | null {
+  const entry = pdfSourceCache.get(hash)
+  if (!entry) return null
+  if (Date.now() - entry.createdAt > PDF_SOURCE_CACHE_TTL_MS) {
+    pdfSourceCache.delete(hash)
+    return null
+  }
+  entry.createdAt = Date.now()
+  return entry
+}
+
+function pdfSelectionError(code: PdfPageSelectionError): string {
+  if (code === 'empty') return 'Chọn ít nhất một trang.'
+  if (code === 'range') return 'Có trang nằm ngoài file PDF.'
+  return 'Khoảng trang không hợp lệ. Dùng dạng 3-8, 12.'
+}
+
+function readPdfJobOptions(
+  formData: FormData,
+  pageCount: number
+): { pages: number[]; keepTerms: string[] } | { error: string } {
+  const raw = String(formData.get('selectedPages') ?? '').trim()
+  const parsed = raw ? parsePdfPageSelection(raw, pageCount) : { pages: allPdfPages(pageCount) }
+  if ('error' in parsed) return { error: pdfSelectionError(parsed.error) }
+  return { pages: parsed.pages, keepTerms: parseKeepTerms(String(formData.get('keepTerms') ?? '')) }
+}
+
+async function describePdfOrEmpty(pdfBuffer: Buffer): Promise<PdfPageDescription[]> {
+  try {
+    return await describePdfDocument(pdfBuffer)
+  } catch (error) {
+    console.warn('[describePdfOrEmpty]', error instanceof Error ? error.message : error)
+    return []
+  }
+}
 const POPPLER_DPI = 300
 const PDF_EXTRACT_CACHE_TTL_MS = 15 * 60 * 1000 // 15 phút
 
@@ -163,6 +250,78 @@ async function extractPdfPages(pdfBuffer: Buffer, pageCount: number, dpi = POPPL
   }
 }
 
+/** Tách đúng một trang. Buffer trang trước được bỏ trước khi tách trang sau. */
+async function extractPdfPage(pdfBuffer: Buffer, pageNumber: number, dpi = POPPLER_DPI): Promise<Buffer> {
+  let tmpDir: string | null = null
+  try {
+    const poppler = await createPoppler()
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pdf-page-'))
+    const pdfPath = path.join(tmpDir, 'in.pdf')
+    await fs.promises.writeFile(pdfPath, pdfBuffer)
+    const outPrefix = path.join(tmpDir, 'page')
+    await poppler.pdfToCairo(pdfPath, outPrefix, {
+      pngFile: true,
+      resolutionXYAxis: dpi,
+      firstPageToConvert: pageNumber,
+      lastPageToConvert: pageNumber,
+    })
+    const pngName = (await fs.promises.readdir(tmpDir)).find((name) => name.endsWith('.png'))
+    if (!pngName) throw new Error('Poppler không tạo ảnh trang.')
+    return await fs.promises.readFile(path.join(tmpDir, pngName))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (!(msg.includes('pdfinfo') || msg.includes('poppler') || msg.includes('pdftocairo') || msg.includes('ENOENT') || msg.includes('Unable to find') || msg.includes('không tạo'))) {
+      throw e
+    }
+    const { pdf } = await import('pdf-to-img')
+    const doc = await pdf(pdfBuffer, { scale: dpi / 72 })
+    return await doc.getPage(pageNumber)
+  } finally {
+    if (tmpDir) fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+/** Tách một dải trang liền nhau trong một lần Poppler. */
+async function extractPdfPageRange(pdfBuffer: Buffer, firstPage: number, lastPage: number, dpi = PDF_THUMB_DPI): Promise<Buffer[]> {
+  const count = lastPage - firstPage + 1
+  let tmpDir: string | null = null
+  try {
+    const poppler = await createPoppler()
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pdf-thumbs-'))
+    const pdfPath = path.join(tmpDir, 'in.pdf')
+    await fs.promises.writeFile(pdfPath, pdfBuffer)
+    await poppler.pdfToCairo(pdfPath, path.join(tmpDir, 'page'), {
+      pngFile: true,
+      resolutionXYAxis: dpi,
+      firstPageToConvert: firstPage,
+      lastPageToConvert: lastPage,
+    })
+    const pngs = (await fs.promises.readdir(tmpDir))
+      .filter((name) => name.endsWith('.png'))
+      .sort((a, b) => {
+        const na = Number(a.replace(/\D/g, '') || '0')
+        const nb = Number(b.replace(/\D/g, '') || '0')
+        return na - nb
+      })
+    if (pngs.length < count) throw new Error(`Poppler tạo ${pngs.length}/${count} ảnh`)
+    const buffers: Buffer[] = []
+    for (let index = 0; index < count; index++) {
+      buffers.push(await fs.promises.readFile(path.join(tmpDir, pngs[index])))
+    }
+    return buffers
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (!(msg.includes('pdfinfo') || msg.includes('poppler') || msg.includes('pdftocairo') || msg.includes('ENOENT') || msg.includes('Unable to find') || msg.includes('tạo'))) {
+      throw e
+    }
+    const buffers: Buffer[] = []
+    for (let page = firstPage; page <= lastPage; page++) buffers.push(await extractPdfPage(pdfBuffer, page, dpi))
+    return buffers
+  } finally {
+    if (tmpDir) fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
 /** Dịch ảnh tài liệu – xử lý đồng bộ, trả kết quả ngay. */
 export async function translateDocumentImage(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') return { error: 'Dữ liệu không hợp lệ.' }
@@ -249,25 +408,10 @@ export async function translateDocumentImage(formData: FormData) {
   }
 }
 
-const PDF_EXTRACT_STORAGE_PREFIX = 'temp_pdf_extract'
-
-/** Lấy ảnh đã tách từ storage (nếu có) – tránh tách lại lần 2 */
-async function getPdfPagesFromStorage(userId: string, hash: string, pageCount: number): Promise<Buffer[] | null> {
-  const buffers: Buffer[] = []
-  for (let i = 0; i < pageCount; i++) {
-    const path = `${PDF_EXTRACT_STORAGE_PREFIX}/${userId}/${hash}/page_${i}.png`
-    const buf = await downloadTryOnObject(path)
-    if (!buf) return null
-    buffers.push(buf)
-  }
-  console.log('[getPdfPagesFromStorage] Lấy', pageCount, 'ảnh từ storage, không tách lại')
-  return buffers
-}
-
-/** Lấy thông tin PDF (số trang + ảnh xem trước) – tách 1 lần, upload lên storage để dùng khi dịch. */
+/** Đọc số trang, vài ảnh xem trước, và trang nào của đúng file này đã dịch xong. */
 export async function getPdfPageInfo(
   formData: FormData
-): Promise<{ pageCount: number; previews: string[]; error?: string }> {
+): Promise<{ pageCount: number; previews: string[]; fileHash?: string; pageKinds?: Array<'text' | 'scan'>; finishedPages?: number[]; error?: string }> {
   const pdfFile = formData.get('pdfFile') as File | null
   if (!pdfFile || pdfFile.size === 0) return { pageCount: 0, previews: [], error: 'Không có file.' }
   if (pdfFile.type !== 'application/pdf') return { pageCount: 0, previews: [], error: 'File phải là PDF.' }
@@ -280,25 +424,28 @@ export async function getPdfPageInfo(
     if (pageCount === 0) return { pageCount: 0, previews: [], error: 'File PDF không có trang nào.' }
     if (pageCount > MAX_PDF_PAGES) return { pageCount, previews: [], error: `Tối đa ${MAX_PDF_PAGES} trang. File có ${pageCount} trang.` }
 
-    const cacheKey = hashPdfBuffer(pdfBuffer)
-    let pageBuffers = getCachedPdfExtract(cacheKey)
-    if (!pageBuffers) {
-      pageBuffers = await extractPdfPages(pdfBuffer, pageCount)
-      pdfExtractCache.set(cacheKey, { buffers: pageBuffers, createdAt: Date.now() })
-      const user = await getUserOrBypass()
-      if (user) {
-        for (let i = 0; i < pageBuffers.length; i++) {
-          const path = `${PDF_EXTRACT_STORAGE_PREFIX}/${user.id}/${cacheKey}/page_${i}.png`
-          await uploadTryOnImagePublic(path, pageBuffers[i], { contentType: 'image/png', upsert: true })
-        }
-        console.log('[getPdfPageInfo] Đã upload', pageCount, 'ảnh lên storage để dùng khi dịch')
-      }
-    } else {
-      console.log('[getPdfPageInfo] Dùng cache memory, không tách lại')
+    const fileHash = rememberPdfSource(pdfBuffer, pageCount)
+    const previewCount = Math.min(pageCount, PDF_PREVIEW_PAGES)
+    const previews: string[] = []
+    for (let page = 1; page <= previewCount; page++) {
+      const png = await extractPdfPage(pdfBuffer, page, PDF_PREVIEW_DPI)
+      previews.push(`data:image/png;base64,${png.toString('base64')}`)
     }
-    const maxPreviews = Math.min(pageCount, 20)
-    const previews = pageBuffers.slice(0, maxPreviews).map((b) => `data:image/png;base64,${b.toString('base64')}`)
-    return { pageCount, previews }
+    let finishedPages: number[] = []
+    const user = await getUserOrBypass()
+    if (user) {
+      const saved = await fetchPdfCheckpointRowsPg(user.id, pdfCheckpointLikePattern(hashPdfBuffer(pdfBuffer)))
+      if (saved) {
+        finishedPages = finishedPdfPages(
+          saved.map((row) => ({
+            page: pdfPageNumberFromUrl(row.originalImageUrl) ?? 0,
+            historyStatus: row.historyStatus,
+            hasResult: row.hasResult,
+          }))
+        )
+      }
+    }
+    return { pageCount, previews, fileHash, finishedPages }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[getPdfPageInfo]', msg)
@@ -310,6 +457,50 @@ export async function getPdfPageInfo(
           ? ' File có thể bị hỏng hoặc không phải PDF hợp lệ.'
           : ''
     return { pageCount: 0, previews: [], error: `Không đọc được file PDF.${hint}` }
+  }
+}
+
+/** Ảnh nhỏ của một nhóm trang, để lưới chọn trang trong modal. Không dịch và không trừ credit. */
+export async function getPdfThumbBatch(
+  formData: FormData
+): Promise<{ thumbs: Array<{ page: number; src: string }>; hash: string } | { error: string; code?: 'missing' }> {
+  const requestedHash = String(formData.get('hash') ?? '').trim().toLowerCase()
+  const file = formData.get('pdfFile')
+  let source = /^[a-f0-9]{32}$/.test(requestedHash) ? readPdfSource(requestedHash) : null
+  let hash = requestedHash
+  if (!source && file instanceof File && file.size > 0) {
+    if (file.type && file.type !== 'application/pdf') return { error: 'File phải là PDF.' }
+    const buffer = Buffer.from(await file.arrayBuffer())
+    if (buffer.length < 100) return { error: 'File PDF quá nhỏ hoặc rỗng.' }
+    let pageCount = 0
+    try {
+      pageCount = await getPdfPageCount(buffer)
+    } catch {
+      return { error: 'Không đọc được file PDF.' }
+    }
+    if (pageCount < 1 || pageCount > MAX_PDF_PAGES) return { error: `Tối đa ${MAX_PDF_PAGES} trang.` }
+    hash = rememberPdfSource(buffer, pageCount)
+    source = readPdfSource(hash)
+  }
+  if (!source) return { error: 'Hết phiên xem ảnh. Chọn lại file PDF.', code: 'missing' }
+  const pages = parseThumbPageList(String(formData.get('pages') ?? ''), source.pageCount, PDF_THUMB_BATCH)
+  if (pages.length === 0) return { thumbs: [], hash }
+  try {
+    const thumbs: Array<{ page: number; src: string }> = []
+    let index = 0
+    while (index < pages.length) {
+      let end = index
+      while (end + 1 < pages.length && pages[end + 1] === pages[end] + 1) end += 1
+      const buffers = await extractPdfPageRange(source.buffer, pages[index], pages[end], PDF_THUMB_DPI)
+      for (let offset = 0; offset < buffers.length; offset++) {
+        thumbs.push({ page: pages[index] + offset, src: `data:image/png;base64,${buffers[offset].toString('base64')}` })
+      }
+      index = end + 1
+    }
+    return { thumbs, hash }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { error: `Không tạo được ảnh trang.${msg ? ` ${msg}` : ''}` }
   }
 }
 
@@ -344,10 +535,15 @@ export async function translatePdfDocument(
   if (pageCount === 0) return { error: 'File PDF không có trang nào.' }
   if (pageCount > MAX_PDF_PAGES) return { error: `Tối đa ${MAX_PDF_PAGES} trang. File có ${pageCount} trang.` }
 
+  const selection = readPdfJobOptions(formData, pageCount)
+  if ('error' in selection) return selection
+  if (selection.pages.length > 40) {
+    return { error: 'PDF dài chạy từng trang ở tiến trình nền. Bấm Dịch trên trang dịch tài liệu.' }
+  }
   const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST_PER_PAGE = charge.cost
-  const TOTAL_COST = pageCount * COST_PER_PAGE
+  const TOTAL_COST = selection.pages.length * COST_PER_PAGE
   let openBalPdf = 0
   try {
     openBalPdf = await getCreditBalanceByUserId(user.id)
@@ -355,12 +551,11 @@ export async function translatePdfDocument(
     return { error: 'Không đọc được số dư credits.' }
   }
   if (toTenths(openBalPdf) < toTenths(TOTAL_COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(TOTAL_COST)} credits (${pageCount} trang × ${formatCredits(COST_PER_PAGE)}).` }
+    return { error: `Không đủ credits. Cần ${formatCredits(TOTAL_COST)} credits (${selection.pages.length} trang × ${formatCredits(COST_PER_PAGE)}).` }
   }
 
-  const sharp = (await import('sharp')).default
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const translatedBuffers: Buffer[] = []
+  const translatedPages: Array<{ png: Buffer; vectorPdf?: Buffer; lines: string[]; widthPt: number; heightPt: number }> = []
   const cacheKey = hashPdfBuffer(pdfBuffer)
   let pageBuffers = getCachedPdfExtract(cacheKey)
   if (!pageBuffers) {
@@ -369,42 +564,48 @@ export async function translatePdfDocument(
   } else {
     console.log('[translatePdfDocument] Dùng cache, không tách lại')
   }
+  const described = await describePdfOrEmpty(pdfBuffer)
 
-  for (let i = 0; i < pageCount; i++) {
-    const pageBuffer = pageBuffers[i]
-    const { buffer: resultBuffer, error: translateError } = await translateOneImage(
+  for (const pageNumber of selection.pages) {
+    const index = pageNumber - 1
+    const desc = described[index]
+    const meta: PdfPageMeta = {
+      page: pageNumber,
+      widthPt: desc?.widthPt ?? 0,
+      heightPt: desc?.heightPt ?? 0,
+      kind: desc?.kind === 'text' ? 'text' : 'scan',
+      keepTerms: selection.keepTerms,
+      lines: [],
+      pagePdfPath: null,
+    }
+    const prepared = await translatePdfPageFromParts({
       genAI,
-      pageBuffer,
-      'image/png',
+      userId: user.id,
       sourceLang,
       targetLang,
       imageQuality,
-      user.id,
-      null,
-      { engine: charge.engine, gptQuality: charge.gptQuality }
-    )
-    if (translateError || !resultBuffer.length) {
-      return { error: `Trang ${i + 1}/${pageCount} thất bại: ${translateError || 'AI không trả về ảnh.'}` }
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      png: pageBuffers[index],
+      meta,
+    })
+    if (prepared.error || !prepared.png.length) {
+      return { error: `Trang ${pageNumber}/${pageCount} thất bại: ${prepared.error || 'AI không trả về ảnh.'}` }
     }
-
     const dPage = await deductUserCredits(user.id, COST_PER_PAGE, 'dich-anh-tai-lieu')
     if (!dPage.ok) {
       return { error: dPage.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits trong quá trình xử lý.' : dPage.error }
     }
-
-    translatedBuffers.push(resultBuffer)
+    translatedPages.push({
+      png: prepared.png,
+      vectorPdf: prepared.vectorPdf,
+      lines: prepared.lines,
+      widthPt: meta.widthPt,
+      heightPt: meta.heightPt,
+    })
   }
 
-  const { PDFDocument } = await import('pdf-lib')
-  const pdfDoc = await PDFDocument.create()
-  for (let i = 0; i < translatedBuffers.length; i++) {
-    const pngBuf = await sharp(translatedBuffers[i]).png().toBuffer()
-    const buf = new Uint8Array(pngBuf)
-    const image = await pdfDoc.embedPng(buf)
-    const page = pdfDoc.addPage([image.width, image.height])
-    page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height })
-  }
-  const outPdfBuffer = Buffer.from(await pdfDoc.save())
+  const outPdfBuffer = await buildPdfFromTranslatedPages(translatedPages)
   const timestamp = Date.now()
   const uploadPath = `uploads/${user.id}/translate_pdf_${timestamp}.pdf`
   const { publicUrl: originalPdfPublicUrl } = await uploadTryOnImagePublic(uploadPath, pdfBuffer, {
@@ -429,8 +630,10 @@ export async function translatePdfDocument(
   return { success: true, resultPdfUrl: resultPdfPublicUrl }
 }
 
-/** Khởi tạo batch dịch PDF nền – tách trang, upload, tạo jobs, fire API. User redirect sang trang tiến trình. */
-export async function startTranslatePdfBatch(formData: FormData): Promise<{ batchId: string } | { error: string }> {
+/** Khởi tạo batch dịch PDF nền. Trang đã xong của cùng file được giữ, chỉ chạy trang chưa xong. */
+export async function startTranslatePdfBatch(
+  formData: FormData
+): Promise<{ batchId: string; skipped: number; queued: number } | { error: string; batchId?: string }> {
   if (!formData || typeof formData.get !== 'function') return { error: 'Dữ liệu không hợp lệ.' }
   const pdfFile = formData.get('pdfFile') as File | null
   const sourceLang = (formData.get('sourceLang') as string)?.trim()
@@ -459,86 +662,172 @@ export async function startTranslatePdfBatch(formData: FormData): Promise<{ batc
   if (pageCount === 0) return { error: 'File PDF không có trang nào.' }
   if (pageCount > MAX_PDF_PAGES) return { error: `Tối đa ${MAX_PDF_PAGES} trang. File có ${pageCount} trang.` }
 
+  const selection = readPdfJobOptions(formData, pageCount)
+  if ('error' in selection) return selection
   const charge = translateCharge(formData, imageQuality)
   if (charge.error) return { error: charge.error }
   const COST_PER_PAGE = charge.cost
-  const TOTAL_COST = pageCount * COST_PER_PAGE
-  let openBalPdfBatch = 0
-  try {
-    openBalPdfBatch = await getCreditBalanceByUserId(user.id)
-  } catch {
-    return { error: 'Không đọc được số dư credits.' }
-  }
-  if (toTenths(openBalPdfBatch) < toTenths(TOTAL_COST)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(TOTAL_COST)} credits (${pageCount} trang × ${formatCredits(COST_PER_PAGE)}).` }
-  }
-
-  const cacheKey = hashPdfBuffer(pdfBuffer)
-  let pageBuffers = getCachedPdfExtract(cacheKey)
-  if (!pageBuffers) {
-    pageBuffers = await getPdfPagesFromStorage(user.id, cacheKey, pageCount)
-  }
-  if (!pageBuffers) {
-    pageBuffers = await extractPdfPages(pdfBuffer, pageCount)
-    pdfExtractCache.set(cacheKey, { buffers: pageBuffers, createdAt: Date.now() })
-    for (let i = 0; i < pageBuffers.length; i++) {
-      const path = `${PDF_EXTRACT_STORAGE_PREFIX}/${user.id}/${cacheKey}/page_${i}.png`
-      await uploadTryOnImagePublic(path, pageBuffers[i], { contentType: 'image/png', upsert: true })
+  const fileHash = hashPdfBuffer(pdfBuffer)
+  const saved = await fetchPdfCheckpointRowsPg(user.id, pdfCheckpointLikePattern(fileHash))
+  if (saved == null) return { error: 'Không đọc được các trang đã dịch của file này.' }
+  const checkpointRows: CheckpointRow[] = saved.map((row) => ({
+    historyId: row.historyId,
+    jobId: row.jobId,
+    batchId: row.batchId,
+    page: pdfPageNumberFromUrl(row.originalImageUrl) ?? 0,
+    historyStatus: row.historyStatus,
+    jobStatus: row.jobStatus,
+    hasResult: row.hasResult,
+    createdAt: row.createdAt,
+    processingFresh: row.processingFresh,
+  }))
+  const plan = planPdfCheckpoint(selection.pages, checkpointRows)
+  const runCount = plan.create.length + plan.requeue.length
+  if (runCount > 0) {
+    let openBalPdfBatch = 0
+    try {
+      openBalPdfBatch = await getCreditBalanceByUserId(user.id)
+    } catch {
+      return { error: 'Không đọc được số dư credits.' }
     }
-    console.log('[startTranslatePdfBatch] Tách PDF lần đầu, đã upload lên storage')
-  } else {
-    console.log('[startTranslatePdfBatch] Dùng ảnh đã tách (storage/cache), không tách lại')
+    const totalCost = runCount * COST_PER_PAGE
+    if (toTenths(openBalPdfBatch) < toTenths(totalCost)) {
+      return {
+        error: `Không đủ credits. Cần ${formatCredits(totalCost)} credits (${runCount} trang chưa xong × ${formatCredits(COST_PER_PAGE)}). ${plan.skip.length} trang đã xong được giữ.`,
+      }
+    }
   }
 
-  const batchId = crypto.randomUUID()
-  const batchTimestamp = Date.now()
+  const hasNewRun = plan.create.length > 0 || plan.requeue.length > 0
+  const batchId = hasNewRun ? crypto.randomUUID() : plan.batchId || crypto.randomUUID()
+  if (hasNewRun && plan.requeue.length > 0) {
+    const moved = await moveTranslateHistoriesToBatchPg(
+      user.id,
+      plan.requeue.map((item) => item.historyId),
+      batchId
+    )
+    if (!moved) return { error: 'Không tách được đợt dịch mới.', batchId: plan.batchId || undefined }
+  }
   const baseUrl = getProcessTranslateBaseUrl()
   const secret = process.env.PROCESS_TRANSLATE_SECRET
   const headers: Record<string, string> = {}
   if (secret) headers['x-process-secret'] = secret
+  const trigger = () => {
+    setTimeout(
+      () => fetch(`${baseUrl}/api/process-translate?batchId=${batchId}`, { headers }).catch((e) => console.warn('[startTranslatePdfBatch] trigger failed:', e)),
+      500
+    )
+  }
 
-  for (let i = 0; i < pageCount; i++) {
-    const pageBuffer = pageBuffers[i]
-    const uploadPath = `uploads/${user.id}/translate_pdf_${batchTimestamp}_page_${i}.png`
-    const { publicUrl: pageOriginalPublicUrl } = await uploadTryOnImagePublic(uploadPath, pageBuffer, {
-      contentType: 'image/png',
-      upsert: true,
-    })
-
-    const historyItem = await insertTryOnHistoryTranslateProcessingPg({
-      userId: user.id,
-      originalImageUrl: pageOriginalPublicUrl,
-      garmentImageUrl: pageOriginalPublicUrl,
-      batchId: batchId,
-      batchType: 'pdf',
-    })
-    if (!historyItem) {
-      console.error('[startTranslatePdfBatch] try_on_history insert failed')
-      return { error: 'Không thể tạo bản ghi xử lý. Kiểm tra DATABASE_URL và bảng try_on_history.' }
+  const needsFiles = plan.create.length > 0 || plan.requeue.length > 0
+  const described: PdfPageDescription[] = []
+  const writePage = async (pageNumber: number, raster: boolean): Promise<string> => {
+    const index = pageNumber - 1
+    const uploadPath = pdfCheckpointObjectPath(user.id, fileHash, index)
+    let publicUrl = ''
+    if (raster) {
+      const png = await extractPdfPage(pdfBuffer, pageNumber)
+      publicUrl = (await uploadTryOnImagePublic(uploadPath, png, { contentType: 'image/png', upsert: true })).publicUrl
     }
+    const desc = described[index]
+    const meta: PdfPageMeta = {
+      page: pageNumber,
+      widthPt: desc?.widthPt ?? 0,
+      heightPt: desc?.heightPt ?? 0,
+      kind: desc?.kind === 'text' ? 'text' : 'scan',
+      keepTerms: selection.keepTerms,
+      lines: [],
+      pagePdfPath: null,
+    }
+    const metaPath = metaPathForImagePath(uploadPath)
+    if (metaPath) {
+      await uploadTryOnImagePublic(metaPath, Buffer.from(JSON.stringify(meta)), {
+        contentType: 'application/json',
+        upsert: true,
+      })
+    }
+    return publicUrl
+  }
 
-    const cost = COST_PER_PAGE
-    const job = await insertTranslateJobPendingPg({
+  const requeueIds = plan.requeue.map((item) => item.jobId).filter((id): id is string => Boolean(id))
+  if (requeueIds.length > 0) {
+    const requeued = await requeueTranslateJobsPg({
       userId: user.id,
-      historyId: historyItem.id,
+      jobIds: requeueIds,
       sourceLang,
       targetLang,
       imageQuality,
-      cost,
+      cost: COST_PER_PAGE,
     })
-    if (!job) {
-      console.error('[startTranslatePdfBatch] translate_jobs insert failed')
-      await deleteTryOnHistoryRowAndStorage(historyItem.id)
-      return { error: 'Không thể tạo job. Kiểm tra DATABASE_URL và bảng translate_jobs.' }
-    }
+    if (requeued == null) return { error: 'Không xếp lại được trang đang dở.', batchId }
+  }
+  if (plan.requeue.length > 0) {
+    const marked = await markUnfinishedTranslateHistoriesProcessingPg(
+      user.id,
+      plan.requeue.map((item) => item.historyId)
+    )
+    if (marked == null) return { error: 'Không mở lại được trang đang dở.', batchId }
   }
 
-  const triggerUrl = `${baseUrl}/api/process-translate?batchId=${batchId}`
-  setTimeout(() => fetch(triggerUrl, { headers }).catch((e) => console.warn('[startTranslatePdfBatch] trigger failed:', e)), 500)
+  for (const item of plan.requeue) {
+    if (item.jobId) continue
+    const job = await insertTranslateJobPendingPg({
+      userId: user.id,
+      historyId: item.historyId,
+      sourceLang,
+      targetLang,
+      imageQuality,
+      cost: COST_PER_PAGE,
+    })
+    if (!job) return { error: 'Không thể tạo job. Kiểm tra DATABASE_URL và bảng translate_jobs.', batchId }
+  }
 
+  const queued = plan.requeue.length + plan.create.length
+  if (plan.requeue.length > 0 || plan.keep.length > 0) trigger()
+  if (needsFiles) {
+    const pagesToCreate = plan.create.slice()
+    const pagesToRefresh = plan.requeue.map((item) => item.page)
+    void (async () => {
+      try {
+        described.push(...(await describePdfOrEmpty(pdfBuffer)))
+        for (const pageNumber of pagesToRefresh) {
+          await writePage(pageNumber, false)
+        }
+        for (const pageNumber of pagesToCreate) {
+          const publicUrl = await writePage(pageNumber, true)
+          const historyItem = await insertTryOnHistoryTranslateProcessingPg({
+            userId: user.id,
+            originalImageUrl: publicUrl,
+            garmentImageUrl: publicUrl,
+            batchId,
+            batchType: 'pdf',
+          })
+          if (!historyItem) throw new Error('Không tạo được bản ghi trang ' + pageNumber)
+          const job = await insertTranslateJobPendingPg({
+            userId: user.id,
+            historyId: historyItem.id,
+            sourceLang,
+            targetLang,
+            imageQuality,
+            cost: COST_PER_PAGE,
+          })
+          if (!job) {
+            await deleteTryOnHistoryRowAndStorage(historyItem.id)
+            throw new Error('Không tạo được job trang ' + pageNumber)
+          }
+          if (pagesToRefresh.length === 0 && pageNumber === pagesToCreate[0]) trigger()
+        }
+        trigger()
+        revalidatePath('/dich-anh-tai-lieu')
+        revalidatePath('/dashboard/history/translate')
+      } catch (e) {
+        console.error('[startTranslatePdfBatch] Xếp trang nền dừng tại trang đang dở. Bấm Dịch lại cùng file để chạy tiếp.', e)
+      }
+    })()
+  }
   revalidatePath('/dich-anh-tai-lieu')
   revalidatePath('/dashboard/history/translate')
-  return { batchId }
+  return { batchId, skipped: plan.skip.length, queued }
 }
 
 function safeZipName(name: string, index: number): string {
@@ -1039,7 +1328,7 @@ export async function cancelBatchTranslate(
   return { ...result, cancelled: true }
 }
 
-/** Khởi động lại chuỗi xử lý batch (khi server restart, chuỗi bị đứt). Gọi khi user mở trang tiến trình. */
+/** Khởi động lại chuỗi khi còn trang pending và không có trang đang chạy. Trang paused không bị đánh thức. */
 export async function resumeBatchTranslate(batchId: string): Promise<void> {
   if (!batchId) return
   const result = await getUserForCreditAction()
@@ -1047,11 +1336,57 @@ export async function resumeBatchTranslate(batchId: string): Promise<void> {
   const { user } = result
   const ids = await fetchTryOnHistoryIdsByBatchIdAndUserPg(batchId, user.id)
   if (!ids?.length) return
+  const freshAfter = new Date(Date.now() - TRANSLATE_JOB_STALE_MS).toISOString()
+  const counts = await countRunnableTranslateJobsPg(user.id, batchId, freshAfter)
+  if (!counts || counts.pending < 1 || counts.processingFresh > 0) return
   const baseUrl = getProcessTranslateBaseUrl()
   const secret = process.env.PROCESS_TRANSLATE_SECRET
   const headers: Record<string, string> = {}
   if (secret) headers['x-process-secret'] = secret
   fetch(`${baseUrl}/api/process-translate?batchId=${batchId}`, { headers }).catch(() => {})
+}
+
+/** Dừng hàng chờ. Trang đang dịch vẫn lưu khi xong. Bấm Chạy tiếp để đi tiếp, không dịch lại trang đã xong. */
+export async function pauseBatchTranslate(batchId: string): Promise<{ paused: number } | { error: string }> {
+  if (!batchId) return { error: 'Thiếu batchId.' }
+  const result = await getUserForCreditAction()
+  if ('error' in result) return { error: result.error }
+  const paused = await pauseTranslateBatchPg(result.user.id, batchId)
+  if (paused == null) return { error: 'Không dừng được tiến trình.' }
+  revalidatePath('/dich-anh-tai-lieu')
+  revalidatePath(`/dich-anh-tai-lieu/tien-trinh/${batchId}`)
+  revalidatePath('/dashboard/history/translate')
+  return { paused }
+}
+
+/** Chạy tiếp từ trang chưa xong. Trang đã có kết quả không bị dịch lại và không bị trừ credit lần nữa. */
+export async function continueBatchTranslate(batchId: string): Promise<{ retried: number } | { error: string }> {
+  if (!batchId) return { error: 'Thiếu batchId.' }
+  const result = await getUserForCreditAction()
+  if ('error' in result) return { error: result.error }
+  const retried = await continueTranslateBatchPg(result.user.id, batchId)
+  if (retried == null) return { error: 'Không chạy tiếp được.' }
+  if (retried === 0) return { error: 'Không có trang nào đang dở để chạy tiếp.' }
+  await resumeBatchTranslate(batchId)
+  revalidatePath('/dich-anh-tai-lieu')
+  revalidatePath(`/dich-anh-tai-lieu/tien-trinh/${batchId}`)
+  revalidatePath('/dashboard/history/translate')
+  return { retried }
+}
+
+/** Dịch lại đúng các trang lỗi. Trang đã xong giữ nguyên. Credit chỉ trừ khi trang dịch lại xong. */
+export async function retryFailedTranslatePages(batchId: string): Promise<{ retried: number } | { error: string }> {
+  if (!batchId) return { error: 'Thiếu batchId.' }
+  const result = await getUserForCreditAction()
+  if ('error' in result) return { error: result.error }
+  const retried = await reopenFailedTranslateBatchPg(result.user.id, batchId)
+  if (retried == null) return { error: 'Không mở lại được trang lỗi.' }
+  if (retried === 0) return { error: 'Không có trang lỗi để dịch lại.' }
+  await resumeBatchTranslate(batchId)
+  revalidatePath('/dich-anh-tai-lieu')
+  revalidatePath(`/dich-anh-tai-lieu/tien-trinh/${batchId}`)
+  revalidatePath('/dashboard/history/translate')
+  return { retried }
 }
 
 /** Tạo zip ảnh kết quả và ảnh gốc từ batch đã dịch xong – dùng cho nút tải và khi hủy. */
@@ -1073,7 +1408,7 @@ export async function getBatchZipUrl(batchId: string): Promise<{ zipUrl?: string
   const zipResult = await createZipFromResults(
     completed.map((item, i: number) => ({
       resultUrl: item.result_image_url!,
-      name: `${pagePrefix}_${i + 1}_dich.png`,
+      name: `${pagePrefix}_${pdfPageNumberFromUrl(item.original_image_url) ?? i + 1}_dich.png`,
     }))
   )
   if ('error' in zipResult) return zipResult
@@ -1084,7 +1419,10 @@ export async function getBatchZipUrl(batchId: string): Promise<{ zipUrl?: string
   let originalZipUrl: string | undefined
   if (origEntries.length > 0) {
     const origResult = await createZipFromResults(
-      origEntries.map((x) => ({ resultUrl: x.url, name: `${pagePrefix}_${x.idx}_goc.png` }))
+      origEntries.map((x) => ({
+        resultUrl: x.url,
+        name: `${pagePrefix}_${pdfPageNumberFromUrl(x.url) ?? x.idx}_goc.png`,
+      }))
     )
     if ('zipUrl' in origResult && origResult.zipUrl) originalZipUrl = origResult.zipUrl
   }
@@ -1092,9 +1430,20 @@ export async function getBatchZipUrl(batchId: string): Promise<{ zipUrl?: string
   return { zipUrl: zipResult.zipUrl, originalZipUrl }
 }
 
+/** Các đợt dịch gần nhất, mới nhất trước. Mỗi lần bấm Dịch là một đợt. */
+export async function listRecentTranslateBatches(): Promise<
+  { batches: Array<{ batchId: string; startedAt: string; memberIds: string[] }> } | { error: string }
+> {
+  const result = await getUserForCreditAction()
+  if ('error' in result) return { error: result.error }
+  const rows = await listRecentTranslateBatchesPg(result.user.id)
+  if (rows == null) return { error: 'Không tải được các đợt dịch.' }
+  return { batches: rows }
+}
+
 /** Lấy tiến trình batch dịch – dùng cho trang tiến trình (polling). */
 export async function getBatchProgress(batchId: string): Promise<
-  { done: number; total: number; items: Array<{ id: string; status: string; original_image_url?: string; result_image_url?: string; error_message?: string | null }>; cancelled?: number; isCancelled?: boolean } | { error: string }
+  { done: number; total: number; items: Array<{ id: string; status: string; original_image_url?: string; result_image_url?: string; error_message?: string | null; batch_type?: string | null; job_status?: string | null }>; cancelled?: number; isCancelled?: boolean } | { error: string }
 > {
   if (!batchId) return { error: 'Thiếu batchId.' }
   const result = await getUserForCreditAction()
@@ -1109,6 +1458,8 @@ export async function getBatchProgress(batchId: string): Promise<
     original_image_url: r.original_image_url ?? undefined,
     result_image_url: r.result_image_url ?? undefined,
     error_message: r.error_message,
+    batch_type: r.batch_type,
+    job_status: r.job_status,
   }))
   const done = list.filter((x) => x.status === 'completed').length
   const cancelled = list.filter((x) => x.status === 'cancelled').length

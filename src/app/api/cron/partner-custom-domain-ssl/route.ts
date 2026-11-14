@@ -8,7 +8,7 @@ import { runPartnerCustomDomainSslWorker } from '@/lib/messaging/partner-custom-
  * Cần trên VPS:
  * - PARTNER_DOMAIN_SSL_AUTO_PROVISION=1
  * - deploy/provision-partner-domain-ssl.sh (chạy được sudo certbot)
- * - Crontab mỗi 3 phút (xem deploy/update-vps.sh)
+ * - PM2 nanoai-shop-cron mỗi 3 phút (không curl :3000)
  */
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'

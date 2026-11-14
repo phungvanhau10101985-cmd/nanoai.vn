@@ -4,15 +4,18 @@ import archiver from 'archiver'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchTryOnHistoryBatchDownloadRowsPg } from '@/lib/db/translate-process-pg'
+import { pdfPageNumberFromUrl } from '@/lib/dich-anh-tai-lieu/pdf-page-selection'
+import { loadPdfLinesFile, loadPdfPageMeta, loadPdfVectorPage } from '@/lib/dich-anh-tai-lieu/pdf-job-files'
+import { buildPdfFromTranslatedPages } from '@/lib/dich-anh-tai-lieu/pdf-page-paint'
 
 /** Route Handler cho tải PDF/zip – timeout 120s (Server Action chỉ 15s trên Vercel) */
 export const maxDuration = 120
 
-type TryOnRow = { result_image_url?: string | null; batch_type?: string | null; original_image_url?: string | null }
+type TryOnRow = { id?: string; result_image_url?: string | null; batch_type?: string | null; original_image_url?: string | null }
 
 function pageIndex(url: string | null | undefined): number | null {
-  const match = /_page_(\d+)\./.exec(url || '')
-  return match ? Number(match[1]) : null
+  const page = pdfPageNumberFromUrl(url)
+  return page == null ? null : page - 1
 }
 
 function orderPages(rows: TryOnRow[]): TryOnRow[] {
@@ -39,17 +42,22 @@ async function zipBuffers(entries: Array<{ name: string; buffer: Buffer }>): Pro
   })
 }
 
-async function pagesToPdfUrl(userId: string, pages: Buffer[]): Promise<string> {
-  const sharp = (await import('sharp')).default
-  const { PDFDocument } = await import('pdf-lib')
-  const pdfDoc = await PDFDocument.create()
-  for (const pageBuffer of pages) {
-    const png = await sharp(pageBuffer).png().toBuffer()
-    const image = await pdfDoc.embedPng(png)
-    const page = pdfDoc.addPage([image.width, image.height])
-    page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height })
+async function pagesToPdfUrl(userId: string, rows: TryOnRow[], pngs: Buffer[]): Promise<string> {
+  const pages = []
+  for (let i = 0; i < pngs.length; i++) {
+    const row = rows[i]
+    const linesFile = row?.result_image_url ? await loadPdfLinesFile(row.result_image_url) : null
+    const meta = row?.original_image_url ? await loadPdfPageMeta(row.original_image_url) : null
+    const vectorPdf = row?.result_image_url ? await loadPdfVectorPage(row.result_image_url) : null
+    pages.push({
+      png: pngs[i],
+      vectorPdf,
+      widthPt: linesFile?.widthPt || meta?.widthPt || 0,
+      heightPt: linesFile?.heightPt || meta?.heightPt || 0,
+      lines: linesFile?.lines ?? [],
+    })
   }
-  const out = Buffer.from(await pdfDoc.save())
+  const out = await buildPdfFromTranslatedPages(pages)
   const { publicUrl } = await uploadTryOnImagePublic(`results/${userId}/dich_tai_lieu_${Date.now()}.pdf`, out, {
     contentType: 'application/pdf',
     upsert: true,
@@ -65,7 +73,8 @@ async function zipOriginalPages(userId: string, rows: TryOnRow[], pagePrefix: st
     try {
       const res = await fetch(origUrl, { signal: AbortSignal.timeout(30000) })
       if (!res.ok) continue
-      entries.push({ name: `${pagePrefix}_${i + 1}_goc.png`, buffer: Buffer.from(await res.arrayBuffer()) })
+      const pageNo = pdfPageNumberFromUrl(origUrl) ?? i + 1
+      entries.push({ name: `${pagePrefix}_${pageNo}_goc.png`, buffer: Buffer.from(await res.arrayBuffer()) })
     } catch {
       /* bỏ trang gốc lỗi */
     }
@@ -108,15 +117,29 @@ export async function GET(request: NextRequest) {
   const isPdfBatch = rows.some((row) => row.batch_type === 'pdf')
   const wantPdf = request.nextUrl.searchParams.get('format') === 'pdf'
   const pagePrefix = isPdfBatch ? 'trang' : 'image'
-  const ordered = orderPages(completed)
+  const picked = new Set(
+    (request.nextUrl.searchParams.get('ids') || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+  )
+  const ordered = orderPages(picked.size > 0 ? completed.filter((row) => row.id && picked.has(row.id)) : completed)
+  if (ordered.length === 0) {
+    return NextResponse.json({ error: 'Chọn trang đã xong để tải.' }, { status: 400 })
+  }
 
   try {
-    const resultEntries: Array<{ name: string; buffer: Buffer }> = []
+    const resultEntries: Array<{ name: string; buffer: Buffer; row: TryOnRow }> = []
     for (let i = 0; i < ordered.length; i++) {
       try {
         const res = await fetch(ordered[i].result_image_url!, { signal: AbortSignal.timeout(30000) })
         if (!res.ok) continue
-        resultEntries.push({ name: `${pagePrefix}_${i + 1}_dich.png`, buffer: Buffer.from(await res.arrayBuffer()) })
+        const pageNo = pdfPageNumberFromUrl(ordered[i].original_image_url) ?? i + 1
+        resultEntries.push({
+          name: `${pagePrefix}_${pageNo}_dich.png`,
+          buffer: Buffer.from(await res.arrayBuffer()),
+          row: ordered[i],
+        })
       } catch {
         /* bỏ trang lỗi */
       }
@@ -126,7 +149,11 @@ export async function GET(request: NextRequest) {
     }
     const originalZipUrl = await zipOriginalPages(user.id, ordered, pagePrefix)
     if (wantPdf) {
-      const pdfUrl = await pagesToPdfUrl(user.id, resultEntries.map((entry) => entry.buffer))
+      const pdfUrl = await pagesToPdfUrl(
+        user.id,
+        resultEntries.map((entry) => entry.row),
+        resultEntries.map((entry) => entry.buffer)
+      )
       return NextResponse.json({ pdfUrl, originalZipUrl })
     }
     const resultZip = await zipBuffers(resultEntries)

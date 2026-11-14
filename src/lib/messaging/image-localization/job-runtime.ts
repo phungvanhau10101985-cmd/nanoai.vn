@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { shopBackgroundRunsHere } from '@/lib/cron/shop-cron-process'
 import {
   deleteTerminalImageLocJobsFromPg,
   fetchImageLocJobFromPg,
@@ -467,6 +468,7 @@ async function finalizeCancelled(
 }
 
 function spawn(partnerId: string, jobId: string, resume: boolean, replaceStalled = false) {
+  if (!shopBackgroundRunsHere()) return
   const key = workerKey(partnerId, jobId)
   if (workerRegistry.has(key) && !replaceStalled) return
   const epoch = (workerEpoch.get(key) || 0) + 1
@@ -606,7 +608,8 @@ export async function resumeImageLocalizationAfterRestart(): Promise<{ resumed: 
       continue
     }
     resumeAttemptsThisProcess.set(key, (resumeAttemptsThisProcess.get(key) || 0) + 1)
-    spawn(job.partner_id, job.job_id, true, workerAlive)
+    const queued = String(job.status || '').toLowerCase() === 'queued'
+    spawn(job.partner_id, job.job_id, !queued, workerAlive)
     resumed += 1
   }
   return { resumed, skipped }

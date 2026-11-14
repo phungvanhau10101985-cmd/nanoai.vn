@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { redisGet, redisSetEx } from '@/lib/cache/redis'
+import { shopBackgroundRunsHere } from '@/lib/cron/shop-cron-process'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import {
   deleteListingImportQueueFromPg,
@@ -63,8 +65,32 @@ async function withQueueLock<T>(partnerId: string, token: string, fn: () => Prom
   }
 }
 
+const LISTING_IMPORT_HEARTBEAT_TTL_SEC = 45
+
+function listingImportHeartbeatKey(partnerId: string, token: string): string {
+  return `pw:cron:listing-import:alive:${partnerId}:${token}`
+}
+
 export function listingImportWorkerAlive(partnerId: string, token: string): boolean {
   return workerRegistry.has(workerKey(partnerId, token))
+}
+
+async function touchListingImportHeartbeat(partnerId: string, token: string): Promise<void> {
+  try {
+    await redisSetEx(listingImportHeartbeatKey(partnerId, token), LISTING_IMPORT_HEARTBEAT_TTL_SEC, '1')
+  } catch (e) {
+    console.warn('[listing-import] heartbeat', e instanceof Error ? e.message : e)
+  }
+}
+
+/** Process web không giữ vòng Playwright. Redis do nanoai-shop-cron ghi, để dashboard không coi worker đã chết. */
+export async function listingImportKnownAlive(partnerId: string, token: string): Promise<boolean> {
+  if (listingImportWorkerAlive(partnerId, token)) return true
+  try {
+    return (await redisGet(listingImportHeartbeatKey(partnerId, token))) === '1'
+  } catch {
+    return false
+  }
 }
 
 function reconcileQueueAfterWorkerLoss(q: ListingImportQueuePayload, alive: boolean): boolean {
@@ -123,6 +149,18 @@ function overlayFromItem(it: ListingImportQueueItem): Record<string, unknown> {
 }
 
 async function workerLoop(partnerId: string, token: string): Promise<void> {
+  const beat = setInterval(() => {
+    void touchListingImportHeartbeat(partnerId, token)
+  }, 15_000)
+  try {
+    await touchListingImportHeartbeat(partnerId, token)
+    await runListingImportLoop(partnerId, token)
+  } finally {
+    clearInterval(beat)
+  }
+}
+
+async function runListingImportLoop(partnerId: string, token: string): Promise<void> {
   while (true) {
     const next = await withQueueLock(partnerId, token, async () => {
       const q = await loadQueue(partnerId, token)
@@ -204,6 +242,7 @@ async function workerLoop(partnerId: string, token: string): Promise<void> {
 }
 
 export function ensureListingImportWorker(partnerId: string, token: string): boolean {
+  if (!shopBackgroundRunsHere()) return false
   if (!listingImportQueueTokenOk(token)) return false
   const key = workerKey(partnerId, token)
   const existing = workerRegistry.get(key)
@@ -310,13 +349,14 @@ export async function pauseListingImport(partnerId: string, token: string): Prom
 
 export async function resumeListingImport(partnerId: string, token: string): Promise<{ queue_token: string; message: string }> {
   if (!listingImportQueueTokenOk(token)) throw new Error('queue_token không hợp lệ.')
+  const knownAlive = await listingImportKnownAlive(partnerId, token)
   await withQueueLock(partnerId, token, async () => {
     const q = await loadQueue(partnerId, token)
     if (!q) throw new Error('Không tìm thấy hàng đợi.')
     if (q.run_status === 'stopped' || q.stop_requested) {
       throw new Error('Hàng đợi đã dừng hẳn — không thể chạy lại. Hãy thêm link để tạo hàng đợi mới.')
     }
-    reconcileQueueAfterWorkerLoss(q, listingImportWorkerAlive(partnerId, token))
+    reconcileQueueAfterWorkerLoss(q, knownAlive)
     q.pause_requested = false
     q.worker_error = null
     const hasPending = q.items.some((it) => it.state === 'pending')
@@ -350,17 +390,18 @@ export async function getListingImportStatus(
   token: string
 ): Promise<ListingImportQueueStatus> {
   if (!listingImportQueueTokenOk(token)) throw new Error('queue_token không hợp lệ.')
+  const knownAlive = await listingImportKnownAlive(partnerId, token)
   await withQueueLock(partnerId, token, async () => {
     const q = await loadQueue(partnerId, token)
     if (!q) throw new Error('Không tìm thấy hàng đợi.')
-    if (reconcileQueueAfterWorkerLoss(q, listingImportWorkerAlive(partnerId, token))) {
+    if (reconcileQueueAfterWorkerLoss(q, knownAlive)) {
       await saveQueue(partnerId, q)
     }
   })
   const q = await loadQueue(partnerId, token)
   if (!q) throw new Error('Không tìm thấy hàng đợi.')
   const counts = countsFromListingItems(q.items)
-  const workerAlive = listingImportWorkerAlive(partnerId, token)
+  const workerAlive = knownAlive || listingImportWorkerAlive(partnerId, token)
   const hasPending = counts.pending > 0
   return {
     queue_token: q.queue_token,
@@ -391,12 +432,15 @@ export async function listListingImportRuns(
   opts?: { limit?: number; offset?: number }
 ) {
   const data = await listListingImportQueueSummariesFromPg(partnerId, opts)
+  const items = await Promise.all(
+    data.items.map(async (it) => ({
+      ...it,
+      worker_alive: await listingImportKnownAlive(partnerId, it.queue_token),
+    })),
+  )
   return {
     ...data,
-    items: data.items.map((it) => ({
-      ...it,
-      worker_alive: listingImportWorkerAlive(partnerId, it.queue_token),
-    })),
+    items,
     limit: opts?.limit ?? 50,
     offset: opts?.offset ?? 0,
   }

@@ -2,11 +2,11 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 
-import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useMemo, useCallback } from 'react'
 import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { translateDocumentImage, startTranslateBatch, startTranslatePdfBatch, getPdfPageInfo } from './actions'
+import { translateDocumentImage, startTranslateBatch, startTranslatePdfBatch, getPdfPageInfo, listRecentTranslateBatches } from './actions'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { getDictionary } from '@/lib/i18n/dictionaries'
@@ -34,8 +34,21 @@ import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { TranslateProgressPanel } from './tien-trinh/translate-progress-panel'
+import { TranslateImageEditButton } from '@/components/dich-anh-tai-lieu/translate-image-editor'
+import { PdfPageSelect } from '@/components/dich-anh-tai-lieu/pdf-page-image-picker'
+import {
+  allPdfPages,
+  formatPdfPageSelection,
+  parsePdfPageSelection,
+  type PdfPageSelectionError,
+} from '@/lib/dich-anh-tai-lieu/pdf-page-selection'
 const MAX_BATCH = 50
 const TRANSLATE_PROGRESS_STORAGE_KEY = 'lastTranslateBatchId'
+type TranslateRun = { batchId: string; startedAt: string; memberIds: string[] }
+
+function translateRunKey(run: TranslateRun): string {
+  return `${run.batchId}:${run.memberIds[0] ?? 'all'}`
+}
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -123,6 +136,13 @@ export default function DichAnhTaiLieuClientPage() {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [pdfPageCount, setPdfPageCount] = useState<number | null>(null)
   const [pdfPreviews, setPdfPreviews] = useState<string[]>([])
+  const [pdfSelectedPages, setPdfSelectedPages] = useState<number[]>([])
+  const [pdfPageRange, setPdfPageRange] = useState('')
+  const [pdfRangeError, setPdfRangeError] = useState<PdfPageSelectionError | null>(null)
+  const [pdfPageKinds, setPdfPageKinds] = useState<Array<'text' | 'scan'>>([])
+  const [finishedPdfPages, setFinishedPdfPages] = useState<number[]>([])
+  const [pdfFileHash, setPdfFileHash] = useState('')
+  const [pdfKeepTerms, setPdfKeepTerms] = useState('')
   const [pdfLoading, setPdfLoading] = useState(false)
   const [resultPdfUrl, setResultPdfUrl] = useState<string | null>(null)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
@@ -140,6 +160,24 @@ export default function DichAnhTaiLieuClientPage() {
   const [batchResults, setBatchResults] = useState<Array<{ originalUrl: string; resultUrl: string }>>([])
   const [batchZipUrl, setBatchZipUrl] = useState<string | null>(null)
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null)
+  const [runs, setRuns] = useState<TranslateRun[]>([])
+  const [hiddenRunKeys, setHiddenRunKeys] = useState<string[]>([])
+  const progressAnchorRef = useRef<HTMLDivElement>(null)
+  const scrollProgressRef = useRef(false)
+  const refreshRuns = useCallback(async () => {
+    const result = await listRecentTranslateBatches()
+    if ('batches' in result) setRuns(result.batches)
+  }, [])
+  function openProgress(batchId: string) {
+    try {
+      localStorage.setItem(TRANSLATE_PROGRESS_STORAGE_KEY, batchId)
+    } catch {
+      //
+    }
+    scrollProgressRef.current = true
+    setActiveBatchId(batchId)
+    void refreshRuns()
+  }
   const [userCredits, setUserCredits] = useState<number>(0)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
@@ -199,6 +237,22 @@ export default function DichAnhTaiLieuClientPage() {
       //
     }
   }, [searchParams])
+  useEffect(() => {
+    void refreshRuns()
+    const timer = window.setInterval(() => { void refreshRuns() }, 8000)
+    return () => window.clearInterval(timer)
+  }, [refreshRuns])
+  useEffect(() => {
+    if (!scrollProgressRef.current || !activeBatchId) return
+    const node = progressAnchorRef.current
+    if (!node) return
+    scrollProgressRef.current = false
+    node.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [activeBatchId, runs])
+  useEffect(() => {
+    if (step !== 'GENERATING') return
+    document.getElementById('translate-generating')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [step])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const batchInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
@@ -248,6 +302,12 @@ export default function DichAnhTaiLieuClientPage() {
     setPdfFile(file)
     setPdfPageCount(null)
     setPdfPreviews([])
+    setPdfSelectedPages([])
+    setPdfPageRange('')
+    setPdfRangeError(null)
+    setPdfPageKinds([])
+    setFinishedPdfPages([])
+    setPdfFileHash('')
     setPdfLoading(true)
     e.target.value = ''
     try {
@@ -257,14 +317,25 @@ export default function DichAnhTaiLieuClientPage() {
       if (res.error) {
         toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error, variant: 'destructive' })
         setPdfFile(null)
+        setPdfFileHash('')
+        setPdfSelectedPages([])
+        setPdfPageRange('')
       } else {
+        const pages = allPdfPages(res.pageCount)
         setPdfPageCount(res.pageCount)
         setPdfPreviews(res.previews)
-        toast({ title: tr(uiLocale, 'Đã phân tích PDF', 'PDF analyzed', '已分析 PDF', 'PDFを分析しました', 'PDF 분석 완료'), description: `${res.pageCount} ${tr(uiLocale, 'trang', 'pages', '页', 'ページ', '페이지')} • ${tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: ${(res.pageCount * unitCost).toLocaleString('vi-VN')} credits`, duration: 3000 })
+        setPdfFileHash(res.fileHash ?? '')
+        setPdfPageKinds(res.pageKinds ?? [])
+        setFinishedPdfPages(res.finishedPages ?? [])
+        setPdfSelectedPages(pages)
+        setPdfPageRange(formatPdfPageSelection(pages))
+        setPdfRangeError(null)
+        toast({ title: tr(uiLocale, 'Đã phân tích PDF', 'PDF analyzed', '已分析 PDF', 'PDFを分析しました', 'PDF 분석 완료'), description: `${res.pageCount} ${tr(uiLocale, 'trang', 'pages', '页', 'ページ', '페이지')} • ${tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: ${(pages.length * unitCost).toLocaleString('vi-VN')} credits`, duration: 3000 })
       }
     } catch {
       toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr(uiLocale, 'Không đọc được file PDF.', 'Could not read PDF file.', '无法读取 PDF 文件。', 'PDFファイルを読み込めませんでした。', 'PDF 파일을 읽을 수 없습니다.'), variant: 'destructive' })
       setPdfFile(null)
+      setPdfFileHash('')
     } finally {
       setPdfLoading(false)
     }
@@ -386,9 +457,20 @@ export default function DichAnhTaiLieuClientPage() {
   const [excelUrlCount, setExcelUrlCount] = useState(0)
   const isBatchOrExcel = batchMode === 'batch' || batchMode === 'excel'
   const imageCount = batchMode === 'excel' ? excelUrlCount : batchImages.length
+  const finishedPdfSet = new Set(finishedPdfPages)
+  const selectedPdfSet = new Set(pdfSelectedPages)
+  const pdfPagesToRun = pdfSelectedPages.filter((page) => !finishedPdfSet.has(page))
+  const togglePdfPage = (page: number) => {
+    const next = selectedPdfSet.has(page)
+      ? pdfSelectedPages.filter((item) => item !== page)
+      : [...pdfSelectedPages, page].sort((a, b) => a - b)
+    setPdfSelectedPages(next)
+    setPdfPageRange(formatPdfPageSelection(next))
+    setPdfRangeError(next.length === 0 ? 'empty' : null)
+  }
   const estimatedCost =
-    batchMode === 'pdf' && pdfPageCount
-      ? pdfPageCount * unitCost
+    batchMode === 'pdf' && pdfSelectedPages.length > 0
+      ? pdfPagesToRun.length * unitCost
       : isBatchOrExcel && imageCount > 0
         ? imageCount * unitCost
         : batchMode === 'single' && image.file
@@ -420,9 +502,19 @@ export default function DichAnhTaiLieuClientPage() {
         toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr(uiLocale, 'Vui lòng tải lên file PDF.', 'Please upload a PDF file.', '请上传 PDF 文件。', 'PDFファイルをアップロードしてください。', 'PDF 파일을 업로드해 주세요.'), variant: 'destructive' })
         return
       }
+      if (pdfRangeError || pdfSelectedPages.length === 0) {
+        toast({
+          title: tr(uiLocale, 'Chưa chọn trang', 'No pages selected', '未选择页面', 'ページが未選択です', '페이지를 선택하지 않았습니다'),
+          description: tr(uiLocale, 'Chọn trang hoặc gõ khoảng như 3-8, 12.', 'Pick pages or type a range such as 3-8, 12.', '选择页面，或输入 3-8, 12 这样的范围。', 'ページを選ぶか、3-8, 12 のように範囲を入力してください。', '페이지를 고르거나 3-8, 12처럼 범위를 입력하세요.'),
+          variant: 'destructive',
+        })
+        return
+      }
       setStep('GENERATING')
       const fd = new FormData()
       fd.append('pdfFile', pdfFile)
+      fd.append('selectedPages', pdfPageRange)
+      fd.append('keepTerms', pdfKeepTerms)
       fd.append('sourceLang', sourceLang)
       fd.append('targetLang', targetLang)
       fd.append('imageQuality', imageQuality)
@@ -431,13 +523,38 @@ export default function DichAnhTaiLieuClientPage() {
       const r = await startTranslatePdfBatch(fd)
       if ('error' in r) {
         setStep('UPLOAD')
+        if (r.batchId) openProgress(r.batchId)
         toast({ title: tr(uiLocale, 'Khởi tạo thất bại', 'Init failed', '初始化失败', '初期化に失敗しました', '초기화 실패'), description: r.error, variant: 'destructive', duration: 5000 })
         return
       }
-      if (typeof window !== 'undefined') localStorage.setItem(TRANSLATE_PROGRESS_STORAGE_KEY, r.batchId)
-      setActiveBatchId(r.batchId)
+      openProgress(r.batchId)
       setStep('UPLOAD')
-      toast({ title: tr(uiLocale, 'Đã bắt đầu dịch PDF', 'PDF translation started', '已开始翻译 PDF', 'PDF翻訳を開始しました', 'PDF 번역 시작됨'), description: tr(uiLocale, 'Tiến trình đã hiển thị ngay trong trang này.', 'Progress is shown on this page.', '进度已显示在此页面。', '進捗はこのページに表示されます。', '진행 상황이 이 페이지에 표시됩니다.'), duration: 4000 })
+      toast({
+        title: r.queued > 0
+          ? tr(uiLocale, 'Đã bắt đầu dịch PDF', 'PDF translation started', '已开始翻译 PDF', 'PDF翻訳を開始しました', 'PDF 번역 시작됨')
+          : tr(uiLocale, 'Các trang đã chọn đã xong', 'Selected pages are already done', '所选页面都已完成', '選んだページは完了済みです', '고른 페이지는 이미 끝났습니다'),
+        description: r.skipped > 0
+          ? tr(
+              uiLocale,
+              r.queued > 0
+                ? `Giữ ${r.skipped} trang đã xong. Chạy tiếp ${r.queued} trang chưa xong.`
+                : `Giữ ${r.skipped} trang đã xong.`,
+              r.queued > 0
+                ? `Kept ${r.skipped} finished pages. Continuing ${r.queued} unfinished pages.`
+                : `Kept ${r.skipped} finished pages.`,
+              r.queued > 0
+                ? `保留 ${r.skipped} 个已完成页。继续 ${r.queued} 个未完成页。`
+                : `保留 ${r.skipped} 个已完成页。`,
+              r.queued > 0
+                ? `完了済み ${r.skipped} ページは残します。未完了 ${r.queued} ページから続けます。`
+                : `完了済み ${r.skipped} ページは残します。`,
+              r.queued > 0
+                ? `끝난 ${r.skipped}페이지는 유지합니다. 남은 ${r.queued}페이지를 계속합니다.`
+                : `끝난 ${r.skipped}페이지는 유지합니다.`
+            )
+          : tr(uiLocale, 'Tiến trình đã hiển thị ngay trong trang này.', 'Progress is shown on this page.', '进度已显示在此页面。', '進捗はこのページに表示されます。', '진행 상황이 이 페이지에 표시됩니다.'),
+        duration: 4000,
+      })
       return
     } else if (batchMode === 'excel') {
       if (!excelFile || excelUrls.length === 0) {
@@ -460,8 +577,7 @@ export default function DichAnhTaiLieuClientPage() {
         toast({ title: tr(uiLocale, 'Khởi tạo thất bại', 'Init failed', '初始化失败', '初期化に失敗しました', '초기화 실패'), description: r.error, variant: 'destructive', duration: 5000 })
         return
       }
-      if (typeof window !== 'undefined') localStorage.setItem(TRANSLATE_PROGRESS_STORAGE_KEY, r.batchId)
-      setActiveBatchId(r.batchId)
+      openProgress(r.batchId)
       setStep('UPLOAD')
       toast({ title: tr(uiLocale, 'Đã bắt đầu dịch', 'Translation started', '已开始翻译', '翻訳を開始しました', '번역 시작됨'), description: tr(uiLocale, 'Tiến trình đã hiển thị ngay trong trang này.', 'Progress is shown on this page.', '进度已显示在此页面。', '進捗はこのページに表示されます。', '진행 상황이 이 페이지에 표시됩니다.'), duration: 4000 })
       return
@@ -486,8 +602,7 @@ export default function DichAnhTaiLieuClientPage() {
         toast({ title: tr(uiLocale, 'Khởi tạo thất bại', 'Init failed', '初始化失败', '初期化に失敗しました', '초기화 실패'), description: r.error, variant: 'destructive', duration: 5000 })
         return
       }
-      if (typeof window !== 'undefined') localStorage.setItem(TRANSLATE_PROGRESS_STORAGE_KEY, r.batchId)
-      setActiveBatchId(r.batchId)
+      openProgress(r.batchId)
       setStep('UPLOAD')
       toast({ title: tr(uiLocale, 'Đã bắt đầu dịch', 'Translation started', '已开始翻译', '翻訳を開始しました', '번역 시작됨'), description: tr(uiLocale, 'Tiến trình đã hiển thị ngay trong trang này.', 'Progress is shown on this page.', '进度已显示在此页面。', '進捗はこのページに表示されます。', '진행 상황이 이 페이지에 표시됩니다.'), duration: 4000 })
       return
@@ -556,8 +671,10 @@ export default function DichAnhTaiLieuClientPage() {
     setExcelUrls([])
     setExcelUrlCount(0)
     setPdfFile(null)
+    setPdfFileHash('')
     setPdfPageCount(null)
     setPdfPreviews([])
+    setFinishedPdfPages([])
     setProgress({ done: 0, total: 0 })
     setResultUrl(null)
     setResultPdfUrl(null)
@@ -569,20 +686,6 @@ export default function DichAnhTaiLieuClientPage() {
     <>
       <Toaster />
       <div className="tool-page-container">
-        {activeBatchId && (
-          <TranslateProgressPanel
-            batchId={activeBatchId}
-            embedded
-            onClose={() => {
-              setActiveBatchId(null)
-              try {
-                localStorage.removeItem(TRANSLATE_PROGRESS_STORAGE_KEY)
-              } catch {
-                //
-              }
-            }}
-          />
-        )}
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
             <FileText className="h-7 w-7 text-slate-600" /> {tr(uiLocale, 'Dịch ảnh tài liệu kỹ thuật', 'Translate technical document images', '翻译技术文档图片', '技術文書画像の翻訳', '기술 문서 이미지 번역')}
@@ -603,7 +706,7 @@ export default function DichAnhTaiLieuClientPage() {
                 <CardContent className="p-4 pt-0 space-y-4">
                   {batchMode === 'pdf' ? (
                     <div className="space-y-3">
-                      <p className="text-xs text-muted-foreground">{tr(uiLocale, 'Tải PDF lên. Mỗi trang được dịch riêng. Xong thì chọn tải một file PDF hoặc ZIP ảnh từng trang.', 'Upload a PDF. Each page is translated on its own. When it finishes, download one PDF or a ZIP of page images.', '上传 PDF。每页单独翻译。完成后可下载一个 PDF，或逐页图片 ZIP。', 'PDFをアップロード。各ページを個別に翻訳します。完了後、1つのPDFかページ画像のZIPを選べます。', 'PDF를 올리면 페이지마다 따로 번역합니다. 끝나면 PDF 한 파일 또는 페이지 이미지 ZIP을 고릅니다.')}</p>
+                      <p className="text-xs text-muted-foreground">{tr(uiLocale, 'Tải PDF lên, chọn trang cần dịch. Xong thì tải một file PDF đúng khổ, copy được chữ, hoặc ZIP từng trang.', 'Upload a PDF and choose the pages to translate. Then download one PDF at the original page size, with copyable text, or a ZIP of pages.', '上传 PDF 并选择要翻译的页。完成后下载保持原尺寸、可复制文字的 PDF，或逐页 ZIP。', 'PDFを上げ、訳すページを選びます。完了後、元のサイズで文字をコピーできる PDF か、ページ ZIP を受け取ります。', 'PDF를 올리고 번역할 페이지를 고릅니다. 끝나면 원본 크기에 글자를 복사할 수 있는 PDF 또는 페이지 ZIP을 받습니다.')}</p>
                       <label className="block">
                         <span className="sr-only">{tr(uiLocale, 'Chọn file PDF', 'Select PDF file', '选择 PDF 文件', 'PDFファイルを選択', 'PDF 파일 선택')}</span>
                         <input
@@ -617,7 +720,7 @@ export default function DichAnhTaiLieuClientPage() {
                       {pdfLoading && (
                         <p className="text-xs text-amber-600 font-medium flex items-center gap-2">
                           <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
-                          {tr(uiLocale, 'Đang phân tích PDF, tách từng trang...', 'Analyzing PDF, splitting pages...', '正在分析 PDF，拆分页面...', 'PDFを分析中、ページを分割しています...', 'PDF 분석 중, 페이지 분할 중...')}
+                          {tr(uiLocale, 'Đang đọc số trang...', 'Reading the page count...', '正在读取页数...', 'ページ数を読み取っています...', '페이지 수를 읽는 중...')}
                         </p>
                       )}
                       {pdfFile && pdfPageCount !== null && !pdfLoading && (
@@ -625,24 +728,112 @@ export default function DichAnhTaiLieuClientPage() {
                           <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                             {pdfFile.name} – {pdfPageCount} {tr(uiLocale, 'trang', 'pages', '页', 'ページ', '페이지')}
                           </h4>
-                          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
-                            {pdfPreviews.map((src, i) => (
-                              <div key={i} className="relative aspect-[3/4] rounded-lg border overflow-hidden bg-slate-100">
-                                <ImagePreview src={src} alt={`${tr(uiLocale, 'Trang', 'Page', '頁', 'ページ', '페이지')} ${i + 1}`} className="w-full h-full object-contain" />
-                                <span className="absolute bottom-0.5 left-0.5 text-[10px] bg-black/60 text-white px-1.5 py-0.5 rounded">
-                                  {i + 1}
-                                </span>
-                              </div>
-                            ))}
-                            {pdfPageCount > pdfPreviews.length && (
-                              <div className="aspect-[3/4] rounded-lg border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center text-xs text-muted-foreground">
-                                +{pdfPageCount - pdfPreviews.length}
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-xs text-emerald-600 font-medium">
-                            {tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: {(pdfPageCount * unitCost).toLocaleString('vi-VN')} credits ({pdfPageCount} × {unitCost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })}/{tr(uiLocale, 'trang', 'page', '页', 'ページ', '페이지')})
+                          <p className="text-xs text-muted-foreground">
+                            {tr(uiLocale, 'Bấm Chọn trang bằng ảnh để lăn xem hết trang, bấm ảnh rồi Xác nhận. Các trang không cần liền nhau. Ô khoảng trang vẫn dùng được, ví dụ 4-5, 12, 40.', 'Choose pages by image to scroll through every page, click an image, then confirm. The pages do not have to be consecutive. The range box still works, for example 4-5, 12, 40.', '点击按图片选择页面，滚动查看全部页面，点图片后确认。页面不必连续。范围框仍可用，例如 4-5, 12, 40。', '画像でページを選ぶを押し、全ページをスクロールして画像を押し、確認します。連続していなくて構いません。範囲欄も使えます。例: 4-5, 12, 40。', '이미지로 페이지 선택을 눌러 모든 페이지를 스크롤하고, 이미지를 누른 뒤 확인합니다. 페이지가 이어질 필요는 없습니다. 범위 칸도 됩니다. 예: 4-5, 12, 40.')}
                           </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const pages = allPdfPages(pdfPageCount)
+                                setPdfSelectedPages(pages)
+                                setPdfPageRange(formatPdfPageSelection(pages))
+                                setPdfRangeError(null)
+                              }}
+                            >
+                              {tr(uiLocale, 'Chọn tất cả', 'Select all', '全选', 'すべて選択', '모두 선택')}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setPdfSelectedPages([])
+                                setPdfPageRange('')
+                                setPdfRangeError('empty')
+                              }}
+                            >
+                              {tr(uiLocale, 'Bỏ chọn', 'Clear', '取消选择', '選択解除', '선택 해제')}
+                            </Button>
+                          </div>
+                          <label className="block space-y-1">
+                            <span className="text-xs font-medium">{tr(uiLocale, 'Khoảng trang', 'Page range', '页面范围', 'ページ範囲', '페이지 범위')}</span>
+                            <Input
+                              value={pdfPageRange}
+                              onChange={(event) => {
+                                const value = event.target.value
+                                setPdfPageRange(value)
+                                const parsed = parsePdfPageSelection(value, pdfPageCount)
+                                if ('error' in parsed) {
+                                  setPdfRangeError(parsed.error)
+                                  return
+                                }
+                                setPdfRangeError(null)
+                                setPdfSelectedPages(parsed.pages)
+                              }}
+                              placeholder="3-8, 12"
+                              className="bg-slate-100 border-slate-300"
+                            />
+                          </label>
+                          {pdfRangeError && (
+                            <p className="text-xs text-red-600">
+                              {pdfRangeError === 'range'
+                                ? tr(uiLocale, 'Có trang nằm ngoài file.', 'A page is outside the file.', '有页面超出文件。', 'ファイルにないページがあります。', '파일에 없는 페이지가 있습니다.')
+                                : pdfRangeError === 'empty'
+                                  ? tr(uiLocale, 'Chọn ít nhất một trang.', 'Select at least one page.', '至少选择一页。', '1ページ以上選んでください。', '페이지를 하나 이상 선택하세요.')
+                                  : tr(uiLocale, 'Dùng dạng 3-8, 12.', 'Use a form like 3-8, 12.', '使用 3-8, 12 这样的格式。', '3-8, 12 の形で入力してください。', '3-8, 12 형식으로 입력하세요.')}
+                            </p>
+                          )}
+                          <PdfPageSelect
+                            key={`${pdfFile.name}-${pdfFile.size}-${pdfFile.lastModified}`}
+                            file={pdfFile}
+                            fileHash={pdfFileHash}
+                            pageCount={pdfPageCount}
+                            selectedPages={pdfSelectedPages}
+                            initialThumbs={pdfPreviews}
+                            pageKinds={pdfPageKinds}
+                            locale={uiLocale}
+                            onHash={setPdfFileHash}
+                            onToggle={togglePdfPage}
+                            onConfirm={(pages) => {
+                              setPdfSelectedPages(pages)
+                              setPdfPageRange(formatPdfPageSelection(pages))
+                              setPdfRangeError(pages.length === 0 ? 'empty' : null)
+                            }}
+                          />
+                          <label className="block space-y-1">
+                            <span className="text-xs font-medium">{tr(uiLocale, 'Giữ nguyên các cụm này', 'Keep these terms', '保持这些词不变', 'この語句はそのまま', '이 말은 그대로')}</span>
+                            <textarea
+                              value={pdfKeepTerms}
+                              onChange={(event) => setPdfKeepTerms(event.target.value)}
+                              rows={3}
+                              placeholder={tr(uiLocale, 'VTC-15, kW, 0901234567', 'VTC-15, kW, 0901234567', 'VTC-15, kW, 0901234567', 'VTC-15, kW, 0901234567', 'VTC-15, kW, 0901234567')}
+                              className="w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm"
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {tr(uiLocale, 'Mỗi dòng hoặc dấu phẩy là một cụm không dịch. Mã máy, đơn vị, số điện thoại.', 'Each line or comma is a term to leave unchanged. Model codes, units, phone numbers.', '每行或逗号是一个不翻译的词。型号、单位、电话。', '改行またはカンマごとに訳さない語句です。型式、単位、電話番号。', '줄 또는 쉼표마다 번역하지 않을 말입니다. 모델, 단위, 전화번호.')}
+                            </span>
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            {tr(uiLocale, 'Mọi trang PDF đều do model đã chọn vẽ lại, kể cả trang có sẵn lớp chữ.', 'Every PDF page is redrawn by the selected model, including pages that already have a text layer.', '每个 PDF 页面都由所选模型重绘，包括已有文字层的页面。', '文字レイヤーがあるページも含め、すべての PDF ページは選んだモデルが描き直します。', '글자 층이 있는 페이지를 포함해 모든 PDF 페이지는 선택한 모델이 다시 그립니다.')}
+                          </p>
+                          <p className="text-xs text-emerald-600 font-medium">
+                            {tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: {estimatedCost.toLocaleString('vi-VN')} credits ({pdfPagesToRun.length}/{pdfPageCount} {tr(uiLocale, 'trang chưa xong', 'unfinished pages', '个未完成页', '未完了ページ', '미완료 페이지')} × {unitCost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })})
+                          </p>
+                          {pdfSelectedPages.some((page) => finishedPdfSet.has(page)) && (
+                            <p className="text-xs text-muted-foreground">
+                              {tr(
+                                uiLocale,
+                                `Đã giữ ${pdfSelectedPages.filter((page) => finishedPdfSet.has(page)).length} trang xong của file này. Bấm Dịch sẽ chạy tiếp trang chưa xong.`,
+                                `Keeping ${pdfSelectedPages.filter((page) => finishedPdfSet.has(page)).length} finished pages of this file. Translate continues from the unfinished pages.`,
+                                `已保留此文件的 ${pdfSelectedPages.filter((page) => finishedPdfSet.has(page)).length} 个完成页。点击翻译会从未完成的页继续。`,
+                                `このファイルの完了済み ${pdfSelectedPages.filter((page) => finishedPdfSet.has(page)).length} ページは残します。翻訳は未完了のページから続きます。`,
+                                `이 파일의 끝난 ${pdfSelectedPages.filter((page) => finishedPdfSet.has(page)).length}페이지는 유지합니다. 번역은 남은 페이지부터 이어집니다.`
+                              )}
+                            </p>
+                          )}
                           <p className="text-xs text-amber-600 font-medium">
                             → {tr(uiLocale, 'Chọn Ngôn ngữ nguồn và Ngôn ngữ đích bên cạnh, rồi bấm Dịch.', 'Select source and target language on the right, then click Translate.', '在右侧选择源语言和目标语言，然后点击翻译。', '右側でソース言語とターゲット言語を選択し、翻訳をクリックしてください。', '오른쪽에서 원본 및 대상 언어를 선택한 후 번역을 클릭하세요.')}
                           </p>
@@ -809,10 +1000,10 @@ export default function DichAnhTaiLieuClientPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => { setBatchMode('pdf'); setBatchImages([]); setExcelFile(null); setExcelUrlCount(0); setPdfPageCount(null); setPdfPreviews([]) }}
+                        onClick={() => { setBatchMode('pdf'); setBatchImages([]); setExcelFile(null); setExcelUrlCount(0); setPdfPageCount(null); setPdfPreviews([]); setFinishedPdfPages([]) }}
                         className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${batchMode === 'pdf' ? 'border-slate-600 bg-slate-600 text-white' : 'border-slate-500 bg-slate-400 text-slate-900 hover:bg-slate-500'}`}
                       >
-                        {tr(uiLocale, 'File PDF (tối đa 50 trang)', 'PDF file (max 50 pages)', 'PDF 文件（最多 50 页）', 'PDFファイル（最大50ページ）', 'PDF 파일 (최대 50페이지)')}
+                        {tr(uiLocale, 'File PDF (tối đa 500 trang)', 'PDF file (max 500 pages)', 'PDF 文件（最多 500 页）', 'PDFファイル（最大500ページ）', 'PDF 파일 (최대 500페이지)')}
                       </button>
                     </div>
                   </div>
@@ -903,7 +1094,7 @@ export default function DichAnhTaiLieuClientPage() {
                       disabled={
                         !sourceLang.trim() ||
                         !targetLang.trim() ||
-                        (batchMode === 'pdf' ? !pdfFile || !pdfPageCount || pdfPageCount === 0 : batchMode === 'excel' ? excelUrls.length === 0 : batchMode === 'batch' ? batchImages.length === 0 : !image.file)
+                        (batchMode === 'pdf' ? !pdfFile || !pdfPageCount || pdfSelectedPages.length === 0 || Boolean(pdfRangeError) : batchMode === 'excel' ? excelUrls.length === 0 : batchMode === 'batch' ? batchImages.length === 0 : !image.file)
                       }
                       title={
                         insufficientCredits
@@ -918,7 +1109,7 @@ export default function DichAnhTaiLieuClientPage() {
                     >
                       <Sparkles className="mr-2 h-4 w-4" /> {tr(uiLocale, 'Dịch', 'Translate', '翻译', '翻訳', '번역')} (
                       {batchMode === 'pdf'
-                        ? `${unitCost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit/${tr(uiLocale, 'trang', 'page', '页', 'ページ', '페이지')}`
+                        ? `${pdfSelectedPages.length} × ${unitCost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit`
                         : `${batchMode === 'excel' && excelUrlCount ? `${excelUrlCount} × ` : batchMode === 'batch' && batchImages.length ? `${batchImages.length} × ` : ''}${unitCost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit`}
                       )
                     </Button>
@@ -937,7 +1128,7 @@ export default function DichAnhTaiLieuClientPage() {
         )}
 
         {step === 'GENERATING' && (
-          <Card className="border shadow-sm bg-white/80 backdrop-blur border-slate-300/60">
+          <Card id="translate-generating" className="scroll-mt-24 border shadow-sm bg-white/80 backdrop-blur border-slate-300/60">
             <CardContent className="flex flex-col items-center py-8">
               <ImageProcessingLoader
                 mode="sharpen"
@@ -1068,14 +1259,21 @@ export default function DichAnhTaiLieuClientPage() {
                     </Button>
                   )}
                   {batchResults.length === 0 && !resultPdfUrl && resultUrl && (
-                    <DownloadImageButton
-                    imageUrl={resultUrl}
-                    filename="dich-tai-lieu"
-                    size="sm"
-                    className="w-full bg-slate-700 hover:bg-slate-800 text-white border-0"
-                    printReady
-                    printReadyInferFromImage
-                  />
+                    <>
+                      <TranslateImageEditButton
+                        locale={uiLocale}
+                        className="w-full"
+                        pages={[{ id: 'result', label: tr(uiLocale, 'Ảnh đã dịch', 'Translated image', '已翻译图片', '翻訳済み画像', '번역된 이미지'), src: resultUrl }]}
+                      />
+                      <DownloadImageButton
+                        imageUrl={resultUrl}
+                        filename="dich-tai-lieu"
+                        size="sm"
+                        className="w-full bg-slate-700 hover:bg-slate-800 text-white border-0"
+                        printReady
+                        printReadyInferFromImage
+                      />
+                    </>
                   )}
                   <Button size="sm" variant="outline" onClick={handleReset} className="w-full border-indigo-300 bg-indigo-100 text-indigo-950 hover:bg-indigo-200">
                     <RefreshCw className="mr-2 h-3 w-3" /> {tr(uiLocale, 'Thử lại', 'Try again', '重试', '再試行', '다시 시도')}
@@ -1090,6 +1288,40 @@ export default function DichAnhTaiLieuClientPage() {
             </Card>
           </div>
         )}
+        {(() => {
+          const clusterCount = (batchId: string) => runs.filter((other) => other.batchId === batchId).length
+          const listed = runs.filter((run) => {
+            const key = clusterCount(run.batchId) > 1 ? translateRunKey(run) : run.batchId
+            return !hiddenRunKeys.includes(key)
+          })
+          const hasActive = Boolean(activeBatchId && listed.some((run) => run.batchId === activeBatchId))
+          const shown: TranslateRun[] = activeBatchId && !hasActive
+            ? [{ batchId: activeBatchId, startedAt: new Date().toISOString(), memberIds: [] }, ...listed]
+            : listed
+          if (shown.length === 0) return null
+          let anchoredBatch = false
+          return (
+            <div className="space-y-4">
+              {shown.map((run) => {
+                const multi = clusterCount(run.batchId) > 1
+                const key = multi ? translateRunKey(run) : run.batchId
+                const anchored = !anchoredBatch && run.batchId === activeBatchId
+                if (anchored) anchoredBatch = true
+                return (
+                  <div key={key} ref={anchored ? progressAnchorRef : undefined} id={anchored ? 'translate-running' : undefined} className="scroll-mt-24">
+                    <TranslateProgressPanel
+                      batchId={run.batchId}
+                      startedAt={run.startedAt || null}
+                      memberIds={multi ? run.memberIds : undefined}
+                      embedded
+                      onClose={() => setHiddenRunKeys((prev) => (prev.includes(key) ? prev : [...prev, key]))}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
       </div>
       <p className="text-xs text-muted-foreground text-center mt-6">{tr(uiLocale, 'Tài liệu do AI xử lý tự động, có thể có sai sót, quý khách vui lòng kiểm tra kỹ nội dung và thông số trước khi công bố. Chúng tôi không chịu trách nhiệm về các lỗi phát sinh.', 'Documents are AI-processed automatically and may contain errors. Please verify content and specs before publishing. We are not liable for any errors.', '文档由 AI 自动处理，可能存在错误。发布前请仔细核对内容和规格。我们对产生的错误不承担责任。', '文書はAIで自動処理され、誤りが含まれる場合があります。公開前に内容と仕様をご確認ください。当社は発生した誤りについて責任を負いません。', '문서는 AI가 자동 처리하며 오류가 있을 수 있습니다. 공개 전 내용과 사양을 확인해 주세요. 발생한 오류에 대해 당사는 책임지지 않습니다.')}</p>
     </>

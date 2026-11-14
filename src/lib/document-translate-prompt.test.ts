@@ -19,6 +19,16 @@ describe('buildTranslatePrompt', () => {
     assert.match(prompt, /split type/)
   })
 
+  it('adds keep-terms and a text layer only when asked', () => {
+    const plain = buildTranslatePrompt('zh', null, 'vi')
+    assert.doesNotMatch(plain, /KEEP these strings exactly/)
+    assert.doesNotMatch(plain, /"lines"/)
+    const extra = buildTranslatePrompt('zh', null, 'vi', { keepTerms: ['VTC-15', 'kW'], captureLines: true })
+    assert.match(extra, /"VTC-15"/)
+    assert.match(extra, /"kW"/)
+    assert.match(extra, /\{"lines":/)
+  })
+
   it('translates the introduction, the specification, the usage line, and the contact line', () => {
     assert.match(prompt, /product introduction or a sales line/)
     assert.match(prompt, /specification label/)

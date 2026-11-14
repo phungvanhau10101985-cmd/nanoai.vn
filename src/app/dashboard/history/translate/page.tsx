@@ -9,6 +9,7 @@ import { Calendar, FileText } from 'lucide-react'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { DeleteHistoryButton } from '../delete-button'
 import { DownloadTranslateZipButton } from './download-zip-button'
+import { TranslateImageEditButton } from '@/components/dich-anh-tai-lieu/translate-image-editor'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 const BATCH_WINDOW_MS = 5 * 60 * 1000 // 5 phút
@@ -100,7 +101,18 @@ export default async function TranslateHistoryPage() {
                 <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                   {tr('Gói', 'Batch', '批次', 'バッチ', '묶음')} {batchIdx + 1} • {new Date(batch[0].created_at).toLocaleString('vi-VN')} • {batch.length} {tr('ảnh', 'images', '张', '枚', '장')}
                 </h2>
-                <DownloadTranslateZipButton items={batch} label={`${tr('Tải gói', 'Download batch', '下载批次', 'バッチをダウンロード', '묶음 다운로드')} ${batchIdx + 1} (zip)`} />
+                <div className="flex flex-wrap gap-2">
+                  <DownloadTranslateZipButton items={batch} label={`${tr('Tải gói', 'Download batch', '下载批次', 'バッチをダウンロード', '묶음 다운로드')} ${batchIdx + 1} (zip)`} />
+                  <TranslateImageEditButton
+                    locale={locale}
+                    label={tr('Sửa ảnh trong gói', 'Edit images in this batch', '编辑此批次图片', 'このバッチの画像を編集', '이 묶음의 이미지 편집')}
+                    pages={batch.flatMap((item, index) => item.result_image_url ? [{
+                      id: item.id,
+                      src: item.result_image_url,
+                      label: `${tr('Ảnh', 'Image', '图片', '画像', '이미지')} ${index + 1}`,
+                    }] : [])}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {batch.map((item) => (
@@ -125,6 +137,15 @@ export default async function TranslateHistoryPage() {
                         />
                       </div>
                       <div className="flex gap-2">
+                        <TranslateImageEditButton
+                          locale={locale}
+                          className="flex-1"
+                          pages={[{
+                            id: item.id,
+                            src: item.result_image_url,
+                            label: tr('Ảnh đã dịch', 'Translated image', '已翻译图片', '翻訳済み画像', '번역된 이미지'),
+                          }]}
+                        />
                         <a
                           href={item.result_image_url}
                           download={`dich-${item.id}.png`}

@@ -56,9 +56,9 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     factsTitle: 'Thông tin dịch vụ',
     facts: [
       { term: 'Tên dịch vụ', detail: 'Dịch ảnh tài liệu NanoAI' },
-      { term: 'Đầu vào', detail: 'Một ảnh, nhiều ảnh, file Excel cột A là link ảnh, hoặc PDF tối đa 50 trang.' },
+      { term: 'Đầu vào', detail: 'Một ảnh, nhiều ảnh, file Excel cột A là link ảnh, hoặc PDF tối đa 500 trang. PDF thì chọn trang, ví dụ 3-8, 12, và có thể ghi cụm cần giữ nguyên.' },
       { term: 'Đầu ra ảnh', detail: 'Ảnh PNG đã dịch.' },
-      { term: 'Đầu ra PDF', detail: 'Khách chọn một file PDF đã ghép, hoặc ZIP ảnh PNG từng trang.' },
+      { term: 'Đầu ra PDF', detail: 'Một file PDF đúng khổ trang gốc, copy được chữ. Hoặc ZIP ảnh từng trang đã chọn. Trang xong được lưu ngay. Dừng rồi chạy tiếp thì giữ trang đã xong.' },
       { term: 'Đơn vị giá', detail: '1 credit = 6.000 đồng Việt Nam.' },
       { term: 'Mức không bán', detail: 'NanoAI 2L không dùng trên trang này.' },
       { term: 'Chữ trên sản phẩm', detail: 'Chỉ chữ in hoặc dán trên thân máy giữ nguyên. Nhãn và ô bảng trên tờ catalog thì dịch, kể cả tên động cơ viết trên tờ.' },
@@ -72,7 +72,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     colFit: 'Hợp việc',
     stepsTitle: 'Ba bước',
     steps: [
-      { name: 'Đưa tài liệu', text: 'Tải ảnh, dán link, hoặc tải PDF. PDF được tách thành từng trang.' },
+      { name: 'Đưa tài liệu', text: 'Tải ảnh, dán link, hoặc tải PDF. Với PDF, chọn trang cần dịch và ghi cụm giữ nguyên nếu cần.' },
       { name: 'Chọn ngôn ngữ và mức', text: 'Chọn ngôn ngữ nguồn hoặc tự nhận, chọn ngôn ngữ đích, rồi chọn một mức trong bốn mức.' },
       { name: 'Tải kết quả', text: 'Ảnh ra PNG. PDF thì chọn file PDF hoặc ZIP từng trang.' },
     ],
@@ -80,7 +80,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     langLead: 'Nguồn có thể để máy tự nhận. Đích phải chọn. Danh sách dưới đây là tên ngôn ngữ khách thấy trên trang.',
     faqTitle: 'Câu hỏi thường gặp',
     faqs: [
-      { question: 'PDF đưa vào có ra PDF không?', answer: 'Có. Khi lô trang xong, khách chọn tải một file PDF hoặc ZIP ảnh từng trang.' },
+      { question: 'PDF đưa vào có ra PDF không?', answer: 'Có. Khách chọn trang trước. File PDF ra đúng khổ trang gốc và copy được chữ. Trang xong được lưu ngay. Dừng hoặc lỗi rồi bấm chạy tiếp thì đi từ trang chưa xong, trang đã xong không bị trừ credit lần nữa.' },
       { question: 'Vì sao không có NanoAI 2L?', answer: 'NanoAI 2L chữ dễ sai trên trang tài liệu. Trang chỉ bán NanoAI 2M, NanoAI 2H, NanoAI 2K và NanoAI 2 4K.' },
       { question: 'Mức nào nên chọn?', answer: 'NanoAI 2M, 6.000đ một trang, cho chữ tài liệu thông thường. NanoAI 2H, 12.000đ, cho chữ nhỏ và bản vẽ dày, cùng cỡ ảnh NanoAI 2M. NanoAI 2K, 9.000đ, khi cần trang nét hơn để xem và in vừa. NanoAI 2 4K, 24.000đ, khi in lớn. NanoAI 2K và NanoAI 2 4K nét hơn, không có nghĩa chữ chắc hơn NanoAI 2M.' },
       { question: 'Một credit là bao nhiêu tiền?', answer: '1 credit = 6.000 đồng. NanoAI 2M trừ 1 credit. NanoAI 2H trừ 2 credit. NanoAI 2K trừ 1,5 credit. NanoAI 2 4K trừ 4 credit.' },
@@ -120,9 +120,9 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     factsTitle: 'Service facts',
     facts: [
       { term: 'Service name', detail: 'NanoAI document image translation' },
-      { term: 'Input', detail: 'One image, many images, an Excel file with image links in column A, or a PDF of up to 50 pages.' },
+      { term: 'Input', detail: 'One image, many images, an Excel file with image links in column A, or a PDF of up to 500 pages. On a PDF, choose pages such as 3-8, 12, and list terms that must stay unchanged.' },
       { term: 'Image output', detail: 'A translated PNG.' },
-      { term: 'PDF output', detail: 'The customer chooses one merged PDF or a ZIP of PNG pages.' },
+      { term: 'PDF output', detail: 'One PDF at the original page size, with text that can be copied. Or a ZIP of the selected page images. Each finished page is saved. Stop and continue keeps those pages.' },
       { term: 'Price unit', detail: '1 credit = 6,000 Vietnamese dong.' },
       { term: 'Not sold', detail: 'NanoAI 2L is not offered on this page.' },
       { term: 'Letters on the product', detail: 'Only letters printed or stuck on the machine stay. A badge or table cell on the poster is translated, including an engine name written on the sheet.' },
@@ -136,7 +136,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     colFit: 'Fits',
     stepsTitle: 'Three steps',
     steps: [
-      { name: 'Add the document', text: 'Upload an image, paste a link, or upload a PDF. A PDF is split into pages.' },
+      { name: 'Add the document', text: 'Upload an image, paste a link, or upload a PDF. On a PDF, choose the pages and any terms that must stay unchanged.' },
       { name: 'Choose language and tier', text: 'Pick the source language or auto-detect, pick the target language, then pick one of the four tiers.' },
       { name: 'Download', text: 'Images come back as PNG. A PDF can be one PDF file or a ZIP of pages.' },
     ],
@@ -144,7 +144,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     langLead: 'The source can be detected. The target must be chosen. The names below are what the customer sees.',
     faqTitle: 'Frequently asked questions',
     faqs: [
-      { question: 'Does a PDF come back as a PDF?', answer: 'Yes. When the pages finish, the customer downloads one PDF or a ZIP of page images.' },
+      { question: 'Does a PDF come back as a PDF?', answer: 'Yes. The customer chooses pages first. The PDF keeps the original page size and the text can be copied. Each finished page is saved. After a stop or a failure, Continue starts at the unfinished page and does not charge the finished pages again.' },
       { question: 'Why is there no NanoAI 2L?', answer: 'NanoAI 2L misreads document text. This page sells NanoAI 2M, NanoAI 2H, NanoAI 2K, and NanoAI 2 4K.' },
       { question: 'Which tier should I pick?', answer: 'NanoAI 2M, 6,000 VND a page, for ordinary document text. NanoAI 2H, 12,000 VND, for small type and dense drawings, at the same image size as NanoAI 2M. NanoAI 2K, 9,000 VND, for a sharper page on screen and modest print. NanoAI 2 4K, 24,000 VND, for large print. A sharper NanoAI 2K or NanoAI 2 4K page is not more reliable text than NanoAI 2M.' },
       { question: 'How much is one credit?', answer: '1 credit = 6,000 VND. NanoAI 2M costs 1 credit. NanoAI 2H costs 2. NanoAI 2K costs 1.5. NanoAI 2 4K costs 4.' },
@@ -184,9 +184,9 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     factsTitle: '服务信息',
     facts: [
       { term: '服务名称', detail: 'NanoAI 文档图片翻译' },
-      { term: '输入', detail: '一张图、多张图、A 列是图片链接的 Excel，或最多 50 页的 PDF。' },
+      { term: '输入', detail: '一张图、多张图、A 列是图片链接的 Excel，或最多 500 页的 PDF。PDF 可选择页面，例如 3-8, 12，并可写下必须保持原样的词。' },
       { term: '图片输出', detail: '已翻译的 PNG。' },
-      { term: 'PDF 输出', detail: '客户选择一个合并 PDF，或逐页 PNG 的 ZIP。' },
+      { term: 'PDF 输出', detail: '一个保持原页面尺寸、文字可复制的 PDF。或已选页面的 ZIP。完成一页就保存一页。停止后继续会保留已完成的页。' },
       { term: '计价', detail: '1 积分 = 6,000 越南盾。' },
       { term: '不提供', detail: '本页不使用 NanoAI 2L。' },
       { term: '产品上的字', detail: '只有印在或贴在机器上的字保持原样。目录上的标签和表格要翻译，包括写在纸上的发动机名。' },
@@ -200,7 +200,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     colFit: '适合',
     stepsTitle: '三步',
     steps: [
-      { name: '放入文档', text: '上传图片、粘贴链接，或上传 PDF。PDF 会拆成单页。' },
+      { name: '放入文档', text: '上传图片、粘贴链接，或上传 PDF。PDF 先选择要翻译的页，需要时写下保持原样的词。' },
       { name: '选择语言和档位', text: '选择源语言或自动识别，选择目标语言，再从四档中选一档。' },
       { name: '下载', text: '图片得到 PNG。PDF 可选一个 PDF 文件或逐页 ZIP。' },
     ],
@@ -208,7 +208,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     langLead: '源语言可以自动识别。目标语言必须选择。下面的名称是客户在页面上看到的。',
     faqTitle: '常见问题',
     faqs: [
-      { question: 'PDF 进去会出来 PDF 吗？', answer: '会。各页完成后，客户选择下载一个 PDF，或逐页图片 ZIP。' },
+      { question: 'PDF 进去会出来 PDF 吗？', answer: '会。客户先选页。PDF 保持原页面尺寸，文字可以复制。完成一页就保存一页。停止或失败后点继续，从还没完成的页接着跑，已完成的页不会再次扣积分。' },
       { question: '为什么没有 NanoAI 2L？', answer: 'NanoAI 2L 在文档页上容易写错字。本页只提供 NanoAI 2M、NanoAI 2H、NanoAI 2K 和 NanoAI 2 4K。' },
       { question: '该选哪一档？', answer: '普通文档文字用 NanoAI 2M，每页 6,000 越南盾。小字和密图用 NanoAI 2H，每页 12,000，画面尺寸与 NanoAI 2M 相同。需要更清晰、用于屏幕和普通打印时用 NanoAI 2K，每页 9,000。大幅印刷用 NanoAI 2 4K，每页 24,000。NanoAI 2K 和 NanoAI 2 4K 更清晰，不代表文字比 NanoAI 2M 更准。' },
       { question: '1 积分是多少钱？', answer: '1 积分 = 6,000 越南盾。NanoAI 2M 扣 1 积分。NanoAI 2H 扣 2。NanoAI 2K 扣 1.5。NanoAI 2 4K 扣 4。' },
@@ -248,9 +248,9 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     factsTitle: 'サービス情報',
     facts: [
       { term: 'サービス名', detail: 'NanoAI 文書画像翻訳' },
-      { term: '入力', detail: '画像 1 枚、複数画像、A 列が画像リンクの Excel、または最大 50 ページの PDF。' },
+      { term: '入力', detail: '画像 1 枚、複数画像、A 列が画像リンクの Excel、または最大 500 ページの PDF。PDF は 3-8, 12 のようにページを選び、そのまま残す語句も書けます。' },
       { term: '画像の出力', detail: '翻訳済み PNG。' },
-      { term: 'PDF の出力', detail: '1 つにまとめた PDF か、ページごとの PNG の ZIP を選べます。' },
+      { term: 'PDF の出力', detail: '元のページサイズで、文字をコピーできる PDF。または選んだページの ZIP。終わったページはその場で保存されます。停止して続行しても完了ページは残ります。' },
       { term: '料金単位', detail: '1 クレジット = 6,000 ベトナムドン。' },
       { term: '提供しない', detail: 'このページでは NanoAI 2L を使いません。' },
       { term: '製品上の文字', detail: '機械に印刷または貼られた文字だけそのままです。紙のラベルと表は翻訳します。紙に書かれたエンジン名も含みます。' },
@@ -264,7 +264,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     colFit: '向く用途',
     stepsTitle: '3 ステップ',
     steps: [
-      { name: '文書を入れる', text: '画像を上げる、リンクを貼る、または PDF を上げます。PDF はページに分かれます。' },
+      { name: '文書を入れる', text: '画像を上げる、リンクを貼る、または PDF を上げます。PDF は訳すページを選び、残す語句があれば書きます。' },
       { name: '言語と段階を選ぶ', text: '原文は選ぶか自動判定。訳語は必ず選び、4 段階から 1 つ選びます。' },
       { name: '受け取る', text: '画像は PNG。PDF は 1 つの PDF かページ ZIP です。' },
     ],
@@ -272,7 +272,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     langLead: '原文は自動判定できます。訳先は選択が必要です。下の名前は画面に出る言語名です。',
     faqTitle: 'よくある質問',
     faqs: [
-      { question: 'PDF を入れると PDF で出ますか？', answer: '出ます。ページが終わったら、1 つの PDF かページ画像の ZIP を選べます。' },
+      { question: 'PDF を入れると PDF で出ますか？', answer: '出ます。先にページを選びます。PDF は元のサイズで、文字をコピーできます。終わったページはその場で保存されます。停止や失敗のあと続行すると未完了のページから再開し、終わったページはもう一度引きません。' },
       { question: 'NanoAI 2L がないのはなぜですか？', answer: 'NanoAI 2L は文書の文字を誤りやすいです。このページは NanoAI 2M、NanoAI 2H、NanoAI 2K、NanoAI 2 4K だけです。' },
       { question: 'どれを選べばよいですか？', answer: '普通の文書は NanoAI 2M、1 ページ 6,000 ドン。小さい文字と密な図面は NanoAI 2H、12,000 ドンで、画像サイズは NanoAI 2M と同じです。画面と控えめな印刷には NanoAI 2K、9,000 ドン。大判印刷は NanoAI 2 4K、24,000 ドン。NanoAI 2K と NanoAI 2 4K は鮮明でも、文字が NanoAI 2M より正確とは限りません。' },
       { question: '1 クレジットはいくらですか？', answer: '1 クレジット = 6,000 ドン。NanoAI 2M は 1、NanoAI 2H は 2、NanoAI 2K は 1.5、NanoAI 2 4K は 4 クレジットです。' },
@@ -312,9 +312,9 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     factsTitle: '서비스 정보',
     facts: [
       { term: '서비스 이름', detail: 'NanoAI 문서 이미지 번역' },
-      { term: '입력', detail: '이미지 한 장, 여러 장, A열이 이미지 링크인 Excel, 또는 최대 50페이지 PDF.' },
+      { term: '입력', detail: '이미지 한 장, 여러 장, A열이 이미지 링크인 Excel, 또는 최대 500페이지 PDF. PDF는 3-8, 12처럼 페이지를 고르고, 그대로 둘 말을 적을 수 있습니다.' },
       { term: '이미지 출력', detail: '번역된 PNG.' },
-      { term: 'PDF 출력', detail: '합친 PDF 하나 또는 페이지별 PNG ZIP 중 고객이 고릅니다.' },
+      { term: 'PDF 출력', detail: '원본 페이지 크기를 유지하고 글자를 복사할 수 있는 PDF. 또는 고른 페이지의 ZIP. 끝난 페이지는 바로 저장됩니다. 멈춘 뒤 계속해도 끝난 페이지는 남습니다.' },
       { term: '가격 단위', detail: '1크레딧 = 6,000 베트남 동.' },
       { term: '판매하지 않음', detail: '이 페이지는 NanoAI 2L를 쓰지 않습니다.' },
       { term: '제품 위 글자', detail: '기계에 인쇄되거나 붙은 글자만 그대로입니다. 카탈로그의 라벨과 표는 번역합니다. 종이에 적힌 엔진 이름도 포함합니다.' },
@@ -328,7 +328,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     colFit: '맞는 일',
     stepsTitle: '세 단계',
     steps: [
-      { name: '문서 넣기', text: '이미지를 올리거나, 링크를 붙이거나, PDF를 올립니다. PDF는 페이지로 나뉩니다.' },
+      { name: '문서 넣기', text: '이미지를 올리거나, 링크를 붙이거나, PDF를 올립니다. PDF는 번역할 페이지를 고르고, 그대로 둘 말이 있으면 적습니다.' },
       { name: '언어와 단계 선택', text: '원문은 고르거나 자동 인식. 번역 언어는 반드시 고르고, 네 단계 중 하나를 고릅니다.' },
       { name: '받기', text: '이미지는 PNG. PDF는 파일 하나 또는 페이지 ZIP입니다.' },
     ],
@@ -336,7 +336,7 @@ const COPY: Record<WebLocale, TranslateLandingCopy> = {
     langLead: '원문은 자동 인식할 수 있습니다. 번역 언어는 선택해야 합니다. 아래 이름은 화면의 언어 이름입니다.',
     faqTitle: '자주 묻는 질문',
     faqs: [
-      { question: 'PDF를 넣으면 PDF로 나오나요?', answer: '나옵니다. 페이지가 끝나면 PDF 하나 또는 페이지 이미지 ZIP을 고릅니다.' },
+      { question: 'PDF를 넣으면 PDF로 나오나요?', answer: '나옵니다. 먼저 페이지를 고릅니다. PDF는 원본 크기이고 글자를 복사할 수 있습니다. 끝난 페이지는 바로 저장됩니다. 멈추거나 실패한 뒤 계속을 누르면 남은 페이지부터 이어지고, 끝난 페이지는 크레딧을 다시 빼지 않습니다.' },
       { question: 'NanoAI 2L가 없는 이유는?', answer: 'NanoAI 2L는 문서 글자를 틀리기 쉽습니다. 이 페이지는 NanoAI 2M, NanoAI 2H, NanoAI 2K, NanoAI 2 4K만 있습니다.' },
       { question: '어떤 단계를 고르나요?', answer: '일반 문서는 NanoAI 2M, 페이지당 6,000동. 작은 글자와 빽빽한 도면은 NanoAI 2H, 12,000동이며 화면 크기는 NanoAI 2M과 같습니다. 더 선명한 화면과 보통 인쇄는 NanoAI 2K, 9,000동. 큰 인쇄는 NanoAI 2 4K, 24,000동. NanoAI 2K와 NanoAI 2 4K가 더 선명해도 글자가 NanoAI 2M보다 더 정확하다는 뜻은 아닙니다.' },
       { question: '1크레딧은 얼마인가요?', answer: '1크레딧 = 6,000동. NanoAI 2M은 1, NanoAI 2H는 2, NanoAI 2K는 1.5, NanoAI 2 4K는 4크레딧입니다.' },

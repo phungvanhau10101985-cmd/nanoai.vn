@@ -21,8 +21,15 @@ export async function translateOneImage(
   imageQuality: '2K' | '4K',
   userId: string,
   sourceLang2?: string | null,
-  options?: { retryRound?: number; logPrefix?: string; engine?: ImageEngine; gptQuality?: GptImageQuality | null }
-): Promise<{ buffer: Buffer; error?: string; words?: WordWithBbox[] }> {
+  options?: {
+    retryRound?: number
+    logPrefix?: string
+    engine?: ImageEngine
+    gptQuality?: GptImageQuality | null
+    keepTerms?: string[]
+    captureLines?: boolean
+  }
+): Promise<{ buffer: Buffer; error?: string; words?: WordWithBbox[]; lines?: string[] }> {
   const prefix = options?.logPrefix ?? '[Gemini]'
   const retryRound = options?.retryRound ?? 1
   const engine: ImageEngine = options?.engine === 'gpt' ? 'gpt' : 'gemini'
@@ -42,7 +49,10 @@ export async function translateOneImage(
   }
   const mimeToSend = imageMime || 'image/png'
   const imagePart = { inlineData: { data: imageToSend.toString('base64'), mimeType: mimeToSend } }
-  const prompt = buildTranslatePrompt(sourceLang, sourceLang2 || null, targetLang)
+  const prompt = buildTranslatePrompt(sourceLang, sourceLang2 || null, targetLang, {
+    keepTerms: options?.keepTerms,
+    captureLines: options?.captureLines,
+  })
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -90,9 +100,21 @@ export async function translateOneImage(
   console.log(`${prefix} [Dịch ảnh] Nhận ảnh:`, Math.round(resultBuffer.length / 1024), 'KB | heap:', Math.round(process.memoryUsage().heapUsed / 1024 / 1024), 'MB')
 
   let words: WordWithBbox[] = []
+  let lines: string[] = []
   const textPart = response.candidates?.[0]?.content?.parts?.find((p) => 'text' in p)
   if (textPart && 'text' in textPart) {
     const rawText = String(textPart.text)
+    const linesMatch = rawText.match(/\{[\s\S]*"lines"[\s\S]*\}/)
+    if (linesMatch) {
+      try {
+        const parsedLines = JSON.parse(linesMatch[0]) as { lines?: unknown }
+        if (Array.isArray(parsedLines.lines)) {
+          lines = parsedLines.lines.filter((line): line is string => typeof line === 'string' && line.trim().length > 0)
+        }
+      } catch (e) {
+        console.log(`${prefix} [Dịch ảnh] Không parse được dòng chữ:`, e instanceof Error ? e.message : e)
+      }
+    }
     const jsonMatch = rawText.match(/\{[\s\S]*"words"[\s\S]*\}/)
     if (jsonMatch) {
       try {
@@ -110,5 +132,5 @@ export async function translateOneImage(
   }
 
   console.log(`${prefix} [Dịch ảnh] Hoàn thành`)
-  return { buffer: resultBuffer, words: words.length > 0 ? words : undefined }
+  return { buffer: resultBuffer, words: words.length > 0 ? words : undefined, lines: lines.length > 0 ? lines : undefined }
 }

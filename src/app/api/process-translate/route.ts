@@ -9,10 +9,12 @@ import {
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { notifyTranslateImageJobDone, notifyTranslateImageSuccessSmart } from '@/lib/notifications/notify-job-events'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { loadPdfPageMeta } from '@/lib/dich-anh-tai-lieu/pdf-job-files'
+import { translatePdfPageFromParts } from '@/lib/dich-anh-tai-lieu/translate-pdf-page'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
-  fetchNextPendingTranslateJobWithHistoryPg,
+  claimNextPendingTranslateJobPg,
   fetchPendingTranslateJobWithHistoryByIdPg,
   fetchTryOnHistoryIdsByBatchIdPg,
   markTranslateJobCompletedPg,
@@ -23,6 +25,7 @@ import {
   updateTryOnHistoryResultCompletedPg,
   type ProcessTranslateJobRowPg,
 } from '@/lib/db/translate-process-pg'
+import { TRANSLATE_JOB_STALE_MS } from '@/lib/dich-anh-tai-lieu/pdf-checkpoint'
 
 const TRANSLATE_COSTS = DOCUMENT_TRANSLATE_GEMINI_CREDITS
 
@@ -84,9 +87,16 @@ async function handleProcessTranslate(request: NextRequest) {
     if (historyIds.length === 0) {
       return NextResponse.json({ error: 'No pending job for batch' }, { status: 404 })
     }
-    const staleThreshold = new Date(Date.now() - 150 * 1000).toISOString()
+    const staleThreshold = new Date(Date.now() - TRANSLATE_JOB_STALE_MS).toISOString()
     await resetStaleTranslateJobsForHistoryIdsPg(historyIds, staleThreshold)
-    job = await fetchNextPendingTranslateJobWithHistoryPg(historyIds)
+    const claimed = await claimNextPendingTranslateJobPg(historyIds, batchId, staleThreshold)
+    if (claimed == null) {
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
+    if (claimed.busy) {
+      return NextResponse.json({ busy: true })
+    }
+    job = claimed.job
   } else {
     if (!jobId) {
       return NextResponse.json({ error: 'Missing jobId' }, { status: 400 })
@@ -176,23 +186,53 @@ async function handleProcessTranslate(request: NextRequest) {
   console.log('[process-translate] Bắt đầu dịch job', resolvedJobId, '| lần=', retryRound, '| url:', imageUrl?.slice(0, 80) + '...')
   let resultBuffer: Buffer
   let translateError: string | undefined
+  let pdfLines: string[] = []
+  let pdfVector: Buffer | undefined
+  let pdfWidthPt = 0
+  let pdfHeightPt = 0
   try {
-    const result = await translateOneImage(
-      genAI,
-      imageBuffer,
-      'image/png',
-      sourceLang,
-      targetLang,
-      imageQuality,
-      userId,
-      sourceLang2,
-      { retryRound, logPrefix: `[process-translate] job=${resolvedJobId}`, engine, gptQuality }
-    )
-    resultBuffer = result.buffer
-    translateError = result.error
+    const pageMeta = job.original_image_url ? await loadPdfPageMeta(job.original_image_url) : null
+    if (pageMeta) {
+      pdfWidthPt = pageMeta.widthPt
+      pdfHeightPt = pageMeta.heightPt
+      const prepared = await translatePdfPageFromParts({
+        genAI,
+        userId,
+        sourceLang,
+        targetLang,
+        sourceLang2,
+        imageQuality,
+        engine,
+        gptQuality,
+        retryRound,
+        logPrefix: `[process-translate] job=${resolvedJobId}`,
+        png: imageBuffer,
+        meta: pageMeta,
+      })
+      resultBuffer = prepared.png
+      translateError = prepared.error
+      pdfLines = prepared.lines
+      pdfVector = prepared.vectorPdf
+    } else {
+      const result = await translateOneImage(
+        genAI,
+        imageBuffer,
+        'image/png',
+        sourceLang,
+        targetLang,
+        imageQuality,
+        userId,
+        sourceLang2,
+        { retryRound, logPrefix: `[process-translate] job=${resolvedJobId}`, engine, gptQuality }
+      )
+      resultBuffer = result.buffer
+      translateError = result.error
+    }
     console.log(
-      '[process-translate] Gemini xong job',
+      '[process-translate] Model xong job',
       resolvedJobId,
+      '| engine:',
+      engine,
       '| result:',
       resultBuffer?.length ? `${Math.round(resultBuffer.length / 1024)}KB` : 'empty',
       '| error:',
@@ -230,6 +270,19 @@ async function handleProcessTranslate(request: NextRequest) {
     contentType: 'image/png',
     upsert: true,
   })
+  if (pdfVector && pdfVector.length > 0) {
+    await uploadTryOnImagePublic(resultPath.replace(/\.png$/i, '.pdf'), pdfVector, {
+      contentType: 'application/pdf',
+      upsert: true,
+    }).catch((error) => console.warn('[process-translate] Không lưu PDF vector:', error))
+  }
+  if (pdfLines.length > 0 && pdfWidthPt > 0 && pdfHeightPt > 0) {
+    await uploadTryOnImagePublic(
+      resultPath.replace(/\.png$/i, '.lines.json'),
+      Buffer.from(JSON.stringify({ lines: pdfLines, widthPt: pdfWidthPt, heightPt: pdfHeightPt })),
+      { contentType: 'application/json', upsert: true }
+    ).catch((error) => console.warn('[process-translate] Không lưu lớp chữ:', error))
+  }
 
   const d = await deductUserCredits(userId, cost, 'dich-anh-tai-lieu')
   if (!d.ok) {

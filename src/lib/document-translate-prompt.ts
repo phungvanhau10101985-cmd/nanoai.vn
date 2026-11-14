@@ -1,10 +1,16 @@
+import { keepTermsPromptBlock } from './dich-anh-tai-lieu/pdf-keep-terms'
 import { documentTranslatePromptName } from './document-translate-languages'
 
 /**
  * Prompt duy nhất của trang dịch ảnh tài liệu.
  * Mỗi vùng chữ chỉ rơi vào một luật: giữ nguyên, hoặc dịch.
  */
-export function buildTranslatePrompt(sourceLang: string, sourceLang2: string | null, targetLang: string): string {
+export function buildTranslatePrompt(
+  sourceLang: string,
+  sourceLang2: string | null,
+  targetLang: string,
+  extra?: { keepTerms?: string[]; captureLines?: boolean }
+): string {
   const targetName = documentTranslatePromptName(targetLang)
   const isAuto = sourceLang === 'auto' || !sourceLang
   const sourceDesc = isAuto
@@ -35,5 +41,9 @@ Translate only the meaning that is written. Do not add a claim, a country, a cit
 
 Fit the new words inside the same box. Do not add a box. Do not drop a box. Do not move a logo.
 
-OUTPUT: one PNG image only.`
+OUTPUT: one PNG image only.${keepTermsPromptBlock(extra?.keepTerms ?? [])}${
+    extra?.captureLines
+      ? `\n\nAfter the image, the text part must be JSON only, no markdown:\n{"lines":["each visible text line in the output image, top to bottom"]}\nDo not invent a line that is not visible in the output image.\n`
+      : ''
+  }`
 }

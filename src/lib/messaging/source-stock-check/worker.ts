@@ -1,3 +1,5 @@
+import { shopBackgroundRunsHere } from '@/lib/cron/shop-cron-process'
+import { redisGet, redisSetEx } from '@/lib/cache/redis'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   claimDueSourceStockFromPg,
@@ -26,6 +28,7 @@ import type { SourceStockWorkerProgressRow, SourceStockWorkerState } from './sou
 
 type MemItem = { partnerId: string; inventoryId: string; previousStatus: string }
 
+const SOURCE_STOCK_HEARTBEAT_KEY = 'pw:cron:source-stock:alive'
 const memoryQueue: MemItem[] = []
 const queuedKeys = new Set<string>()
 let daemonStarted = false
@@ -108,6 +111,7 @@ export async function enqueueSourceStockCheck(opts: {
   if (queuedKeys.has(key)) return false
   const claimed = await enqueueSourceStockQueuedFromPg(opts.partnerId, opts.inventoryId)
   if (!claimed) return false
+  if (!shopBackgroundRunsHere()) return true
   queuedKeys.add(key)
   memoryQueue.push({
     partnerId: opts.partnerId,
@@ -243,14 +247,26 @@ export async function checkProductSourceStock(
   }
 }
 
+async function touchSourceStockHeartbeat(): Promise<void> {
+  await redisSetEx(SOURCE_STOCK_HEARTBEAT_KEY, 90, '1')
+}
+
 async function workerLoop(): Promise<void> {
   daemonAlive = true
+  const beat = setInterval(() => {
+    void touchSourceStockHeartbeat().catch((e) => {
+      console.warn('[source-stock] heartbeat', e instanceof Error ? e.message : e)
+    })
+  }, 30_000)
+  try {
+  await touchSourceStockHeartbeat()
   const idle = Math.max(1, Math.min(15, sourceStockCheckIntervalSeconds()))
   console.info(
     `[source-stock] checker started interval=${sourceStockCheckIntervalSeconds()}s (vipomall → pandamall → cssbuy; fallback chỉ khi Cloudflare)`
   )
   while (true) {
     try {
+      await touchSourceStockHeartbeat()
       if (!sourceStockCheckEnabled()) {
         await sleep(idle * 1000)
         continue
@@ -275,6 +291,9 @@ async function workerLoop(): Promise<void> {
       await sleep(idle * 1000)
     }
   }
+  } finally {
+    clearInterval(beat)
+  }
 }
 
 function sleep(ms: number): Promise<void> {
@@ -282,6 +301,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 export function ensureSourceStockDaemon(): void {
+  if (!shopBackgroundRunsHere()) return
   if (!sourceStockCheckEnabled()) return
   if (daemonStarted) return
   daemonStarted = true
@@ -305,6 +325,9 @@ export async function getSourceStockWorkerAdminSnapshot(partnerId: string): Prom
   const depth = getSourceStockMemoryQueueDepth(partnerId)
   let idle: string | null = null
   let reasonVi = ''
+  const remoteAlive = daemonAlive ? false : (await redisGet(SOURCE_STOCK_HEARTBEAT_KEY)) === '1'
+  const started = daemonStarted || remoteAlive
+  const alive = daemonAlive || remoteAlive
   if (!envOn) {
     idle = 'disabled_by_env'
     reasonVi = 'Đã tắt SOURCE_STOCK_CHECK_ENABLED — worker không được khởi động.'
@@ -315,12 +338,12 @@ export async function getSourceStockWorkerAdminSnapshot(partnerId: string): Prom
   } else if (paused) {
     idle = 'paused_via_db'
     reasonVi = 'Tạm dừng qua DB — workspace này không scrape trong vòng lặp.'
-  } else if (!daemonStarted) {
+  } else if (!started) {
     idle = 'daemon_not_started'
-    reasonVi = 'Daemon chưa bật trong process báo snapshot này.'
-  } else if (!daemonAlive) {
+    reasonVi = 'Daemon chưa bật trong process nanoai-shop-cron.'
+  } else if (!alive) {
     idle = 'thread_not_alive'
-    reasonVi = 'Luồng worker không còn sống trong process này — cron sẽ khởi động lại.'
+    reasonVi = 'Luồng worker không còn sống — nanoai-shop-cron sẽ khởi động lại.'
   }
 
   const peekMem = memoryQueue.filter((x) => x.partnerId === partnerId).slice(0, 8)
@@ -404,14 +427,14 @@ export async function getSourceStockWorkerAdminSnapshot(partnerId: string): Prom
     env_source_stock_check_enabled: envOn,
     db_paused: paused,
     db_pause_updated_at_utc_iso: utcIso(row.updated_at),
-    daemon_thread_started_flag: daemonStarted,
-    daemon_thread_alive: daemonAlive,
+    daemon_thread_started_flag: started,
+    daemon_thread_alive: alive,
     process_in_memory_queue_depth: depth,
     check_interval_seconds: sourceStockCheckIntervalSeconds(),
     effective_idle_reason: idle,
     effective_idle_hint_vi: reasonVi || null,
     deployment_notes_vi:
-      'Mỗi process Node (PM2) có vòng worker và hàng chờ RAM riêng; cờ pause lưu DB theo workspace. Cron /api/cron/source-stock-check khởi động lại daemon sau restart.',
+      'Vòng scrape chạy trong PM2 nanoai-shop-cron, không trong process web. Cờ pause lưu DB theo workspace. Nhịp sống ghi Redis pw:cron:source-stock:alive.',
     checking,
     last_completed: lastCompleted,
     next_upcoming_primary: upcoming[0] ?? null,
