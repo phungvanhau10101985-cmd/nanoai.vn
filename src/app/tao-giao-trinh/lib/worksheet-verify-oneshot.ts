@@ -4,6 +4,7 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { withTransientGeminiRetry } from '@/lib/ai/gemini-transient'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
@@ -118,7 +119,7 @@ export async function verifyQuizWithDeepSeek(
     ...GEMINI_25_FLASH_NO_THINKING,
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
-  const result = await model.generateContent(prompt)
+  const result = await withTransientGeminiRetry(() => model.generateContent(prompt))
   void trackFromUsageMetadata(
     result.response.usageMetadata,
     GEMINI_25_FLASH_NO_THINKING.model,
@@ -146,7 +147,7 @@ export async function verifyEssayWithDeepSeek(
     ...GEMINI_25_FLASH_NO_THINKING,
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
-  const result = await model.generateContent(prompt)
+  const result = await withTransientGeminiRetry(() => model.generateContent(prompt))
   void trackFromUsageMetadata(
     result.response.usageMetadata,
     GEMINI_25_FLASH_NO_THINKING.model,
@@ -179,7 +180,7 @@ export async function verifyQuizWithGemini(
     ...GEMINI_25_FLASH_NO_THINKING,
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
-  const result = await model.generateContent(prompt)
+  const result = await withTransientGeminiRetry(() => model.generateContent(prompt))
   void trackFromUsageMetadata(
     result.response.usageMetadata,
     GEMINI_25_FLASH_NO_THINKING.model,
@@ -207,7 +208,7 @@ export async function verifyEssayWithGemini(
     ...GEMINI_25_FLASH_NO_THINKING,
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
-  const result = await model.generateContent(prompt)
+  const result = await withTransientGeminiRetry(() => model.generateContent(prompt))
   void trackFromUsageMetadata(
     result.response.usageMetadata,
     GEMINI_25_FLASH_NO_THINKING.model,
@@ -254,7 +255,7 @@ Trả về JSON: {"verified":boolean,"correctIndex":0-3,"question":"...","option
     ...GEMINI_25_FLASH_NO_THINKING,
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
-  const result = await model.generateContent([prompt, ...imageParts])
+  const result = await withTransientGeminiRetry(() => model.generateContent([prompt, ...imageParts]))
   void trackFromUsageMetadata(
     result.response.usageMetadata,
     GEMINI_25_FLASH_NO_THINKING.model,
@@ -305,7 +306,7 @@ Trả về JSON: {"verified":boolean,"problem":"...","solution":"..."}`
     ...GEMINI_25_FLASH_NO_THINKING,
     generationConfig: { temperature: 0, responseMimeType: 'application/json' },
   })
-  const result = await model.generateContent([prompt, ...imageParts])
+  const result = await withTransientGeminiRetry(() => model.generateContent([prompt, ...imageParts]))
   void trackFromUsageMetadata(
     result.response.usageMetadata,
     GEMINI_25_FLASH_NO_THINKING.model,

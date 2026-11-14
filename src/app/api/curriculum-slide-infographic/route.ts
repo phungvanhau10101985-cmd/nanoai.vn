@@ -16,6 +16,8 @@ import {
 import { readUserCreditBalance } from '@/lib/curriculum-ai-credits'
 import { imageEngineCredit, parseGptImageQuality } from '@/lib/ai/image-engine'
 import { generateGptImage } from '@/lib/ai/gpt-image'
+import { withTransientGeminiRetry } from '@/lib/ai/gemini-transient'
+import { parseFlashJson } from '@/lib/curriculum/infographic-flash-json'
 
 const MAX_SLIDE_TEXT = 28000
 const INFOGRAPHIC_TARGET_BYTES = 820 * 1024
@@ -54,26 +56,6 @@ DO NOT INCLUDE:
 function imageTextLanguageLock(locale: keyof typeof OUTPUT_LANGUAGE_NAME): string {
   const name = OUTPUT_LANGUAGE_NAME[locale]
   return `TEXT ON THE IMAGE (mandatory): Every readable word — the title, short headings, and formula labels — must be written in ${name}, in large type a student can read. Do not translate those words into English or any other language. Keep mathematical notation as symbols (variables, coordinates, formulas, arrows). Do not print Mermaid syntax, code, or English section names when the required language is not English. Do not add an objectives panel or any small body text.`
-}
-
-function parseFlashJson(text: string): { summary: string; mermaid: string } {
-  const trimmed = text.trim()
-  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  const raw = (fence ? fence[1] : trimmed).trim()
-  let parsed: { summary?: string; mermaid?: string }
-  try {
-    parsed = JSON.parse(raw) as { summary?: string; mermaid?: string }
-  } catch {
-    const start = raw.indexOf('{')
-    const end = raw.lastIndexOf('}')
-    if (start < 0 || end <= start) throw new Error('invalid json')
-    parsed = JSON.parse(raw.slice(start, end + 1)) as { summary?: string; mermaid?: string }
-  }
-  const summary = typeof parsed.summary === 'string' ? parsed.summary.trim() : ''
-  const mermaid = typeof parsed.mermaid === 'string' ? parsed.mermaid.trim() : ''
-  if (!summary || !mermaid) throw new Error('Thiếu summary hoặc mermaid trong phản hồi AI.')
-  if (mermaid.length > 2000) throw new Error('Mermaid quá dài.')
-  return { summary, mermaid }
 }
 
 const SHARP_READ = { sequentialRead: true, limitInputPixels: 32_000_000 } as const
@@ -234,39 +216,68 @@ ${lessonText}
 
 ${FLASH_INSTRUCTION}`
 
-    let flashResult: Awaited<ReturnType<typeof flashModel.generateContent>>
-    try {
-      flashResult = await flashModel.generateContent(flashUser, {
-        safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-        ],
-      })
-    } catch {
-      return NextResponse.json({ error: 'Không lấy được phản hồi tóm tắt từ AI. Thử lại sau.' }, { status: 502 })
+    const flashSafety = {
+      safetySettings: [
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      ],
     }
-    const flashResponse = flashResult.response
-    void trackFromUsageMetadata(flashResponse.usageMetadata, 'gemini-2.5-flash', 'curriculum-slide-infographic', user.id, null)
-    let flashText: string
-    try {
-      flashText = flashResponse.text()?.trim() ?? ''
-    } catch {
+    let summary = ''
+    let mermaid = ''
+    let flashReady = false
+    let blocked = false
+    let sawText = false
+    for (let attempt = 0; attempt < 2 && !flashReady && !blocked; attempt++) {
+      const flashPrompt =
+        attempt === 0
+          ? flashUser
+          : `${flashUser}\n\nThe previous reply was not valid JSON. Return ONLY one JSON object with string keys "summary" and "mermaid". Escape every backslash in formulas.`
+      let flashResult: Awaited<ReturnType<typeof flashModel.generateContent>>
+      try {
+        flashResult = await withTransientGeminiRetry(() => flashModel.generateContent(flashPrompt, flashSafety))
+      } catch {
+        return NextResponse.json({ error: 'Không lấy được phản hồi tóm tắt từ AI. Thử lại sau.' }, { status: 502 })
+      }
+      void trackFromUsageMetadata(
+        flashResult.response.usageMetadata,
+        'gemini-2.5-flash',
+        'curriculum-slide-infographic',
+        user.id,
+        null
+      )
+      let flashText = ''
+      try {
+        flashText = flashResult.response.text()?.trim() ?? ''
+      } catch {
+        blocked = true
+        break
+      }
+      if (!flashText) continue
+      sawText = true
+      try {
+        ;({ summary, mermaid } = parseFlashJson(flashText))
+        flashReady = true
+      } catch {
+        /* gọi Flash thêm một lần khi JSON thiếu summary hoặc mermaid */
+      }
+    }
+    if (blocked) {
       return NextResponse.json(
         { error: 'Nội dung slide có thể bị chặn an toàn hoặc AI không trả về văn bản. Thử đổi nội dung hoặc thử lại.' },
         { status: 502 }
       )
     }
-    if (!flashText) {
-      return NextResponse.json({ error: 'AI không trả về tóm tắt (văn bản rỗng). Thử lại.' }, { status: 502 })
-    }
-    let summary: string
-    let mermaid: string
-    try {
-      ;({ summary, mermaid } = parseFlashJson(flashText))
-    } catch {
-      return NextResponse.json({ error: 'AI không trả về cấu trúc infographic hợp lệ. Thử lại.' }, { status: 502 })
+    if (!flashReady) {
+      return NextResponse.json(
+        {
+          error: sawText
+            ? 'AI không trả về cấu trúc infographic hợp lệ. Thử lại.'
+            : 'AI không trả về tóm tắt (văn bản rỗng). Thử lại.',
+        },
+        { status: 502 }
+      )
     }
 
     const languageName = OUTPUT_LANGUAGE_NAME[outputLocale]

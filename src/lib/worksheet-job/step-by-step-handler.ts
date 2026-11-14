@@ -4,7 +4,9 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
+import { withTransientGeminiRetry } from '@/lib/ai/gemini-transient'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { explainQuizDraft, readEssayDraft, readQuizDraft } from '@/lib/worksheet-job/model-draft'
 import {
   beginQuestionTurn,
   chargeWorksheetQuestion,
@@ -13,7 +15,7 @@ import {
 } from '@/lib/db/worksheet-ai-quota-pg'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { THINKING_GUIDE_RULE, cleanThinkingGuide, normalizeSolutionToStr, thinkingGuideIsUsable } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
-import { QUIZ_SOLUTION_RULE, cleanQuizSolution, quizSolutionIsDetailed } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
+import { QUIZ_SOLUTION_RULE } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchLatestWorksheetSheetByCurriculumIdPg,
@@ -52,57 +54,20 @@ class InvalidModelDraftError extends Error {
   }
 }
 
-function draftExcerpt(raw: string): string {
-  const excerpt = raw.replace(/\s+/g, ' ').trim().slice(0, 500)
-  return excerpt ? ` Mẫu: ${excerpt}` : ''
-}
+const QUIZ_JSON_RETRY =
+  'Lần trước JSON không dùng được. Trả đúng một object {"quizzes":[ một câu ]}. Không trả mảng trần. Mọi dấu \\ trong công thức viết thành hai dấu \\\\ .'
+const ESSAY_JSON_RETRY =
+  'Lần trước JSON không dùng được. Trả đúng một object có problem, thinkingGuide, solution. Mọi dấu \\ trong công thức viết thành hai dấu \\\\ .'
 
-function readQuizCandidate(value: unknown): { question: string; options: string[]; correctIndex: number; thinkingGuide: string; solution: string } | null {
-  if (!value || typeof value !== 'object') return null
-  const row = value as { question?: unknown; options?: unknown; correctIndex?: unknown; thinkingGuide?: unknown; solution?: unknown }
-  if (typeof row.question !== 'string' || !row.question.trim()) return null
-  if (!Array.isArray(row.options) || row.options.length < 4) return null
-  const solution = cleanQuizSolution(row.solution)
-  const thinkingGuide = cleanThinkingGuide(row.thinkingGuide)
-  if (!quizSolutionIsDetailed(solution) || !thinkingGuideIsUsable(thinkingGuide)) return null
-  const options = row.options.slice(0, 4).map((item) => String(item ?? ''))
-  const correctIndex = Math.max(0, Math.min(Number(row.correctIndex ?? 0) || 0, 3))
-  return { question: row.question.trim(), options, correctIndex, thinkingGuide, solution }
-}
-
-function readQuizDraft(raw: string): { question: string; options: string[]; correctIndex: number; thinkingGuide: string; solution: string } | null {
-  const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-  const parsed = JSON.parse(cleaned) as { quizzes?: unknown }
-  if (parsed && typeof parsed === 'object' && Array.isArray(parsed.quizzes)) {
-    return readQuizCandidate(parsed.quizzes[0])
-  }
-  return readQuizCandidate(parsed)
-}
-
-function explainQuizDraft(raw: string): string {
-  if (!raw.trim()) return 'Gemini không trả nội dung.'
-  let parsed: unknown
-  try {
-    const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-    parsed = JSON.parse(cleaned)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'JSON hỏng'
-    return `Gemini trả JSON không đọc được (${message}).${draftExcerpt(raw)}`
-  }
-  if (!parsed || typeof parsed !== 'object') return `Gemini không trả object JSON.${draftExcerpt(raw)}`
-  const body = parsed as { quizzes?: unknown }
-  if (!Array.isArray(body.quizzes)) {
-    const keys = Object.keys(parsed as object).slice(0, 8).join(', ')
-    return `Gemini không trả mảng quizzes (các khóa: ${keys || 'không có'}).${draftExcerpt(raw)}`
-  }
-  if (body.quizzes.length === 0) return `Gemini trả quizzes rỗng.${draftExcerpt(raw)}`
-  const first = body.quizzes[0] as { question?: unknown; options?: unknown; thinkingGuide?: unknown; solution?: unknown }
-  const optionCount = Array.isArray(first?.options) ? first.options.length : 0
-  if (typeof first?.question !== 'string' || !first.question.trim()) return `Gemini thiếu đề câu.${draftExcerpt(raw)}`
-  if (optionCount < 4) return `Gemini trả ${optionCount} đáp án, cần đủ 4.${draftExcerpt(raw)}`
-  if (!thinkingGuideIsUsable(first?.thinkingGuide)) return `Gemini thiếu hướng tư duy cho học sinh.${draftExcerpt(raw)}`
-  if (!quizSolutionIsDetailed(first?.solution)) return `Gemini thiếu lời giải chi tiết trước đáp án.${draftExcerpt(raw)}`
-  return `Gemini trả câu không đọc được.${draftExcerpt(raw)}`
+async function geminiProText(
+  model: ReturnType<GoogleGenerativeAI['getGenerativeModel']>,
+  prompt: string,
+  userId: string,
+  feature: string
+): Promise<string> {
+  const result = await withTransientGeminiRetry(() => model.generateContent(prompt))
+  void trackFromUsageMetadata(result.response.usageMetadata, GEMINI_25_PRO.model, feature, userId)
+  return result.response.text()?.trim() || ''
 }
 
 function stripOptionPrefix(opt: string): string {
@@ -191,19 +156,16 @@ Schema: ${QUIZ_SCHEMA}`
     ...GEMINI_25_PRO,
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
-  const result = await model.generateContent(prompt)
-  void trackFromUsageMetadata(
-    result.response.usageMetadata,
-    GEMINI_25_PRO.model,
-    'worksheet-step-quiz-gemini-pro',
-    userId
-  )
-  const raw = result.response.text()?.trim() || ''
+  let raw = ''
   let last: { question: string; options: string[]; correctIndex: number; thinkingGuide: string; solution: string } | null = null
-  try {
-    last = readQuizDraft(raw)
-  } catch {
-    last = null
+  for (let attempt = 0; attempt < 2 && !last; attempt++) {
+    const promptAttempt = attempt === 0 ? prompt : `${prompt}\n\n${QUIZ_JSON_RETRY}`
+    raw = await geminiProText(model, promptAttempt, userId, 'worksheet-step-quiz-gemini-pro')
+    try {
+      last = readQuizDraft(raw)
+    } catch {
+      last = null
+    }
   }
   if (!last) throw new InvalidModelDraftError(explainQuizDraft(raw))
   const sanitized = last.options.map(stripOptionPrefix)
@@ -274,21 +236,15 @@ Schema: ${ESSAY_SCHEMA}`
     ...GEMINI_25_PRO,
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
-  const result = await model.generateContent(prompt)
-  void trackFromUsageMetadata(
-    result.response.usageMetadata,
-    GEMINI_25_PRO.model,
-    'worksheet-step-essay-gemini-pro',
-    userId
-  )
-  const raw = result.response.text()?.trim() || ''
-  let parsed: { problem?: string; thinkingGuide?: unknown; solution?: string } | null = null
-  try {
-    const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-    const p = JSON.parse(cleaned)
-    if (p?.problem && p?.solution) parsed = { problem: p.problem, thinkingGuide: p.thinkingGuide, solution: p.solution }
-  } catch {
-    /* */
+  let parsed: { problem: string; thinkingGuide: unknown; solution: unknown } | null = null
+  for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
+    const promptAttempt = attempt === 0 ? prompt : `${prompt}\n\n${ESSAY_JSON_RETRY}`
+    const raw = await geminiProText(model, promptAttempt, userId, 'worksheet-step-essay-gemini-pro')
+    try {
+      parsed = readEssayDraft(raw)
+    } catch {
+      parsed = null
+    }
   }
   if (!parsed) throw new InvalidModelDraftError('Gemini không trả bài tự luận hợp lệ.')
   const thinkingGuide = cleanThinkingGuide(parsed.thinkingGuide)
