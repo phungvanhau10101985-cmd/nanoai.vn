@@ -44,7 +44,7 @@ import {
 } from '@/lib/packaging/face-edit-eraser'
 import { magicInpaintCanvas, preloadMagicInpaintLibrary } from '@/lib/packaging/face-edit-magic-inpaint'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
-import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { geminiQualityCredit, imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import {
   cssColorToHex,
@@ -605,7 +605,7 @@ export function HubStudioFaceCropDialog({
   onOutpaintGaps?: (
     blob: Blob,
     aspectRatio: string,
-    engine?: { imageEngine: string; gptQuality: string }
+    engine?: { imageEngine: string; gptQuality: string; imageQuality?: string }
   ) => Promise<string | null>
   foldGuideRatios?: number[]
 }) {
@@ -637,7 +637,11 @@ export function HubStudioFaceCropDialog({
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
-  const outpaintCost = imageEngineCredit({ engine: imageEngine, gptQuality, geminiCost: UI_MOCKUP_CREDIT })
+  const outpaintCost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: geminiQualityCredit(UI_MOCKUP_CREDIT, geminiQuality),
+  })
   const [blendBusy, setBlendBusy] = useState(false)
   const [magicBusy, setMagicBusy] = useState(false)
   const [magicEraserMode, setMagicEraserMode] = useState<MagicEraserMode>('box')
@@ -928,6 +932,7 @@ export function HubStudioFaceCropDialog({
       const aiUrl = await onOutpaintGaps(blob, faceSizeAspectRatioLabel(faceSizeMm), {
         imageEngine,
         gptQuality,
+        imageQuality: geminiQuality,
       })
       if (!aiUrl) return
       outpaintMergeCacheRef.current = { aiUrl, originalUrl, crop: cropSnapshot, featherPx }
@@ -948,6 +953,7 @@ export function HubStudioFaceCropDialog({
     cropNatural,
     faceSizeMm,
     hasCropGaps,
+    geminiQuality,
     gptQuality,
     imageEngine,
     onOutpaintGaps,
@@ -1504,6 +1510,7 @@ export function HubStudioFaceCropDialog({
                 gptQuality={gptQuality}
                 onGptQualityChange={setGptQuality}
                 geminiCost2k={UI_MOCKUP_CREDIT}
+                geminiCost4k={UI_MOCKUP_CREDIT * 2}
               />
             ) : null}
             {onOutpaintGaps ? (

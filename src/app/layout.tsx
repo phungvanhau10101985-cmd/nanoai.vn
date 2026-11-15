@@ -76,6 +76,7 @@ import {
   SwUpdateReload,
 } from '@/components/layout/deferred-shell-widgets'
 import { MobileKeyboardPin } from '@/components/mobile/mobile-keyboard-pin'
+import { GuestCreationSync } from '@/components/guest-creations/guest-creation-sync'
 const GA_MEASUREMENT_ID = "G-1KZ2PKX887";
 const INTEGRATIONS_KEY = "admin_integrations_config";
 
@@ -733,6 +734,7 @@ export default async function RootLayout({
           </>
         ) : null}
         {shouldRenderNanoAiSiteTags ? <AnalyticsTracker /> : null}
+        <GuestCreationSync />
         {isCustomerOwnedSurface ? null : (
           <>
             <CreditFeatureAccessGuard />

@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Loader2, RefreshCw, ThumbsUp, Upload, X } from 'lucide-react'
 import type { ProductStudioExportUi } from '@/lib/catalog-photo/catalog-photo-copy'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
-import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { geminiQualityCredit, imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { productStudioSlotImageCredit } from '@/lib/partner-website/product-studio/product-studio-image-model'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
@@ -262,22 +262,26 @@ export function ProductStudioAiPanel({
   const canPublish = studio ? studioCanPublish(studio) : false
   const awaitingApproval = job?.status === 'ready_for_review' && Boolean(currentSlot)
   const generating = job?.status === 'generating' || job?.status === 'publishing'
+  const gemini4kAllowed = imageModel !== 'flash'
+  const activeGeminiQuality = gemini4kAllowed ? geminiQuality : '2K'
   const slotCredit = (kind: ProductStudioSlotKind) =>
     imageEngineCredit({
       engine: imageEngine,
       gptQuality,
-      geminiCost: productStudioSlotImageCredit(kind, imageModel),
+      geminiCost: geminiQualityCredit(productStudioSlotImageCredit(kind, imageModel), activeGeminiQuality),
     })
+  const colorCredit2k = productStudioSlotImageCredit('color', imageModel)
   const enginePicker = (
     <ImageEnginePicker
       locale={uiLocale}
       engine={imageEngine}
       onEngineChange={setImageEngine}
-      geminiQuality={geminiQuality}
+      geminiQuality={activeGeminiQuality}
       onGeminiQualityChange={setGeminiQuality}
       gptQuality={gptQuality}
       onGptQualityChange={setGptQuality}
-      geminiCost2k={productStudioSlotImageCredit('color', imageModel)}
+      geminiCost2k={colorCredit2k}
+      geminiCost4k={gemini4kAllowed ? geminiQualityCredit(colorCredit2k, '4K') : null}
     />
   )
 
@@ -379,6 +383,7 @@ export function ProductStudioAiPanel({
         imageModel,
         imageEngine,
         gptQuality,
+        imageQuality: activeGeminiQuality,
       }
       const res = await fetch(`${base}/jobs`, {
         method: 'POST',
@@ -470,6 +475,7 @@ export function ProductStudioAiPanel({
           imageModel,
           imageEngine,
           gptQuality,
+          imageQuality: activeGeminiQuality,
         }),
       })
       const data = (await res.json().catch(() => ({}))) as { job?: ProductStudioJobRow; error?: string }
@@ -517,6 +523,7 @@ export function ProductStudioAiPanel({
           imageModel,
           imageEngine,
           gptQuality,
+          imageQuality: activeGeminiQuality,
         }),
       })
       const data = (await res.json().catch(() => ({}))) as { job?: ProductStudioJobRow; error?: string }

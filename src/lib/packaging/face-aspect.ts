@@ -1,3 +1,4 @@
+import { NANOAI_GEMINI_ASPECT_MODELS, NANOAI_GPT_ASPECT_MODELS } from '@/lib/ai/nanoai-image-names'
 import type { WebLocale } from '@/lib/i18n/config'
 import { closestGeminiImageAspectRatio } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import {
@@ -142,7 +143,7 @@ function faceLine(locale: WebLocale, info: PackagingFaceAspectInfo): string {
   const orient = ORIENTATION_LABEL[info.orientation][locale]
   const w = formatMm(info.widthMm, locale)
   const h = formatMm(info.heightMm, locale)
-  return `• **${role}**: ${w} × ${h} — ${orient}, Gemini **${info.geminiAspectRatio}**, GPT **${info.gptAspectRatio}**`
+  return `• **${role}**: ${w} × ${h} — ${orient}, ${NANOAI_GEMINI_ASPECT_MODELS} **${info.geminiAspectRatio}**, ${NANOAI_GPT_ASPECT_MODELS} **${info.gptAspectRatio}**`
 }
 
 const CONFIRM_ACK =

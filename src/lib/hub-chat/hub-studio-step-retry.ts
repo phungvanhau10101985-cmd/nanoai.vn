@@ -123,6 +123,7 @@ const STEP_KEY_ALIASES: Record<string, string[]> = {
   face_lxw: ['mat lxw', 'mặt lxw', 'nap day', 'nắp đáy', 'top bottom face'],
   face_lxh: ['mat lxh', 'mặt lxh', 'mat truoc sau', 'mặt trước sau', 'front back face'],
   face_wxh: ['mat wxh', 'mặt wxh', 'mat hong', 'mặt hông', 'side face'],
+  box_net_2d: ['dan 2d', 'dàn 2d', 'kieu gap', 'kiểu gấp', 'fold layout', 'net 2d'],
   box_dieline_pdf: ['dieline pdf', 'ban ve be', 'bản vẽ bế', 'pdf ky thuat', 'pdf kỹ thuật', 'file in', 'tao file in', 'tạo file in'],
   box_mockup_3d: [
     'mockup 3d',
@@ -207,7 +208,7 @@ const ACK_ONLY_MESSAGE =
 
 function generatorsAutoGenerateOnInput(gen: ReturnType<typeof getStepGenerator>): boolean {
   if (!gen) return false
-  return gen !== 'dieline_pdf'
+  return gen !== 'dieline_pdf' && gen !== 'box_net'
 }
 
 export function isDeterministicPackagingGenerator(
@@ -432,6 +433,9 @@ export function isDesignStepApprovedComplete(
   const proc = session.processSteps.find((s) => s.key === stepKey)
   const gen = getStepGenerator(presetId, stepKey)
   if (gen === 'lyria_music') return proc?.status === 'done'
+  if (presetId === 'packaging_kit' && stepKey === 'box_net_2d') {
+    return proc?.status === 'done'
+  }
   if (presetId === 'packaging_kit' && stepKey === 'box_dieline_pdf') {
     return proc?.status === 'done' && packagingDielineIsReady(session.packaging)
   }
@@ -493,6 +497,12 @@ export function getDesignStepIncompleteReason(
 
   if (hasRef) return 'none'
   if (hasPending) return 'none'
+  if (session.presetId === 'packaging_kit' && stepKey === 'box_net_2d') {
+    if (proc?.status === 'done') return 'none'
+    if (proc?.status === 'in_progress') return 'missing_output'
+    return 'none'
+  }
+
   if (
     session.presetId === 'packaging_kit' &&
     ((stepKey === 'box_dieline_pdf' && packagingDielineIsReady(session.packaging)) ||

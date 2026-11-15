@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  geminiQualityCredit,
   gptImageSizeForAspect,
   imageChargeFromForm,
   imageEngineCredit,
@@ -26,6 +27,13 @@ describe('imageEngineCredit', () => {
     assert.equal(imageEngineCredit({ engine: 'gpt', gptQuality: 'high', geminiCost: 1.5 }), 2)
     assert.equal(imageEngineCredit({ engine: 'gpt', gptQuality: 'medium', geminiCost: 3, outputCount: 4 }), 4)
     assert.equal(imageEngineCredit({ engine: 'gpt', gptQuality: 'low', geminiCost: 3, outputCount: 2 }), 1)
+  })
+
+  it('doubles the tool price for NanoAI 4K', () => {
+    assert.equal(geminiQualityCredit(1.5, '2K'), 1.5)
+    assert.equal(geminiQualityCredit(1.5, '4K'), 3)
+    assert.equal(geminiQualityCredit(4, '4k'), 8)
+    assert.equal(geminiQualityCredit(1.1, '4K'), 2.2)
   })
 
   it('rejects an unknown GPT quality instead of upgrading it', () => {

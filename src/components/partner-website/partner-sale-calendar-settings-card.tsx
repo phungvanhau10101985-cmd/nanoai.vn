@@ -334,6 +334,7 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
   const [flashSaving, setFlashSaving] = useState(false)
   const [bannerWorking, setBannerWorking] = useState(false)
   const [bannerEngine, setBannerEngine] = useState<ImageEngine>('gemini')
+  const [bannerGeminiQuality, setBannerGeminiQuality] = useState<'2K' | '4K'>('2K')
   const [bannerGptQuality, setBannerGptQuality] = useState<GptImageQuality>('medium')
   const [iconWorking, setIconWorking] = useState(false)
   const [saleIcon, setSaleIcon] = useState<{
@@ -425,6 +426,7 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
           discountPercent: pct,
           imageEngine: bannerEngine,
           gptQuality: bannerGptQuality,
+          imageQuality: bannerGeminiQuality,
         }),
       })
       onToast?.(res.ok ? t.warehouseCreated : t.error, res.ok ? 'default' : 'destructive')
@@ -703,11 +705,12 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
                 locale={locale}
                 engine={bannerEngine}
                 onEngineChange={setBannerEngine}
-                geminiQuality="2K"
-                onGeminiQualityChange={() => {}}
+                geminiQuality={bannerGeminiQuality}
+                onGeminiQualityChange={setBannerGeminiQuality}
                 gptQuality={bannerGptQuality}
                 onGptQualityChange={setBannerGptQuality}
                 geminiCost2k={PARTNER_MARKETING_BANNER_CREDIT_COST}
+                geminiCost4k={PARTNER_MARKETING_BANNER_CREDIT_COST * 2}
               />
               <Button
                 type="button"

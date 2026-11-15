@@ -546,6 +546,7 @@ function useOrnamentFaceAutosave(input: {
 }) {
   const [saving, setSaving] = useState(false)
   const draftRef = useRef(input.draft)
+  const pendingRef = useRef<WeddingBackgroundOrnament[] | null>(null)
   const queueRef = useRef<{ ornaments: WeddingBackgroundOrnament[] } | null>(null)
   const flightRef = useRef(false)
   const epochRef = useRef(0)
@@ -553,10 +554,57 @@ function useOrnamentFaceAutosave(input: {
   draftRef.current = input.draft
   inputRef.current = input
 
+  const flushQueue = useCallback(() => {
+    const run = async () => {
+      if (flightRef.current) return
+      const job = queueRef.current
+      if (!job) return
+      queueRef.current = null
+      const current = inputRef.current
+      const epoch = epochRef.current
+      flightRef.current = true
+      setSaving(true)
+      const result = current.samplePresetId
+        ? await saveWeddingPresetOrnaments(current.samplePresetId, 'mobile', job.ornaments, current.surface)
+        : await saveWeddingCardOrnaments(current.cardId, 'mobile', job.ornaments, current.surface)
+      flightRef.current = false
+      if (epochRef.current !== epoch) {
+        if (current.samplePresetId) await resetWeddingPresetOrnaments(current.samplePresetId, 'mobile', current.surface)
+        else await resetWeddingCardOrnaments(current.cardId, 'mobile', current.surface)
+        setSaving(false)
+        if (queueRef.current) void run()
+        return
+      }
+      setSaving(false)
+      if (!result || !('ok' in result)) {
+        current.onFailed()
+        return
+      }
+      const templateSave = Boolean(current.templateEditor || result.template || current.samplePresetId)
+      current.onStored(current.surface, result.ornaments ?? [], templateSave, job.ornaments)
+      window.parent.postMessage(
+        { type: 'wedding-ornament-saved', surface: current.surface, device: 'mobile', ornaments: result.ornaments },
+        window.location.origin,
+      )
+      if (queueRef.current) void run()
+    }
+    void run()
+  }, [])
+
+  const flushPending = useCallback(() => {
+    const snapshot = pendingRef.current
+    const current = inputRef.current
+    if (!snapshot || !current.enabled || (!current.samplePresetId && !current.cardId)) return
+    pendingRef.current = null
+    queueRef.current = { ornaments: snapshot }
+    flushQueue()
+  }, [flushQueue])
+
   const reset = useCallback(async () => {
     const current = inputRef.current
     if (!current.enabled || (!current.samplePresetId && !current.cardId)) return
     epochRef.current += 1
+    pendingRef.current = null
     queueRef.current = null
     setSaving(true)
     const result = current.samplePresetId
@@ -575,47 +623,29 @@ function useOrnamentFaceAutosave(input: {
   }, [])
 
   useEffect(() => {
-    if (!input.enabled || !input.draft) return
+    if (!input.enabled || !input.draft) {
+      pendingRef.current = null
+      return
+    }
     const snapshot = input.draft
+    pendingRef.current = snapshot
     const timer = window.setTimeout(() => {
+      if (pendingRef.current !== snapshot) return
+      pendingRef.current = null
       queueRef.current = { ornaments: snapshot }
-      const flush = async () => {
-        if (flightRef.current) return
-        const job = queueRef.current
-        if (!job) return
-        queueRef.current = null
-        const current = inputRef.current
-        const epoch = epochRef.current
-        flightRef.current = true
-        setSaving(true)
-        const result = current.samplePresetId
-          ? await saveWeddingPresetOrnaments(current.samplePresetId, 'mobile', job.ornaments, current.surface)
-          : await saveWeddingCardOrnaments(current.cardId, 'mobile', job.ornaments, current.surface)
-        flightRef.current = false
-        if (epochRef.current !== epoch) {
-          if (current.samplePresetId) await resetWeddingPresetOrnaments(current.samplePresetId, 'mobile', current.surface)
-          else await resetWeddingCardOrnaments(current.cardId, 'mobile', current.surface)
-          setSaving(false)
-          if (queueRef.current) void flush()
-          return
-        }
-        setSaving(false)
-        if (!result || !('ok' in result)) {
-          current.onFailed()
-          return
-        }
-        const templateSave = Boolean(current.templateEditor || result.template || current.samplePresetId)
-        current.onStored(current.surface, result.ornaments ?? [], templateSave, job.ornaments)
-        window.parent.postMessage(
-          { type: 'wedding-ornament-saved', surface: current.surface, device: 'mobile', ornaments: result.ornaments },
-          window.location.origin,
-        )
-        if (queueRef.current) void flush()
-      }
-      void flush()
+      flushQueue()
     }, 350)
     return () => window.clearTimeout(timer)
-  }, [input.cardId, input.draft, input.enabled, input.samplePresetId, input.surface, input.templateEditor])
+  }, [flushQueue, input.cardId, input.draft, input.enabled, input.samplePresetId, input.surface, input.templateEditor])
+
+  useEffect(() => {
+    const onHide = () => flushPending()
+    window.addEventListener('pagehide', onHide)
+    return () => {
+      window.removeEventListener('pagehide', onHide)
+      flushPending()
+    }
+  }, [flushPending])
 
   return { saving, reset, draftRef }
 }
@@ -929,8 +959,8 @@ export default function WeddingPublicClient({
   const browseFlowers = Boolean(hostEditor && !frameLines)
   const activeSurface: OrnamentFace = editorStack ?? (visualEdit ? editFace : opened ? 'letter' : 'cover')
   const layoutDevice: 'desktop' | 'mobile' = (sampleDemo || hostPreview || layoutPreview) && viewDevice === 'desktop' ? 'desktop' : 'mobile'
-  /* Demo thiệp này xem hoa của chính thiệp, cùng bản khách thấy. Sửa mẫu chung chỉ khi mở layout mẫu. */
-  const showCardFlowers = hostEditor || !templateEditor
+  /* Quản trị trên demo vỏ, demo nội dung và xem thử sửa đúng mẫu chung. Khách sửa thì chỉ thiệp của họ. */
+  const showCardFlowers = !templateEditor && !samplePresetId
   const coverSaved = resolveWeddingShownOrnaments({
     defaults: readyBackground?.ornaments,
     cardSheet: coverCard,

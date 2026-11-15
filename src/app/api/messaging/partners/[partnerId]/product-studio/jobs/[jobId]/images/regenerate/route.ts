@@ -31,6 +31,7 @@ export async function POST(
     imageModel?: string
     imageEngine?: string
     gptQuality?: string
+    imageQuality?: string
   }
   const slot = job.studio.currentSlot
   const attachFromBody = typeof body.attachUrl === 'string' ? body.attachUrl.trim() : ''
@@ -44,6 +45,7 @@ export async function POST(
     imageModel: body.imageModel,
     imageEngine: body.imageEngine,
     gptQuality: body.gptQuality,
+    imageQuality: body.imageQuality,
   })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
   return NextResponse.json({ job: result.job })

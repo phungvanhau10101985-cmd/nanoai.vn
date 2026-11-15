@@ -252,8 +252,9 @@ import {
 import { generateBarcodeLabelBuffer } from '@/lib/barcode/generate-barcode-label'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { invalidatePackagingFromStep } from '@/lib/packaging/session-dependencies'
-import { exportAllBoxDielineVariants } from '@/lib/packaging/export-dieline'
+import { exportBoxDielineFromUrls } from '@/lib/packaging/export-dieline'
 import { exportBoxMockupFromFaces } from '@/lib/packaging/export-box-mockup'
+import { applyBoxNetFaceMap, normalizeBoxNetFaceMap } from '@/lib/packaging/box-net-face-map'
 import {
   buildProductLabelPromptBlock,
   isLogoOnlyReferenceStepKey,
@@ -318,6 +319,16 @@ import {
 import { resolveDielineSlotUrls, BOX_FACE_COPY_SOURCE, getBoxFaceSlotLabel } from '@/lib/packaging/box-face-slots'
 import { runFaceCropOutpaint } from '@/lib/packaging/face-crop-outpaint'
 import {
+  packagingFacePolishApiReady,
+  polishPackagingFaceDraft,
+} from '@/lib/packaging/face-prompt-polish'
+import {
+  isFacePolishSkipDraft,
+  isPackagingFacePolishStep,
+  PACKAGING_FACE_PROMPT_POLISH_CREDIT,
+  PACKAGING_FACE_PROMPT_POLISH_MAX_CHARS,
+} from '@/lib/packaging/face-prompt-polish-credit'
+import {
   FACE_PRINT_STYLE_STEP_KEY,
   facePrintStyleBriefValue,
   facePrintStyleLabel,
@@ -375,8 +386,10 @@ import {
 import {
   BOX_DIELINE_STRUCTURE_KEYS,
   DEFAULT_BOX_DIELINE_STRUCTURE,
+  DIELINE_STRUCTURE_VERSION,
   boxDielineStructureCopy,
   parseBoxDielineStructure,
+  resolveBoxDielineStructure,
   type BoxDielineStructure,
 } from '@/lib/packaging/dieline-structure'
 import {
@@ -450,8 +463,10 @@ export type HubStudioAction =
   | 'set_color_palette'
   | 'set_box_production'
   | 'set_box_dieline_structure'
+  | 'confirm_box_net'
   | 'skip_packaging_face'
   | 'copy_packaging_face'
+  | 'polish_packaging_face_prompt'
   | 'classify_flow_switch'
   | 'classify_feature_intent'
   | 'select_feature'
@@ -490,6 +505,8 @@ export type HubStudioHandlerInput = {
   stripBackground?: boolean
   imageEngine?: string | null
   gptQuality?: string | null
+  /** NanoAI 2K hoặc NanoAI 4K. Thiếu = 2K. */
+  imageQuality?: string | null
   landingPublishedShareUrl?: string
   landingPublishedShareToken?: string
   landingHtmlSource?: string
@@ -498,6 +515,7 @@ export type HubStudioHandlerInput = {
   colorPaletteKeys?: string[]
   colorPaletteSelection?: StudioColorSelection[]
   boxDielineStructure?: string
+  boxNetFaceMap?: unknown
   boxDimensionsMm?: Partial<BoxDimensionsMm>
   bagDimensionsMm?: Partial<{ width: number; height: number; gusset: number }>
   boxProduction?: Partial<TuckBoxProductionParams>
@@ -518,6 +536,8 @@ export type HubStudioHandlerResult = {
   threadId: string
   chargedChat: number
   chargedImage?: number
+  /** Câu mặt in đã viết lại — khách sửa trong ô rồi mới tạo ảnh. */
+  polishedPrompt?: string
   error?: string
   workflows?: HubChatWorkflowSuggestion[]
   plan?: HubChatPlanPayload | null
@@ -862,24 +882,11 @@ type PackagingDielineVariantState = Partial<
   Record<BoxDielineStructure, { url: string; fileName: string }>
 >
 
-function buildPackagingDielineVariantState(
-  exported: Partial<
-    Record<BoxDielineStructure, { pdfUrl: string; fileName: string; resolutionDpi?: number }>
-  >
-): PackagingDielineVariantState {
-  const variants: PackagingDielineVariantState = {}
-  for (const structure of BOX_DIELINE_STRUCTURE_KEYS) {
-    const item = exported[structure]
-    if (!item?.pdfUrl) continue
-    variants[structure] = { url: item.pdfUrl, fileName: item.fileName }
-  }
-  return variants
-}
-
 function buildDielineStudioArtifacts(
   locale: WebLocale,
   variants: PackagingDielineVariantState,
-  bleedMm: number
+  bleedMm: number,
+  cutter?: HubPackagingState['dielineCutter']
 ): HubStudioMessagePayload['dielineArtifacts'] {
   const copy = artifactCopy(locale, 'pdf', bleedMm)
   return BOX_DIELINE_STRUCTURE_KEYS.flatMap((structure) => {
@@ -893,14 +900,22 @@ function buildDielineStudioArtifacts(
         fileName: variant.fileName,
         label: structureCopy.label,
         downloadLabel: copy.download,
+        blankPdfUrl: cutter?.pdfUrl,
+        blankSvgUrl: cutter?.svgUrl,
+        blankDxfUrl: cutter?.dxfUrl,
+        blankPdfFileName: cutter?.pdfFileName,
+        blankSvgFileName: cutter?.svgFileName,
+        blankDxfFileName: cutter?.dxfFileName,
       },
     ]
   })
 }
 
 function primaryDielineVariant(
-  variants: PackagingDielineVariantState
+  variants: PackagingDielineVariantState,
+  preferred?: BoxDielineStructure
 ): { url: string; fileName: string } | undefined {
+  if (preferred && variants[preferred]) return variants[preferred]
   return (
     variants[DEFAULT_BOX_DIELINE_STRUCTURE] ??
     variants.cross_fold ??
@@ -913,8 +928,11 @@ async function exportPackagingDielineBundle(input: {
   packaging: HubPackagingState
 }): Promise<
   | {
+      structure: BoxDielineStructure
       variants: PackagingDielineVariantState
       resolutionDpi?: number
+      warnings: string[]
+      cutter: NonNullable<HubPackagingState['dielineCutter']>
     }
   | { error: string }
 > {
@@ -923,23 +941,32 @@ async function exportPackagingDielineBundle(input: {
   if (!dimensionsMm || !allPackagingFaceSlotsCommitted(packaging)) {
     return { error: 'incomplete_faces' }
   }
-  const created = faceSlotsToCreatedFaces(packaging.faceSlots ?? {})
+  const structure = resolveBoxDielineStructure(
+    packaging.dielineStructure,
+    packaging.dielineStructureVersion
+  )
+  const created = faceSlotsToCreatedFaces(
+    applyBoxNetFaceMap(packaging.faceSlots ?? {}, packaging.netFaceMap)
+  )
   const slotUrls = resolveDielineSlotUrls(created)
   try {
-    const exported = await exportAllBoxDielineVariants({
+    const exported = await exportBoxDielineFromUrls({
       userId,
       slotUrls,
       dimensionsMm,
       bodyStripUrl:
         packaging.layout === 'hybrid_strip' ? packaging.bodyStrip?.originalUrl : undefined,
       production: packaging.production,
+      structure,
     })
-    const variants = buildPackagingDielineVariantState(exported)
-    if (BOX_DIELINE_STRUCTURE_KEYS.some((structure) => !variants[structure]?.url)) {
-      return { error: 'export_failed' }
+    if (!exported.pdfUrl) return { error: 'export_failed' }
+    return {
+      structure,
+      variants: { [structure]: { url: exported.pdfUrl, fileName: exported.fileName } },
+      resolutionDpi: exported.resolutionDpi,
+      warnings: exported.warnings.map((item) => item.message),
+      cutter: exported.cutter,
     }
-    const resolutionDpi = exported[DEFAULT_BOX_DIELINE_STRUCTURE]?.resolutionDpi
-    return { variants, resolutionDpi }
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) }
   }
@@ -958,17 +985,18 @@ function buildDielineGenerationStudio(
   const copy = artifactCopy(locale, 'pdf', bleedMm)
   const production = packaging.production
     ? normalizeTuckBoxProductionParams(packaging.production, dimensionsMm.height)
-    : {
-        ...defaultTuckBoxProductionParams(dimensionsMm.height),
-        compensationGapMm: 0,
-      }
-  const net = getBoxDielineLayoutData(DEFAULT_BOX_DIELINE_STRUCTURE, {
+    : defaultTuckBoxProductionParams(dimensionsMm.height)
+  const structure = resolveBoxDielineStructure(
+    packaging.dielineStructure,
+    packaging.dielineStructureVersion
+  )
+  const net = getBoxDielineLayoutData(structure, {
     lengthMm: dimensionsMm.length,
     widthMm: dimensionsMm.width,
     heightMm: dimensionsMm.height,
   }, production)
-  const dielineArtifacts = buildDielineStudioArtifacts(locale, variants, bleedMm)
-  const primary = primaryDielineVariant(variants)
+  const dielineArtifacts = buildDielineStudioArtifacts(locale, variants, bleedMm, packaging.dielineCutter)
+  const primary = primaryDielineVariant(variants, structure)
   return {
     processSteps,
     artifactUrl: primary?.url,
@@ -978,11 +1006,14 @@ function buildDielineGenerationStudio(
     artifactNote: copy.note,
     artifactDownloadLabel: copy.download,
     dielineArtifacts,
+    dielineWarnings: packaging.dielineWarnings,
     boxProductionSummary: {
       netWidthMm: net.bounds.widthMm,
       netHeightMm: net.bounds.heightMm,
       ...production,
       resolutionDpi,
+      sideReliefMm: 1,
+      lidExtraMm: Math.round(production.paperThicknessMm * 2 * 100) / 100,
     },
   }
 }
@@ -1434,8 +1465,9 @@ CRITICAL RULES:
 - PACKAGING TEXT LANGUAGE LOCK: translate only visual directions into English. Copy every brand name, product name, slogan, ingredient, instruction, warning, address, and other text the user wants printed EXACTLY from the user's message, keep its original language, and put it in quotation marks inside generationPrompt. NEVER translate, transliterate, rewrite, spell-correct, or summarize print copy. For auto-generated packaging copy (when user did not supply exact wording), follow briefNotes.print_language (vi/en/bilingual/other).
 - product_label / seal_sticker: flat peel-and-stick LABEL or tamper seal artwork (NOT box dieline). Both steps: user picks Gemini aspect ratio + die-cut shape (round/square/rectangle/ellipse) + types copy. Reference attachment is LOGO ONLY — never box face images.
 - barcode_label: real scannable barcode (Code128 default) — encode product code/SKU; label header shows brand name + product name from brief. User may specify EAN-13/UPC/QR explicitly.
-- box_dieline_pdf: server builds technical PDF from committed 6 face slots — user "tạo dieline/pdf" → shouldGenerate true, retryIntent create, no confirmation question.
-- box_mockup_3d: server composites isometric mockup from 6 face images (no AI image gen). User "tạo mockup 3d" → shouldGenerate true, retryIntent create — do NOT ask "bạn muốn tạo ngay chứ?".
+- box_net_2d: the user picks the fold on the 2D dieline board. Do not generate an image. shouldGenerate false. The chosen structure and face placement drive box_mockup_3d and box_dieline_pdf.
+- box_dieline_pdf: server builds technical PDF from committed 6 face slots and the fold chosen on box_net_2d — user "tạo dieline/pdf" → shouldGenerate true, retryIntent create, no confirmation question.
+- box_mockup_3d: server composites isometric mockup from the faces placed on the 2D net (no AI image gen). User "tạo mockup 3d" → shouldGenerate true, retryIntent create — do NOT ask "bạn muốn tạo ngay chứ?".
 - Do NOT generate images/music until discoveryComplete is true AND current step is a design step AND user gave enough detail for THAT design step.
 - LOGO-FIRST RULE: If preset has a logo step, complete logo BEFORE any ui_mockup/ui_desktop screens. Never skip logo.
 - After logo is approved as reference, ALL later UI screens must use logo reference in generationPrompt (logo in header/nav, brand colors).
@@ -1478,7 +1510,12 @@ async function generateAsset(
   screenKey: string,
   screenLabel: string,
   locale: WebLocale,
-  opts?: { stripBackground?: boolean; imageEngine?: string | null; gptQuality?: string | null }
+  opts?: {
+    stripBackground?: boolean
+    imageEngine?: string | null
+    gptQuality?: string | null
+    imageQuality?: string | null
+  }
 ): Promise<{ session: HubStudioSession; studio: HubStudioMessagePayload; chargedImage: number; error?: string }> {
   const effectiveScreenKey =
     session.presetId === 'landing_page'
@@ -1503,6 +1540,14 @@ async function generateAsset(
       }),
     }
   }
+  if (generator === 'box_net') {
+    return {
+      session: workSession,
+      studio: { processSteps: workSession.processSteps },
+      chargedImage: 0,
+    }
+  }
+
   if (!generator) {
     const t = getDictionary(locale).hubChat
     return {
@@ -1605,7 +1650,7 @@ async function generateAsset(
         }
         throw new Error(formatDielineExportError(locale, bundle.error === 'export_failed' ? 'export_failed' : bundle.error))
       }
-      const primary = primaryDielineVariant(bundle.variants)
+      const primary = primaryDielineVariant(bundle.variants, bundle.structure)
       if (!primary?.url) {
         return {
           session: workSession,
@@ -1616,8 +1661,12 @@ async function generateAsset(
       }
       const dielinePackaging = {
         ...workSession.packaging!,
+        dielineStructure: bundle.structure,
+        dielineStructureVersion: DIELINE_STRUCTURE_VERSION,
         dielineUrl: primary?.url,
         dielineVariants: bundle.variants,
+        dielineCutter: bundle.cutter,
+        dielineWarnings: bundle.warnings,
       }
       const pending: HubStudioSession['pendingPreview'] = {
         screenKey,
@@ -1668,6 +1717,9 @@ async function generateAsset(
         screenKey,
         screenLabel,
         generationPrompt,
+        imageEngine: opts?.imageEngine,
+        gptQuality: opts?.gptQuality,
+        imageQuality: opts?.imageQuality,
       })
       if (!exported.ok) {
         return {
@@ -1698,7 +1750,10 @@ async function generateAsset(
         ),
       }
     }
-    const faceSlots = workSession.packaging!.faceSlots ?? {}
+    const faceSlots = applyBoxNetFaceMap(
+      workSession.packaging!.faceSlots ?? {},
+      workSession.packaging!.netFaceMap
+    )
     const created = faceSlotsToMockupFaces(faceSlots)
     try {
       const exported = await exportBoxMockupFromFaces({
@@ -2228,6 +2283,7 @@ async function generateAsset(
     stripBackground: generator === 'logo' ? opts?.stripBackground : undefined,
     imageEngine: opts?.imageEngine,
     gptQuality: opts?.gptQuality,
+    imageSize: String(opts?.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
   }
 
   let gen: Awaited<ReturnType<typeof runStudioImagePipeline>> | null = null
@@ -2669,7 +2725,7 @@ async function runPackagingArtifactStep(
   locale: WebLocale,
   message: string,
   packagingArtifactStep: 'box_mockup_3d' | 'box_dieline_pdf',
-  imageOpts?: { imageEngine?: string | null; gptQuality?: string | null }
+  imageOpts?: { imageEngine?: string | null; gptQuality?: string | null; imageQuality?: string | null }
 ): Promise<{
   session: HubStudioSession
   studio: HubStudioMessagePayload
@@ -2733,18 +2789,22 @@ async function refreshPackagingArtifactsAfterFaceChange(
   ) {
     return nextSession
   }
-  const faceSlots = packaging.faceSlots ?? {}
+  const faceSlots = applyBoxNetFaceMap(packaging.faceSlots ?? {}, packaging.netFaceMap)
   const createdFaces = faceSlotsToCreatedFaces(faceSlots)
   const [dielineResult, mockupResult] = await Promise.allSettled([
     hadCompletedDieline
-      ? exportAllBoxDielineVariants({
+      ? exportBoxDielineFromUrls({
           userId,
           slotUrls: resolveDielineSlotUrls(createdFaces),
           dimensionsMm: packaging.dimensionsMm,
           bodyStripUrl:
             packaging.layout === 'hybrid_strip' ? packaging.bodyStrip?.originalUrl : undefined,
           production: packaging.production,
-        }).then((exported) => buildPackagingDielineVariantState(exported))
+          structure: resolveBoxDielineStructure(
+            packaging.dielineStructure,
+            packaging.dielineStructureVersion
+          ),
+        }).then((exported) => exported)
       : Promise.resolve(null),
     hadCompletedMockup
       ? exportBoxMockupFromFaces({
@@ -2761,11 +2821,16 @@ async function refreshPackagingArtifactsAfterFaceChange(
   if (mockupResult.status === 'rejected') {
     console.error('Failed to refresh packaging mockup after face edit', mockupResult.reason)
   }
-  const dielineVariants =
-    dielineResult.status === 'fulfilled' && dielineResult.value
-      ? dielineResult.value
-      : undefined
-  const dielineUrl = dielineVariants ? primaryDielineVariant(dielineVariants)?.url : undefined
+  const refreshed =
+    dielineResult.status === 'fulfilled' && dielineResult.value ? dielineResult.value : undefined
+  const refreshedStructure = resolveBoxDielineStructure(
+    packaging.dielineStructure,
+    packaging.dielineStructureVersion
+  )
+  const dielineVariants = refreshed
+    ? { [refreshedStructure]: { url: refreshed.pdfUrl, fileName: refreshed.fileName } }
+    : undefined
+  const dielineUrl = refreshed?.pdfUrl
   const mockupUrl =
     mockupResult.status === 'fulfilled' && mockupResult.value
       ? mockupResult.value.pngUrl
@@ -2776,6 +2841,9 @@ async function refreshPackagingArtifactsAfterFaceChange(
       ...packaging,
       dielineUrl,
       dielineVariants,
+      dielineCutter: refreshed?.cutter,
+      dielineWarnings: refreshed?.warnings.map((item) => item.message),
+      dielineStructureVersion: refreshed ? DIELINE_STRUCTURE_VERSION : packaging.dielineStructureVersion,
       mockupUrl,
     },
   }
@@ -2896,6 +2964,7 @@ async function generateSaleBannerBatch(input: {
   presetIds: BannerAdPresetId[]
   imageEngine?: string | null
   gptQuality?: string | null
+  imageQuality?: string | null
 }): Promise<{
   ok: boolean
   session: HubStudioSession
@@ -3009,7 +3078,7 @@ async function generateSaleBannerBatch(input: {
       'banner_design',
       label,
       input.locale,
-      { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
+      { imageEngine: input.imageEngine, gptQuality: input.gptQuality, imageQuality: input.imageQuality }
     )
     workSession = gen.session
     totalCharged += gen.chargedImage
@@ -3145,6 +3214,7 @@ async function generateFoodMenu(input: {
   session: HubStudioSession
   imageEngine?: string | null
   gptQuality?: string | null
+  imageQuality?: string | null
 }): Promise<{
   ok: boolean
   session: HubStudioSession
@@ -3227,7 +3297,7 @@ async function generateFoodMenu(input: {
     'menu_design',
     label,
     input.locale,
-    { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
+    { imageEngine: input.imageEngine, gptQuality: input.gptQuality, imageQuality: input.imageQuality }
   )
   return {
     ok: !gen.error,
@@ -4000,6 +4070,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         presetIds,
         imageEngine: input.imageEngine,
         gptQuality: input.gptQuality,
+        imageQuality: input.imageQuality,
       })
       session = batch.session
       studio = batch.studio
@@ -4078,6 +4149,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         session,
         imageEngine: input.imageEngine,
         gptQuality: input.gptQuality,
+        imageQuality: input.imageQuality,
       })
       session = generated.session
       studio = generated.studio
@@ -4193,7 +4265,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       stepKey,
       label,
       input.locale,
-      { stripBackground: input.stripBackground, imageEngine: input.imageEngine, gptQuality: input.gptQuality }
+      { stripBackground: input.stripBackground, imageEngine: input.imageEngine, gptQuality: input.gptQuality, imageQuality: input.imageQuality }
     )
     session = generated.session
     studio = generated.studio
@@ -4338,6 +4410,119 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       threadId: input.threadId,
       chargedChat: 0,
       userMessageId: userMessageId ?? undefined,
+    }
+  }
+
+  if (action === 'polish_packaging_face_prompt') {
+    const stepKey = session.currentStepKey
+    if (
+      !stepKey ||
+      !session.discoveryComplete ||
+      session.pendingPreview ||
+      !isPackagingFacePolishStep(session.presetId, stepKey)
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioFacePolishWrongStep,
+      }
+    }
+    const draft = input.message?.trim() ?? ''
+    if (isFacePolishSkipDraft(draft)) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioFacePolishSkip,
+      }
+    }
+    if (draft.length < 2) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioFacePolishEmpty,
+      }
+    }
+    if (draft.length > PACKAGING_FACE_PROMPT_POLISH_MAX_CHARS) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioFacePolishTooLong,
+      }
+    }
+    if (!packagingFacePolishApiReady()) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.studioFacePolishNoKey,
+      }
+    }
+    const charge = await deductUserCredits(
+      input.userId,
+      PACKAGING_FACE_PROMPT_POLISH_CREDIT,
+      'hub-studio-face-prompt-polish'
+    )
+    if (!charge.ok) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: charge.code === 'INSUFFICIENT_CREDITS' ? t.studioFacePolishNeedCredit : charge.error,
+      }
+    }
+    const faceLabel = stepLabel(session, stepKey, input.locale).split('—')[0]?.trim() || stepKey
+    const polished = await polishPackagingFaceDraft({
+      draft,
+      faceLabel,
+      locale: input.locale,
+      userId: input.userId,
+    })
+    if (!polished.ok) {
+      await refundUserCredits(input.userId, charge.charged, 'hub-studio-face-prompt-polish').catch(
+        () => undefined
+      )
+      const error =
+        polished.code === 'DROPPED_COPY'
+          ? t.studioFacePolishDroppedCopy
+          : polished.code === 'NO_KEY'
+            ? t.studioFacePolishNoKey
+            : polished.code === 'TOO_LONG'
+              ? t.studioFacePolishTooLong
+              : t.studioFacePolishFailed
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error,
+      }
+    }
+    session = saveCurrentStudioStepBrief(session, polished.text)
+    await pgSaveHubThreadSession(input.threadId, session)
+    return {
+      ok: true,
+      reply: '',
+      session,
+      threadId: input.threadId,
+      chargedChat: charge.charged,
+      polishedPrompt: polished.text,
     }
   }
 
@@ -4601,6 +4786,165 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
   }
 
+  if (action === 'confirm_box_net') {
+    const structure = parseBoxDielineStructure(input.boxDielineStructure)
+    const dimensionsMm = session.packaging?.dimensionsMm
+    const activeStep = getActiveStepKey(session)
+    const netStep = session.processSteps.find((step) => step.key === 'box_net_2d')
+    const editingLater =
+      activeStep !== 'box_net_2d' &&
+      netStep?.status === 'done' &&
+      allPackagingFaceSlotsCommitted(session.packaging)
+    if (
+      !structure ||
+      !dimensionsMm ||
+      session.presetId !== 'packaging_kit' ||
+      (activeStep !== 'box_net_2d' && !editingLater)
+    ) {
+      return {
+        ok: false,
+        reply: '',
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        error: t.errorGeneric,
+      }
+    }
+    const production = input.boxProduction
+      ? normalizeTuckBoxProductionParams(input.boxProduction, dimensionsMm.height)
+      : session.packaging?.production
+    const netFaceMap = normalizeBoxNetFaceMap(input.boxNetFaceMap)
+    const previous = session
+    const hadMockup = Boolean(session.packaging?.mockupUrl)
+    const hadDieline = Boolean(session.packaging?.dielineUrl)
+    session = {
+      ...session,
+      packaging: {
+        ...session.packaging!,
+        dielineStructure: structure,
+        dielineStructureVersion: DIELINE_STRUCTURE_VERSION,
+        production,
+        netFaceMap,
+      },
+    }
+    if (hadMockup || hadDieline) {
+      session = await refreshPackagingArtifactsAfterFaceChange(session, previous, input.userId)
+    }
+    if (!editingLater) {
+      const completedSteps = markStepDone(session.processSteps, 'box_net_2d')
+      const next = nextPendingStep(completedSteps)
+      session = {
+        ...session,
+        processSteps: setStepInProgress(completedSteps, next?.key ?? null),
+        currentStepKey: next?.key ?? null,
+        pendingPreview:
+          session.pendingPreview?.screenKey === 'box_mockup_3d' ||
+          session.pendingPreview?.screenKey === 'box_dieline_pdf'
+            ? null
+            : session.pendingPreview,
+      }
+    } else if (
+      session.pendingPreview?.screenKey === 'box_mockup_3d' ||
+      session.pendingPreview?.screenKey === 'box_dieline_pdf'
+    ) {
+      session = { ...session, pendingPreview: null }
+    }
+    const structureLabel = boxDielineStructureCopy(structure, input.locale).label
+    const rebuilt = Boolean(
+      (hadMockup && session.packaging?.mockupUrl) || (hadDieline && session.packaging?.dielineUrl)
+    )
+    const savedCopy: Record<WebLocale, string> = editingLater
+      ? {
+          vi: rebuilt
+            ? `Đã cập nhật kiểu **${structureLabel}**. Dàn trang, mockup 3D và file in dùng kiểu này.`
+            : `Đã cập nhật kiểu **${structureLabel}**.`,
+          en: rebuilt
+            ? `Updated the fold to **${structureLabel}**. The layout, 3D mockup, and print file follow it.`
+            : `Updated the fold to **${structureLabel}**.`,
+          zh: rebuilt
+            ? `已更新盒型 **${structureLabel}**。展开、3D 样机和印刷文件都按此盒型。`
+            : `已更新盒型 **${structureLabel}**。`,
+          ja: rebuilt
+            ? `折り方を更新しました: **${structureLabel}**。展開、3D、印刷ファイルがこの折り方になります。`
+            : `折り方を更新しました: **${structureLabel}**。`,
+          ko: rebuilt
+            ? `접기 방식을 **${structureLabel}**(으)로 고쳤습니다. 전개, 3D, 인쇄 파일이 이 방식을 따릅니다.`
+            : `접기 방식을 **${structureLabel}**(으)로 고쳤습니다.`,
+        }
+      : {
+          vi: rebuilt
+            ? `Đã chốt kiểu **${structureLabel}**. Mockup 3D và file dieline đã dựng lại theo dàn này.`
+            : `Đã chốt kiểu **${structureLabel}**.`,
+          en: rebuilt
+            ? `Fold locked: **${structureLabel}**. The 3D mockup and dieline file were rebuilt from this layout.`
+            : `Fold locked: **${structureLabel}**.`,
+          zh: rebuilt
+            ? `已确定盒型 **${structureLabel}**。3D 样机和刀模文件已按此展开重做。`
+            : `已确定盒型 **${structureLabel}**。`,
+          ja: rebuilt
+            ? `折り方を確定しました: **${structureLabel}**。3Dとダイラインをこの展開で作り直しました。`
+            : `折り方を確定しました: **${structureLabel}**。`,
+          ko: rebuilt
+            ? `접기 방식을 확정했습니다: **${structureLabel}**. 3D와 다이라인 파일을 이 전개로 다시 만들었습니다.`
+            : `접기 방식을 확정했습니다: **${structureLabel}**.`,
+        }
+    reply = savedCopy[input.locale]
+    if (!editingLater && session.currentStepKey && session.presetId) {
+      reply = appendStepAsk(reply, input.locale, session.presetId, session.currentStepKey)
+    }
+    const bleedMm = session.packaging?.production?.bleedMm ?? 3
+    const dielineArtifacts =
+      hadDieline && session.packaging?.dielineVariants
+        ? buildDielineStudioArtifacts(
+            input.locale,
+            session.packaging.dielineVariants,
+            bleedMm,
+            session.packaging.dielineCutter
+          )
+        : undefined
+    const showMockup = Boolean(hadMockup && session.packaging?.mockupUrl)
+    studio = {
+      processSteps: session.processSteps,
+      ...(showMockup
+        ? {
+            imageUrl: session.packaging!.mockupUrl,
+            screenKey: 'box_mockup_3d',
+            screenLabel: stepLabel(session, 'box_mockup_3d', input.locale),
+          }
+        : {}),
+      ...(dielineArtifacts?.length
+        ? {
+            dielineArtifacts,
+            dielineWarnings: session.packaging?.dielineWarnings,
+            screenKey: showMockup ? 'box_mockup_3d' : 'box_dieline_pdf',
+            screenLabel: stepLabel(session, showMockup ? 'box_mockup_3d' : 'box_dieline_pdf', input.locale),
+          }
+        : {}),
+    }
+    await pgSaveHubThreadSession(input.threadId, session)
+    const userMessageId = await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'user',
+      content: structureLabel,
+      studio: { stepKey: 'box_net_2d' },
+    })
+    await pgInsertHubChatMessage({
+      threadId: input.threadId,
+      role: 'assistant',
+      content: reply,
+      studio,
+    })
+    return {
+      ok: true,
+      reply,
+      studio,
+      session,
+      threadId: input.threadId,
+      chargedChat: 0,
+      userMessageId: userMessageId ?? undefined,
+    }
+  }
+
   if (action === 'set_box_dieline_structure') {
     const structure = parseBoxDielineStructure(input.boxDielineStructure)
     const dimensionsMm = session.packaging?.dimensionsMm
@@ -4623,20 +4967,28 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const structureLabel = boxDielineStructureCopy(structure, input.locale).label
 
     if (activeStep === 'box_dieline_pdf') {
+      const hadMockup = Boolean(session.packaging?.mockupUrl)
       const generateUserCopy: Record<WebLocale, string> = {
-        vi: 'Tạo 2 file Dieline PDF (Dải ngang + Chữ thập)',
-        en: 'Generate both Dieline PDFs (horizontal strip + cross net)',
-        zh: '生成 2 个 Dieline PDF（横向排版 + 十字排版）',
-        ja: '2種類のDieline PDFを作成（横一列 + 十字型）',
-        ko: 'Dieline PDF 2종 생성(가로 스트립 + 십자형)',
+        vi: `Tạo dieline ${structureLabel}`,
+        en: `Generate the ${structureLabel} dieline`,
+        zh: `生成刀模 ${structureLabel}`,
+        ja: `${structureLabel} の展開図を作成`,
+        ko: `${structureLabel} 도면 생성`,
       }
+      const production = input.boxProduction
+        ? normalizeTuckBoxProductionParams(input.boxProduction, dimensionsMm.height)
+        : session.packaging?.production
       session = {
         ...session,
         packaging: {
           ...session.packaging!,
           dielineStructure: structure,
+          dielineStructureVersion: DIELINE_STRUCTURE_VERSION,
+          production,
           dielineUrl: undefined,
           dielineVariants: undefined,
+          dielineCutter: undefined,
+          dielineWarnings: undefined,
         },
       }
       const artifactLabel = stepLabel(session, 'box_dieline_pdf', input.locale)
@@ -4647,13 +4999,38 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         'box_dieline_pdf',
         artifactLabel,
         input.locale,
-        { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
+        { imageEngine: input.imageEngine, gptQuality: input.gptQuality, imageQuality: input.imageQuality }
       )
       session = generated.session
       studio = generated.studio
       reply = generated.error
         ? generated.error
         : deterministicPackagingGeneratedReply(input.locale, artifactLabel)
+      if (
+        !generated.error &&
+        hadMockup &&
+        session.packaging?.dimensionsMm &&
+        allPackagingFaceSlotsCommitted(session.packaging)
+      ) {
+        try {
+          const faceSlots = applyBoxNetFaceMap(
+            session.packaging.faceSlots ?? {},
+            session.packaging.netFaceMap
+          )
+          const exportedMockup = await exportBoxMockupFromFaces({
+            userId: input.userId,
+            faces: faceSlotsToMockupFaces(faceSlots),
+            faceSlots,
+            dimensionsMm: session.packaging.dimensionsMm,
+          })
+          session = {
+            ...session,
+            packaging: { ...session.packaging, mockupUrl: exportedMockup.pngUrl },
+          }
+        } catch (error) {
+          console.error('Failed to refresh box mockup after dieline structure change', error)
+        }
+      }
       await pgSaveHubThreadSession(input.threadId, session)
       const userMessageId = await pgInsertHubChatMessage({
         threadId: input.threadId,
@@ -4691,6 +5068,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       packaging: {
         ...session.packaging!,
         dielineStructure: structure,
+        dielineStructureVersion: DIELINE_STRUCTURE_VERSION,
         faceAspectRatios: faceAspectRatiosFromPlan(plan),
         facesConfirmed: true,
         dielineUrl: undefined,
@@ -5549,6 +5927,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       stripBackground: input.stripBackground,
       imageEngine: input.imageEngine,
       gptQuality: input.gptQuality,
+      imageSize: String(input.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
     })
     if (!gen.ok) {
       return {
@@ -6606,6 +6985,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       aspectRatio,
       imageEngine: input.imageEngine,
       gptQuality: input.gptQuality,
+      imageQuality: input.imageQuality,
     })
     if (!gen.ok) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: gen.error }
@@ -7013,7 +7393,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       screenKey,
       label,
       input.locale,
-      { stripBackground: input.stripBackground, imageEngine: input.imageEngine, gptQuality: input.gptQuality }
+      { stripBackground: input.stripBackground, imageEngine: input.imageEngine, gptQuality: input.gptQuality, imageQuality: input.imageQuality }
     )
     if (genResult.error) {
       return { ok: false, reply: genResult.error, session, threadId: input.threadId, chargedChat: 0, error: genResult.error }
@@ -7178,7 +7558,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       editStepKey,
       editLabel,
       input.locale,
-      { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
+      { imageEngine: input.imageEngine, gptQuality: input.gptQuality, imageQuality: input.imageQuality }
     )
     if (generated.error || !generated.session.pendingPreview) {
       return {
@@ -8224,7 +8604,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         session.currentStepKey,
         label,
         input.locale,
-        { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
+        { imageEngine: input.imageEngine, gptQuality: input.gptQuality, imageQuality: input.imageQuality }
       )
       if (genResult.error) {
         reply = `${reply}\n\n(${genResult.error})`
@@ -8275,7 +8655,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           input.locale,
           message,
           targetStep,
-          { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
+          { imageEngine: input.imageEngine, gptQuality: input.gptQuality, imageQuality: input.imageQuality }
         )
         session = artifactResult.session
         studio = artifactResult.studio
@@ -8295,7 +8675,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           targetStep,
           label,
           input.locale,
-          { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
+          { imageEngine: input.imageEngine, gptQuality: input.gptQuality, imageQuality: input.imageQuality }
         )
         if (genResult.error) {
           reply = `${sanitizeAssistantReply(reply)}\n\n(${genResult.error})`

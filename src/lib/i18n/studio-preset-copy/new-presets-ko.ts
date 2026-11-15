@@ -6,7 +6,7 @@ export const NEW_PRESETS_KO = {
   packaging_kit: {
     title: '종이 상자 디자인',
     kickoff:
-      '기술 종이상자 흐름: 로고 → 위|앞|오른쪽|아래|뒤|왼쪽 6개 면을 하나씩 생성 → 3D 목업 → Dieline PDF → 라벨 → 봉인 스티커 → 바코드.',
+      '기술 종이상자 흐름: 로고 → 위|앞|오른쪽|아래|뒤|왼쪽 6개 면을 하나씩 생성 → 2D 접기 전개 → 3D 목업 → Dieline PDF → 라벨 → 봉인 스티커 → 바코드.',
     steps: {
       brand_name: '브리프: 브랜드명',
       product_type: '브리프: 제품 유형',
@@ -24,6 +24,7 @@ export const NEW_PRESETS_KO = {
       face_bottom: '아랫면 (L×W)',
       face_back: '뒷면 (L×H)',
       face_left: '왼쪽 면 (W×H)',
+      box_net_2d: '2D 접기 전개',
       face_lxw: 'L×W 면(상단/하단)',
       face_lxh: 'L×H 면(앞/뒤)',
       face_wxh: 'W×H 면(측면)',
@@ -54,8 +55,10 @@ export const NEW_PRESETS_KO = {
       face_lxw: 'L×W 상단/하단 면 — **이 면에 인쇄할 내용**을 입력하세요(로고, 제품명, 그래픽…). 디자인 이미지를 생성합니다.',
       face_lxh: 'L×H 앞/뒤 면 — **이 면에 인쇄할 내용**을 입력하세요(제품명, 신고번호, 성분, 효능…).',
       face_wxh: 'W×H 측면 — **이 면에 인쇄할 내용**을 입력하세요(사용법, 경고, 보조 성분…).',
-      box_dieline_pdf: '생산 사양을 확인한 뒤 1:1 기술 Dieline PDF를 출력합니다.',
-      box_mockup_3d: 'Dieline PDF 출력 전에 3D 목업을 만들고 승인합니다.',
+      box_net_2d:
+        '전개 페이지가 열렸습니다. 접기 방식을 고르면 전개가 바로 바뀌고 3D도 같은 페이지에 있습니다. 이후 단계에서도 다시 고칠 수 있습니다.',
+      box_dieline_pdf: '생산 사양을 확인한 뒤, 2D 전개에서 고른 접기 방식의 1:1 기술 Dieline PDF를 출력합니다.',
+      box_mockup_3d: '**3D 목업 만들기**를 입력해 2D 전개에서 고른 방식으로 접힌 상자를 확인합니다.',
       product_label: '제품 라벨(흑백): 아래에서 형태 + 화면 비율 + 내용(품명, 성분, 사용법…). 로고만 합성.',
       seal_sticker: '봉인 스티커: 아래에서 형태 + 화면 비율 + 슬로건/설명. 로고만 — 박스 면 이미지 제외.',
       barcode_label: '실제 바코드: brief 제품명 사용. 제품코드(예 SKU: 188-SRM-001). 기본 Code128 — EAN-13/QR 가능.',

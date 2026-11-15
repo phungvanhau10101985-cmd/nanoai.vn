@@ -301,6 +301,9 @@ export async function runBagMockupGeneration(input: {
   screenKey: string
   screenLabel: string
   generationPrompt: string
+  imageEngine?: string | null
+  gptQuality?: string | null
+  imageQuality?: string | null
 }): Promise<
   | { ok: true; session: HubStudioSession; studio: HubStudioMessagePayload; chargedImage: number }
   | { ok: false; error: string }
@@ -345,6 +348,9 @@ export async function runBagMockupGeneration(input: {
           { screenKey: 'face_front', label: 'Front panel' },
         ],
         aspectRatio: '1:1',
+        imageEngine: input.imageEngine,
+        gptQuality: input.gptQuality,
+        imageSize: String(input.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
       }),
     ])
 

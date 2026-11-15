@@ -12,6 +12,65 @@ import {
   validateTuckBoxProductionParams,
   type TuckBoxProductionParams,
 } from '@/lib/packaging/tuck-box-production'
+import { PAPER_STOCK_IDS, type PaperStockId } from '@/lib/packaging/paper-stock'
+
+const PAPER_COPY: Record<WebLocale, { label: string; note: string; stocks: Record<PaperStockId, string> }> = {
+  vi: {
+    label: 'Loại giấy',
+    note: 'Nắp và đáy cộng 2 lần độ dày giấy. Lưỡi gài và tai bụi hẹp 1 mm mỗi bên. Tai dán 12–20 mm, không in mực.',
+    stocks: {
+      ivory_300: 'Ivory 300 gsm',
+      ivory_350: 'Ivory 350 gsm',
+      duplex_300: 'Duplex 300 gsm',
+      duplex_350: 'Duplex 350 gsm',
+      custom: 'Độ dày tùy chỉnh',
+    },
+  },
+  en: {
+    label: 'Paper',
+    note: 'Lid and base gain 2× paper caliper. Tuck and dust flaps narrow 1 mm each side. Glue tab is 12–20 mm and stays unprinted.',
+    stocks: {
+      ivory_300: 'Ivory 300 gsm',
+      ivory_350: 'Ivory 350 gsm',
+      duplex_300: 'Duplex 300 gsm',
+      duplex_350: 'Duplex 350 gsm',
+      custom: 'Custom thickness',
+    },
+  },
+  zh: {
+    label: '纸张',
+    note: '盖和底各加 2 倍纸厚。插舌和防尘片每边收 1 mm。粘口 12–20 mm，不印油墨。',
+    stocks: {
+      ivory_300: '象牙卡 300 gsm',
+      ivory_350: '象牙卡 350 gsm',
+      duplex_300: '双粉卡 300 gsm',
+      duplex_350: '双粉卡 350 gsm',
+      custom: '自定义厚度',
+    },
+  },
+  ja: {
+    label: '用紙',
+    note: '蓋と底は紙厚の2倍。差し込みと防塵は左右1mmずつ狭めます。糊しろは12–20mmで、インクを載せません。',
+    stocks: {
+      ivory_300: 'アイボリー 300 gsm',
+      ivory_350: 'アイボリー 350 gsm',
+      duplex_300: 'デュプレックス 300 gsm',
+      duplex_350: 'デュプレックス 350 gsm',
+      custom: '厚さ指定',
+    },
+  },
+  ko: {
+    label: '용지',
+    note: '뚜껑과 바닥은 두께의 2배. 꽂이와 먼지덮개는 양쪽 1mm씩 좁힙니다. 접착 탭은 12–20mm이며 잉크를 올리지 않습니다.',
+    stocks: {
+      ivory_300: '아이보리 300 gsm',
+      ivory_350: '아이보리 350 gsm',
+      duplex_300: '듀플렉스 300 gsm',
+      duplex_350: '듀플렉스 350 gsm',
+      custom: '두께 직접 입력',
+    },
+  },
+}
 
 const COPY: Record<
   WebLocale,
@@ -192,8 +251,9 @@ export function HubBoxDimensionForm({
   const [advanced, setAdvanced] = useState(Boolean(initialProduction))
   const [bleed, setBleed] = useState(String(initialProduction?.bleedMm ?? 3))
   const [glueTab, setGlueTab] = useState(String(initialProduction?.glueTabMm ?? 15))
-  const [paper, setPaper] = useState(String(initialProduction?.paperThicknessMm ?? 0.4))
-  const [gap, setGap] = useState(String(initialProduction?.compensationGapMm ?? 0.5))
+  const [paper, setPaper] = useState(String(initialProduction?.paperThicknessMm ?? 0.5))
+  const [gap, setGap] = useState(String(initialProduction?.compensationGapMm ?? 1))
+  const [stock, setStock] = useState<PaperStockId>(initialProduction?.paperStock ?? 'ivory_350')
 
   const lengthMm = useMemo(() => parseDimensionCm(length), [length])
   const widthMm = useMemo(() => parseDimensionCm(width), [width])
@@ -214,9 +274,11 @@ export function HubBoxDimensionForm({
     }
     const defaults = defaultTuckBoxProductionParams(heightMm)
     const production = {
+      ...defaults,
       bleedMm: advanced ? parseMm(bleed) : defaults.bleedMm,
       glueTabMm: advanced ? parseMm(glueTab) : defaults.glueTabMm,
-      paperThicknessMm: advanced ? parseMm(paper) : defaults.paperThicknessMm,
+      paperStock: stock,
+      paperThicknessMm: stock === 'custom' ? parseMm(paper) : defaults.paperThicknessMm,
       compensationGapMm: advanced ? parseMm(gap) : defaults.compensationGapMm,
     }
     if (Object.keys(validateTuckBoxProductionParams(production)).length) {
@@ -237,6 +299,22 @@ export function HubBoxDimensionForm({
       <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">{t.title}</p>
       <p className="mt-1 text-xs text-muted-foreground">{t.hint}</p>
       <p className="mt-1 text-xs text-violet-800/90 dark:text-violet-200/90">{t.orientationHint}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{PAPER_COPY[locale].note}</p>
+      <label className="mt-3 block space-y-1.5">
+        <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{PAPER_COPY[locale].label}</span>
+        <select
+          className="h-9 w-full rounded-md border bg-white px-2 text-sm dark:bg-slate-900"
+          value={stock}
+          disabled={busy}
+          onChange={(event) => setStock(event.target.value as PaperStockId)}
+        >
+          {PAPER_STOCK_IDS.map((id) => (
+            <option key={id} value={id}>
+              {PAPER_COPY[locale].stocks[id]}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <label className="block space-y-1.5">
           <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t.length}</span>
@@ -302,7 +380,7 @@ export function HubBoxDimensionForm({
           {[
             [t.bleed, bleed, setBleed],
             [t.glueTab, glueTab, setGlueTab],
-            [t.paper, paper, setPaper],
+            ...(stock === 'custom' ? [[t.paper, paper, setPaper] as const] : []),
             [t.gap, gap, setGap],
           ].map(([label, value, setter]) => (
             <label key={String(label)} className="space-y-1">

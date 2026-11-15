@@ -12,7 +12,7 @@ import {
   insertPartnerMarketingBannerAssetFromPg,
   partnerShopHasLiveCustomDomainFromPg,
 } from '@/lib/db/messaging-partner-marketing-banner-pg'
-import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { geminiQualityCredit, imageChargeFromForm } from '@/lib/ai/image-engine'
 import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
@@ -130,6 +130,7 @@ async function generateBannerImageBytes(input: {
   userId?: string | null
   imageEngine?: string | null
   gptQuality?: string | null
+  imageQuality?: string | null
 }): Promise<Buffer> {
   const priced = imageChargeFromForm(
     {
@@ -139,9 +140,10 @@ async function generateBannerImageBytes(input: {
         return null
       },
     },
-    PARTNER_MARKETING_BANNER_CREDIT_COST,
+    geminiQualityCredit(PARTNER_MARKETING_BANNER_CREDIT_COST, input.imageQuality),
   )
   if (priced.error) throw new Error(priced.error)
+  const imageSize = String(input.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : '2K'
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
   if (priced.engine !== 'gpt') {
     const genAI = new GoogleGenerativeAI(input.apiKey)
@@ -149,7 +151,7 @@ async function generateBannerImageBytes(input: {
       model: GEMINI_3_PRO_IMAGE.model,
       generationConfig: {
         responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { imageSize: '2K', aspectRatio: PARTNER_MARKETING_BANNER_ASPECT },
+        imageConfig: { imageSize, aspectRatio: PARTNER_MARKETING_BANNER_ASPECT },
       },
     })
   }
@@ -165,7 +167,7 @@ async function generateBannerImageBytes(input: {
     GEMINI_3_PRO_IMAGE.model,
     'partner-marketing-banner',
     input.userId,
-    '2K'
+    imageSize
   )
   const imagePart = result.response.candidates?.[0]?.content?.parts?.find((part) => 'inlineData' in part)
   if (!imagePart || !('inlineData' in imagePart) || !imagePart.inlineData?.data) {
@@ -205,6 +207,7 @@ export async function generatePartnerMarketingBanner(input: {
   chargeCredits?: boolean
   imageEngine?: string | null
   gptQuality?: string | null
+  imageQuality?: string | null
 }): Promise<
   | { ok: true; asset: NonNullable<Awaited<ReturnType<typeof completePartnerMarketingBannerAssetFromPg>>> }
   | { ok: false; error: string; status?: number; code?: 'shop_not_live' | 'attempt_cap' }
@@ -314,7 +317,7 @@ export async function generatePartnerMarketingBanner(input: {
         return null
       },
     },
-    PARTNER_MARKETING_BANNER_CREDIT_COST,
+    geminiQualityCredit(PARTNER_MARKETING_BANNER_CREDIT_COST, input.imageQuality),
   )
   if (priced.error) return { ok: false, error: priced.error, status: 400 }
   const creditCost = priced.cost
@@ -385,6 +388,7 @@ export async function generatePartnerMarketingBanner(input: {
       userId: input.actorUserId,
       imageEngine: input.imageEngine,
       gptQuality: input.gptQuality,
+      imageQuality: input.imageQuality,
     })
     const bytes = await preparePartnerMarketingBannerJpeg(raw)
     const digest = bytes.subarray(0, 12).toString('hex')

@@ -379,6 +379,15 @@ async function deleteOrnamentKeys(keys: string[]) {
   }
 }
 
+/** Mẫu chung đổi thì mọi thiệp và mọi demo đọc lại. Bản riêng của một thiệp chỉ làm mới đúng thiệp đó. */
+function revalidateFlowerViews(slug: string, shared: boolean) {
+  if (slug) revalidatePath(`/thiep-moi-cuoi/${slug}`)
+  if (!shared) return
+  revalidatePath('/thiep-moi-cuoi/[slug]', 'page')
+  revalidatePath('/thiep-mau/[id]', 'page')
+  revalidatePath('/tao-thiep-moi-cuoi-ai')
+}
+
 /** Khách ghi hoa vào đúng mặt của thiệp mình. Quản trị ghi mẫu chung của mặt đó, và gỡ bản riêng cùng mặt để thiệp đang mở dùng mẫu. */
 export async function saveWeddingCardOrnaments(
   cardId: string,
@@ -410,7 +419,7 @@ export async function saveWeddingCardOrnaments(
   } catch {
     return { error: 'unavailable' as const }
   }
-  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  revalidateFlowerViews(access.slug, access.templateEditor && !key.startsWith('card:'))
   return { ok: true as const, ornaments: parsed, template: access.templateEditor && !key.startsWith('card:') }
 }
 
@@ -441,7 +450,7 @@ export async function resetWeddingCardOrnaments(cardId: string, device: WeddingO
   } catch {
     return { error: 'unavailable' as const }
   }
-  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  revalidateFlowerViews(access.slug, access.templateEditor && !key.startsWith('card:'))
   return { ok: true as const }
 }
 
@@ -549,6 +558,7 @@ export async function saveWeddingPresetOrnaments(
   } catch {
     return { error: 'unavailable' as const }
   }
+  revalidateFlowerViews('', true)
   revalidatePath(`/thiep-mau/${access.presetId}`)
   return { ok: true as const, ornaments: parsed, template: true as const }
 }
@@ -569,6 +579,7 @@ export async function resetWeddingPresetOrnaments(
   } catch {
     return { error: 'unavailable' as const }
   }
+  revalidateFlowerViews('', true)
   revalidatePath(`/thiep-mau/${access.presetId}`)
   return { ok: true as const }
 }

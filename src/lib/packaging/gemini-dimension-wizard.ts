@@ -1,3 +1,4 @@
+import { NANOAI_GEMINI_ASPECT_MODELS } from '@/lib/ai/nanoai-image-names'
 import type { WebLocale } from '@/lib/i18n/config'
 import { GEMINI_ASPECT_RATIOS } from '@/lib/label-size-presets'
 import {
@@ -193,11 +194,11 @@ function formatCmLine(locale: WebLocale, mm: number): string {
 export function buildLengthAckMessage(locale: WebLocale, lengthMm: number): string {
   const len = formatCmLine(locale, lengthMm)
   const rows = {
-    vi: `Đã ghi nhận chiều dài: **${len}**.\n\nChọn **chiều rộng (W)** — mỗi lựa chọn khớp 100% tỷ lệ Gemini cho mặt đáy/nắp (L×W):`,
-    en: `Length recorded: **${len}**.\n\nChoose **width (W)** — each option matches a Gemini aspect ratio exactly for the bottom/top face (L×W):`,
-    zh: `已记录长度：**${len}**。\n\n请选择**宽度 (W)** — 每项均与底/顶面 (L×W) 的 Gemini 比例完全匹配：`,
-    ja: `長さを記録しました：**${len}**。\n\n**幅 (W)** を選んでください — 各候補は底/天面 (L×W) の Gemini 比率に完全一致します：`,
-    ko: `길이 기록: **${len}**.\n\n**너비 (W)** 를 선택하세요 — 각 옵션은 바닥/뚜껑 면 (L×W) Gemini 비율과 100% 일치합니다:`,
+    vi: `Đã ghi nhận chiều dài: **${len}**.\n\nChọn **chiều rộng (W)** — mỗi lựa chọn khớp 100% tỷ lệ ${NANOAI_GEMINI_ASPECT_MODELS} cho mặt đáy/nắp (L×W):`,
+    en: `Length recorded: **${len}**.\n\nChoose **width (W)** — each option matches a ${NANOAI_GEMINI_ASPECT_MODELS} aspect ratio exactly for the bottom/top face (L×W):`,
+    zh: `已记录长度：**${len}**。\n\n请选择**宽度 (W)** — 每项均与底/顶面 (L×W) 的 ${NANOAI_GEMINI_ASPECT_MODELS} 比例完全匹配：`,
+    ja: `長さを記録しました：**${len}**。\n\n**幅 (W)** を選んでください — 各候補は底/天面 (L×W) の ${NANOAI_GEMINI_ASPECT_MODELS} 比率に完全一致します：`,
+    ko: `길이 기록: **${len}**.\n\n**너비 (W)** 를 선택하세요 — 각 옵션은 바닥/뚜껑 면 (L×W) ${NANOAI_GEMINI_ASPECT_MODELS} 비율과 100% 일치합니다:`,
   } satisfies Record<WebLocale, string>
   return rows[locale]
 }
@@ -206,18 +207,18 @@ export function buildWidthOptionsMessage(locale: WebLocale, lengthMm: number): s
   const options = getWidthOptionsForLength(lengthMm)
   if (!options.length) {
     const rows = {
-      vi: 'Không tìm được chiều rộng phù hợp tỷ lệ Gemini với chiều dài này. Hãy nhập lại chiều dài khác.',
-      en: 'No Gemini-compatible width for this length. Enter a different length.',
-      zh: '此长度下没有匹配的 Gemini 宽度。请重新输入长度。',
-      ja: 'この長さに合う Gemini 幅がありません。別の長さを入力してください。',
-      ko: '이 길이에 맞는 Gemini 너비가 없습니다. 다른 길이를 입력하세요.',
+      vi: `Không tìm được chiều rộng phù hợp tỷ lệ ${NANOAI_GEMINI_ASPECT_MODELS} với chiều dài này. Hãy nhập lại chiều dài khác.`,
+      en: `No ${NANOAI_GEMINI_ASPECT_MODELS}-compatible width for this length. Enter a different length.`,
+      zh: `此长度下没有匹配的 ${NANOAI_GEMINI_ASPECT_MODELS} 宽度。请重新输入长度。`,
+      ja: `この長さに合う ${NANOAI_GEMINI_ASPECT_MODELS} 幅がありません。別の長さを入力してください。`,
+      ko: `이 길이에 맞는 ${NANOAI_GEMINI_ASPECT_MODELS} 너비가 없습니다. 다른 길이를 입력하세요.`,
     } satisfies Record<WebLocale, string>
     return rows[locale]
   }
 
   const lines = options.map((o) => {
     const w = formatCmLine(locale, o.widthMm)
-    return `${o.index}. **${w}** — L×W Gemini **${o.geminiLxw}**`
+    return `${o.index}. **${w}** — L×W ${NANOAI_GEMINI_ASPECT_MODELS} **${o.geminiLxw}**`
   })
 
   const footers = {
@@ -234,11 +235,11 @@ export function buildWidthOptionsMessage(locale: WebLocale, lengthMm: number): s
 export function buildWidthAckMessage(locale: WebLocale, lengthMm: number, widthMm: number): string {
   const w = formatCmLine(locale, widthMm)
   const rows = {
-    vi: `Đã chọn rộng: **${w}**.\n\nChọn **chiều cao (H)** — mỗi lựa chọn khớp 100% Gemini cho cả 3 mặt (L×W, L×H, W×H):`,
-    en: `Width selected: **${w}**.\n\nChoose **height (H)** — each option matches Gemini exactly on all 3 faces (L×W, L×H, W×H):`,
-    zh: `已选宽度：**${w}**。\n\n请选择**高度 (H)** — 每项与三个面 (L×W, L×H, W×H) 的 Gemini 比例完全匹配：`,
-    ja: `幅を選択：**${w}**。\n\n**高さ (H)** を選んでください — 3面 (L×W, L×H, W×H) すべて Gemini 比率に完全一致：`,
-    ko: `너비 선택: **${w}**.\n\n**높이 (H)** 를 선택하세요 — 3면 (L×W, L×H, W×H) 모두 Gemini 비율 100% 일치:`,
+    vi: `Đã chọn rộng: **${w}**.\n\nChọn **chiều cao (H)** — mỗi lựa chọn khớp 100% ${NANOAI_GEMINI_ASPECT_MODELS} cho cả 3 mặt (L×W, L×H, W×H):`,
+    en: `Width selected: **${w}**.\n\nChoose **height (H)** — each option matches ${NANOAI_GEMINI_ASPECT_MODELS} exactly on all 3 faces (L×W, L×H, W×H):`,
+    zh: `已选宽度：**${w}**。\n\n请选择**高度 (H)** — 每项与三个面 (L×W, L×H, W×H) 的 ${NANOAI_GEMINI_ASPECT_MODELS} 比例完全匹配：`,
+    ja: `幅を選択：**${w}**。\n\n**高さ (H)** を選んでください — 3面 (L×W, L×H, W×H) すべて ${NANOAI_GEMINI_ASPECT_MODELS} 比率に完全一致：`,
+    ko: `너비 선택: **${w}**.\n\n**높이 (H)** 를 선택하세요 — 3면 (L×W, L×H, W×H) 모두 ${NANOAI_GEMINI_ASPECT_MODELS} 비율 100% 일치:`,
   } satisfies Record<WebLocale, string>
   return rows[locale]
 }

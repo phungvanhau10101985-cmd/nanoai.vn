@@ -17,6 +17,8 @@ import {
   DEFAULT_BOX_DIELINE_STRUCTURE,
   type BoxDielineStructure,
 } from '@/lib/packaging/dieline-structure'
+import { dielineArtworkRotation } from '@/lib/packaging/dieline-orientation'
+import { buildDielineLayout } from '@/lib/packaging/box-dieline-geometry'
 
 export type BoxType = 'tuck-top' | 'sleeve'
 
@@ -619,6 +621,8 @@ export interface TuckEndArtworkPanel {
   w: number
   h: number
   slot: BoxFaceSlot
+  /** Xoay ảnh trên tờ trải theo chiều gấp. Mockup 3D dùng chiều đã gấp. */
+  rotation?: 0 | 90 | 180 | 270
 }
 
 export interface TuckEndLayoutData {
@@ -630,6 +634,29 @@ export interface TuckEndLayoutData {
   glueTabMm: number
   /** Chiều sâu phần lưỡi gài của nắp. */
   tuckTabMm: number
+  /** Tai dán không in. */
+  glueRects?: Array<{ x: number; y: number; w: number; h: number }>
+  /** Vùng lưỡi/tai cần kéo ảnh từ mép tấm ra tới đường cắt. */
+  flapExtensions?: Array<{ slot: BoxFaceSlot; x: number; y: number; w: number; h: number }>
+  /** Vùng không mực: cửa sổ, lỗ quai, cổ chai, nam châm. */
+  knockouts?: Array<{
+    x: number
+    y: number
+    w: number
+    h: number
+    kind: 'window' | 'handle' | 'neck' | 'magnet'
+    shape?: 'rect' | 'ellipse'
+  }>
+  fingerNotches?: Array<{
+    cx: number
+    cy: number
+    r: number
+    slot: BoxFaceSlot
+    edge: 'top' | 'bottom' | 'left' | 'right'
+  }>
+  /** Bốn mặt hông nằm trên một dải liên tục. */
+  bodyStrip?: boolean
+  legendLines?: string[]
 }
 
 export function getSleeveLayoutData(d: BoxDimensions): SleeveLayoutData {
@@ -654,125 +681,12 @@ export function getSleeveLayoutData(d: BoxDimensions): SleeveLayoutData {
   return { panels, cutSegments, foldSegments, bounds }
 }
 
-/**
- * Net hộp giấy nắp gài thẳng (straight-tuck end).
- *
- * Thân hộp gồm 4 mặt L-H / W-H / L-H / W-H, có tai dán cạnh.
- * Nắp L-W nguyên vẹn ở hai đầu, kèm lưỡi gài và tai bụi hai bên.
- * Đây là cấu trúc có thể bế, cấn, dán và dựng thành hộp kín; khác với
- * layout "sleeve" cũ chỉ là dải mặt in và không thể đóng thành hộp.
- */
+/** Net nắp gài ngược (reverse tuck). Giữ tên hàm cho các chỗ gọi cũ. */
 export function getTuckEndLayoutData(
   d: BoxDimensions,
   production?: Partial<TuckBoxProductionParams>
 ): TuckEndLayoutData {
-  const { lengthMm: L, widthMm: W, heightMm: H } = d
-  const productionParams = production
-    ? normalizeTuckBoxProductionParams(production, H)
-    : { ...normalizeTuckBoxProductionParams(undefined, H), compensationGapMm: 0 }
-  const pad = 2
-  const glueTabMm = productionParams.glueTabMm
-  const tuckTabMm = Math.max(10, Math.min(20, W * 0.3))
-  const compensationGapMm = productionParams.compensationGapMm
-  const dustDepth = Math.max(8, Math.min(W * 0.48, L * 0.45))
-
-  const x0 = pad
-  const x1 = x0 + L
-  const x2 = x1 + W
-  const x3 = x2 + L
-  const x4 = x3 + W
-  const bodyTop = pad + tuckTabMm + W
-  const bodyBottom = bodyTop + H
-  const bottomPanelBottom = bodyBottom + W
-  const netBottom = bottomPanelBottom + tuckTabMm
-
-  // Các vùng nhận artwork — mỗi mặt hộp dùng ảnh riêng (không đối xứng 3 ảnh).
-  const panels: TuckEndArtworkPanel[] = [
-    { x: x0, y: bodyTop, w: L, h: H, slot: 'front' },
-    { x: x1, y: bodyTop, w: W, h: H, slot: 'right' },
-    { x: x2, y: bodyTop, w: L, h: H, slot: 'back' },
-    { x: x3, y: bodyTop, w: W, h: H, slot: 'left' },
-    { x: x0, y: bodyTop - W, w: L, h: W, slot: 'top' },
-    { x: x2, y: bodyBottom, w: L, h: W, slot: 'bottom' },
-  ]
-
-  const cutSegments: [number, number, number, number][] = []
-  const foldSegments: [number, number, number, number][] = []
-  const cut = (xA: number, yA: number, xB: number, yB: number) =>
-    cutSegments.push([xA, yA, xB, yB])
-  const fold = (xA: number, yA: number, xB: number, yB: number) =>
-    foldSegments.push([xA, yA, xB, yB])
-
-  // Cấn dọc thân và tai dán.
-  fold(x1, bodyTop, x1, bodyBottom)
-  fold(x2, bodyTop, x2, bodyBottom)
-  fold(x3, bodyTop, x3, bodyBottom)
-  fold(x4, bodyTop, x4, bodyBottom)
-
-  // Cấn nắp trên, nắp dưới và hai lưỡi gài.
-  fold(x0, bodyTop, x1, bodyTop)
-  fold(x0, bodyTop - W, x1, bodyTop - W)
-  fold(x2, bodyBottom, x3, bodyBottom)
-  fold(x2, bottomPanelBottom, x3, bottomPanelBottom)
-
-  // Tai bụi trên/dưới gắn với hai mặt hông.
-  fold(x1, bodyTop, x2, bodyTop)
-  fold(x3, bodyTop, x4, bodyTop)
-  fold(x1, bodyBottom, x2, bodyBottom)
-  fold(x3, bodyBottom, x4, bodyBottom)
-
-  // Biên trái thân; các đoạn mép thân không gắn nắp là đường cắt.
-  cut(x0, bodyTop, x0, bodyBottom)
-  cut(x2, bodyTop, x3, bodyTop)
-  cut(x0, bodyBottom, x1, bodyBottom)
-
-  // Nắp trên + lưỡi gài, vát hai góc để dễ gài.
-  const topTuckY = bodyTop - W - tuckTabMm
-  const chamfer = Math.min(4, L * 0.08, tuckTabMm * 0.35)
-  const tuckInset = Math.min(L / 2 - 0.5, chamfer + compensationGapMm)
-  cut(x0, bodyTop, x0, bodyTop - W)
-  cut(x1, bodyTop, x1, bodyTop - W)
-  cut(x0, bodyTop - W, x0 + tuckInset, topTuckY)
-  cut(x0 + tuckInset, topTuckY, x1 - tuckInset, topTuckY)
-  cut(x1 - tuckInset, topTuckY, x1, bodyTop - W)
-
-  // Nắp dưới + lưỡi gài.
-  cut(x2, bodyBottom, x2, bottomPanelBottom)
-  cut(x3, bodyBottom, x3, bottomPanelBottom)
-  cut(x2, bottomPanelBottom, x2 + tuckInset, netBottom)
-  cut(x2 + tuckInset, netBottom, x3 - tuckInset, netBottom)
-  cut(x3 - tuckInset, netBottom, x3, bottomPanelBottom)
-
-  // Tai bụi: thu nhỏ dần về phía ngoài để không cấn/chồng khi đóng.
-  const dustInset = Math.min(W / 2 - 0.5, Math.min(3, W * 0.08) + compensationGapMm)
-  const topDustY = bodyTop - dustDepth
-  const bottomDustY = bodyBottom + dustDepth
-  for (const [left, right] of [[x1, x2], [x3, x4]] as const) {
-    cut(left, bodyTop, left + dustInset, topDustY)
-    cut(left + dustInset, topDustY, right - dustInset, topDustY)
-    cut(right - dustInset, topDustY, right, bodyTop)
-    cut(left, bodyBottom, left + dustInset, bottomDustY)
-    cut(left + dustInset, bottomDustY, right - dustInset, bottomDustY)
-    cut(right - dustInset, bottomDustY, right, bodyBottom)
-  }
-
-  // Tai dán cạnh thân, vát đầu để không cấn vào nắp.
-  const glueInset = Math.min(4, H * 0.08)
-  cut(x4, bodyTop, x4 + glueTabMm, bodyTop + glueInset)
-  cut(x4 + glueTabMm, bodyTop + glueInset, x4 + glueTabMm, bodyBottom - glueInset)
-  cut(x4 + glueTabMm, bodyBottom - glueInset, x4, bodyBottom)
-
-  return {
-    panels,
-    cutSegments,
-    foldSegments,
-    bounds: {
-      widthMm: x4 + glueTabMm + pad,
-      heightMm: netBottom + pad,
-    },
-    glueTabMm,
-    tuckTabMm,
-  }
+  return buildDielineLayout('reverse_tuck', d, production)
 }
 
 /**
@@ -863,8 +777,12 @@ export function getCrossFoldLayoutData(
   cut(x, backY + H, x + L, backY + H)
 
   const maxX = Math.max(x + L + W, x + L + glueTabMm)
+  const orientedPanels = panels.map((panel) => ({
+    ...panel,
+    rotation: dielineArtworkRotation('cross_fold', panel.slot),
+  }))
   return {
-    panels,
+    panels: orientedPanels,
     cutSegments,
     foldSegments,
     bounds: {
@@ -881,9 +799,9 @@ export function getBoxDielineLayoutData(
   d: BoxDimensions,
   production?: Partial<TuckBoxProductionParams>
 ): TuckEndLayoutData {
-  return (structure ?? DEFAULT_BOX_DIELINE_STRUCTURE) === 'cross_fold'
-    ? getCrossFoldLayoutData(d, production)
-    : getTuckEndLayoutData(d, production)
+  const key = structure ?? DEFAULT_BOX_DIELINE_STRUCTURE
+  if (key === 'cross_fold') return getCrossFoldLayoutData(d, production)
+  return buildDielineLayout(key, d, production)
 }
 
 function formatCmFromMm(mm: number, locale: WebLocale): string {

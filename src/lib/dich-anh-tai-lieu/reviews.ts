@@ -59,7 +59,7 @@ export const DOCUMENT_TRANSLATE_SEED_REVIEWS: TranslateReview[] = [
   { id: 'seed-33', authorName: 'Đức Thành', rating: 4, body: 'PDF 40 trang hơi lâu vì chạy từng trang. Kết quả ổn. Tôi tranh thủ làm việc khác, khoảng hơn nửa tiếng là xong.', createdAt: '2026-10-06T11:28:00.000Z' },
   { id: 'seed-34', authorName: 'Lan Phương', rating: 5, body: 'Phiếu kiểm tra xuất xưởng. Dấu mộc và chữ ký không bị xóa. Phần kết luận thì dịch được.', createdAt: '2026-10-04T02:41:00.000Z' },
   { id: 'seed-35', authorName: 'Quang Minh', rating: 5, body: 'Khách Ả Rập gửi poster máy. Logo và hotline giữ. Đoạn tình trạng máy và bảo trì sang tiếng Việt.', createdAt: '2026-10-03T07:13:00.000Z' },
-  { id: 'seed-36', authorName: 'Hồng Ân', rating: 3, body: 'Chọn NanoAI 2 4K cho tờ A2. Ảnh nét nhưng một tiêu đề bị diễn dài hơn ô, tràn nhẹ. Tôi crop rồi mới in.', createdAt: '2026-10-02T13:37:00.000Z' },
+  { id: 'seed-36', authorName: 'Hồng Ân', rating: 3, body: 'Chọn NanoAI 4K cho tờ A2. Ảnh nét nhưng một tiêu đề bị diễn dài hơn ô, tràn nhẹ. Tôi crop rồi mới in.', createdAt: '2026-10-02T13:37:00.000Z' },
   { id: 'seed-37', authorName: 'Thảo Vy', rating: 5, body: 'Dịch thực đơn đồ uống. Tên riêng của món signature tôi muốn giữ thì vẫn còn, phần mô tả thì Việt.', createdAt: '2026-10-01T04:22:00.000Z' },
   { id: 'seed-38', authorName: 'Hùng Cường', rating: 4, body: 'Bảng moment và tải trọng. Số đúng. Có một thuật ngữ cơ khí tôi đổi lại cho thợ dễ hiểu.', createdAt: '2026-09-30T01:58:00.000Z' },
   { id: 'seed-39', authorName: 'Yến Nhi', rating: 5, body: 'Scan sổ tay từ máy photocopy. Viền đen còn, chữ trong bảng sạch. Đỡ phải gõ 4 trang.', createdAt: '2026-09-29T09:26:00.000Z' },

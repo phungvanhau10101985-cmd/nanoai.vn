@@ -248,6 +248,18 @@ export type Dictionary = {
     studioGeneratedStep: string
     studioGenerateCurrent: string
     studioGenerateFace: string
+    studioFacePolishAi: string
+    studioFacePolishHint: string
+    studioFacePolishEmpty: string
+    studioFacePolishSkip: string
+    studioFacePolishDone: string
+    studioFacePolishDoneDesc: string
+    studioFacePolishFailed: string
+    studioFacePolishNoKey: string
+    studioFacePolishNeedCredit: string
+    studioFacePolishWrongStep: string
+    studioFacePolishDroppedCopy: string
+    studioFacePolishTooLong: string
     studioGenerateMusic: string
     studioGenerateArtifact: string
     studioNewFlowConfirmTitle: string
@@ -4999,6 +5011,19 @@ export const VI_DICTIONARY: Dictionary = {
     studioGeneratedStep: 'Đã tạo {screen} theo mô tả của bạn. Xem bên dưới — ổn thì bấm «Chọn làm tham chiếu và tiếp».',
     studioGenerateCurrent: 'Tạo ảnh cho bước này',
     studioGenerateFace: 'Tạo ảnh mặt hộp',
+    studioFacePolishAi: 'Tối ưu AI · 0,1 credit',
+    studioFacePolishHint:
+      'Viết lại câu mô tả để bạn sửa. Chưa tạo ảnh. Khi chữ in đúng, bấm Tạo ảnh mặt hộp.',
+    studioFacePolishEmpty: 'Gõ sơ ý mặt in trước khi tối ưu.',
+    studioFacePolishSkip: 'Lệnh bỏ trống hoặc giống mặt khác không cần tối ưu. Dùng nút Bỏ trống hoặc Giống mặt.',
+    studioFacePolishDone: 'Đã tối ưu câu mô tả',
+    studioFacePolishDoneDesc: 'Sửa chữ in nếu cần, rồi bấm tạo ảnh.',
+    studioFacePolishFailed: 'Không tối ưu được câu mô tả. Thử lại sau.',
+    studioFacePolishNoKey: 'Chưa cấu hình DEEPSEEK_API_KEY trên server.',
+    studioFacePolishNeedCredit: 'Không đủ credit. Mỗi lần tối ưu câu tốn 0,1 credit.',
+    studioFacePolishWrongStep: 'Chỉ tối ưu câu khi đang thiết kế một mặt in.',
+    studioFacePolishDroppedCopy: 'AI bỏ mất chữ in trong ngoặc. Credit đã hoàn. Thử lại.',
+    studioFacePolishTooLong: 'Câu mô tả quá dài (tối đa 4000 ký tự).',
     studioGenerateMusic: 'Tạo nhạc cho bước này',
     studioGenerateArtifact: 'Tạo đầu ra bước này',
     studioNewFlowConfirmTitle: 'Bắt đầu dự án thiết kế mới?',

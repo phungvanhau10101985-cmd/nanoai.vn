@@ -10,7 +10,7 @@ import {
 } from '@/lib/db/house-build-projects-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
-import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { geminiQualityCredit, imageChargeFromForm, parseGeminiImageQuality } from '@/lib/ai/image-engine'
 import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
@@ -222,7 +222,8 @@ export async function step1Build3D(formData: FormData) {
 
   if (!houseInfo.houseLength.trim()) return { error: 'Vui lòng nhập chiều dài mặt tiền.' }
 
-  const priced = imageChargeFromForm(formData, COSTS.floor_3d)
+  const imageQuality = parseGeminiImageQuality(formData.get('imageQuality'))
+  const priced = imageChargeFromForm(formData, geminiQualityCredit(COSTS.floor_3d, imageQuality))
   if (priced.error) return { error: priced.error }
   const COST = priced.cost
   let openBalance = 0
@@ -260,7 +261,7 @@ export async function step1Build3D(formData: FormData) {
       ? null
       : genAI.getGenerativeModel({
           model: GEMINI_3_PRO_IMAGE.model,
-          generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: imageQuality, aspectRatio: '16:9' } },
         })
   const fullPrompt = `${HOUSE_3D_PROMPT}\n\n${promptEn}\n\nChỉ trả về ảnh kết quả.`
 
@@ -290,7 +291,7 @@ export async function step1Build3D(formData: FormData) {
       gemini: () => imageModel!.generateContent(fullPrompt, { safetySettings: getSafetySettings() }),
     })
   }
-  trackFromUsageMetadata(imgRes.response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xay-nha-3d', user.id, '2K')
+  trackFromUsageMetadata(imgRes.response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xay-nha-3d', user.id, imageQuality)
 
   const imgPart = imgRes.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
   if (!imgPart || !('inlineData' in imgPart)) return { error: 'AI không tạo được ảnh.' }

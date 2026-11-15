@@ -51,6 +51,7 @@ export const PUBLIC_TABLES = [
   'language_coach_transliteration_cache',
   'language_coach_dialogue_replay_cache',
   'language_coach_opening_translation_cache',
+  'language_coach_meaning_canonical_cache',
   'language_coach_cache_daily_stats',
   'language_coach_live_lessons',
   'language_coach_live_lesson_turns',

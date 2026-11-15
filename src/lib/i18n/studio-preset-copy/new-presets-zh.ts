@@ -3,7 +3,7 @@ export const NEW_PRESETS_ZH = {
   packaging_kit: {
     title: '纸盒设计',
     kickoff:
-      '技术纸盒流程：标志 → 依次创建顶|正|右|底|背|左六个独立盒面 → 3D 样机 → Dieline PDF → 标签 → 封条 → 可扫描条码。',
+      '技术纸盒流程：标志 → 依次创建顶|正|右|底|背|左六个独立盒面 → 二维折叠展开 → 3D 样机 → Dieline PDF → 标签 → 封条 → 可扫描条码。',
     steps: {
       brand_name: 'Brief：品牌名',
       product_type: 'Brief：产品类型',
@@ -21,6 +21,7 @@ export const NEW_PRESETS_ZH = {
       face_bottom: '底面 (L×W)',
       face_back: '背面 (L×H)',
       face_left: '左侧面 (W×H)',
+      box_net_2d: '二维折叠展开',
       face_lxw: 'L×W 面（顶/底）',
       face_lxh: 'L×H 面（正/背）',
       face_wxh: 'W×H 面（侧面）',
@@ -50,8 +51,10 @@ export const NEW_PRESETS_ZH = {
       face_lxw: 'L×W 顶/底面 — 输入**此面的印刷内容**（标志、品名、图案…），将生成设计图。',
       face_lxh: 'L×H 正/背面 — 输入**此面的印刷内容**（品名、备案号、成分、功效…）。',
       face_wxh: 'W×H 侧面 — 输入**此面的印刷内容**（用法、警示、次要成分…）。',
-      box_dieline_pdf: '检查生产参数后导出 1:1 技术 Dieline PDF。',
-      box_mockup_3d: '先创建并确认 3D mockup，再导出 Dieline PDF。',
+      box_net_2d:
+        '盒型展开页已打开。选择盒型后展开图立即重排，3D 样机在同一页。之后的步骤仍可回来修改。',
+      box_dieline_pdf: '确认生产参数后，按二维展开选定的盒型导出 1:1 技术刀模 PDF。',
+      box_mockup_3d: '输入**创建 3D 样机**，查看按二维展开所选盒型折好的盒子。',
       product_label: '产品标签（黑白）：下方选形状 + 宽高比 + 内容（品名、成分、用法…）。仅合成 logo。',
       seal_sticker: '封条：下方选形状 + 宽高比 + 标语/描述。仅合成 logo — 不用盒面图。',
       barcode_label: '真实条码：自动用 brief 品名；产品码（如 SKU: 188-SRM-001）。默认 Code128 — 可指定 EAN-13/QR。',

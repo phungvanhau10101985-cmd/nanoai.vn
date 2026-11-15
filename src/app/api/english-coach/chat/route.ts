@@ -23,6 +23,7 @@ import { stripReadingCommentary } from '@/lib/coach-reading'
 import { filterListeningOptions, lessonListeningWords, prepareListeningWords, stripReadingLabels } from '@/lib/english-coach/listening-words'
 import { pronunciationMishearGuide, pronunciationMishears } from '@/lib/english-coach/pronunciation-mishear'
 import { normalizeDialogueMeaningKey } from '@/lib/english-coach/dialogue-meaning-key'
+import { canonicalizeTypedNativeMeaning } from '@/lib/english-coach/canonicalize-typed-native-meaning'
 import { idea1LockInstruction, idea1TeachingRules, idea1Teaches } from '@/lib/english-coach/idea1-teaching'
 import { applyLearnerMeaningNames } from '@/lib/english-coach/learner-meaning-lock'
 import { appendOpeningQuestion, hasOpeningQuestion, keepInCharacterReply } from '@/lib/english-coach/in-character-reply'
@@ -1547,12 +1548,12 @@ Chủ đề đang học:
     const lockedLearnerMeaning = micAnalysis?.nativeMeaningFromLearner ? micInferredMeaning : ''
     const typedTargetSentence = inputSource !== 'mic'
       && isLikelyTargetLanguageSentence(studentText, targetLanguageCode, targetScriptRegexByCode(targetLanguageCode))
-    const dialogueMeaning = (
+    let dialogueMeaning = (
       lockedLearnerMeaning
       || micInferredMeaning
       || (typedTargetSentence ? '' : studentText)
     ).trim()
-    const normalizedDialogueMeaning = normalizeDialogueMeaningKey(dialogueMeaning)
+    let normalizedDialogueMeaning = normalizeDialogueMeaningKey(dialogueMeaning)
     const micPronunciationIssues = Array.isArray(micAnalysis?.pronunciationIssues)
       ? micAnalysis!.pronunciationIssues!.map((x) => lessonText(String(x || '').trim())).filter(Boolean).slice(0, 6)
       : []
@@ -2246,6 +2247,23 @@ Chủ đề đang học:
         mainSentence: retry,
         mustKnowText: retry,
       })
+    }
+
+    const meaningFromMicSystem = inputSource === 'mic' && !micAnalysis?.nativeMeaningFromLearner
+    if (dialogueMeaning && !meaningFromMicSystem) {
+      const canonical = await canonicalizeTypedNativeMeaning({
+        apiKey,
+        text: dialogueMeaning,
+        nativeLanguage,
+        nativeLanguageCode,
+        userId: userId || null,
+        coachUsageContext,
+      })
+      const canonicalText = usesSimplifiedChinese(nativeLanguageCode) ? toSimplifiedChinese(canonical) : canonical
+      if (canonicalText && normalizeDialogueMeaningKey(canonicalText)) {
+        dialogueMeaning = canonicalText
+        normalizedDialogueMeaning = normalizeDialogueMeaningKey(canonicalText)
+      }
     }
 
     if (inputSource === 'mic' && !dialogueMeaning) {

@@ -1194,6 +1194,43 @@ function CoverFrameActions(props: {
   )
 }
 
+function coverPhotoEditing(props: Pick<WeddingCoverShellCardProps, 'onChoosePhoto' | 'onPhotoFile' | 'onChooseFrame'>): boolean {
+  return Boolean(props.onChoosePhoto || props.onPhotoFile || props.onChooseFrame)
+}
+
+/** Nút chọn hoặc đổi ảnh trên lỗ khung. Chỉ hiện khi đang sửa. */
+function CoverPhotoChoose(props: {
+  shell: Pick<
+    WeddingCoverShellCardProps,
+    | 'coverPhotoUrl'
+    | 'onChoosePhoto'
+    | 'onPhotoFile'
+    | 'onChooseFrame'
+    | 'choosePhotoLabel'
+    | 'changePhotoLabel'
+    | 'chooseFrameLabel'
+  >
+  className?: string
+  style?: CSSProperties
+}) {
+  if (!coverPhotoEditing(props.shell)) return null
+  return (
+    <CoverFrameActions
+      hasPhoto={Boolean(props.shell.coverPhotoUrl)}
+      onChoosePhoto={props.shell.onChoosePhoto}
+      onPhotoFile={props.shell.onPhotoFile}
+      onChooseFrame={props.shell.onChooseFrame}
+      choosePhotoLabel={props.shell.choosePhotoLabel}
+      changePhotoLabel={props.shell.changePhotoLabel}
+      chooseFrameLabel={props.shell.chooseFrameLabel}
+      restyleSlot="cover"
+      photoUrl={props.shell.coverPhotoUrl}
+      className={props.className}
+      style={props.style}
+    />
+  )
+}
+
 /** Kéo ảnh trong lỗ khung bằng vị trí và cỡ, không scale quanh object-position vì cách đó nuốt cú kéo. */
 function framedPortraitShift(objectPosition: string, scale: number): CSSProperties {
   const parts = objectPosition.trim().split(/\s+/)
@@ -1407,6 +1444,10 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
                 />
               ) : null}
             </CoverPhotoPan>
+            <CoverPhotoChoose
+              shell={props}
+              className={props.coverPhotoUrl ? 'bottom-2 left-1/2' : 'left-1/2 top-1/2 -translate-y-1/2'}
+            />
           </div>
         ) : (
           <CoverFrameViewport
@@ -1666,8 +1707,8 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
         frameMotion={frameMotion}
         edit={props.coverPhotoEdit}
         breathe={Boolean(props.breathe && !compact)}
-        onChoosePhoto={props.frameOnly ? undefined : props.onChoosePhoto}
-        onPhotoFile={props.frameOnly ? undefined : props.onPhotoFile}
+        onChoosePhoto={props.onChoosePhoto}
+        onPhotoFile={props.onPhotoFile}
         choosePhotoLabel={props.choosePhotoLabel}
         changePhotoLabel={props.changePhotoLabel}
         photoUrl={props.coverPhotoUrl}
@@ -1774,8 +1815,27 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
             >
               <div className={cn('absolute inset-0', photoMotion)}>{photo}</div>
             </CoverPhotoPan>
+          ) : coverPhotoEditing(props) ? (
+            <div
+              className="absolute z-[1] border border-dashed border-stone-400/70 bg-white/40"
+              style={{
+                left: `${slot.x}%`,
+                top: `${slot.y}%`,
+                width: `${slot.w}%`,
+                height: `${slot.h}%`,
+                borderRadius: slot.radius,
+              }}
+            />
           ) : null}
           <WeddingOrnamentStage kit={kit} layout={layout} />
+          <CoverPhotoChoose
+            shell={props}
+            className={photo ? undefined : '-translate-y-1/2'}
+            style={{
+              left: `${slot.x + slot.w / 2}%`,
+              top: photo ? `calc(${slot.y + slot.h}% - 1.75rem)` : `${slot.y + slot.h / 2}%`,
+            }}
+          />
         </div>
       </FrameResizeChrome>
     )
@@ -1825,6 +1885,7 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
               style={{ borderRadius: Math.min(layout.photo.radius, 22), aspectRatio: '3 / 4', boxShadow: mat ? WOOD_MAT_SHADOW : undefined }}
             >
               <div className={cn('absolute inset-0', photoMotion)}>{photo}</div>
+              <CoverPhotoChoose shell={props} className="bottom-2 left-1/2" />
             </CoverPhotoPan>
             ) : (
             <CoverPhotoSlot className="my-1">
@@ -1834,9 +1895,14 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
               style={{ borderRadius: Math.min(layout.photo.radius, 22), aspectRatio: '3 / 4', height: 'auto', boxShadow: mat ? WOOD_MAT_SHADOW : undefined }}
             >
               <div className={cn('absolute inset-0', photoMotion, props.breathe && 'wedding-cover-breathe')}>{photo}</div>
+              <CoverPhotoChoose shell={props} className="bottom-2 left-1/2" />
             </CoverPhotoPan>
             </CoverPhotoSlot>
             )
+          ) : coverPhotoEditing(props) ? (
+            <div className="relative mx-auto mt-2 aspect-[3/4] w-full overflow-hidden rounded-2xl border border-dashed border-stone-400/70 bg-white/45">
+              <CoverPhotoChoose shell={props} className="left-1/2 top-1/2 -translate-y-1/2" />
+            </div>
           ) : null}
           <div className={cn(compact ? 'my-0.5 text-base' : 'my-1 text-2xl leading-none', props.namesFlyIn && !compact && 'wedding-couple-ornament')} style={{ color: kit.metal }}>
             {props.preset.ornament}
@@ -2153,10 +2219,26 @@ function SongHyCoverCard(props: WeddingCoverShellCardProps) {
 }
 
 function SongHyArchPhoto(props: WeddingCoverShellCardProps) {
-  if (!props.coverPhotoUrl) return null
+  const editing = coverPhotoEditing(props)
+  if (!props.coverPhotoUrl && !editing) return null
   const head = weddingCoverPhotoHead(props.presetId)
   const tone = weddingCoverGateTone(props.presetId)
   const photo = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
+  const choose = (
+    <CoverPhotoChoose
+      shell={props}
+      className={props.coverPhotoUrl ? 'bottom-2 left-1/2' : 'left-1/2 top-1/2 -translate-y-1/2'}
+    />
+  )
+  if (!props.coverPhotoUrl) {
+    return (
+      <CoverPhotoSlot>
+        <div className="relative mx-auto aspect-[3/4] w-[86%] overflow-hidden rounded-2xl border border-dashed border-[#e8c87a]/70 bg-white/35">
+          {choose}
+        </div>
+      </CoverPhotoSlot>
+    )
+  }
   const shot = (
     <CoverPhotoPan edit={props.coverPhotoEdit} className="relative h-full w-full">
       <CoverPhoto
@@ -2175,16 +2257,22 @@ function SongHyArchPhoto(props: WeddingCoverShellCardProps) {
     return (
       <CoverPhotoSlot>
         <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidthFromMin(head === 'leaf' ? 86 : 100, frameScaleOf(props.frameScale, weddingCoverFrameScaleFloor(props.presetId)))}%` }}>
-          <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId} fillParent frameScale={WEDDING_FRAME_SCALE_MIN}>
-            {shot}
-          </SongHyPhotoMount>
+          <div className="relative">
+            <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId} fillParent frameScale={WEDDING_FRAME_SCALE_MIN}>
+              {shot}
+            </SongHyPhotoMount>
+            {choose}
+          </div>
         </FrameResizeChrome>
       </CoverPhotoSlot>
     )
   }
   return (
     <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto w-full">
-      {weddingCoverPhotoClip(head) ? <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId} frameScale={props.frameScale}>{shot}</SongHyPhotoMount> : shot}
+      <div className="relative">
+        {weddingCoverPhotoClip(head) ? <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId} frameScale={props.frameScale}>{shot}</SongHyPhotoMount> : shot}
+        {choose}
+      </div>
     </FrameResizeChrome>
   )
 }
@@ -2307,6 +2395,14 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
           className="absolute z-[6]"
           style={{ left: '50%', top: 'calc(-40% + 37%)', transform: 'translate(-50%, -50%)' }}
         />
+      ) : null}
+      {coverPhotoEditing(props) ? (
+        <div
+          className="pointer-events-none absolute z-[7]"
+          style={{ left: '11%', top: '-40%', width: '78%', height: '40%' }}
+        >
+          <CoverPhotoChoose shell={props} className="top-2 left-1/2" />
+        </div>
       ) : null}
       <img src={tone.paper} alt="" draggable={false} width={1000} height={962} className="relative z-[2] block w-full select-none" style={{ aspectRatio: '1000 / 962' }} />
       <img
@@ -2600,20 +2696,30 @@ export function WeddingCoverShellCard(props: WeddingCoverShellCardProps) {
   if (preset.layout === 'song_hy') return <SongHyCoverCard {...props} />
   if (preset.layout === 'red_arch' && !props.frameOnly) return <RedArchCoverCard {...props} />
   if (props.frameOnly) {
-    if (!props.coverPhotoUrl) return null
+    if (!props.coverPhotoUrl && !coverPhotoEditing(props)) return null
     const photo = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
     return (
       <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto w-full">
-        <CoverPhotoPan edit={props.coverPhotoEdit} className="relative w-full">
-          <CoverPhoto
-            url={props.coverPhotoUrl}
-            alt={props.photoAlt}
-            objectPosition={photo.position}
-            scale={photo.zoom}
-            boxScale={props.frameScale}
-            className="rounded-2xl"
+        <div className="relative w-full">
+          {props.coverPhotoUrl ? (
+            <CoverPhotoPan edit={props.coverPhotoEdit} className="relative w-full">
+              <CoverPhoto
+                url={props.coverPhotoUrl}
+                alt={props.photoAlt}
+                objectPosition={photo.position}
+                scale={photo.zoom}
+                boxScale={props.frameScale}
+                className="rounded-2xl"
+              />
+            </CoverPhotoPan>
+          ) : (
+            <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl border border-dashed border-[#e8c87a]/70 bg-white/35" />
+          )}
+          <CoverPhotoChoose
+            shell={props}
+            className={props.coverPhotoUrl ? 'bottom-2 left-1/2' : 'left-1/2 top-1/2 -translate-y-1/2'}
           />
-        </CoverPhotoPan>
+        </div>
       </FrameResizeChrome>
     )
   }

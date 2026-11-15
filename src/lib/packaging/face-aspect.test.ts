@@ -22,7 +22,9 @@ test('builds face aspect plan and confirm summary from box dimensions', () => {
   assert.match(summary, /Mặt đáy\/nắp/)
   assert.match(summary, /Mặt trước\/sau/)
   assert.match(summary, /Mặt bên\/hông/)
-  assert.match(summary, /Gemini/)
+  assert.match(summary, /NanoAI 2K \/ NanoAI 4K/)
+  assert.match(summary, /NanoAI 2L \/ NanoAI 2M \/ NanoAI 2H/)
+  assert.doesNotMatch(summary, /Gemini|GPT/)
 })
 
 test('portrait face picks the closest ratio each model can return', () => {
@@ -38,9 +40,10 @@ test('serum box 50×130 mm does not request a ratio the model rejects', () => {
   assert.equal(getFaceGeminiAspectRatio(50, 50), '1:1')
   assert.equal(closestGptFaceAspectRatio(50, 50), '1:1')
   const summary = buildBoxFaceConfirmSummary('vi', { length: 50, width: 50, height: 130 })
-  assert.match(summary, /Gemini \*\*9:16\*\*/)
-  assert.match(summary, /GPT \*\*2:3\*\*/)
-  assert.match(summary, /GPT \*\*1:1\*\*/)
+  assert.match(summary, /NanoAI 2K \/ NanoAI 4K \*\*9:16\*\*/)
+  assert.match(summary, /NanoAI 2L \/ NanoAI 2M \/ NanoAI 2H \*\*2:3\*\*/)
+  assert.match(summary, /NanoAI 2L \/ NanoAI 2M \/ NanoAI 2H \*\*1:1\*\*/)
+  assert.doesNotMatch(summary, /Gemini|GPT/)
 })
 
 test('detects box face confirmation ack messages', () => {

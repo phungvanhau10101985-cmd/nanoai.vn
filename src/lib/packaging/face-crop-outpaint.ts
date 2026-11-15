@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
-import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { geminiQualityCredit, imageChargeFromForm } from '@/lib/ai/image-engine'
 import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
@@ -31,6 +31,7 @@ export async function runFaceCropOutpaint(input: {
   aspectRatio: string
   imageEngine?: string | null
   gptQuality?: string | null
+  imageQuality?: string | null
 }): Promise<FaceCropOutpaintResult> {
   let balance = 0
   try {
@@ -46,7 +47,7 @@ export async function runFaceCropOutpaint(input: {
         return null
       },
     },
-    UI_MOCKUP_CREDIT,
+    geminiQualityCredit(UI_MOCKUP_CREDIT, input.imageQuality),
   )
   if (priced.error) return { ok: false, error: priced.error }
   const cost = priced.cost
@@ -65,7 +66,7 @@ export async function runFaceCropOutpaint(input: {
       model: GEMINI_3_PRO_IMAGE.model,
       generationConfig: {
         responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { imageSize: '2K' },
+        imageConfig: { imageSize: String(input.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : '2K' },
       },
     })
   }
@@ -94,7 +95,7 @@ export async function runFaceCropOutpaint(input: {
       GEMINI_3_PRO_IMAGE.model,
       'hub-studio-crop-outpaint',
       input.userId,
-      '2K'
+      String(input.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : '2K'
     )
     const imagePartRes = result.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) {

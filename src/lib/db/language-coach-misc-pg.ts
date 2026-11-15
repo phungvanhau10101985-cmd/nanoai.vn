@@ -115,3 +115,43 @@ export async function rescheduleReviewQueueWordsPg(
   }
   return total
 }
+
+/** Câu gõ tiếng mẹ đẻ → câu chuẩn. Khóa là hash của ngôn ngữ + câu đã bỏ dấu câu. */
+export async function getMeaningCanonicalCachePg(cacheKey: string): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ canonical_text: string }>(
+      `select canonical_text from public.language_coach_meaning_canonical_cache where cache_key = $1 limit 1`,
+      [cacheKey]
+    )
+    const text = String(row?.canonical_text || '').trim()
+    return text || null
+  } catch (e) {
+    console.error('[language-coach-misc-pg] getMeaningCanonicalCachePg', e)
+    return null
+  }
+}
+
+export async function upsertMeaningCanonicalCachePg(input: {
+  cacheKey: string
+  nativeLanguage: string
+  sourceText: string
+  canonicalText: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    await pgQuery(
+      `insert into public.language_coach_meaning_canonical_cache (
+         cache_key, native_language, source_text, canonical_text
+       ) values ($1, $2, $3, $4)
+       on conflict (cache_key) do update set
+         canonical_text = excluded.canonical_text,
+         source_text = excluded.source_text`,
+      [input.cacheKey, input.nativeLanguage, input.sourceText, input.canonicalText]
+    )
+    return true
+  } catch (e) {
+    console.error('[language-coach-misc-pg] upsertMeaningCanonicalCachePg', e)
+    return false
+  }
+}

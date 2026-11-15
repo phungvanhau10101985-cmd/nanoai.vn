@@ -7,6 +7,7 @@ import {
   Flag,
   Download,
   ClipboardCheck,
+  GraduationCap,
   ShieldCheck,
   Landmark,
   Wallet,
@@ -320,6 +321,24 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       ko: '교육',
     },
     items: [
+      {
+        href: '/admin/curriculum-teacher-stats',
+        title: {
+          vi: 'Thống kê giáo viên',
+          en: 'Teacher stats',
+          zh: '教师统计',
+          ja: '教師の統計',
+          ko: '교사 통계',
+        },
+        description: {
+          vi: 'Số người mở giáo trình, tạo giáo trình, và giáo viên đã mua gói.',
+          en: 'People who opened or created a curriculum, and teachers who bought a plan.',
+          zh: '打开或创建课程的人数，以及已购买套餐的教师。',
+          ja: '教材を開いた人、作成した人、プランを購入した教師。',
+          ko: '교육과정을 열거나 만든 사람과 요금제를 산 교사.',
+        },
+        icon: GraduationCap,
+      },
       {
         href: '/admin/english-coach',
         title: {

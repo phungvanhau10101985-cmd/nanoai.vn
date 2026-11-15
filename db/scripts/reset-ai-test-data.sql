@@ -50,6 +50,7 @@ truncate table public.language_coach_tts_cache cascade;
 truncate table public.language_coach_transliteration_cache cascade;
 truncate table public.language_coach_dialogue_replay_cache cascade;
 truncate table public.language_coach_opening_translation_cache cascade;
+truncate table public.language_coach_meaning_canonical_cache cascade;
 truncate table public.language_coach_cache_daily_stats cascade;
 
 -- 5. Khác – AI tạo (try_on_history CASCADE xóa translate_jobs)

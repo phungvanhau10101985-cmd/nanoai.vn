@@ -60,6 +60,8 @@ import { HubBoxDimensionForm } from '@/components/hub-chat/hub-box-dimension-for
 import { HubBagDimensionForm } from '@/components/hub-chat/hub-bag-dimension-form'
 import { HubBarcodeLabelForm } from '@/components/hub-chat/hub-barcode-label-form'
 import { HubBoxFaceConfirmActions } from '@/components/hub-chat/hub-box-face-confirm-actions'
+import { HubBoxDielineStructurePicker } from '@/components/hub-chat/hub-box-dieline-structure-picker'
+import { BoxFoldStudioLink, boxFoldStudioPath, packagingFoldStudioStep } from '@/components/packaging/box-fold-studio-link'
 import { HubColorPalettePicker } from '@/components/hub-chat/hub-color-palette-picker'
 import { HubDiscoveryChoicePicker } from '@/components/hub-chat/hub-discovery-choice-picker'
 import { HubFacePrintStylePicker } from '@/components/hub-chat/hub-face-print-style-picker'
@@ -151,6 +153,7 @@ import {
   type BagFaceSlot,
 } from '@/lib/hub-chat/bag-kit-shared'
 import { isBagFaceStepKey } from '@/lib/packaging/bag-dimensions'
+import { isPackagingFacePolishStep } from '@/lib/packaging/face-prompt-polish-credit'
 import {
   resolvePrintLanguageKey,
   type PackagingPrintLanguageKey,
@@ -517,8 +520,10 @@ export function HomeHubChatBar() {
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const imageEngineRef = useRef(imageEngine)
   const gptQualityRef = useRef(gptQuality)
+  const geminiQualityRef = useRef(geminiQuality)
   imageEngineRef.current = imageEngine
   gptQualityRef.current = gptQuality
+  geminiQualityRef.current = geminiQuality
   const renderImageModelPicker = () => (
     <ImageEnginePicker
       locale={uiLocale}
@@ -529,6 +534,7 @@ export function HomeHubChatBar() {
       gptQuality={gptQuality}
       onGptQualityChange={setGptQuality}
       geminiCost2k={UI_MOCKUP_CREDIT}
+      geminiCost4k={UI_MOCKUP_CREDIT * 2}
     />
   )
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
@@ -954,6 +960,8 @@ export function HomeHubChatBar() {
       boxDimensionsMm?: { length: number; width: number; height: number }
       bagDimensionsMm?: { width: number; height: number; gusset: number }
       boxProduction?: TuckBoxProductionParams
+      boxDielineStructure?: string
+      boxNetFaceMap?: Partial<Record<'top' | 'front' | 'right' | 'bottom' | 'back' | 'left', 'top' | 'front' | 'right' | 'bottom' | 'back' | 'left'>>
       barcodeEntries?: PackagingBarcodeFormEntry[]
       forceNewThread?: boolean
       featureKey?: string
@@ -1082,6 +1090,7 @@ export function HomeHubChatBar() {
             stripBackground: payload.stripBackground,
             imageEngine: imageEngineRef.current,
             gptQuality: gptQualityRef.current,
+            imageQuality: geminiQualityRef.current,
             landingPublishedShareUrl: payload.landingPublishedShareUrl,
             landingPublishedShareToken: payload.landingPublishedShareToken,
             landingHtmlSource: payload.landingHtmlSource,
@@ -1092,6 +1101,8 @@ export function HomeHubChatBar() {
             boxDimensionsMm: payload.boxDimensionsMm,
             bagDimensionsMm: payload.bagDimensionsMm,
             boxProduction: payload.boxProduction,
+            boxDielineStructure: payload.boxDielineStructure,
+            boxNetFaceMap: payload.boxNetFaceMap,
             barcodeEntries: payload.barcodeEntries,
             featureKey: payload.featureKey,
           }),
@@ -1114,6 +1125,7 @@ export function HomeHubChatBar() {
             createdAt?: string
           }[] | null
           userMessageId?: string | null
+          polishedPrompt?: string
         }
         if (res.status === 401) {
           const next = sanitizeLoginNext(typeof window !== 'undefined' ? window.location.pathname : '/')
@@ -1125,6 +1137,20 @@ export function HomeHubChatBar() {
         if (data.threadId) {
           setThreadId(data.threadId)
           saveHubThreadId(data.threadId)
+        }
+        if (payload.action === 'polish_packaging_face_prompt') {
+          if (data.session) {
+            const session = withClientStudioSession(data.session, uiLocale)
+            if (session) setStudioSession(session)
+          }
+          const polished = data.polishedPrompt?.trim()
+          if (polished) setMessage(polished)
+          toast({
+            title: hc.studioFacePolishDone,
+            description: hc.studioFacePolishDoneDesc,
+          })
+          if (typeof window !== 'undefined') window.dispatchEvent(new Event('credits-updated'))
+          return true
         }
         if (silent) {
           if (data.session) {
@@ -2262,7 +2288,9 @@ export function HomeHubChatBar() {
       showMenuDesignPrepare ||
       showLandingDesignPrepare ||
       showSampleUploadStep ||
-      showDesignRecreateDesignPicker,
+      showDesignRecreateDesignPicker ||
+      (studioSession?.presetId === 'packaging_kit' &&
+        getActiveStepKey(studioSession) === 'box_net_2d'),
     [
       studioSession,
       showBannerDesignPrepare,
@@ -2342,6 +2370,15 @@ export function HomeHubChatBar() {
       currentDesignGenerator &&
       !showBarcodeLabelForm &&
       !showDesignRecreateDesignPicker &&
+      !(
+        studioSession?.presetId === 'packaging_kit' &&
+        getActiveStepKey(studioSession) === 'box_dieline_pdf' &&
+        studioSession.packaging?.dimensionsMm
+      ) &&
+      !(
+        studioSession?.presetId === 'packaging_kit' &&
+        getActiveStepKey(studioSession) === 'box_net_2d'
+      ) &&
       !(studioSession && pendingPreviewBlocksWorkflowInput(studioSession))
   )
 
@@ -2363,6 +2400,13 @@ export function HomeHubChatBar() {
             currentDesignGenerator === 'barcode'
           ? hc.studioGenerateArtifact
           : hc.studioGenerateCurrent
+
+  const showFacePromptPolish = Boolean(
+    showGenerateCurrentStep &&
+      currentDesignGenerator === 'packaging_face' &&
+      studioSession &&
+      isPackagingFacePolishStep(studioSession.presetId, getActiveStepKey(studioSession))
+  )
 
   const generateCanRunWithoutBrief =
     currentDesignGenerator === 'packaging_mockup' ||
@@ -2604,7 +2648,7 @@ export function HomeHubChatBar() {
     async (
       blob: Blob,
       aspectRatio: string,
-      engine?: { imageEngine?: string; gptQuality?: string }
+      engine?: { imageEngine?: string; gptQuality?: string; imageQuality?: string }
     ): Promise<string | null> => {
       if (busy) return null
       setBusy(true)
@@ -2616,6 +2660,7 @@ export function HomeHubChatBar() {
         fd.append('cropAspectRatio', aspectRatio)
         fd.append('imageEngine', engine?.imageEngine || imageEngineRef.current)
         fd.append('gptQuality', engine?.gptQuality || gptQualityRef.current)
+        fd.append('imageQuality', engine?.imageQuality || geminiQualityRef.current)
         if (threadId) fd.append('threadId', threadId)
         fd.append('images', new File([blob], 'crop-outpaint.png', { type: 'image/png' }))
         const res = await fetch('/api/hub-chat', { method: 'POST', credentials: 'same-origin', body: fd })
@@ -2901,6 +2946,52 @@ export function HomeHubChatBar() {
     [postStudio]
   )
 
+  const foldStudioStep = studioSession ? getActiveStepKey(studioSession) : null
+  const showFoldStudioLink = Boolean(
+    threadId &&
+      studioSession?.presetId === 'packaging_kit' &&
+      studioSession.packaging?.dimensionsMm &&
+      packagingFoldStudioStep(foldStudioStep)
+  )
+
+  useEffect(() => {
+    if (!threadId || !studioSession || studioSession.presetId !== 'packaging_kit') return
+    const key = `nanoai-box-fold-opened:${threadId}`
+    if (foldStudioStep !== 'box_net_2d' || !studioSession.packaging?.dimensionsMm) {
+      try {
+        sessionStorage.removeItem(key)
+      } catch {
+        /* ignore */
+      }
+      return
+    }
+    try {
+      if (sessionStorage.getItem(key) === '1') return
+      sessionStorage.setItem(key, '1')
+    } catch {
+      return
+    }
+    router.push(boxFoldStudioPath(threadId))
+  }, [foldStudioStep, router, studioSession, threadId])
+
+  const showBoxDielinePicker = Boolean(
+    studioSession?.presetId === 'packaging_kit' &&
+      getActiveStepKey(studioSession) === 'box_dieline_pdf' &&
+      studioSession.packaging?.dimensionsMm &&
+      !pendingPreviewBlocksWorkflowInput(studioSession)
+  )
+
+  const submitBoxDieline = useCallback(
+    async (structure: string, production: TuckBoxProductionParams) => {
+      await postStudio({
+        action: 'set_box_dieline_structure',
+        boxDielineStructure: structure,
+        boxProduction: production,
+      })
+    },
+    [postStudio]
+  )
+
   const submitBoxDimensions = useCallback(
     async (value: {
       dimensionsMm: { length: number; width: number; height: number }
@@ -3169,6 +3260,18 @@ export function HomeHubChatBar() {
       currentDesignGenerator,
     ]
   )
+
+  const polishFacePrompt = useCallback(async () => {
+    const trimmed = message.trim()
+    if (trimmed.length < 2) {
+      toast({ title: hc.studioFacePolishEmpty, variant: 'destructive' })
+      return
+    }
+    await postStudio({
+      action: 'polish_packaging_face_prompt',
+      message: trimmed,
+    })
+  }, [hc.studioFacePolishEmpty, message, postStudio, toast])
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -4239,6 +4342,22 @@ export function HomeHubChatBar() {
             />
           ) : null}
 
+          {showFoldStudioLink && threadId ? (
+            <BoxFoldStudioLink locale={uiLocale} threadId={threadId} />
+          ) : null}
+
+          {showBoxDielinePicker && studioSession?.packaging?.dimensionsMm ? (
+            <HubBoxDielineStructurePicker
+              locale={uiLocale}
+              busy={busy}
+              dimensionsMm={studioSession.packaging.dimensionsMm}
+              production={studioSession.packaging.production}
+              structureVersion={studioSession.packaging.dielineStructureVersion}
+              selectedStructure={studioSession.packaging.dielineStructure}
+              onSelect={submitBoxDieline}
+            />
+          ) : null}
+
           {showBoxDimensionForm ? (
             <HubBoxDimensionForm
               locale={uiLocale}
@@ -4493,8 +4612,23 @@ export function HomeHubChatBar() {
                 <span>{hc.studioLogoStripBg}</span>
               </label>
             ) : null}
+            {showFacePromptPolish ? (
+              <p className="text-xs text-muted-foreground">{hc.studioFacePolishHint}</p>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               {renderImageModelPicker()}
+              {showFacePromptPolish ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  disabled={busy || message.trim().length < 2}
+                  onClick={() => void polishFacePrompt()}
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {hc.studioFacePolishAi}
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 className="gap-2 bg-violet-600 hover:bg-violet-700"

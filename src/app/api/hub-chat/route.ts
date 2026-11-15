@@ -206,6 +206,7 @@ export async function POST(request: NextRequest) {
         cropScreenKey,
         imageEngine: String(fd.get('imageEngine') ?? '') || undefined,
         gptQuality: String(fd.get('gptQuality') ?? '') || undefined,
+        imageQuality: String(fd.get('imageQuality') ?? '') || undefined,
       })
       if (!result.ok) {
         return NextResponse.json({ error: result.error || 'Studio lỗi.' }, { status: result.error ? 422 : 500 })
@@ -264,6 +265,7 @@ export async function POST(request: NextRequest) {
       stripBackground?: boolean | string | number | null
       imageEngine?: string | null
       gptQuality?: string | null
+      imageQuality?: string | null
       landingPublishedShareUrl?: string
       landingPublishedShareToken?: string
       landingHtmlSource?: string
@@ -273,6 +275,7 @@ export async function POST(request: NextRequest) {
       colorPaletteKeys?: string[]
       colorPaletteSelection?: Array<{ key?: string; role?: string }>
       boxDielineStructure?: string
+      boxNetFaceMap?: Record<string, string>
       boxDimensionsMm?: { length?: number; width?: number; height?: number }
       bagDimensionsMm?: { width?: number; height?: number; gusset?: number }
       boxProduction?: {
@@ -280,6 +283,13 @@ export async function POST(request: NextRequest) {
         glueTabMm?: number
         paperThicknessMm?: number
         compensationGapMm?: number
+        paperStock?: string
+        fingerNotch?: boolean
+        lockDetails?: boolean
+        safeZoneMm?: number
+        insertCols?: number
+        insertRows?: number
+        jarDiameterMm?: number
       }
       barcodeEntries?: Array<{
         type?: string
@@ -430,6 +440,7 @@ export async function POST(request: NextRequest) {
         stripBackground,
         imageEngine: body?.imageEngine,
         gptQuality: body?.gptQuality,
+        imageQuality: body?.imageQuality,
         landingPublishedShareUrl,
         landingPublishedShareToken,
         landingHtmlSource,
@@ -438,6 +449,7 @@ export async function POST(request: NextRequest) {
         colorPaletteKeys,
         colorPaletteSelection,
         boxDielineStructure,
+        boxNetFaceMap: body?.boxNetFaceMap,
         boxDimensionsMm: body?.boxDimensionsMm,
         bagDimensionsMm: body?.bagDimensionsMm,
         boxProduction: body?.boxProduction,
@@ -459,6 +471,7 @@ export async function POST(request: NextRequest) {
         threadId: result.threadId,
         chargedChat: result.chargedChat,
         chargedImage: result.chargedImage,
+        polishedPrompt: result.polishedPrompt,
         workflows: result.workflows,
         plan: result.plan ?? null,
         hubRoute: result.hubRoute,

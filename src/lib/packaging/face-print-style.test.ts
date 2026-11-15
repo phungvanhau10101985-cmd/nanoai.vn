@@ -8,6 +8,7 @@ import {
   resolveFacePrintStyle,
 } from '@/lib/packaging/face-print-style'
 import { buildStepsFromPreset } from '@/lib/hub-chat/hub-studio-presets'
+import { emptyStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import type { HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 
 test('parseFacePrintStyleKey accepts canonical keys and aliases', () => {
@@ -61,4 +62,28 @@ test('reconcilePackagingProcessSteps inserts the visual style step for saved ses
   assert.equal(next.currentStepKey, 'face_print_style')
   assert.equal(next.discoveryComplete, false)
   assert.deepEqual(next.referenceImages.map((reference) => reference.screenKey), ['face_top'])
+})
+
+test('reconcile inserts the 2D net step before an unfinished mockup', () => {
+  const steps = buildStepsFromPreset('vi', 'packaging_kit').filter((step) => step.key !== 'box_net_2d')
+  const session: HubStudioSession = {
+    ...emptyStudioSession(),
+    presetId: 'packaging_kit',
+    discoveryComplete: true,
+    currentStepKey: 'box_mockup_3d',
+    processSteps: steps.map((step) => ({
+      ...step,
+      status: step.key === 'box_mockup_3d' ? 'in_progress' : 'done',
+    })),
+    packaging: {
+      version: 2,
+      dimensionsMm: { length: 120, width: 80, height: 50 },
+      faces: {},
+    },
+  }
+  const next = reconcilePackagingProcessSteps(session, 'vi')
+  const keys = next.processSteps.map((step) => step.key)
+  assert.equal(keys.indexOf('box_net_2d'), keys.indexOf('face_left') + 1)
+  assert.equal(next.currentStepKey, 'box_net_2d')
+  assert.equal(next.processSteps.find((step) => step.key === 'box_mockup_3d')?.status, 'pending')
 })

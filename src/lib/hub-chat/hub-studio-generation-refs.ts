@@ -18,7 +18,7 @@ import { pickMobileShopReferencesForGeneration } from '@/lib/hub-chat/hub-mobile
 
 export function stepSupportsGenerationRefPicker(presetId: string, stepKey: string): boolean {
   if (isLogoDesignStep(presetId, stepKey)) return false
-  if (stepKey === 'box_mockup_3d' || stepKey === 'box_dieline_pdf') return false
+  if (stepKey === 'box_net_2d' || stepKey === 'box_mockup_3d' || stepKey === 'box_dieline_pdf') return false
   if (isPackagingPostMockupStepKey(stepKey)) return false
   const gen = getStepGenerator(presetId, stepKey)
   if (!gen) return false

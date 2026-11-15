@@ -6,7 +6,7 @@ export const NEW_PRESETS_JA = {
   packaging_kit: {
     title: '紙箱デザイン',
     kickoff:
-      '技術的な紙箱フロー：ロゴ → 天面|正面|右|底面|背面|左の6面を1面ずつ作成 → 3Dモックアップ → Dieline PDF → ラベル → 封緘シール → バーコード。',
+      '技術的な紙箱フロー：ロゴ → 天面|正面|右|底面|背面|左の6面を1面ずつ作成 → 2D展開で折り方を選択 → 3Dモックアップ → Dieline PDF → ラベル → 封緘シール → バーコード。',
     steps: {
       brand_name: 'ブリーフ：ブランド名',
       product_type: 'ブリーフ：商品タイプ',
@@ -24,6 +24,7 @@ export const NEW_PRESETS_JA = {
       face_bottom: '底面 (L×W)',
       face_back: '背面 (L×H)',
       face_left: '左側面 (W×H)',
+      box_net_2d: '2D展開（折り方）',
       face_lxw: 'L×W面（天面/底面）',
       face_lxh: 'L×H面（正面/背面）',
       face_wxh: 'W×H面（側面）',
@@ -55,8 +56,10 @@ export const NEW_PRESETS_JA = {
       face_lxw: 'L×W 天面/底面 — **この面の印刷内容**を入力（ロゴ、品名、装飾…）。デザイン画像を生成します。',
       face_lxh: 'L×H 正面/背面 — **この面の印刷内容**を入力（品名、届出番号、成分、効能…）。',
       face_wxh: 'W×H 側面 — **この面の印刷内容**を入力（使用方法、警告、副成分…）。',
-      box_dieline_pdf: '製造パラメータを確認し、1:1の技術Dieline PDFを出力します。',
-      box_mockup_3d: 'Dieline PDF出力前に3Dモックアップを作成・承認します。',
+      box_net_2d:
+        '展開ページを開きました。折り方を選ぶと展開がすぐ変わり、3Dも同じページにあります。後の工程から戻って直せます。',
+      box_dieline_pdf: '製造パラメータを確認し、2D展開で選んだ折り方の1:1技術Dieline PDFを出力します。',
+      box_mockup_3d: '**3Dモックアップを作成**と入力し、2D展開で選んだ折り方の箱を確認します。',
       product_label: '商品ラベル（白黒）：下で形状 + アスペクト比 + 内容（品名、成分、用法…）。ロゴのみ合成。',
       seal_sticker: '封緘シール：下で形状 + アスペクト比 + スローガン/説明。ロゴのみ — 箱面画像は使わない。',
       barcode_label: '実バーコード：briefの品名を使用。商品コード（例 SKU: 188-SRM-001）。既定 Code128 — EAN-13/QR も可。',

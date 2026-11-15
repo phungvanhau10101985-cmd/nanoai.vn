@@ -39,7 +39,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { requiredCreditsForLogoCreate } from '@/lib/remove-background-png-prompts'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
-import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { geminiQualityCredit, imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 
 type LogoVersionRow = {
   id: string
@@ -94,8 +94,13 @@ export function PartnerWebsiteLogosPanel({
   const [createRefUrl, setCreateRefUrl] = useState('')
   const [createStripBg, setCreateStripBg] = useState(false)
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
-  const logoImageCredit = imageEngineCredit({ engine: imageEngine, gptQuality, geminiCost: 1.5 })
+  const logoImageCredit = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: geminiQualityCredit(1.5, geminiQuality),
+  })
   const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
   const [slogan, setSlogan] = useState('')
   const [sloganIdea, setSloganIdea] = useState('')
@@ -392,6 +397,7 @@ export function PartnerWebsiteLogosPanel({
           stripBackground: createStripBg,
           imageEngine,
           gptQuality,
+          imageQuality: geminiQuality,
         }),
       })
       const json = (await res.json().catch(() => ({}))) as {
@@ -499,11 +505,12 @@ export function PartnerWebsiteLogosPanel({
             locale={locale}
             engine={imageEngine}
             onEngineChange={setImageEngine}
-            geminiQuality="2K"
-            onGeminiQualityChange={() => {}}
+            geminiQuality={geminiQuality}
+            onGeminiQualityChange={setGeminiQuality}
             gptQuality={gptQuality}
             onGptQualityChange={setGptQuality}
             geminiCost2k={1.5}
+            geminiCost4k={3}
           />
           <Button
             type="button"

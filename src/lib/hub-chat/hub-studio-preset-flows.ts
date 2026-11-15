@@ -101,6 +101,7 @@ export const PACKAGING_KIT_FLOW: StudioFlowStepDef[] = [
   { key: 'face_bottom', labelKey: 'face_bottom', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
   { key: 'face_back', labelKey: 'face_back', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
   { key: 'face_left', labelKey: 'face_left', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
+  { key: 'box_net_2d', labelKey: 'box_net_2d', phase: 'design', generator: 'box_net', formFactor: 'desktop' },
   { key: 'box_mockup_3d', labelKey: 'box_mockup_3d', phase: 'design', generator: 'packaging_mockup', aspectRatio: '1:1', formFactor: 'square' },
   { key: 'box_dieline_pdf', labelKey: 'box_dieline_pdf', phase: 'design', generator: 'dieline_pdf', formFactor: 'desktop' },
   { key: 'product_label', labelKey: 'product_label', phase: 'design', generator: 'packaging', aspectRatio: '1:1', formFactor: 'square' },

@@ -1,79 +1,135 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import type { WebLocale } from '@/lib/i18n/config'
-import { formatStudioExampleLabel } from '@/lib/hub-chat/hub-studio-example-label'
 import type { BoxDimensionsMm } from '@/lib/packaging/dimensions'
-import type { TuckBoxProductionParams } from '@/lib/packaging/tuck-box-production'
 import {
-  BOX_DIELINE_STRUCTURE_KEYS,
+  defaultTuckBoxProductionParams,
+  type TuckBoxProductionParams,
+} from '@/lib/packaging/tuck-box-production'
+import {
+  BOX_DIELINE_GROUPS,
+  boxDielineGroupLabel,
   boxDielineStructureCopy,
+  resolveBoxDielineStructure,
   type BoxDielineStructure,
 } from '@/lib/packaging/dieline-structure'
 import { generateTuckEndBlankSvg } from '@/lib/packaging/box-net-svg'
+import { PAPER_STOCK_IDS, type PaperStockId } from '@/lib/packaging/paper-stock'
 
 const COPY: Record<
   WebLocale,
   {
-    confirmTitle: string
-    generateTitle: string
+    title: string
     hint: string
-    generateHint: string
-    selected: string
-    confirmAction: string
-    generateAction: string
+    paper: string
+    glue: string
+    safe: string
+    notch: string
+    cols: string
+    rows: string
+    jar: string
+    action: string
+    stocks: Record<PaperStockId, string>
   }
 > = {
   vi: {
-    confirmTitle: 'Chọn kết cấu dieline để xác nhận',
-    generateTitle: 'Tạo Dieline PDF (2 kiểu)',
-    hint: 'Kích thước 6 mặt giữ nguyên; lựa chọn này quyết định cách nối mặt, đường cấn và tai dán.',
-    generateHint:
-      'Hệ thống tạo sẵn cả Dải ngang và Chữ thập — xem trước từng kiểu rồi bấm tạo; sau đó tải file phù hợp với xưởng in.',
-    selected: 'Đang xem trước',
-    confirmAction: 'Xác nhận kiểu này',
-    generateAction: 'Tạo 2 file Dieline PDF',
+    title: 'Chọn kiểu hộp để xuất dieline',
+    hint: 'Nắp và đáy cộng 2 lần độ dày giấy. Lưỡi gài và tai bụi hẹp 1 mm mỗi bên. Tai dán không in.',
+    paper: 'Loại giấy',
+    glue: 'Tai dán (12–20 mm)',
+    safe: 'Vùng an toàn (3–5 mm)',
+    notch: 'Khoét ngón tay',
+    cols: 'Số cột lót',
+    rows: 'Số hàng lót',
+    jar: 'Đường kính hũ (mm, 0 = tự tính)',
+    action: 'Tạo file in',
+    stocks: {
+      ivory_300: 'Ivory 300 gsm',
+      ivory_350: 'Ivory 350 gsm',
+      duplex_300: 'Duplex 300 gsm',
+      duplex_350: 'Duplex 350 gsm',
+      custom: 'Độ dày tùy chỉnh',
+    },
   },
   en: {
-    confirmTitle: 'Choose a dieline structure to confirm',
-    generateTitle: 'Generate Dieline PDF (both layouts)',
-    hint: 'All six face sizes stay unchanged; this controls panel connections, creases and glue tabs.',
-    generateHint:
-      'Both the horizontal strip and cross net are exported — preview each layout, then generate and download the file your printer needs.',
-    selected: 'Previewing',
-    confirmAction: 'Confirm this structure',
-    generateAction: 'Generate both Dieline PDFs',
+    title: 'Choose a carton style',
+    hint: 'Lid and base gain 2× paper caliper. Tuck and dust flaps narrow 1 mm each side. Glue tabs stay unprinted.',
+    paper: 'Paper',
+    glue: 'Glue tab (12–20 mm)',
+    safe: 'Safe zone (3–5 mm)',
+    notch: 'Thumb notch',
+    cols: 'Insert columns',
+    rows: 'Insert rows',
+    jar: 'Jar diameter (mm, 0 = auto)',
+    action: 'Create the print file',
+    stocks: {
+      ivory_300: 'Ivory 300 gsm',
+      ivory_350: 'Ivory 350 gsm',
+      duplex_300: 'Duplex 300 gsm',
+      duplex_350: 'Duplex 350 gsm',
+      custom: 'Custom thickness',
+    },
   },
   zh: {
-    confirmTitle: '选择要确认的刀模结构',
-    generateTitle: '生成 Dieline PDF（2 种排版）',
-    hint: '六个面的尺寸保持不变；此选项决定面板连接、压痕线和粘口。',
-    generateHint: '系统将同时导出横向排版与十字排版 — 可先预览，再生成并下载适合印厂的文件。',
-    selected: '预览中',
-    confirmAction: '确认此结构',
-    generateAction: '生成 2 个 Dieline PDF',
+    title: '选择盒型并导出刀模',
+    hint: '盖和底各加 2 倍纸厚。插舌和防尘襟片每边收 1 mm。粘口不印。',
+    paper: '纸张',
+    glue: '粘口（12–20 mm）',
+    safe: '安全区（3–5 mm）',
+    notch: '扣手孔',
+    cols: '内衬列数',
+    rows: '内衬行数',
+    jar: '瓶径（mm，0 = 自动）',
+    action: '生成印刷文件',
+    stocks: {
+      ivory_300: '象牙卡 300 gsm',
+      ivory_350: '象牙卡 350 gsm',
+      duplex_300: '双粉卡 300 gsm',
+      duplex_350: '双粉卡 350 gsm',
+      custom: '自定义厚度',
+    },
   },
   ja: {
-    confirmTitle: '確認する展開図の構造を選択',
-    generateTitle: 'Dieline PDFを作成（2方式）',
-    hint: '6面の寸法は変わりません。面の接続、折り線、糊しろの配置が変わります。',
-    generateHint:
-      '横一列と十字型の両方を書き出します — プレビュー後に作成し、印刷会社向けのファイルをダウンロードしてください。',
-    selected: 'プレビュー中',
-    confirmAction: 'この構造を確定',
-    generateAction: '2種類のDieline PDFを作成',
+    title: '箱の型を選んで展開図を書き出す',
+    hint: '蓋と底は紙厚の2倍を足します。差し込みと防塵フラップは左右1mmずつ狭めます。糊しろは印刷しません。',
+    paper: '用紙',
+    glue: '糊しろ（12–20 mm）',
+    safe: '安全領域（3–5 mm）',
+    notch: '指かけ穴',
+    cols: '中仕切り列',
+    rows: '中仕切り行',
+    jar: '瓶の直径（mm、0 = 自動）',
+    action: '印刷ファイルを作成',
+    stocks: {
+      ivory_300: 'アイボリー 300 gsm',
+      ivory_350: 'アイボリー 350 gsm',
+      duplex_300: 'デュプレックス 300 gsm',
+      duplex_350: 'デュプレックス 350 gsm',
+      custom: '厚さ指定',
+    },
   },
   ko: {
-    confirmTitle: '확인할 도면 구조 선택',
-    generateTitle: 'Dieline PDF 생성(2가지)',
-    hint: '6개 면의 크기는 유지되며 면 연결, 접는 선, 접착 날개 배치가 달라집니다.',
-    generateHint:
-      '가로 스트립과 십자형을 모두 내보냅니다 — 미리본 뒤 생성하고 인쇄소에 맞는 파일을 다운로드하세요.',
-    selected: '미리보기',
-    confirmAction: '이 구조 확인',
-    generateAction: 'Dieline PDF 2종 생성',
+    title: '상자 형식을 고르고 전개도를 만듭니다',
+    hint: '뚜껑과 바닥은 종이 두께의 2배를 더합니다. 꽂이와 먼지덮개는 양쪽 1mm씩 좁힙니다. 접착면은 인쇄하지 않습니다.',
+    paper: '용지',
+    glue: '접착 탭 (12–20 mm)',
+    safe: '안전 영역 (3–5 mm)',
+    notch: '손가락 홈',
+    cols: '속지 열',
+    rows: '속지 행',
+    jar: '병 지름 (mm, 0 = 자동)',
+    action: '인쇄 파일 만들기',
+    stocks: {
+      ivory_300: '아이보리 300 gsm',
+      ivory_350: '아이보리 350 gsm',
+      duplex_300: '듀플렉스 300 gsm',
+      duplex_350: '듀플렉스 350 gsm',
+      custom: '두께 직접 입력',
+    },
   },
 }
 
@@ -82,7 +138,7 @@ export function HubBoxDielineStructurePicker({
   busy,
   dimensionsMm,
   production,
-  purpose = 'confirm',
+  structureVersion,
   selectedStructure,
   onSelect,
 }: {
@@ -90,81 +146,129 @@ export function HubBoxDielineStructurePicker({
   busy: boolean
   dimensionsMm: BoxDimensionsMm
   production?: TuckBoxProductionParams
-  purpose?: 'confirm' | 'generate'
+  structureVersion?: number | null
   selectedStructure?: BoxDielineStructure
-  onSelect: (structure: BoxDielineStructure) => void | Promise<void>
+  onSelect: (structure: BoxDielineStructure, production: TuckBoxProductionParams) => void | Promise<void>
 }) {
   const t = COPY[locale]
-  const [draftStructure, setDraftStructure] = useState<BoxDielineStructure>(
-    selectedStructure ?? 'straight_tuck'
-  )
+  const initial = resolveBoxDielineStructure(selectedStructure, structureVersion)
+  const [draftStructure, setDraftStructure] = useState<BoxDielineStructure>(initial)
+  const [stock, setStock] = useState<PaperStockId>(production?.paperStock ?? 'ivory_350')
+  const [glue, setGlue] = useState(String(production?.glueTabMm ?? 15))
+  const [safe, setSafe] = useState(String(production?.safeZoneMm ?? 4))
+  const [notch, setNotch] = useState(production?.fingerNotch ?? true)
+  const [cols, setCols] = useState(String(production?.insertCols ?? 2))
+  const [rows, setRows] = useState(String(production?.insertRows ?? 3))
+  const [jar, setJar] = useState(String(production?.jarDiameterMm ?? 0))
   useEffect(() => {
-    setDraftStructure(selectedStructure ?? 'straight_tuck')
-  }, [selectedStructure])
+    setDraftStructure(resolveBoxDielineStructure(selectedStructure, structureVersion))
+  }, [selectedStructure, structureVersion])
+
+  const draftProduction = useMemo(() => {
+    const base = defaultTuckBoxProductionParams(dimensionsMm.height)
+    return {
+      ...base,
+      ...production,
+      paperStock: stock,
+      glueTabMm: Number(glue.replace(',', '.')),
+      safeZoneMm: Number(safe.replace(',', '.')),
+      fingerNotch: notch,
+      lockDetails: true,
+      insertCols: Number(cols),
+      insertRows: Number(rows),
+      jarDiameterMm: Number(jar.replace(',', '.')),
+    }
+  }, [cols, dimensionsMm.height, glue, jar, notch, production, rows, safe, stock])
+
   const boxDimensions = {
     lengthMm: dimensionsMm.length,
     widthMm: dimensionsMm.width,
     heightMm: dimensionsMm.height,
   }
   const selectedCopy = boxDielineStructureCopy(draftStructure, locale)
-  const selectedSvg = generateTuckEndBlankSvg(
-    boxDimensions,
-    production,
-    locale,
-    draftStructure
-  )
+  const selectedSvg = generateTuckEndBlankSvg(boxDimensions, draftProduction, locale, draftStructure)
 
   return (
     <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-800 dark:bg-emerald-950/20">
-      <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">
-        {purpose === 'generate' ? t.generateTitle : t.confirmTitle}
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {purpose === 'generate' ? t.generateHint : t.hint}
-      </p>
+      <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">{t.title}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{t.hint}</p>
+      <label className="mt-3 block space-y-1">
+        <span className="text-xs font-medium">{selectedCopy.label}</span>
+        <select
+          className="h-9 w-full rounded-md border border-emerald-200 bg-white px-2 text-sm dark:bg-slate-900"
+          value={draftStructure}
+          disabled={busy}
+          onChange={(event) => setDraftStructure(event.target.value as BoxDielineStructure)}
+        >
+          {BOX_DIELINE_GROUPS.map((group) => (
+            <optgroup key={group.id} label={boxDielineGroupLabel(group.id, locale)}>
+              {group.structures.map((structure) => (
+                <option key={structure} value={structure}>
+                  {boxDielineStructureCopy(structure, locale).label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
+      <p className="mt-1 text-[11px] text-muted-foreground">{selectedCopy.description}</p>
       <div
-        className="mt-3 flex h-[280px] w-full items-center justify-center overflow-hidden rounded-md border border-emerald-200 bg-white p-1 sm:h-[320px] [&>svg]:block [&>svg]:!h-full [&>svg]:!min-h-0 [&>svg]:w-full"
+        className="mt-3 flex h-[220px] w-full items-center justify-center overflow-hidden rounded-md border border-emerald-200 bg-white p-1 [&>svg]:block [&>svg]:h-full [&>svg]:w-full"
         dangerouslySetInnerHTML={{ __html: selectedSvg }}
       />
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {BOX_DIELINE_STRUCTURE_KEYS.map((structure) => {
-          const copy = boxDielineStructureCopy(structure, locale)
-          return (
-            <Button
-              key={structure}
-              type="button"
-              variant="outline"
-              disabled={busy}
-              className={`h-auto min-h-12 justify-start whitespace-normal px-3 py-2 text-left text-xs ${
-                draftStructure === structure
-                  ? 'border-emerald-600 ring-2 ring-emerald-200'
-                  : 'border-emerald-200'
-              }`}
-              onClick={() => setDraftStructure(structure)}
-            >
-              <span>
-                <span className="block font-semibold">
-                  {formatStudioExampleLabel(locale, copy.label)}
-                </span>
-                {draftStructure === structure ? (
-                  <span className="mt-0.5 block text-[10px] font-semibold text-emerald-700">
-                    {t.selected}
-                  </span>
-                ) : null}
-              </span>
-            </Button>
-          )
-        })}
+        <label className="space-y-1">
+          <span className="text-xs text-muted-foreground">{t.paper}</span>
+          <select
+            className="h-8 w-full rounded-md border bg-white px-2 text-sm dark:bg-slate-900"
+            value={stock}
+            disabled={busy}
+            onChange={(event) => setStock(event.target.value as PaperStockId)}
+          >
+            {PAPER_STOCK_IDS.map((id) => (
+              <option key={id} value={id}>
+                {t.stocks[id]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs text-muted-foreground">{t.glue}</span>
+          <Input className="h-8 bg-white text-sm dark:bg-slate-900" value={glue} disabled={busy} onChange={(event) => setGlue(event.target.value)} />
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs text-muted-foreground">{t.safe}</span>
+          <Input className="h-8 bg-white text-sm dark:bg-slate-900" value={safe} disabled={busy} onChange={(event) => setSafe(event.target.value)} />
+        </label>
+        <label className="flex items-end gap-2 pb-1 text-xs">
+          <input type="checkbox" checked={notch} disabled={busy} onChange={(event) => setNotch(event.target.checked)} />
+          {t.notch}
+        </label>
       </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">{selectedCopy.description}</p>
+      {draftStructure === 'insert' ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          <label className="space-y-1">
+            <span className="text-xs text-muted-foreground">{t.cols}</span>
+            <Input className="h-8 bg-white text-sm" value={cols} disabled={busy} onChange={(event) => setCols(event.target.value)} />
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs text-muted-foreground">{t.rows}</span>
+            <Input className="h-8 bg-white text-sm" value={rows} disabled={busy} onChange={(event) => setRows(event.target.value)} />
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs text-muted-foreground">{t.jar}</span>
+            <Input className="h-8 bg-white text-sm" value={jar} disabled={busy} onChange={(event) => setJar(event.target.value)} />
+          </label>
+        </div>
+      ) : null}
       <Button
         type="button"
         disabled={busy}
         className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700"
-        onClick={() => void onSelect(draftStructure)}
+        onClick={() => void onSelect(draftStructure, draftProduction)}
       >
         {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        {purpose === 'generate' ? t.generateAction : t.confirmAction}
+        {t.action}
       </Button>
     </div>
   )

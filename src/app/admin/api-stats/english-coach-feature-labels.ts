@@ -21,6 +21,7 @@ export const ENGLISH_COACH_API_STATS_FEATURE_LABELS: Record<string, string> = {
   [EnglishCoachApiFeature.chatPinyin]: 'Chat — pinyin câu Trung',
   [EnglishCoachApiFeature.intentExplain]: 'Giải thích Ý 2 / Ý 3 (intent-explain)',
   [EnglishCoachApiFeature.speechMeaning]: 'Dịch câu nói vừa nhận diện',
+  [EnglishCoachApiFeature.meaningCanonical]: 'Chuẩn hóa câu gõ tiếng mẹ đẻ',
   [EnglishCoachApiFeature.transliterate]: 'Phiên âm Latin (transliterate)',
   [EnglishCoachApiFeature.placementLevel]: 'Chấm level nhanh (placement)',
   [EnglishCoachApiFeature.topicNormalize]: 'Chuẩn hóa chủ đề tự tạo',

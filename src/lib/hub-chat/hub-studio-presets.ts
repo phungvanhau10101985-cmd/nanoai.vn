@@ -19,6 +19,7 @@ export type StudioGeneratorKind =
   | 'packaging_face'
   | 'packaging_mockup'
   | 'dieline_pdf'
+  | 'box_net'
   | 'barcode'
   | 'bag_dieline_pdf'
   | 'interior'
@@ -436,7 +437,13 @@ export function estimatePresetCredits(presetId: string): { images: number; music
   for (const s of getFlowSteps(presetId)) {
     if (s.phase !== 'design') continue
     if (s.generator === 'lyria_music') music += 3
-    else if (s.generator === 'dieline_pdf' || s.generator === 'barcode' || s.generator === 'bag_dieline_pdf') continue
+    else if (
+      s.generator === 'dieline_pdf' ||
+      s.generator === 'box_net' ||
+      s.generator === 'barcode' ||
+      s.generator === 'bag_dieline_pdf'
+    )
+      continue
     else if (s.generator) images += 1.5
   }
   return { images, music, total: images + music }

@@ -39,6 +39,7 @@ export async function POST(
     stripBackground?: boolean | string | number | null
     imageEngine?: string | null
     gptQuality?: string | null
+    imageQuality?: string | null
   }
   const prompt = String(body.prompt ?? '').trim()
   if (prompt.length < 4) {
@@ -80,6 +81,7 @@ export async function POST(
       kind === 'logo' ? parseLogoStripBackgroundFlag(body.stripBackground) : undefined,
     imageEngine: body.imageEngine,
     gptQuality: body.gptQuality,
+    imageSize: String(body.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
   })
 
   if (!result.ok) {

@@ -38,6 +38,11 @@ function roundCredit(value: number): number {
   return Math.round(value * 10) / 10
 }
 
+/** Giá NanoAI 4K của một tool = gấp đôi giá NanoAI 2K của tool đó. */
+export function geminiQualityCredit(cost2k: number, quality: unknown): number {
+  return parseGeminiImageQuality(quality) === '4K' ? roundCredit(cost2k * 2) : cost2k
+}
+
 /**
  * Credit sẽ trừ.
  * Gemini: `geminiCost` là giá một ảnh của tool (2K hoặc 4K), nhân `outputCount`.

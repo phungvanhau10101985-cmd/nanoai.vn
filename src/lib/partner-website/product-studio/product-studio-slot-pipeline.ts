@@ -176,6 +176,7 @@ export type GenerateStudioSlotOpts = {
   imageModel?: string | null
   imageEngine?: string | null
   gptQuality?: string | null
+  imageQuality?: string | null
 }
 
 export type ProductStudioJobPatch = {
@@ -320,8 +321,9 @@ export async function generateProductStudioSlotOnJob(
 
   const imageEngine = opts.imageEngine ?? payload.imageEngine
   const gptQuality = opts.gptQuality ?? payload.gptQuality
+  const imageQuality = opts.imageQuality ?? payload.imageQuality
   const modelChoice = opts.imageModel ?? payload.imageModel
-  if (opts.imageEngine != null || opts.gptQuality != null || opts.imageModel != null) {
+  if (opts.imageEngine != null || opts.gptQuality != null || opts.imageModel != null || opts.imageQuality != null) {
     payload = {
       ...payload,
       imageModel:
@@ -331,6 +333,7 @@ export async function generateProductStudioSlotOnJob(
       imageEngine: String(imageEngine ?? '').trim().toLowerCase() === 'gpt' ? 'gpt' : undefined,
       gptQuality:
         gptQuality === 'low' || gptQuality === 'medium' || gptQuality === 'high' ? gptQuality : payload.gptQuality,
+      imageQuality: String(imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
     }
   }
 
@@ -349,6 +352,10 @@ export async function generateProductStudioSlotOnJob(
   })
 
   const imageChoice = resolveProductStudioGeminiImage(kind, modelChoice)
+  const imageSize =
+    imageChoice.imageSize === '2K' && String(imageQuality ?? '').trim().toUpperCase() === '4K'
+      ? '4K'
+      : imageChoice.imageSize
   const gen = await runStudioImagePipeline({
     userId: job.createdBy,
     kind: 'product_photo',
@@ -358,7 +365,7 @@ export async function generateProductStudioSlotOnJob(
     aspectRatio,
     verbatimPrompt: true,
     imageModel: imageChoice.model,
-    imageSize: imageChoice.imageSize,
+    imageSize,
     imageEngine,
     gptQuality,
   })

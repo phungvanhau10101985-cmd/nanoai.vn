@@ -35,8 +35,9 @@ export type HubPackagingState = {
   version: 2
   /** Missing on saved sessions means the legacy six-face workflow. */
   layout?: 'six_faces' | 'hybrid_strip'
-  /** Physical net construction; missing on saved sessions defaults to straight tuck. */
+  /** Physical net construction. Version < 2 treats straight_tuck as the old reverse tuck. */
   dielineStructure?: BoxDielineStructure
+  dielineStructureVersion?: number
   dimensionsMm: { length: number; width: number; height: number } | null
   production?: TuckBoxProductionParams
   /** In-progress L → W → H wizard before dimensionsMm is set. */
@@ -60,9 +61,25 @@ export type HubPackagingState = {
   faceAspectRatios?: Partial<Record<HubPackagingFaceKey, string>>
   facesConfirmed?: boolean
   dielineUrl?: string
-  /** Both net layouts (straight tuck + cross fold) after dieline export. */
+  /** Print file for the selected structure. */
   dielineVariants?: Partial<
     Record<BoxDielineStructure, { url: string; fileName: string }>
+  >
+  dielineCutter?: {
+    pdfUrl: string
+    svgUrl: string
+    dxfUrl: string
+    pdfFileName: string
+    svgFileName: string
+    dxfFileName: string
+  }
+  dielineWarnings?: string[]
+  /** Tấm trên dàn 2D nhận ảnh của mặt khác. Thiếu khóa = dùng đúng mặt đó. */
+  netFaceMap?: Partial<
+    Record<
+      'top' | 'front' | 'right' | 'bottom' | 'back' | 'left',
+      'top' | 'front' | 'right' | 'bottom' | 'back' | 'left'
+    >
   >
   mockupUrl?: string
   barcodeUrl?: string
@@ -217,7 +234,14 @@ export type HubStudioMessagePayload = {
     fileName: string
     label: string
     downloadLabel: string
+    blankPdfUrl?: string
+    blankSvgUrl?: string
+    blankDxfUrl?: string
+    blankPdfFileName?: string
+    blankSvgFileName?: string
+    blankDxfFileName?: string
   }>
+  dielineWarnings?: string[]
   barcodeArtifacts?: Array<{
     id: string
     type: 'qrcode' | 'ean13' | 'upca' | 'code128'
@@ -262,14 +286,12 @@ export type HubStudioMessagePayload = {
   /** Inline SVG wireframe for packaging box face confirm (no AI). */
   boxWireframeSvg?: string
   /** Production checks displayed with the blank dieline/PDF artifact. */
-  boxProductionSummary?: {
+  boxProductionSummary?: Partial<TuckBoxProductionParams> & {
     netWidthMm: number
     netHeightMm: number
-    bleedMm: number
-    glueTabMm: number
-    compensationGapMm: number
-    paperThicknessMm: number
     resolutionDpi?: number
+    sideReliefMm?: number
+    lidExtraMm?: number
   }
   /** Show face print style picker on packaging_kit discovery step. */
   showFacePrintStylePicker?: boolean

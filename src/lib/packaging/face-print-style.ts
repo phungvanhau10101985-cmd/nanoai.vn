@@ -130,6 +130,44 @@ export function packagingFacePrintStyleStudioExtras(
   return { showFacePrintStylePicker: true }
 }
 
+/** Phiên đã lưu trước bước dàn 2D: chèn box_net_2d ngay sau mặt trái. */
+function insertBoxNetLayoutStep(session: HubStudioSession, locale: WebLocale): HubStudioSession {
+  if (session.processSteps.some((step) => step.key === 'box_net_2d')) return session
+  const faceLeftIndex = session.processSteps.findIndex((step) => step.key === 'face_left')
+  if (faceLeftIndex < 0) return session
+  const canonical = buildStepsFromPreset(locale, 'packaging_kit').find((step) => step.key === 'box_net_2d')
+  if (!canonical) return session
+  const mockup = session.processSteps.find((step) => step.key === 'box_mockup_3d')
+  const faceLeftDone = session.processSteps[faceLeftIndex]?.status === 'done'
+  const interruptMockup =
+    faceLeftDone && session.currentStepKey === 'box_mockup_3d' && mockup?.status !== 'done'
+  const alreadyPast =
+    faceLeftDone &&
+    !interruptMockup &&
+    (mockup?.status === 'done' ||
+      session.currentStepKey === 'box_dieline_pdf' ||
+      session.currentStepKey === 'product_label' ||
+      session.currentStepKey === 'seal_sticker' ||
+      session.currentStepKey === 'barcode_label')
+  const status: HubStudioProcessStep['status'] = interruptMockup
+    ? 'in_progress'
+    : alreadyPast
+      ? 'done'
+      : 'pending'
+  const merged = [...session.processSteps]
+  merged.splice(faceLeftIndex + 1, 0, { key: 'box_net_2d', label: canonical.label, status })
+  const processSteps = interruptMockup
+    ? merged.map((step) =>
+        step.key === 'box_mockup_3d' ? { ...step, status: 'pending' as const } : step
+      )
+    : merged
+  return {
+    ...session,
+    processSteps,
+    currentStepKey: interruptMockup ? 'box_net_2d' : session.currentStepKey,
+  }
+}
+
 /** Insert new discovery steps for in-progress packaging sessions saved before flow update. */
 export function reconcilePackagingProcessSteps(
   session: HubStudioSession,
@@ -156,6 +194,7 @@ export function reconcilePackagingProcessSteps(
   // Hybrid-strip sessions are migrated to the canonical six-face flow.
   // Top/bottom remain valid, while the four derived strip slices are cleared
   // so each side must be designed and approved independently.
+  session = insertBoxNetLayoutStep(session, locale)
   const canonical = buildStepsFromPreset(locale, 'packaging_kit')
   if (session.packaging?.layout !== 'hybrid_strip') {
     if (session.processSteps.some((step) => step.key === FACE_PRINT_STYLE_STEP_KEY)) {
@@ -247,7 +286,7 @@ export function reconcilePackagingProcessSteps(
                 ? ('in_progress' as const)
                 : ('pending' as const),
             }
-          : step.key === 'box_mockup_3d' || step.key === 'box_dieline_pdf'
+          : step.key === 'box_net_2d' || step.key === 'box_mockup_3d' || step.key === 'box_dieline_pdf'
             ? { ...step, status: 'pending' as const }
             : step
       )

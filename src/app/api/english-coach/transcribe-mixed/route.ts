@@ -7,6 +7,7 @@ import {
   type EnglishCoachUsageContext,
 } from '@/lib/english-coach-api-usage'
 import { toSimplifiedChinese, usesSimplifiedChinese } from '@/lib/chinese-script'
+import { nativeMeaningCanonicalRules } from '@/lib/english-coach/native-meaning-canonical'
 
 type Payload = {
   audioBase64?: string
@@ -168,7 +169,8 @@ Nhiệm vụ:
 3) Hợp nhất lại thành câu mixed đầy đủ, giữ ý nghĩa tự nhiên.
 4) Không bịa thêm nội dung không nghe được.
 5) Nếu phát âm mơ hồ/sai gần đúng, ghi chú ngắn vào pronunciationIssues để giáo viên sửa.
-6) inferredMeaning: diễn giải ý học sinh muốn nói bằng ngôn ngữ mẹ đẻ ${nativeLanguage} (1 câu ngắn).
+6) inferredMeaning: một câu chuẩn bằng ${nativeLanguage}, dùng khi học viên không sửa nghĩa.
+${nativeMeaningCanonicalRules(nativeLanguage, String(nativeLanguageCode || ''))}
 7) Chế độ học sinh chọn: ${speakingMode}. Dùng mode này như tín hiệu ưu tiên khi tách transcript:
 - target: ưu tiên nghe/giữ phần ${targetLanguage}.
 - native: ưu tiên nghe/giữ phần ${nativeLanguage}.

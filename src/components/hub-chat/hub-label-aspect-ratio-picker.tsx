@@ -3,6 +3,7 @@
 import type { CSSProperties } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { NANOAI_GEMINI_ASPECT_MODELS } from '@/lib/ai/nanoai-image-names'
 import type { WebLocale } from '@/lib/i18n/config'
 import { GEMINI_ASPECT_RATIO_OPTIONS } from '@/lib/label-size-presets'
 import {
@@ -30,7 +31,7 @@ const COPY: Record<
     product_label: {
       ratioTitle: 'Tỷ lệ khung nhãn dán',
       shapeTitle: 'Kiểu nhãn dán',
-      hint: 'Chọn kiểu + tỷ lệ Gemini — nhập nội dung nhãn (tên SP, thành phần, HDSD…) ở ô chat bên dưới.',
+      hint: `Chọn kiểu + tỷ lệ ${NANOAI_GEMINI_ASPECT_MODELS} — nhập nội dung nhãn (tên SP, thành phần, HDSD…) ở ô chat bên dưới.`,
       shapes: {
         round: 'Tròn',
         square: 'Vuông',
@@ -41,7 +42,7 @@ const COPY: Record<
     seal_sticker: {
       ratioTitle: 'Tỷ lệ khung tem',
       shapeTitle: 'Kiểu tem niêm phong',
-      hint: 'Chọn kiểu + tỷ lệ Gemini — nhập slogan/mô tả tem ở ô chat bên dưới. Logo đã duyệt sẽ được ghép tự động.',
+      hint: `Chọn kiểu + tỷ lệ ${NANOAI_GEMINI_ASPECT_MODELS} — nhập slogan/mô tả tem ở ô chat bên dưới. Logo đã duyệt sẽ được ghép tự động.`,
       shapes: {
         round: 'Tròn',
         square: 'Vuông',
@@ -54,7 +55,7 @@ const COPY: Record<
     product_label: {
       ratioTitle: 'Label aspect ratio',
       shapeTitle: 'Label shape',
-      hint: 'Pick shape + Gemini ratio — enter label copy (product name, ingredients, usage…) in the chat box below.',
+      hint: `Pick shape + ${NANOAI_GEMINI_ASPECT_MODELS} ratio — enter label copy (product name, ingredients, usage…) in the chat box below.`,
       shapes: {
         round: 'Round',
         square: 'Square',
@@ -65,7 +66,7 @@ const COPY: Record<
     seal_sticker: {
       ratioTitle: 'Seal aspect ratio',
       shapeTitle: 'Seal shape',
-      hint: 'Pick shape + Gemini ratio — describe the seal tagline in the chat box below. Approved logo is composited automatically.',
+      hint: `Pick shape + ${NANOAI_GEMINI_ASPECT_MODELS} ratio — describe the seal tagline in the chat box below. Approved logo is composited automatically.`,
       shapes: {
         round: 'Round',
         square: 'Square',
@@ -78,7 +79,7 @@ const COPY: Record<
     product_label: {
       ratioTitle: '标签宽高比',
       shapeTitle: '标签形状',
-      hint: '选择形状 + Gemini 比率 — 在下方聊天框输入标签内容（品名、成分、用法…）。',
+      hint: `选择形状 + ${NANOAI_GEMINI_ASPECT_MODELS} 比率 — 在下方聊天框输入标签内容（品名、成分、用法…）。`,
       shapes: {
         round: '圆形',
         square: '方形',
@@ -89,7 +90,7 @@ const COPY: Record<
     seal_sticker: {
       ratioTitle: '封条宽高比',
       shapeTitle: '封条形状',
-      hint: '选择形状 + Gemini 比率 — 在下方聊天框输入标语。已批准的 logo 会自动合成。',
+      hint: `选择形状 + ${NANOAI_GEMINI_ASPECT_MODELS} 比率 — 在下方聊天框输入标语。已批准的 logo 会自动合成。`,
       shapes: {
         round: '圆形',
         square: '方形',
@@ -102,7 +103,7 @@ const COPY: Record<
     product_label: {
       ratioTitle: 'ラベルのアスペクト比',
       shapeTitle: 'ラベルの形',
-      hint: '形状 + Gemini 比率を選択 — ラベル内容は下のチャット欄に入力。',
+      hint: `形状 + ${NANOAI_GEMINI_ASPECT_MODELS} 比率を選択 — ラベル内容は下のチャット欄に入力。`,
       shapes: {
         round: '円形',
         square: '正方形',
@@ -113,7 +114,7 @@ const COPY: Record<
     seal_sticker: {
       ratioTitle: 'シールのアスペクト比',
       shapeTitle: '封緘シールの形',
-      hint: '形状 + Gemini 比率を選択 — スローガンは下のチャット欄に入力。承認済みロゴは自動合成。',
+      hint: `形状 + ${NANOAI_GEMINI_ASPECT_MODELS} 比率を選択 — スローガンは下のチャット欄に入力。承認済みロゴは自動合成。`,
       shapes: {
         round: '円形',
         square: '正方形',
@@ -126,7 +127,7 @@ const COPY: Record<
     product_label: {
       ratioTitle: '라벨 화면 비율',
       shapeTitle: '라벨 형태',
-      hint: '형태 + Gemini 비율 선택 — 라벨 내용은 아래 채팅창에 입력하세요.',
+      hint: `형태 + ${NANOAI_GEMINI_ASPECT_MODELS} 비율 선택 — 라벨 내용은 아래 채팅창에 입력하세요.`,
       shapes: {
         round: '원형',
         square: '정사각형',
@@ -137,7 +138,7 @@ const COPY: Record<
     seal_sticker: {
       ratioTitle: '스티커 화면 비율',
       shapeTitle: '봉인 스티커 형태',
-      hint: '형태 + Gemini 비율 선택 — 슬로건은 아래 채팅창에 입력하세요. 승인된 로고는 자동 합성됩니다.',
+      hint: `형태 + ${NANOAI_GEMINI_ASPECT_MODELS} 비율 선택 — 슬로건은 아래 채팅창에 입력하세요. 승인된 로고는 자동 합성됩니다.`,
       shapes: {
         round: '원형',
         square: '정사각형',

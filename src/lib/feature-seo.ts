@@ -776,7 +776,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     key: 'dich-anh-tai-lieu',
     pageTitle: 'Dịch ảnh và PDF tài liệu, giữ bố cục trang',
     pageDescription:
-      'Dịch ảnh chụp, bản scan và PDF, giữ bố cục trang. PDF tải ra một file PDF hoặc ZIP từng trang. NanoAI 2M 6.000đ/trang. NanoAI 2K 9.000đ, NanoAI 2 4K 24.000đ.',
+      'Dịch ảnh chụp, bản scan và PDF, giữ bố cục trang. PDF tải ra một file PDF hoặc ZIP từng trang. NanoAI 2M 6.000đ/trang. NanoAI 2K 9.000đ, NanoAI 4K 24.000đ.',
     path: '/dich-anh-tai-lieu',
     keywords: [
       'dịch ảnh tài liệu',
@@ -789,15 +789,15 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     serviceName: 'Dịch ảnh tài liệu NanoAI',
     serviceDescription: 'Dịch ảnh chụp, bản scan và PDF, giữ bố cục. PDF ra một file PDF hoặc ZIP từng trang. NanoAI 2L không dùng.',
     h2: 'Chọn mức dịch theo việc cần làm',
-    overview: 'Ảnh chụp, bản scan hoặc PDF ngoại ngữ được dịch thành trang mới, giữ bố cục. PDF xong thì tải một file PDF hoặc ZIP từng trang. NanoAI 2M 6.000đ/trang. NanoAI 2H 12.000đ. NanoAI 2K 9.000đ. NanoAI 2 4K 24.000đ. Không có NanoAI 2L.',
+    overview: 'Ảnh chụp, bản scan hoặc PDF ngoại ngữ được dịch thành trang mới, giữ bố cục. PDF xong thì tải một file PDF hoặc ZIP từng trang. NanoAI 2M 6.000đ/trang. NanoAI 2H 12.000đ. NanoAI 2K 9.000đ. NanoAI 4K 24.000đ. Không có NanoAI 2L.',
     benefits: ['Tăng tốc xử lý tài liệu đa ngôn ngữ', 'Phù hợp ảnh chụp và ảnh scan', 'Hữu ích cho học tập, công việc và vận hành'],
     useCases: ['Dịch ảnh hướng dẫn sản phẩm', 'Dịch tài liệu học tập từ ảnh', 'Dịch brochure hoặc menu từ ảnh chụp'],
     tips: ['Chụp ảnh rõ, không rung', 'Canh khung đủ nội dung cần dịch', 'Nếu tài liệu dài, xử lý theo từng phần'],
     faqs: [
       { question: 'PDF đưa vào có ra PDF không?', answer: 'Có. Khi các trang xong, khách chọn một file PDF hoặc ZIP ảnh từng trang.' },
-      { question: 'Vì sao không có NanoAI 2L?', answer: 'NanoAI 2L chữ dễ sai trên trang tài liệu. Trang chỉ có NanoAI 2M, NanoAI 2H, NanoAI 2K và NanoAI 2 4K.' },
-      { question: 'Mức nào nên chọn?', answer: 'NanoAI 2M 6.000đ một trang cho chữ thông thường. NanoAI 2H 12.000đ cho chữ nhỏ và bản vẽ dày. NanoAI 2K 9.000đ khi cần trang nét hơn. NanoAI 2 4K 24.000đ khi in lớn. NanoAI 2K và NanoAI 2 4K nét hơn không có nghĩa chữ chắc hơn NanoAI 2M.' },
-      { question: 'Một credit là bao nhiêu tiền?', answer: '1 credit = 6.000 đồng. NanoAI 2M trừ 1 credit. NanoAI 2H trừ 2. NanoAI 2K trừ 1,5. NanoAI 2 4K trừ 4.' },
+      { question: 'Vì sao không có NanoAI 2L?', answer: 'NanoAI 2L chữ dễ sai trên trang tài liệu. Trang chỉ có NanoAI 2M, NanoAI 2H, NanoAI 2K và NanoAI 4K.' },
+      { question: 'Mức nào nên chọn?', answer: 'NanoAI 2M 6.000đ một trang cho chữ thông thường. NanoAI 2H 12.000đ cho chữ nhỏ và bản vẽ dày. NanoAI 2K 9.000đ khi cần trang nét hơn. NanoAI 4K 24.000đ khi in lớn. NanoAI 2K và NanoAI 4K nét hơn không có nghĩa chữ chắc hơn NanoAI 2M.' },
+      { question: 'Một credit là bao nhiêu tiền?', answer: '1 credit = 6.000 đồng. NanoAI 2M trừ 1 credit. NanoAI 2H trừ 2. NanoAI 2K trừ 1,5. NanoAI 4K trừ 4.' },
       { question: 'Có dịch được ảnh chụp điện thoại và bản scan không?', answer: 'Được, khi chữ trên ảnh đủ rõ. Ảnh mờ hoặc nghiêng làm chữ dịch sai.' },
       { question: 'Bao lâu có một trang?', answer: 'Thường 15 đến 45 giây một trang. PDF nhiều trang chạy lần lượt.' },
     ],

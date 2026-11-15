@@ -28,6 +28,16 @@ import {
   type FaceSourceMode,
 } from '@/lib/packaging/box-face-slots'
 import { mockupDownloadFilename } from '@/lib/packaging/mockup-share-utils'
+import type { BoxDielineStructure } from '@/lib/packaging/dieline-structure'
+import { dielineArtworkRotation, foldTurnDegrees } from '@/lib/packaging/dieline-orientation'
+
+const FOLD_CAPTION: Record<WebLocale, string> = {
+  vi: 'File in xoay nắp 180° theo chiều gấp. Mockup này đọc mặt đã gấp đúng chiều.',
+  en: 'The print file rotates the lid 180° with the fold. This mockup shows the folded face upright.',
+  zh: '印刷文件按折叠方向把盖旋转 180°。此样机显示折叠后的正面。',
+  ja: '印刷ファイルは折りに合わせて蓋を180°回転します。このモックアップは折った後の向きです。',
+  ko: '인쇄 파일은 접는 방향에 맞춰 뚜껑을 180° 돌립니다. 이 목업은 접은 뒤의 면입니다.',
+}
 
 type FaceSlots = Partial<
   Record<BoxFaceSlot, { sourceMode: FaceSourceMode; url?: string }>
@@ -202,7 +212,8 @@ type MockupController = {
 function usePackagingBoxMockup3D(
   dimensionsMm: { length: number; width: number; height: number },
   faceSlots: FaceSlots,
-  viewport: ViewportSize | null
+  viewport: ViewportSize | null,
+  viewPreset?: 'outside' | 'inside'
 ): MockupController {
   const boxRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
@@ -239,6 +250,13 @@ function usePackagingBoxMockup3D(
   useEffect(() => {
     applyRotation()
   }, [applyRotation])
+
+  useEffect(() => {
+    if (!viewPreset) return
+    rotationRef.current = viewPreset === 'inside' ? { x: 58, y: 24 } : { ...INITIAL_ROTATION }
+    if (viewPreset === 'inside') setAutoRotate(false)
+    applyRotation()
+  }, [applyRotation, viewPreset])
 
   useEffect(() => {
     if (!autoRotate) return
@@ -371,15 +389,23 @@ function PackagingBoxMockup3DScene({
   locale,
   sceneClassName,
   perspective,
+  structure,
+  lidOpen = 0,
+  boardColor,
 }: {
   controller: MockupController
   locale: WebLocale
   sceneClassName: string
   perspective?: number
+  structure?: BoxDielineStructure
+  lidOpen?: number
+  boardColor?: string
 }) {
   const text = COPY[locale]
   const { boxRef, sceneRef, faces, faceUrls, onPointerDown, onPointerMove, stopDragging } = controller
   const lengthPx = faces.find((f) => f.slot === 'front')?.width ?? 0
+  const boxHeight = faces.find((f) => f.slot === 'front')?.height ?? 0
+  const open = Math.max(0, Math.min(1, lidOpen))
   const resolvedPerspective =
     perspective ?? Math.max(520, Math.min(lengthPx * 2.8, 1400))
 
@@ -406,6 +432,10 @@ function PackagingBoxMockup3DScene({
       >
         {faces.map((face) => {
           const url = faceUrls[face.slot]
+          const transform =
+            face.slot === 'top' && open > 0
+              ? `rotateX(${90 - open * 110}deg) translateZ(${boxHeight / 2}px)`
+              : face.transform
           return (
             <div
               key={face.slot}
@@ -415,8 +445,9 @@ function PackagingBoxMockup3DScene({
                 height: `${face.height}px`,
                 marginLeft: `${-face.width / 2}px`,
                 marginTop: `${-face.height / 2}px`,
-                transform: face.transform,
+                transform,
                 backfaceVisibility: 'hidden',
+                backgroundColor: boardColor,
               }}
               aria-label={getBoxFaceSlotLabel(face.slot, locale)}
             >
@@ -425,7 +456,14 @@ function PackagingBoxMockup3DScene({
                 <img
                   src={url}
                   alt={getBoxFaceSlotLabel(face.slot, locale)}
-                  className="h-full w-full select-none object-contain object-center"
+                  className="h-full w-full select-none object-cover object-center"
+                  style={
+                    structure
+                      ? {
+                          transform: `rotate(${(dielineArtworkRotation(structure, face.slot) + foldTurnDegrees(structure, face.slot)) % 360}deg)`,
+                        }
+                      : undefined
+                  }
                   draggable={false}
                   decoding="async"
                 />
@@ -489,6 +527,10 @@ function PackagingBoxMockup3DViewport({
   toolbarExtra,
   downloadHint,
   wrapperClassName,
+  structure,
+  lidOpen = 0,
+  viewPreset,
+  boardColor,
 }: {
   dimensionsMm: { length: number; width: number; height: number }
   faceSlots: FaceSlots
@@ -497,10 +539,14 @@ function PackagingBoxMockup3DViewport({
   toolbarExtra?: ReactNode
   downloadHint?: string | null
   wrapperClassName?: string
+  structure?: BoxDielineStructure
+  lidOpen?: number
+  viewPreset?: 'outside' | 'inside'
+  boardColor?: string
 }) {
   const sceneWrapRef = useRef<HTMLDivElement>(null)
   const viewport = useViewportSize(sceneWrapRef)
-  const controller = usePackagingBoxMockup3D(dimensionsMm, faceSlots, viewport)
+  const controller = usePackagingBoxMockup3D(dimensionsMm, faceSlots, viewport, viewPreset)
 
   return (
     <div className={wrapperClassName}>
@@ -509,6 +555,9 @@ function PackagingBoxMockup3DViewport({
           controller={controller}
           locale={locale}
           sceneClassName="h-full w-full"
+          structure={structure}
+          lidOpen={lidOpen}
+          boardColor={boardColor}
         />
       </div>
       <div className="mt-2 space-y-2">
@@ -529,6 +578,13 @@ export function PackagingBoxMockup3D({
   downloadFilename,
   downloadLabels,
   showShareMenu = true,
+  structure,
+  lidOpen = 0,
+  viewPreset,
+  boardColor,
+  appearance = 'card',
+  footer,
+  toolbarExtra,
 }: {
   dimensionsMm: { length: number; width: number; height: number }
   faceSlots: FaceSlots
@@ -537,6 +593,14 @@ export function PackagingBoxMockup3D({
   downloadFilename?: string
   downloadLabels?: DownloadImageButtonLabels
   showShareMenu?: boolean
+  structure?: BoxDielineStructure
+  /** 0 đóng nắp, 1 mở nắp. Chỉ đổi khung xem. */
+  lidOpen?: number
+  viewPreset?: 'outside' | 'inside'
+  boardColor?: string
+  appearance?: 'card' | 'studio'
+  footer?: ReactNode
+  toolbarExtra?: ReactNode
 }) {
   const [fullscreenOpen, setFullscreenOpen] = useState(false)
   const text = COPY[locale]
@@ -594,16 +658,29 @@ export function PackagingBoxMockup3D({
     </Button>
   )
 
+  const studio = appearance === 'studio'
+
   return (
     <>
-      <div className="w-full max-w-[420px] rounded-xl border border-slate-200 bg-gradient-to-b from-slate-100 to-slate-200 p-3 dark:border-slate-700 dark:from-slate-900 dark:to-slate-800">
+      <div
+        className={
+          studio
+            ? 'w-full rounded-xl border border-slate-200 bg-gradient-to-b from-slate-100 to-slate-200 p-3 text-slate-900'
+            : 'w-full max-w-[420px] rounded-xl border border-slate-200 bg-gradient-to-b from-slate-100 to-slate-200 p-3 dark:border-slate-700 dark:from-slate-900 dark:to-slate-800'
+        }
+      >
         <PackagingBoxMockup3DViewport
           dimensionsMm={dimensionsMm}
           faceSlots={faceSlots}
           locale={locale}
-          sceneClassName="h-[300px]"
+          structure={structure}
+          lidOpen={lidOpen}
+          viewPreset={viewPreset}
+          boardColor={boardColor}
+          sceneClassName={studio ? 'h-[360px]' : 'h-[300px]'}
           toolbarExtra={
             <>
+              {toolbarExtra}
               {shareButton}
               {downloadButton}
               {fullscreenButton}
@@ -611,6 +688,18 @@ export function PackagingBoxMockup3D({
           }
           downloadHint={downloadUrl || showShareMenu ? text.downloadShareHint : null}
         />
+        {structure ? (
+          <p
+            className={
+              studio
+                ? 'mt-2 text-[11px] text-slate-600'
+                : 'mt-2 text-[11px] text-slate-600 dark:text-slate-300'
+            }
+          >
+            {FOLD_CAPTION[locale]}
+          </p>
+        ) : null}
+        {footer}
       </div>
 
       <Dialog open={fullscreenOpen} onOpenChange={setFullscreenOpen}>
@@ -634,9 +723,14 @@ export function PackagingBoxMockup3D({
               dimensionsMm={dimensionsMm}
               faceSlots={faceSlots}
               locale={locale}
+              structure={structure}
+              lidOpen={lidOpen}
+              viewPreset={viewPreset}
+              boardColor={boardColor}
               sceneClassName="min-h-0 w-full flex-1"
               toolbarExtra={
                 <>
+                  {toolbarExtra}
                   {fullscreenShareButton}
                   {fullscreenDownloadButton}
                 </>

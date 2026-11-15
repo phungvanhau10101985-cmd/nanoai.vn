@@ -1910,6 +1910,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [uploadBusy, setUploadBusy] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiImageColor, setAiImageColor] = useState(() =>
@@ -3104,6 +3105,7 @@ export function PartnerWebsiteVisualEditorToolbar({
             stripBackground: input.kind === 'logo' ? Boolean(input.stripBackground ?? logoStripBg) : undefined,
             imageEngine,
             gptQuality,
+            imageQuality: geminiQuality,
           }),
         }
       )
@@ -3857,11 +3859,12 @@ export function PartnerWebsiteVisualEditorToolbar({
         locale={locale}
         engine={imageEngine}
         onEngineChange={setImageEngine}
-        geminiQuality="2K"
-        onGeminiQualityChange={() => {}}
+        geminiQuality={geminiQuality}
+        onGeminiQualityChange={setGeminiQuality}
         gptQuality={gptQuality}
         onGptQualityChange={setGptQuality}
         geminiCost2k={1.5}
+        geminiCost4k={3}
       />
       <Button
         type="button"
@@ -4313,11 +4316,12 @@ export function PartnerWebsiteVisualEditorToolbar({
             locale={locale}
             engine={imageEngine}
             onEngineChange={setImageEngine}
-            geminiQuality="2K"
-            onGeminiQualityChange={() => {}}
+            geminiQuality={geminiQuality}
+            onGeminiQualityChange={setGeminiQuality}
             gptQuality={gptQuality}
             onGptQualityChange={setGptQuality}
             geminiCost2k={1.5}
+            geminiCost4k={3}
           />
           <Button
             type="button"
@@ -6786,11 +6790,12 @@ export function PartnerWebsiteVisualEditorToolbar({
                     locale={locale}
                     engine={imageEngine}
                     onEngineChange={setImageEngine}
-                    geminiQuality="2K"
-                    onGeminiQualityChange={() => {}}
+                    geminiQuality={geminiQuality}
+                    onGeminiQualityChange={setGeminiQuality}
                     gptQuality={gptQuality}
                     onGptQualityChange={setGptQuality}
                     geminiCost2k={1.5}
+                    geminiCost4k={3}
                   />
                   <Button
                     type="button"

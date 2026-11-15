@@ -10,7 +10,8 @@ test('new packaging flow creates all six faces before mockup and dieline', () =>
   const faceKeys = ['face_top', 'face_front', 'face_right', 'face_bottom', 'face_back', 'face_left']
   assert.deepEqual(keys.filter((key) => faceKeys.includes(key)), faceKeys)
   assert.equal(keys.includes('body_strip'), false)
-  assert.ok(keys.indexOf('face_left') < keys.indexOf('box_mockup_3d'))
+  assert.ok(keys.indexOf('face_left') < keys.indexOf('box_net_2d'))
+  assert.ok(keys.indexOf('box_net_2d') < keys.indexOf('box_mockup_3d'))
   assert.ok(keys.indexOf('box_mockup_3d') < keys.indexOf('box_dieline_pdf'))
 })
 

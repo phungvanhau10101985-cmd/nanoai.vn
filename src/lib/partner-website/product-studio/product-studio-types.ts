@@ -92,6 +92,8 @@ export type ProductStudioJobPayload = {
   /** Thiếu = Gemini. */
   imageEngine?: 'gemini' | 'gpt'
   gptQuality?: 'low' | 'medium' | 'high'
+  /** NanoAI 2K hoặc NanoAI 4K. Thiếu = 2K. Flash 2.5 không dùng 4K. */
+  imageQuality?: '2K' | '4K'
   aspectRatio?: string
   modelPresence?: ProductStudioModelPresence
   modelGender?: string
@@ -274,6 +276,7 @@ export function jsonToProductStudioPayload(raw: Json): ProductStudioJobPayload {
       o.gptQuality === 'low' || o.gptQuality === 'medium' || o.gptQuality === 'high'
         ? o.gptQuality
         : undefined,
+    imageQuality: String(o.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
     aspectRatio: String(o.aspectRatio ?? '1:1').trim() || '1:1',
     modelPresence: o.modelPresence === 'model' ? 'model' : 'none',
     modelGender: String(o.modelGender ?? '').trim(),

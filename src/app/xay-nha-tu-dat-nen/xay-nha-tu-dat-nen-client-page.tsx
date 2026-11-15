@@ -23,7 +23,7 @@ import { useCredits } from '@/hooks/use-credits'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
-import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { geminiQualityCredit, imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 
 const DESIGN_STYLES = [
@@ -306,7 +306,11 @@ function StepWizard({
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
-  const imageCost = imageEngineCredit({ engine: imageEngine, gptQuality, geminiCost: 4 })
+  const imageCost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: geminiQualityCredit(4, geminiQuality),
+  })
 
   const floor3dUrl = steps.floor_3d?.imageUrl
 
@@ -452,6 +456,7 @@ function Step1Form({
     fd.append('hasReferenceImage', String(hasReferenceImage))
     fd.append('imageEngine', imageEngine)
     fd.append('gptQuality', gptQuality)
+    fd.append('imageQuality', geminiQuality)
     if (hasReferenceImage && referenceFile) fd.append('referenceImage', referenceFile)
     return fd
   }
@@ -569,6 +574,7 @@ function Step1Form({
               gptQuality={gptQuality}
               onGptQualityChange={onGptQualityChange}
               geminiCost2k={4}
+              geminiCost4k={8}
             />
             <Button
               onClick={() => checkCreditsAndProceed(cost, () => onBuild(buildFormData()))}

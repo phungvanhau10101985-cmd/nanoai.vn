@@ -96,7 +96,7 @@ export function LanguageLearningLanding({
 }) {
   const locale = getCurrentWebLocale()
   const livePrice = `${LIVE_CREDITS.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US')} credit · ${money(locale, CREDIT_UNIT_PRICE_VND * LIVE_CREDITS)}`
-  const presetPrice = `${PRESET_CREDITS.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US')} credit · ${money(locale, CREDIT_UNIT_PRICE_VND * PRESET_CREDITS)}`
+  const presetPrice = ''
   const setup = LANDING_VARIANT[variant]
   const copy = setup.copy(locale, livePrice, presetPrice)
   const pagePath = setup.path

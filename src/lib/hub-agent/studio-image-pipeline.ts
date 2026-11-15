@@ -12,7 +12,7 @@ import { productStudioGeminiImageCredit } from '@/lib/partner-website/product-st
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { normalizeBannerAspectRatioForGemini } from '@/lib/banner-ad-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
-import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { geminiQualityCredit, imageChargeFromForm } from '@/lib/ai/image-engine'
 import { runImageContent } from '@/lib/ai/gpt-image'
 import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import { closestGptFaceAspectRatio, getFaceGeminiAspectRatio } from '@/lib/packaging/face-aspect'
@@ -321,8 +321,10 @@ export async function runStudioImagePipeline(input: {
   }
   const stripLogoBackground =
     input.kind === 'logo' ? parseLogoStripBackgroundFlag(input.stripBackground) : false
-  const geminiUnit =
-    input.kind === 'logo' ? UI_MOCKUP_CREDIT : productStudioGeminiImageCredit(input.imageModel)
+  const geminiUnit = geminiQualityCredit(
+    input.kind === 'logo' ? UI_MOCKUP_CREDIT : productStudioGeminiImageCredit(input.imageModel),
+    input.imageSize === '4K' ? '4K' : '2K',
+  )
   const priced = imageChargeFromForm(
     {
       get: (name) => {

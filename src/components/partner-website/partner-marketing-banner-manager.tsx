@@ -70,7 +70,7 @@ const COPY: Record<
     activated: 'Đã dùng lại phiên bản này.',
     uploaded: 'Đã tải ảnh banner.',
     deleted: 'Đã xóa phiên bản.',
-    creditHint: `Tạo AI tốn ${PARTNER_MARKETING_BANNER_CREDIT_COST} credit / ảnh.`,
+    creditHint: `NanoAI 2K ${PARTNER_MARKETING_BANNER_CREDIT_COST} credit, NanoAI 4K ${PARTNER_MARKETING_BANNER_CREDIT_COST * 2} credit / ảnh.`,
     saleDateHint: 'Chỉ ngày trùng tháng (01/01 … 12/12).',
     warehouseHint: 'Ảnh sale kho lưu theo mức % đang bật. Slider hiện khi kho sale bật và % > 0.',
     regularHint: 'Banner thường luôn nằm cuối slider. Có thể tạo nhiều ảnh, mỗi ảnh một slide.',
@@ -98,7 +98,7 @@ const COPY: Record<
     activated: 'This version is now active.',
     uploaded: 'Banner image uploaded.',
     deleted: 'Version deleted.',
-    creditHint: `AI generation costs ${PARTNER_MARKETING_BANNER_CREDIT_COST} credits per image.`,
+    creditHint: `NanoAI 2K ${PARTNER_MARKETING_BANNER_CREDIT_COST} credits, NanoAI 4K ${PARTNER_MARKETING_BANNER_CREDIT_COST * 2} credits per image.`,
     saleDateHint: 'Same-day-month dates only (01/01 … 12/12).',
     warehouseHint: 'Warehouse images are stored per discount percent. The slider shows them when clearance is on and percent is above 0.',
     regularHint: 'Regular banners always sit last in the slider. You can create several; each is one slide.',
@@ -126,7 +126,7 @@ const COPY: Record<
     activated: '已启用此版本。',
     uploaded: '已上传横幅图片。',
     deleted: '已删除该版本。',
-    creditHint: `每次 AI 生成消耗 ${PARTNER_MARKETING_BANNER_CREDIT_COST} 积分。`,
+    creditHint: `NanoAI 2K ${PARTNER_MARKETING_BANNER_CREDIT_COST} 积分，NanoAI 4K ${PARTNER_MARKETING_BANNER_CREDIT_COST * 2} 积分 / 张。`,
     saleDateHint: '仅限同日同月（01/01 … 12/12）。',
     warehouseHint: '清仓图按折扣百分比保存。开启清仓且折扣大于 0 时滑块会显示。',
     regularHint: '普通横幅始终排在滑块最后。可创建多张，每张一张幻灯片。',
@@ -154,7 +154,7 @@ const COPY: Record<
     activated: 'この版を使用中にしました。',
     uploaded: 'バナー画像をアップロードしました。',
     deleted: 'この版を削除しました。',
-    creditHint: `AI 生成は 1 枚あたり ${PARTNER_MARKETING_BANNER_CREDIT_COST} クレジットです。`,
+    creditHint: `NanoAI 2K は ${PARTNER_MARKETING_BANNER_CREDIT_COST}、NanoAI 4K は ${PARTNER_MARKETING_BANNER_CREDIT_COST * 2} クレジット / 枚。`,
     saleDateHint: '同日同月のみ（01/01 … 12/12）。',
     warehouseHint: '倉庫バナーは割引率ごとに保存。クリアランスがオンで % が 0 より大きいとき表示します。',
     regularHint: '通常バナーは常にスライダーの最後。複数枚作れ、1枚が1スライドです。',
@@ -182,7 +182,7 @@ const COPY: Record<
     activated: '이 버전을 사용합니다.',
     uploaded: '배너 이미지를 올렸습니다.',
     deleted: '버전을 삭제했습니다.',
-    creditHint: `AI 생성은 이미지당 ${PARTNER_MARKETING_BANNER_CREDIT_COST} 크레딧입니다.`,
+    creditHint: `NanoAI 2K ${PARTNER_MARKETING_BANNER_CREDIT_COST} 크레딧, NanoAI 4K ${PARTNER_MARKETING_BANNER_CREDIT_COST * 2} 크레딧 / 장.`,
     saleDateHint: '같은 날짜·월만 가능합니다 (01/01 … 12/12).',
     warehouseHint: '창고 배너는 할인율별로 저장됩니다. 창고 세일이 켜지고 %가 0보다 클 때 슬라이더에 나옵니다.',
     regularHint: '일반 배너는 항상 슬라이더 마지막입니다. 여러 장을 만들 수 있고 한 장이 한 슬라이드입니다.',
@@ -222,6 +222,7 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
       gptQuality={gptQuality}
       onGptQualityChange={setGptQuality}
       geminiCost2k={PARTNER_MARKETING_BANNER_CREDIT_COST}
+      geminiCost4k={PARTNER_MARKETING_BANNER_CREDIT_COST * 2}
     />
   )
 
@@ -284,6 +285,7 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
     if (nextKind === 'regular' && campaignKey) body.campaignKey = campaignKey
     body.imageEngine = imageEngine
     body.gptQuality = gptQuality
+    body.imageQuality = geminiQuality
     setWorking(true)
     setError(null)
     try {

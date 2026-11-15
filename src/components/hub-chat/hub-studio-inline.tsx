@@ -28,6 +28,8 @@ import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-loca
 import { isBagKitPreset } from '@/lib/hub-chat/bag-kit-shared'
 import { PackagingBagMockup3D } from '@/components/hub-chat/packaging-bag-mockup-3d'
 import { PackagingBoxMockup3D } from '@/components/hub-chat/packaging-box-mockup-3d'
+import { applyBoxNetFaceMap } from '@/lib/packaging/box-net-face-map'
+import { resolveBoxDielineStructure } from '@/lib/packaging/dieline-structure'
 
 type StudioLine = {
   id: string
@@ -68,11 +70,21 @@ function imageFrameClass(aspect?: HubStudioMessagePayload['aspectHint']): string
 
 function productionSummaryCopy(locale: WebLocale) {
   return {
-    vi: ['Kích thước tổng', 'Bleed', 'Tai dán', 'Khe bù', 'Độ dày giấy', 'Độ phân giải', 'Nhà in phải xác nhận độ dày giấy và hướng thớ.'],
-    en: ['Overall size', 'Bleed', 'Glue tab', 'Compensation gap', 'Paper thickness', 'Resolution', 'Printer must confirm paper thickness and grain direction.'],
-    zh: ['总尺寸', '出血', '粘口', '补偿间隙', '纸张厚度', '分辨率', '印厂须确认纸张厚度和纸纹方向。'],
-    ja: ['全体サイズ', '塗り足し', '糊しろ', '補正ギャップ', '紙厚', '解像度', '印刷会社で紙厚と紙目方向を確認してください。'],
-    ko: ['전체 크기', '블리드', '접착 탭', '보정 간격', '용지 두께', '해상도', '인쇄소에서 용지 두께와 결 방향을 확인해야 합니다.'],
+    vi: ['Kích thước tờ', 'Bleed', 'Tai dán', 'Giấy', 'Độ phân giải', 'Nắp và đáy cộng 2 lần độ dày giấy. Lưỡi gài và tai bụi hẹp 1 mm mỗi bên.', 'File in PDF/X-4, nét cắt CutContour, nét gấp Crease.'],
+    en: ['Sheet size', 'Bleed', 'Glue tab', 'Paper', 'Resolution', 'Lid and base gain 2× caliper. Tuck and dust flaps narrow 1 mm each side.', 'Print file is PDF/X-4 with CutContour and Crease spots.'],
+    zh: ['纸张尺寸', '出血', '粘口', '纸张', '分辨率', '盖和底各加 2 倍纸厚。插舌和防尘片每边收 1 mm。', '印刷文件为 PDF/X-4，切割色 CutContour，压痕色 Crease。'],
+    ja: ['シート寸法', '塗り足し', '糊しろ', '用紙', '解像度', '蓋と底は紙厚の2倍。差し込みと防塵は左右1mmずつ狭めます。', '印刷ファイルは PDF/X-4。カットは CutContour、折りは Crease。'],
+    ko: ['시트 크기', '블리드', '접착 탭', '용지', '해상도', '뚜껑과 바닥은 두께의 2배. 꽂이와 먼지덮개는 양쪽 1mm씩 좁힙니다.', '인쇄 파일은 PDF/X-4. 절단 CutContour, 접힘 Crease.'],
+  }[locale]
+}
+
+function cutterDownloadCopy(locale: WebLocale) {
+  return {
+    vi: { pdf: 'Dieline trắng PDF', svg: 'SVG máy bế', dxf: 'DXF máy bế' },
+    en: { pdf: 'Blank dieline PDF', svg: 'Cutter SVG', dxf: 'Cutter DXF' },
+    zh: { pdf: '空白刀模 PDF', svg: '模切 SVG', dxf: '模切 DXF' },
+    ja: { pdf: '白展開図 PDF', svg: 'カット SVG', dxf: 'カット DXF' },
+    ko: { pdf: '백지 전개도 PDF', svg: '커터 SVG', dxf: '커터 DXF' },
   }[locale]
 }
 
@@ -678,8 +690,9 @@ export function HubStudioMessageBubble({
         return (
           <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
             <p>{labels[0]}: {summary.netWidthMm.toFixed(1)} × {summary.netHeightMm.toFixed(1)} mm</p>
-            <p>{labels[1]}: {summary.bleedMm} mm · {labels[2]}: {summary.glueTabMm} mm · {labels[3]}: {summary.compensationGapMm} mm · {labels[4]}: {summary.paperThicknessMm} mm</p>
-            <p>{labels[5]}: {summary.resolutionDpi ? `${summary.resolutionDpi} dpi` : '—'}</p>
+            <p>{labels[1]}: {summary.bleedMm ?? 3} mm · {labels[2]}: {summary.glueTabMm ?? '—'} mm · {labels[3]}: {summary.paperStock ?? 'ivory_350'} {summary.paperThicknessMm ?? '—'} mm</p>
+            <p>{labels[4]}: {summary.resolutionDpi ? `${summary.resolutionDpi} dpi` : '—'}</p>
+            <p className="mt-1">{labels[5]}</p>
             <p className="mt-1 font-medium">{labels[6]}</p>
           </div>
         )
@@ -728,7 +741,21 @@ export function HubStudioMessageBubble({
           {st.artifactNote ? (
             <p className="text-[11px] text-muted-foreground">{st.artifactNote}</p>
           ) : null}
-          {st.dielineArtifacts.map((artifact) => (
+          {st.dielineWarnings?.length ? (
+            <ul className="list-disc space-y-1 pl-4 text-[11px] text-amber-800 dark:text-amber-200">
+              {st.dielineWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          ) : null}
+          {st.dielineArtifacts.map((artifact) => {
+            const cutter = cutterDownloadCopy(uiLocale)
+            const blanks = [
+              artifact.blankPdfUrl ? { href: artifact.blankPdfUrl, name: artifact.blankPdfFileName, label: cutter.pdf } : null,
+              artifact.blankSvgUrl ? { href: artifact.blankSvgUrl, name: artifact.blankSvgFileName, label: cutter.svg } : null,
+              artifact.blankDxfUrl ? { href: artifact.blankDxfUrl, name: artifact.blankDxfFileName, label: cutter.dxf } : null,
+            ].filter((item): item is { href: string; name?: string; label: string } => Boolean(item))
+            return (
             <div
               key={artifact.structure}
               className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/30"
@@ -737,7 +764,8 @@ export function HubStudioMessageBubble({
                 <FileText className="h-4 w-4" />
                 {artifact.label}
               </p>
-              <Button asChild type="button" size="sm" variant="outline" className="mt-2 h-8 text-xs">
+              <div className="mt-2 flex flex-wrap gap-1.5">
+              <Button asChild type="button" size="sm" variant="outline" className="h-8 text-xs">
                 <a
                   href={artifact.url}
                   download={artifact.fileName || undefined}
@@ -748,8 +776,34 @@ export function HubStudioMessageBubble({
                   {artifact.downloadLabel}
                 </a>
               </Button>
+              {blanks.map((blank) => (
+                <Button key={blank.href} asChild type="button" size="sm" variant="outline" className="h-8 text-xs">
+                  <a href={blank.href} download={blank.name} target="_blank" rel="noreferrer">
+                    <Download className="mr-1 h-3.5 w-3.5" />
+                    {blank.label}
+                  </a>
+                </Button>
+              ))}
+              </div>
             </div>
-          ))}
+            )
+          })}
+          {st.showRegenerate || showContinueButton ? (
+            <div className="flex flex-wrap gap-1.5">
+              {st.showRegenerate ? (
+                <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={() => onRegenerate(st?.screenKey)}>
+                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                  {hc.studioRegenerate}
+                </Button>
+              ) : null}
+              {showContinueButton ? (
+                <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
+                  <Check className="mr-1 h-3.5 w-3.5" />
+                  {approveButtonLabel}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : st?.barcodeArtifacts && st.barcodeArtifacts.length > 0 ? (
         <div className="mt-2 space-y-2">
@@ -778,6 +832,22 @@ export function HubStudioMessageBubble({
               </Button>
             </div>
           ))}
+          {st.showRegenerate || showContinueButton ? (
+            <div className="flex flex-wrap gap-1.5">
+              {st.showRegenerate ? (
+                <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={() => onRegenerate(st?.screenKey)}>
+                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                  {hc.studioRegenerate}
+                </Button>
+              ) : null}
+              {showContinueButton ? (
+                <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
+                  <Check className="mr-1 h-3.5 w-3.5" />
+                  {approveButtonLabel}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : st?.artifactUrl ? (
         <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/30">
@@ -799,6 +869,22 @@ export function HubStudioMessageBubble({
               {st.artifactDownloadLabel || st.artifactFileName || 'Download'}
             </a>
           </Button>
+          {st.showRegenerate || showContinueButton ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {st.showRegenerate ? (
+                <Button type="button" size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={() => onRegenerate(st?.screenKey)}>
+                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                  {hc.studioRegenerate}
+                </Button>
+              ) : null}
+              {showContinueButton ? (
+                <Button type="button" size="sm" className="h-8 bg-violet-600 text-xs hover:bg-violet-700" disabled={busy} onClick={onApproveReference}>
+                  <Check className="mr-1 h-3.5 w-3.5" />
+                  {approveButtonLabel}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {st?.audioUrl ? (
@@ -895,7 +981,14 @@ export function HubStudioMessageBubble({
           {interactivePackaging ? (
             <PackagingBoxMockup3D
               dimensionsMm={studioSession.packaging!.dimensionsMm!}
-              faceSlots={studioSession.packaging!.faceSlots!}
+              faceSlots={applyBoxNetFaceMap(
+                studioSession.packaging!.faceSlots ?? {},
+                studioSession.packaging!.netFaceMap
+              )}
+              structure={resolveBoxDielineStructure(
+                studioSession.packaging!.dielineStructure,
+                studioSession.packaging!.dielineStructureVersion
+              )}
               locale={uiLocale}
               downloadUrl={st.imageUrl ?? studioSession.packaging?.mockupUrl}
               downloadLabels={{

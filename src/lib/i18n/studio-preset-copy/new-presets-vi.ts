@@ -3,7 +3,7 @@ export const NEW_PRESETS_VI = {
   packaging_kit: {
     title: 'Thiết kế hộp giấy',
     kickoff:
-      'Thiết kế hộp carton kỹ thuật từ Logo → tạo tuần tự đủ 6 mặt trên|trước|phải|dưới|sau|trái → mockup 3D → Dieline PDF → nhãn → tem → mã vạch thật.',
+      'Thiết kế hộp carton kỹ thuật từ Logo → tạo tuần tự đủ 6 mặt trên|trước|phải|dưới|sau|trái → dàn 2D chọn kiểu gấp → mockup 3D → Dieline PDF → nhãn → tem → mã vạch thật.',
     steps: {
       brand_name: 'Brief: Tên thương hiệu',
       product_type: 'Brief: Loại sản phẩm',
@@ -21,6 +21,7 @@ export const NEW_PRESETS_VI = {
       face_bottom: 'Mặt dưới (L×W)',
       face_back: 'Mặt sau (L×H)',
       face_left: 'Mặt bên trái (W×H)',
+      box_net_2d: 'Dàn 2D kiểu gấp',
       face_lxw: 'Mặt L×W (nắp/đáy)',
       face_lxh: 'Mặt L×H (trước/sau)',
       face_wxh: 'Mặt W×H (hai hông)',
@@ -62,9 +63,11 @@ export const NEW_PRESETS_VI = {
         'Mặt trước/sau L×H — nhập **nội dung in trên mặt này** (tên SP, số công bố, thành phần, công dụng…).',
       face_wxh:
         'Mặt hông W×H — nhập **nội dung in trên mặt này** (HDSD, cảnh báo, thành phần phụ…).',
-      box_dieline_pdf: 'Kiểm tra thông số sản xuất rồi xuất Dieline PDF tỷ lệ 1:1.',
+      box_net_2d:
+        'Trang dàn hộp đã mở. Chọn kiểu gấp — tờ trải đổi ngay, mockup 3D nằm cùng trang. Lưu xong vẫn sửa lại được ở các bước sau.',
+      box_dieline_pdf: 'Kiểm tra thông số sản xuất rồi xuất Dieline PDF tỷ lệ 1:1 theo kiểu gấp đã chốt ở dàn 2D.',
       box_mockup_3d:
-        'Gõ **tạo mockup 3d** để duyệt hộp trước khi xuất Dieline PDF.',
+        'Gõ **tạo mockup 3d** để xem hộp đã gấp theo kiểu vừa chọn trên dàn 2D.',
       product_label: 'Nhãn dán SP (đen trắng): chọn kiểu + tỷ lệ khung bên dưới + nội dung (tên SP, thành phần, HDSD…). Chỉ ghép logo.',
       seal_sticker: 'Tem niêm phong: chọn kiểu + tỷ lệ khung bên dưới + slogan/mô tả. Chỉ ghép logo — không dùng ảnh mặt hộp.',
       barcode_label: 'Mã vạch thật: tự lấy tên SP từ brief; mã SP (vd. mã SP: 188-SRM-001). Mặc định Code128 — hoặc ghi EAN-13/QR nếu cần.',

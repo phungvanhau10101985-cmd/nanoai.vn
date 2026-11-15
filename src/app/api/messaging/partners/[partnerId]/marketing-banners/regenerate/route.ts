@@ -24,6 +24,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
     campaignKey?: string
     imageEngine?: string
     gptQuality?: string
+    imageQuality?: string
   } | null
   const kind = String(body?.kind ?? '')
   if (!isPartnerMarketingBannerKind(kind)) {
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
     chargeCredits: true,
     imageEngine: body?.imageEngine,
     gptQuality: body?.gptQuality,
+    imageQuality: body?.imageQuality,
   })
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status ?? 500 })

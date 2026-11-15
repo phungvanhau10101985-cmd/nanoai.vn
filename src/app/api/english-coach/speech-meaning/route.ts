@@ -6,6 +6,8 @@ import {
   parseCoachUsageContextPayload,
   trackEnglishCoachGeminiResult,
 } from '@/lib/english-coach-api-usage'
+import { buildSpeechMeaningPrompt, parseCanonicalMeaning } from '@/lib/english-coach/native-meaning-canonical'
+import { toSimplifiedChinese, usesSimplifiedChinese } from '@/lib/chinese-script'
 
 type Payload = {
   text?: string
@@ -14,30 +16,6 @@ type Payload = {
   nativeLanguage?: string
   nativeLanguageCode?: string
   coachUsageContext?: 'live' | 'preset'
-}
-
-function parseMeaning(raw: string): string {
-  const cleaned = String(raw || '')
-    .replace(/^```json\s*/i, '')
-    .replace(/^```/i, '')
-    .replace(/```$/i, '')
-    .trim()
-  try {
-    const parsed = JSON.parse(cleaned) as { meaning?: unknown }
-    return String(parsed.meaning || '').replace(/\s+/g, ' ').trim()
-  } catch {
-    const first = cleaned.indexOf('{')
-    const last = cleaned.lastIndexOf('}')
-    if (first >= 0 && last > first) {
-      try {
-        const parsed = JSON.parse(cleaned.slice(first, last + 1)) as { meaning?: unknown }
-        return String(parsed.meaning || '').replace(/\s+/g, ' ').trim()
-      } catch {
-        return ''
-      }
-    }
-    return ''
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -52,18 +30,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Thiếu câu cần dịch.' }, { status: 400 })
     }
     const nativeLanguage = String(payload.nativeLanguage || 'Vietnamese').trim()
+    const nativeLanguageCode = String(payload.nativeLanguageCode || '').trim()
     const targetLanguage = String(payload.targetLanguage || 'English').trim()
     const coachCtx = parseCoachUsageContextPayload(payload.coachUsageContext)
-    const prompt = `Dịch đúng một cụm lời nói của học viên sang ${nativeLanguage}.
-Cụm có thể là ${targetLanguage}, ${nativeLanguage}, hoặc trộn cả hai.
-Chỉ trả nghĩa của cả cụm, một câu ngắn, đúng ngôn ngữ ${nativeLanguage}.
-Không chú thích, không phiên âm, không câu thứ hai, không ngôn ngữ khác.
-Nếu ${nativeLanguage} là tiếng Việt thì xưng "em", không dùng "con".
-
-Cụm: ${text}
-
-JSON, không markdown:
-{ "meaning": "..." }`
+    const prompt = buildSpeechMeaningPrompt({
+      text,
+      nativeLanguage,
+      nativeLanguageCode,
+      targetLanguage,
+    })
     const ai = new GoogleGenerativeAI(apiKey)
     const model = ai.getGenerativeModel(GEMINI_25_FLASH_NO_THINKING)
     const result = await model.generateContent(prompt)
@@ -74,7 +49,10 @@ JSON, không markdown:
       null,
       coachCtx
     )
-    const meaning = parseMeaning(result.response.text() || '')
+    const parsedMeaning = parseCanonicalMeaning(result.response.text() || '')
+    const meaning = usesSimplifiedChinese(nativeLanguageCode)
+      ? toSimplifiedChinese(parsedMeaning)
+      : parsedMeaning
     if (!meaning) {
       return NextResponse.json({ error: 'Không dịch được câu nói.' }, { status: 502 })
     }

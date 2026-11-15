@@ -3,7 +3,7 @@ export const NEW_PRESETS_EN = {
   packaging_kit: {
     title: 'Paper box design',
     kickoff:
-      'Design a technical carton workflow: Logo → create all six faces one by one (top|front|right|bottom|back|left) → 3D mockup → Dieline PDF → label → seal → real barcode.',
+      'Design a technical carton workflow: Logo → create all six faces one by one (top|front|right|bottom|back|left) → 2D fold layout → 3D mockup → Dieline PDF → label → seal → real barcode.',
     steps: {
       brand_name: 'Brief: Brand name',
       product_type: 'Brief: Product type',
@@ -21,6 +21,7 @@ export const NEW_PRESETS_EN = {
       face_bottom: 'Bottom face (L×W)',
       face_back: 'Back face (L×H)',
       face_left: 'Left side (W×H)',
+      box_net_2d: '2D fold layout',
       face_lxw: 'L×W face (top/bottom)',
       face_lxh: 'L×H face (front/back)',
       face_wxh: 'W×H face (sides)',
@@ -62,9 +63,11 @@ export const NEW_PRESETS_EN = {
         'L×H front/back face — enter **print content for this face** (product name, registration no., ingredients, claims…).',
       face_wxh:
         'W×H side faces — enter **print content for this face** (directions, warnings, secondary ingredients…).',
-      box_dieline_pdf: 'Review production parameters, then export the 1:1 technical Dieline PDF.',
+      box_net_2d:
+        'The box layout page is open. Pick a fold and the net updates immediately, with the 3D mockup on the same page. You can reopen and edit it after later steps.',
+      box_dieline_pdf: 'Review production parameters, then export the 1:1 technical Dieline PDF for the fold chosen on the 2D layout.',
       box_mockup_3d:
-        'Type **create mockup 3d** to approve the box before exporting the Dieline PDF.',
+        'Type **create mockup 3d** to see the box folded the way you chose on the 2D layout.',
       product_label: 'Product label (B&W): pick shape + aspect ratio below + copy (name, ingredients, usage…). Logo only.',
       seal_sticker: 'Seal sticker: pick shape + aspect ratio below + tagline/description. Logo only — not box faces.',
       barcode_label: 'Real barcode: uses product name from brief; product code (e.g. SKU: 188-SRM-001). Default Code128 — or EAN-13/QR if specified.',

@@ -1,4 +1,3 @@
-import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { pgListAllImageHistoryCompleted } from '@/lib/db/dashboard-user-pg'
 import { getUserOrBypass } from '@/lib/auth'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -12,6 +11,7 @@ import Link from 'next/link'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { normalizeTryOnHistoryInputImageUrl } from '@/lib/try-on-history-placeholder'
 import { toolKeyToHref, tryOnFeatureToToolKey } from '@/lib/dashboard/task-hub'
+import { GuestCreationLibrary } from '@/components/guest-creations/guest-creation-library'
 
 export default async function HistoryPage() {
   const { t } = getServerDictionary()
@@ -19,7 +19,7 @@ export default async function HistoryPage() {
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) =>
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
   const user = await getUserOrBypass()
-  if (!user) redirectToLogin()
+  if (!user) return <GuestCreationLibrary />
 
   const history = await pgListAllImageHistoryCompleted(user.id)
 
