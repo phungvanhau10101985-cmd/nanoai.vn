@@ -262,7 +262,7 @@ test('curriculum and preset lessons stay on their own pages', () => {
 
   const preset = matchFeatureFlowByMessage('bài học có sẵn', 'vi')
   assert.equal(preset?.kind, 'standalone')
-  if (preset?.kind === 'standalone') assert.equal(preset.href, '/hoc-bai-hoc-co-san')
+  if (preset?.kind === 'standalone') assert.equal(preset.href, '/hoc-tieng-anh-ai/luyen-noi')
 })
 
 test('buildAdvisoryPayload sends an open button for học ngoại ngữ', async () => {

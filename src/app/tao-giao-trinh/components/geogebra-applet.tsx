@@ -103,6 +103,7 @@ function splitGeoGebraCommands(command: string): string[] {
 function normalizeGeoGebraCommand(cmd: string): string {
   return cmd
     .trim()
+    .toLowerCase()
     .replace(/√\(([^)]+)\)/g, 'sqrt($1)')
     .replace(/√([A-Za-z0-9.]+)/g, 'sqrt($1)')
     .replace(/π/g, 'pi')

@@ -366,8 +366,8 @@ function normalizePlotExprCandidate(raw: string): string | null {
   for (const [k, v] of Object.entries(superscriptMap)) {
     s = s.replace(new RegExp(k, 'g'), `^${v}`)
   }
-  const leadingMath = s.match(/^[0-9xXtT+\-*/^().|√π]+/)?.[0] ?? ''
-  s = leadingMath.replace(/(?<![A-Za-z])[tT](?![A-Za-z])/g, 'x')
+  const leadingMath = s.match(/^[0-9A-Za-z+\-*/^().|√π]+/)?.[0] ?? ''
+  s = leadingMath.toLowerCase().replace(/(?<![a-z])t(?![a-z])/g, 'x')
   while (/[+\-*/^.(]$/.test(s)) s = s.slice(0, -1)
   if (!/[xX]/.test(s)) return null
   if (!/^[0-9xX+\-*/^().|√πa-zA-Z]+$/.test(s)) return null

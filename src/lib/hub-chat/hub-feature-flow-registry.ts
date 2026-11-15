@@ -66,7 +66,7 @@ export const HUB_ADVISORY_EXTRA_TOOLS: {
     intents: ['video veo', 'nhạc video', 'music video veo', 'veo flow'],
   },
   {
-    href: '/hoc-bai-hoc-co-san',
+    href: '/hoc-tieng-anh-ai/luyen-noi',
     labelKey: 'ai_language_learning',
     intents: ['bài học có sẵn', 'preset lesson', 'completed lesson'],
   },
@@ -568,7 +568,6 @@ export const STUDY_HELP_FEATURE_HREFS = [
   '/ho-tro-lam-bai',
   '/gia-su-ai',
   '/hoc-tieng-anh-ai',
-  '/hoc-bai-hoc-co-san',
 ] as const
 
 const HOMEWORK_HELP_TEACHER_CREATE =

@@ -38,8 +38,8 @@ describe('language landing samples', () => {
     const copy = japaneseLandingCopy('vi', '3,5 credit · 21.000đ', '2 credit · 12.000đ')
     assert.match(copy.h1, /tiếng Nhật/i)
     assert.match(copy.modes[0]?.href ?? '', /hoc=ja/)
-    assert.match(copy.modes[1]?.href ?? '', /me=vi/)
-    assert.equal(copy.modes[2]?.href, '/hoc-tieng-anh-ai/tu-moi')
+    assert.equal(copy.modes.find((mode) => mode.id === 'preset'), undefined)
+    assert.equal(copy.modes[1]?.href, '/hoc-tieng-anh-ai/tu-moi')
   })
 
   it('opens the Korean room with Korean locked and Vietnamese as the native language', () => {
@@ -50,8 +50,8 @@ describe('language landing samples', () => {
     const copy = koreanLandingCopy('vi', '3,5 credit · 21.000đ', '2 credit · 12.000đ')
     assert.match(copy.h1, /tiếng Hàn/i)
     assert.match(copy.modes[0]?.href ?? '', /hoc=ko/)
-    assert.match(copy.modes[1]?.href ?? '', /me=vi/)
-    assert.equal(copy.modes[2]?.href, '/hoc-tieng-anh-ai/tu-moi')
+    assert.equal(copy.modes.find((mode) => mode.id === 'preset'), undefined)
+    assert.equal(copy.modes[1]?.href, '/hoc-tieng-anh-ai/tu-moi')
   })
 
   it('opens the Chinese room with Chinese locked and Vietnamese as the native language', () => {
@@ -62,8 +62,8 @@ describe('language landing samples', () => {
     const copy = chineseLandingCopy('vi', '3,5 credit · 21.000đ', '2 credit · 12.000đ')
     assert.match(copy.h1, /tiếng Trung/i)
     assert.match(copy.modes[0]?.href ?? '', /hoc=zh/)
-    assert.match(copy.modes[1]?.href ?? '', /me=vi/)
-    assert.equal(copy.modes[2]?.href, '/hoc-tieng-anh-ai/tu-moi')
+    assert.equal(copy.modes.find((mode) => mode.id === 'preset'), undefined)
+    assert.equal(copy.modes[1]?.href, '/hoc-tieng-anh-ai/tu-moi')
   })
 
   it('opens the Vietnamese room with Vietnamese locked and a foreign native language', () => {
@@ -75,7 +75,7 @@ describe('language landing samples', () => {
     const copy = vietnameseLandingCopy('vi', '3,5 credit · 21.000đ', '2 credit · 12.000đ')
     assert.match(copy.h1, /tiếng Việt/i)
     assert.match(copy.modes[0]?.href ?? '', /hoc=vi/)
-    assert.match(copy.modes[1]?.href ?? '', /hoc=vi/)
-    assert.equal(copy.modes[2]?.href, '/hoc-tieng-anh-ai/tu-moi')
+    assert.equal(copy.modes.find((mode) => mode.id === 'preset'), undefined)
+    assert.equal(copy.modes[1]?.href, '/hoc-tieng-anh-ai/tu-moi')
   })
 })

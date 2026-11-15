@@ -155,8 +155,8 @@ export default function TuMoiClientPage() {
           ) : words.length === 0 ? (
             <p className="text-muted-foreground py-8 text-center">
               {localText(
-                'Chưa có từ mới. Hãy học bài Live AI hoặc bài có sẵn, bấm vào từ trong câu để lưu.',
-                'No words yet. Learn with Live AI or saved lessons, tap words in sentences to save them.'
+                'Chưa có từ mới. Hãy học buổi live, bấm vào từ trong câu để lưu.',
+                'No words yet. Study a live lesson and tap words in sentences to save them.'
               )}
             </p>
           ) : (

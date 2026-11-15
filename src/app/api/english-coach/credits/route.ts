@@ -17,7 +17,6 @@ import { isGuestTrialUser } from '@/lib/guest-credit-trial'
 
 const LIVE_SESSION_PRICE_CREDITS = 3.5
 const LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS = 1.75
-const PRESET_SESSION_PRICE_CREDITS = 2
 const LIVE_SESSION_BASE_TURN_LIMIT = 10
 const LIVE_SESSION_EXTRA_TURN_STEP = 5
 
@@ -86,7 +85,6 @@ export async function POST(request: NextRequest) {
         prices: {
           liveStart: LIVE_SESSION_PRICE_CREDITS,
           liveUnlockStep: LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS,
-          presetStart: PRESET_SESSION_PRICE_CREDITS,
           freeLiveLessons: FREE_LIVE_LESSON_LIMIT,
         },
       })
@@ -235,39 +233,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'charge_preset_start') {
-      const charged = await chargeIdempotent({
-        userId: user.id,
-        amount: PRESET_SESSION_PRICE_CREDITS,
-        eventKey: `english-coach:preset:start:${sessionId}`,
-        chargeType: 'english_coach_preset_start',
-        sessionId,
-        metadata: {
-          product: 'english_coach',
-          event: 'preset_start',
-          sessionId,
-          priceCredits: PRESET_SESSION_PRICE_CREDITS,
+      return NextResponse.json(
+        {
+          error: 'Bài học có sẵn không còn mở bán. Hãy học live.',
+          code: 'PRESET_NOT_SOLD',
         },
-      })
-      if (!charged.ok) {
-        if (charged.error === 'insufficient_credits') {
-          return NextResponse.json(
-            {
-              error: `Không đủ credits để mở bài có sẵn. Cần ${PRESET_SESSION_PRICE_CREDITS} credit.`,
-              requiredCredits: PRESET_SESSION_PRICE_CREDITS,
-              code: 'INSUFFICIENT_CREDITS',
-            },
-            { status: 402 }
-          )
-        }
-        return NextResponse.json({ error: 'Không thể trừ credits cho bài có sẵn.' }, { status: 500 })
-      }
-      return NextResponse.json({
-        ok: true,
-        charged: !charged.alreadyApplied,
-        alreadyCharged: charged.alreadyApplied,
-        newBalance: charged.newBalance,
-        sessionId,
-      })
+        { status: 410 }
+      )
     }
 
     return NextResponse.json({ error: 'Action không hợp lệ.' }, { status: 400 })

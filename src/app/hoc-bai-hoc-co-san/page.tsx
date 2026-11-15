@@ -1,25 +1,27 @@
 import { Metadata } from 'next'
-import dynamic from 'next/dynamic'
+import { redirect } from 'next/navigation'
 import { buildMetadata } from '@/lib/seo'
 
-const HocBaiHocCoSanClientPage = dynamic(
-  () => import('../hoc-tieng-anh-ai/hoc-bai-hoc-co-san-client-page'),
-  { ssr: false }
-)
-
 export const metadata: Metadata = buildMetadata({
-  title: 'Bài học có sẵn theo lộ trình | NanoAI',
-  description:
-    'Mở và luyện các bài học có sẵn phù hợp cài đặt hiện tại. Giữ luồng luyện tập tách biệt với bài học live AI để dễ theo dõi.',
-  path: '/hoc-bai-hoc-co-san',
-  keywords: ['bài học có sẵn', 'ôn tập bài học', 'luyện nói theo bài lưu sẵn', 'học tiếng anh ai'],
+  title: 'Luyện nói live với AI | NanoAI',
+  description: 'Học nói trực tiếp với giáo viên AI. Mỗi buổi là hội thoại mới.',
+  path: '/hoc-tieng-anh-ai/luyen-noi',
+  keywords: ['luyện nói live', 'học ngoại ngữ ai', 'giáo viên ai'],
 })
 
-export default function HocBaiHocCoSanPage() {
-  return (
-    <div className="app-shell">
-      <HocBaiHocCoSanClientPage />
-    </div>
-  )
-}
+type Search = Record<string, string | string[] | undefined>
 
+export default async function HocBaiHocCoSanPage({
+  searchParams,
+}: {
+  searchParams: Promise<Search>
+}) {
+  const params = await searchParams
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' && value) query.set(key, value)
+    else if (Array.isArray(value) && value[0]) query.set(key, value[0])
+  }
+  const suffix = query.toString()
+  redirect(`/hoc-tieng-anh-ai/luyen-noi${suffix ? `?${suffix}` : ''}`)
+}

@@ -17,7 +17,6 @@ import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { SITE_URL } from '@/lib/seo'
 
 const LIVE_CREDITS = 3.5
-const PRESET_CREDITS = 2
 
 function money(locale: WebLocale, amount: number): string {
   const n = Math.round(amount).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US')
@@ -160,14 +159,6 @@ export function LanguageLearningLanding({
             priceCurrency: 'VND',
             description: copy.modes[0]?.detail,
             url: `${SITE_URL}${liveHref}`,
-          },
-          {
-            '@type': 'Offer',
-            name: copy.modes[1]?.name,
-            price: CREDIT_UNIT_PRICE_VND * PRESET_CREDITS,
-            priceCurrency: 'VND',
-            description: copy.modes[1]?.detail,
-            url: `${SITE_URL}${copy.modes[1]?.href ?? '/hoc-bai-hoc-co-san'}`,
           },
         ],
       },

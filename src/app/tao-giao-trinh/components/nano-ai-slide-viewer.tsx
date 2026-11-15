@@ -1113,9 +1113,9 @@ function normalizePlotExprCandidate(raw: string): string | null {
     s = s.replace(new RegExp(k, 'g'), `^${v}`)
   }
   // Chỉ giữ đoạn biểu thức toán ở đầu câu; bỏ phần chú thích kiểu "(Hình 1.2) ..."
-  const leadingMath = s.match(/^[0-9xXtT+\-*/^().|√π]+/)?.[0] ?? ''
-  s = leadingMath
-  s = s.replace(/(?<![A-Za-z])[tT](?![A-Za-z])/g, 'x')
+  const leadingMath = s.match(/^[0-9A-Za-z+\-*/^().|√π]+/)?.[0] ?? ''
+  s = leadingMath.toLowerCase()
+  s = s.replace(/(?<![a-z])t(?![a-z])/g, 'x')
   while (/[+\-*/^.(]$/.test(s)) s = s.slice(0, -1)
   if (!/[xX]/.test(s)) return null
   if (!/^[0-9xX+\-*/^().|√πa-zA-Z]+$/.test(s)) return null
@@ -1466,6 +1466,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [studentMdChainBottomSpacerPx, setStudentMdChainBottomSpacerPx] = useState(160)
   const [timerSeconds, setTimerSeconds] = useState(0)
   const [timerRunning, setTimerRunning] = useState(false)
+  /** Mốc hết giờ (ms). Không phụ thuộc render — trang học sinh re-render liên tục khi gõ chữ. */
+  const timerEndsAtRef = useRef<number | null>(null)
+  const timerSecondsRef = useRef(0)
+  const startSandTimerRef = useRef<(seconds: number) => void>(() => {})
+  const timerToastRef = useRef(toast)
+  const timerTrRef = useRef(tr)
+  timerToastRef.current = toast
+  timerTrRef.current = tr
   const [teacherTimerSeconds, setTeacherTimerSeconds] = useState(0)
   const [teacherTimerRunning, setTeacherTimerRunning] = useState(false)
   const [presentationMode, setPresentationMode] = useState<'independent' | 'slide-interaction'>('independent')
@@ -2630,23 +2638,27 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [toast, tr])
 
   useEffect(() => {
-    if (timerSeconds <= 0) setTimerRunning(false)
-  }, [timerSeconds])
-
-  useEffect(() => {
-    if (!timerRunning || timerSeconds <= 0) return
-    const id = setInterval(() => {
-      setTimerSeconds((s) => {
-        if (s <= 1) {
-          playTimerEndBell()
-          toast({ title: tr('Hết giờ!', 'Time\'s up!', '时间到！', '時間です！', '시간 종료!'), duration: 3000 })
-          return 0
-        }
-        return s - 1
+    if (!timerRunning) return
+    const id = window.setInterval(() => {
+      const ends = timerEndsAtRef.current
+      if (ends == null) return
+      const left = Math.max(0, Math.ceil((ends - Date.now()) / 1000))
+      if (left !== timerSecondsRef.current) {
+        timerSecondsRef.current = left
+        setTimerSeconds(left)
+      }
+      if (left > 0) return
+      timerEndsAtRef.current = null
+      setTimerRunning(false)
+      playTimerEndBell()
+      const say = timerTrRef.current
+      timerToastRef.current({
+        title: typeof say === 'function' ? say('Hết giờ!', 'Time\'s up!', '时间到！', '時間です！', '시간 종료!') : 'Hết giờ!',
+        duration: 3000,
       })
-    }, 1000)
-    return () => clearInterval(id)
-  }, [timerRunning, timerSeconds, toast, tr])
+    }, 200)
+    return () => window.clearInterval(id)
+  }, [timerRunning])
 
   useEffect(() => {
     if (!teacherTimerRunning) return
@@ -2974,8 +2986,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         undoInfographicStroke(e.data.slideIndex)
       }
       else if (t === 'sand-timer-start' && typeof e.data?.seconds === 'number') {
-        setTimerSeconds(e.data.seconds)
-        setTimerRunning(true)
+        startSandTimerRef.current(e.data.seconds)
       }
       else if (t === 'presentation-mode' && (e.data?.mode === 'independent' || e.data?.mode === 'slide-interaction')) {
         setPresentationMode(e.data.mode)
@@ -3772,15 +3783,34 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }
 
   const startTimer = useCallback((seconds: number) => {
-    setTimerSeconds(seconds)
-    setTimerRunning(true)
+    const sec = Math.max(0, Math.floor(seconds))
+    timerSecondsRef.current = sec
+    timerEndsAtRef.current = sec > 0 ? Date.now() + sec * 1000 : null
+    setTimerSeconds(sec)
+    setTimerRunning(sec > 0)
   }, [])
+  startSandTimerRef.current = startTimer
 
   const toggleTimer = useCallback(() => {
-    setTimerRunning((r) => !r)
+    setTimerRunning((running) => {
+      if (running) {
+        const ends = timerEndsAtRef.current
+        const left = ends == null ? timerSecondsRef.current : Math.max(0, Math.ceil((ends - Date.now()) / 1000))
+        timerSecondsRef.current = left
+        timerEndsAtRef.current = null
+        setTimerSeconds(left)
+        return false
+      }
+      const left = timerSecondsRef.current
+      if (left <= 0) return false
+      timerEndsAtRef.current = Date.now() + left * 1000
+      return true
+    })
   }, [])
 
   const resetTimer = useCallback(() => {
+    timerEndsAtRef.current = null
+    timerSecondsRef.current = 0
     setTimerRunning(false)
     setTimerSeconds(0)
   }, [])

@@ -9,7 +9,6 @@ import { readLessonLanguageQuery } from '@/lib/hoc-ngoai-ngu/lesson-query'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import {
   FREE_LIVE_LESSON_LIMIT,
-  freeLiveChoiceLabel,
   freeLiveLoginMessage,
   freeLiveStartToast,
   freeLiveThisLessonLabel,
@@ -67,8 +66,6 @@ import {
   analyzeWord,
   chatWithCoach,
   cleanupIncompleteWords,
-  createSessionFromRandomCompletedLesson,
-  checkCompletedLessonMatch,
   chargeEnglishCoachCredits,
   createTopicCurriculum,
   explainIntent,
@@ -120,7 +117,6 @@ const LIVE_SESSION_BASE_TURN_LIMIT = 10
 const LIVE_SESSION_EXTRA_TURN_STEP = 5
 const LIVE_SESSION_PRICE_CREDITS = 3.5
 const LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS = LIVE_SESSION_PRICE_CREDITS / 2
-const PRESET_SESSION_PRICE_CREDITS = 2
 const LESSON_TIMELINE_TARGET_TURNS = LIVE_SESSION_BASE_TURN_LIMIT
 const LISTENING_VISIBLE_OPTION_COUNT = 5
 const FIXED_TTS_VOICE_BY_GENDER: Record<Gender, VoiceName> = {
@@ -2662,9 +2658,6 @@ export default function HocTiengAnhAiClientPage() {
   const [preLessonPassed, setPreLessonPassed] = useState(false)
   const [preLessonCurriculum, setPreLessonCurriculum] = useState<TopicCurriculum | null>(null)
   const [preLessonTopic, setPreLessonTopic] = useState<TopicOption | null>(null)
-  const [lessonStartChoiceOpen, setLessonStartChoiceOpen] = useState(false)
-  const [lessonStartChoiceBusy, setLessonStartChoiceBusy] = useState(false)
-  const [lessonStartPresetAvailable, setLessonStartPresetAvailable] = useState(true)
   const [lessonStartPlan, setLessonStartPlan] = useState<{ curriculum: TopicCurriculum | null; topic: TopicOption } | null>(null)
   const [matchedSessionChoiceOpen, setMatchedSessionChoiceOpen] = useState(false)
   const [matchedSessionChoiceBusy, setMatchedSessionChoiceBusy] = useState(false)
@@ -7328,14 +7321,14 @@ export default function HocTiengAnhAiClientPage() {
     }
   }
 
-  const openSessionByRoute = useCallback((targetSessionId: string, isPresetReplaySession?: boolean) => {
+  const openSessionByRoute = useCallback((targetSessionId: string, _isPresetReplaySession?: boolean) => {
     const sid = String(targetSessionId || '').trim()
     if (!sid) return
     primeSharedLessonAudio()
     const now = Date.now()
     if (now < sessionNavLockUntilRef.current) return
     sessionNavLockUntilRef.current = now + SESSION_NAV_LOCK_MS
-    const targetPath = isPresetReplaySession ? '/hoc-bai-hoc-co-san' : LIVE_LESSON_ROOM_PATH
+    const targetPath = LIVE_LESSON_ROOM_PATH
     const currentPath = String(pathname || '').trim()
     const currentSessionIdInUrl = String(searchParams.get('sessionId') || '').trim()
     const sameUrlTarget = currentPath === targetPath && currentSessionIdInUrl === sid
@@ -7390,40 +7383,13 @@ export default function HocTiengAnhAiClientPage() {
         : undefined)
       || selectedTopic
 
-    void (async () => {
-      const plan = { curriculum: null as TopicCurriculum | null, topic: topicFromPending }
-      let presetAvailable = false
-      try {
-        const { ok, data } = await checkCompletedLessonMatch({
-          targetLanguage: activeTeacher.languageLabel,
-          nativeLanguage: selectedNativeLanguage.apiLabel,
-          learnerLevel,
-          topicId: plan.topic.id,
-          topicLabel: plan.topic.label,
-          mode: learningMode === 'reflex' ? 'listen_speak' : mode,
-          learningMode,
-          teacherLabel: activeTeacher.label,
-          teacherLocale: activeTeacher.locale,
-          languageCode,
-        })
-        presetAvailable = ok ? Boolean(data.found) : false
-      } catch {
-        presetAvailable = false
-      }
-      openLessonStartChoice(null, topicFromPending, { presetAvailable })
+    void openLessonStartChoice(null, topicFromPending).catch((error: unknown) => {
       toast({
-        title: localText('Chọn hình thức học', 'Choose lesson type'),
-        description: presetAvailable
-          ? localText(
-              'Có bài học có sẵn khớp cài đặt hiện tại. Bạn có thể học live với AI hoặc học bài có sẵn.',
-              'A saved lesson matches your current setup. You can start a live AI lesson or study the saved lesson.'
-            )
-          : localText(
-              'Chưa có bài có sẵn khớp cài đặt hiện tại. Bạn vẫn có thể học live với AI ngay.',
-              'No saved lesson matches your current setup yet. You can start a live AI lesson now.'
-            ),
+        title: localText('Không mở được buổi live', 'Unable to open the live lesson'),
+        description: unknownErrorMsg(error),
+        variant: 'destructive',
       })
-    })().finally(() => {
+    }).finally(() => {
       const next = new URLSearchParams()
       const hoc = String(searchParams.get('hoc') || '').trim()
       const me = String(searchParams.get('me') || '').trim()
@@ -7715,7 +7681,7 @@ export default function HocTiengAnhAiClientPage() {
       setLearnerProfilePromptOpen(false)
       toast({
         title: localText('Đã lưu thông tin cá nhân hóa', 'Profile info saved'),
-        description: localText('Bài học có sẵn sẽ cá nhân hóa theo tài khoản của bạn.', 'Saved lessons will be personalized to your account.'),
+        description: localText('Buổi live sẽ gọi đúng tên và hoàn cảnh của bạn.', 'Live lessons will use your name and situation.'),
       })
     } catch (e) {
       toast({
@@ -9103,18 +9069,7 @@ export default function HocTiengAnhAiClientPage() {
       }
 
       setQuickStartModalOpen(false)
-      const plan = { curriculum, topic: topicToUse }
-      const hasPreset = await hasStrictPresetMatch(plan).catch(() => false)
-      await startLiveLessonFromChoice(plan)
-      if (hasPreset) {
-        toast({
-          title: localText('Đã mở buổi live mới', 'New live lesson started'),
-          description: localText(
-            'Bạn vẫn có thể học bài có sẵn phù hợp từ danh sách lịch sử nếu muốn.',
-            'You can still pick a matching saved lesson from history anytime.'
-          ),
-        })
-      }
+      await startLiveLessonFromChoice({ curriculum, topic: topicToUse })
     } catch (e) {
       toast({
         title: localText('Bắt đầu nhanh chưa thành công', 'Quick start failed'),
@@ -9187,35 +9142,6 @@ export default function HocTiengAnhAiClientPage() {
     selectedNativeLanguage.apiLabel,
   ])
 
-  const openLessonStartChoice = (
-    curriculum: TopicCurriculum | null,
-    topic: TopicOption,
-    opts?: { presetAvailable?: boolean }
-  ) => {
-    setLessonStartPresetAvailable(opts?.presetAvailable !== false)
-    setLessonStartPlan({ curriculum, topic })
-    setLessonStartChoiceOpen(true)
-    const sid = String(sessionId || '').trim()
-    if (sid) void syncSessionCreditStatus(sid)
-  }
-
-  const hasStrictPresetMatch = async (plan: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
-    const { ok, data } = await checkCompletedLessonMatch({
-      targetLanguage: activeTeacher.languageLabel,
-      nativeLanguage: selectedNativeLanguage.apiLabel,
-      learnerLevel,
-      topicId: plan.topic.id,
-      topicLabel: plan.topic.label,
-      mode: learningMode === 'reflex' ? 'listen_speak' : mode,
-      learningMode,
-      teacherLabel: activeTeacher.label,
-      teacherLocale: activeTeacher.locale,
-      languageCode,
-    })
-    if (!ok) throw new Error(data.error || localText('Không kiểm tra được bài học có sẵn.', 'Cannot check saved lesson match.'))
-    return Boolean(data.found)
-  }
-
   const notifyCreditsUpdated = useCallback(() => {
     if (typeof window === 'undefined') return
     window.dispatchEvent(new Event('credits-updated'))
@@ -9247,8 +9173,6 @@ export default function HocTiengAnhAiClientPage() {
     setMatchedSessionChoiceOpen(false)
     setMatchedSessionPlan(null)
     setMatchedHistorySessions([])
-    setLessonStartChoiceOpen(false)
-    setLessonStartPresetAvailable(true)
     setLessonStartPlan(null)
     const sessionIdForCharge = String(sessionId || '').trim()
     if (!sessionIdForCharge) {
@@ -9307,84 +9231,12 @@ export default function HocTiengAnhAiClientPage() {
     })
   }
 
-  const startPresetLessonFromChoice = async (planArg?: { curriculum: TopicCurriculum | null; topic: TopicOption }) => {
-    primeSharedLessonAudio()
-    if (!lessonStartPresetAvailable) return
-    const plan = planArg || lessonStartPlan
-    if (!plan) return
-    setLessonStartChoiceBusy(true)
-    try {
-      const { ok, data } = await createSessionFromRandomCompletedLesson({
-        targetLanguage: activeTeacher.languageLabel,
-        nativeLanguage: selectedNativeLanguage.apiLabel,
-        learnerLevel,
-        topicId: plan.topic.id,
-        topicLabel: plan.topic.label,
-        mode: learningMode === 'reflex' ? 'listen_speak' : mode,
-        learningMode,
-        teacherLabel: activeTeacher.label,
-        teacherLocale: activeTeacher.locale,
-        languageCode,
-      })
-      if (!ok) {
-        throw new Error(data.error || localText('Không lấy được bài học có sẵn.', 'Unable to load a saved lesson.'))
-      }
-      if (!data.found || !data.sessionId) {
-        toast({
-          title: localText('Không còn bài phù hợp', 'No matching saved lesson now'),
-          description: localText(
-            'Danh sách bài có sẵn vừa thay đổi. Bạn chọn học live hoặc đóng để kiểm tra lại.',
-            'Saved lessons changed. Choose live lesson or close and check again.'
-          ),
-          variant: 'destructive',
-        })
-        return
-      }
-      const presetSessionId = String(data.sessionId || '').trim()
-      const presetCharge = await chargeEnglishCoachCredits({
-        action: 'charge_preset_start',
-        sessionId: presetSessionId,
-      })
-      if (!presetCharge.ok) {
-        throw new Error(String(presetCharge.data.error || localText('Không thể trừ credit cho bài có sẵn.', 'Unable to charge credits for saved lesson.')))
-      }
-      notifyCreditsUpdated()
-      const chargedNow = Boolean(presetCharge.data.charged)
-      const presetBalance = Number(presetCharge.data.newBalance || 0)
-      toast({
-        title: chargedNow
-          ? localText('Đã trừ credit mở bài có sẵn', 'Saved lesson credits charged')
-          : localText('Bài có sẵn đã được trừ credit trước đó', 'Saved lesson already charged earlier'),
-        description: chargedNow
-          ? localText(
-              `Đã trừ ${PRESET_SESSION_PRICE_CREDITS} credit. Số dư còn lại: ${presetBalance.toFixed(2)}.`,
-              `${PRESET_SESSION_PRICE_CREDITS} credits deducted. Remaining balance: ${presetBalance.toFixed(2)}.`
-            )
-          : localText(
-              `Không trừ thêm. Số dư hiện tại: ${presetBalance.toFixed(2)}.`,
-              `No extra deduction. Current balance: ${presetBalance.toFixed(2)}.`
-            ),
-      })
-      setLessonStartChoiceOpen(false)
-      setLessonStartPresetAvailable(true)
-      setLessonStartPlan(null)
-      router.replace(`/hoc-bai-hoc-co-san?sessionId=${encodeURIComponent(presetSessionId)}`)
-      return
-      setSetupCollapsed(true)
-      jumpToConversationStart()
-      toast({
-        title: localText('Đã mở bài học có sẵn', 'Saved lesson loaded'),
-        description: localText('Bạn đang học một bài đã hoàn thành phù hợp cài đặt hiện tại.', 'You are now studying a saved lesson matching your setup.'),
-      })
-    } catch (e) {
-      toast({
-        title: localText('Không mở được bài có sẵn', 'Cannot load saved lesson'),
-        description: unknownErrorMsg(e),
-        variant: 'destructive',
-      })
-    } finally {
-      setLessonStartChoiceBusy(false)
-    }
+  const openLessonStartChoice = async (
+    curriculum: TopicCurriculum | null,
+    topic: TopicOption,
+    _opts?: { presetAvailable?: boolean }
+  ) => {
+    await startLiveLessonFromChoice({ curriculum, topic })
   }
 
   const startLiveAfterPreReview = async () => {
@@ -9392,29 +9244,19 @@ export default function HocTiengAnhAiClientPage() {
     const curriculum = preLessonCurriculum
     const topic = preLessonTopic
     if (!curriculum || !topic) return
-    const plan = { curriculum, topic }
     setPreLessonContinueBusy(true)
     try {
       clearPreLessonGate()
-      const hasPreset = await hasStrictPresetMatch(plan)
-      openLessonStartChoice(curriculum, topic, { presetAvailable: hasPreset })
-      toast({
-        title: localText('Chọn hình thức học', 'Choose lesson type'),
-        description: hasPreset
-          ? localText(
-              'Có bài học có sẵn khớp cài đặt hiện tại. Bạn có thể học live với AI hoặc học bài có sẵn.',
-              'A saved lesson matches your current setup. You can start a live AI lesson or study the saved lesson.'
-            )
-          : localText(
-              'Chưa có bài có sẵn khớp cài đặt hiện tại. Bạn vẫn có thể học live với AI ngay.',
-              'No saved lesson matches your current setup yet. You can start a live AI lesson now.'
-            ),
-      })
-      // Legacy in-progress matching popup is intentionally skipped here.
-      // After pre-review, flow is standardized to Live AI vs Saved preset choice.
+      await openLessonStartChoice(curriculum, topic)
       setMatchedHistorySessions([])
       setMatchedSessionPlan(null)
       setMatchedSessionChoiceOpen(false)
+    } catch (error: unknown) {
+      toast({
+        title: localText('Không mở được buổi live', 'Unable to open the live lesson'),
+        description: unknownErrorMsg(error),
+        variant: 'destructive',
+      })
     } finally {
       setPreLessonContinueBusy(false)
     }
@@ -9466,9 +9308,7 @@ export default function HocTiengAnhAiClientPage() {
         })
         return
       }
-      const plan = { curriculum: topicCurriculum, topic: selectedTopic }
-      const hasPreset = await hasStrictPresetMatch(plan)
-      openLessonStartChoice(topicCurriculum, selectedTopic, { presetAvailable: hasPreset })
+      await openLessonStartChoice(topicCurriculum, selectedTopic)
     } catch (e) {
       toast({
         title: localText('Lỗi', 'Error'),
@@ -11881,10 +11721,10 @@ export default function HocTiengAnhAiClientPage() {
                     ) : null}
                   </div>
                 ) : (
-                  <div data-coach-below="" className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                  <div data-coach-below="" className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
                     {localText(
-                      `Bài học có sẵn: ${PRESET_SESSION_PRICE_CREDITS} credit/buổi (không mở thêm lượt, học hết buổi hiện tại).`,
-                      `Saved lesson: ${PRESET_SESSION_PRICE_CREDITS} credit per lesson (no extra turn unlock, finish current lesson).`
+                      'Bài đã lưu không còn mở bán. Bắt đầu buổi live để học tiếp.',
+                      'Saved lessons are no longer sold. Start a live lesson to continue.'
                     )}
                   </div>
                 )}
@@ -12438,8 +12278,8 @@ export default function HocTiengAnhAiClientPage() {
         <HistoryPanel
           title={localText('Danh sách bài học đã học', 'Learned lesson list')}
           description={localText(
-            'Mở lại để ôn tập. Buổi live có thể mua thêm lượt để học tiếp; bài có sẵn chỉ mở lại để xem và ôn.',
-            'Open again for review. Live lessons can buy extra turns to continue; saved lessons are review-only.'
+            'Mở lại buổi đã học để ôn. Buổi live có thể mua thêm lượt để học tiếp.',
+            'Open a past lesson to review. Live lessons can buy extra turns to continue.'
           )}
           sessions={learnedHistorySessions}
           openedHistorySessionId={openedHistorySessionId}
@@ -12648,74 +12488,6 @@ export default function HocTiengAnhAiClientPage() {
                 }}
                 disabled={matchedSessionChoiceBusy}
                 className="min-h-[44px]"
-              >
-                {localText('Đóng', 'Close')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {lessonStartChoiceOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 sm:items-center sm:p-4">
-          <div className="w-full max-w-md rounded-lg border bg-white p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">
-              {localText('Chọn hình thức học', 'Choose lesson type')}
-            </h3>
-            <p className="mt-2 text-sm text-slate-600">
-              {localText(
-                'Bạn muốn học live trực tiếp với AI hay học một bài có sẵn phù hợp đúng cài đặt hiện tại?',
-                'Do you want a live AI lesson or a saved lesson matching your current settings?'
-              )}
-            </p>
-            <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 space-y-1">
-              <p>
-                {localText('Học live với AI:', 'Live AI lesson:')}{' '}
-                <span className="font-semibold">{freeLiveChoiceLabel(uiLocale, freeLiveRemaining, freeLiveLoginRequired, LIVE_SESSION_PRICE_CREDITS)}</span>{' '}
-                {localText(`/ ${LIVE_SESSION_BASE_TURN_LIMIT} lượt hỏi`, `/ ${LIVE_SESSION_BASE_TURN_LIMIT} turns`)}
-              </p>
-              <p>
-                {localText('Mở thêm lượt live:', 'Unlock extra live turns:')} <span className="font-semibold">{LIVE_SESSION_EXTRA_STEP_PRICE_CREDITS} credit</span>{' '}
-                {localText(`/ ${LIVE_SESSION_EXTRA_TURN_STEP} lượt`, `/ ${LIVE_SESSION_EXTRA_TURN_STEP} turns`)}
-              </p>
-              <p>
-                {localText('Học bài có sẵn:', 'Saved lesson:')} <span className="font-semibold">{PRESET_SESSION_PRICE_CREDITS} credit</span>{' '}
-                {localText('/ buổi', '/ lesson')}
-              </p>
-            </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <Button
-                type="button"
-                onClick={() => void startLiveLessonFromChoice()}
-                disabled={lessonStartChoiceBusy}
-                className="min-h-[44px]"
-              >
-                {localText('Học live trực tiếp', 'Start live lesson')}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void startPresetLessonFromChoice()}
-                disabled={lessonStartChoiceBusy || !lessonStartPresetAvailable}
-                className="min-h-[44px]"
-              >
-                {!lessonStartPresetAvailable
-                  ? localText('Chưa có bài có sẵn phù hợp', 'No matching saved lesson')
-                  : lessonStartChoiceBusy
-                    ? processingLabel(localText('Đang mở...', 'Loading...'))
-                    : localText('Học bài có sẵn', 'Study saved lesson')}
-              </Button>
-            </div>
-            <div className="mt-3 flex justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setLessonStartChoiceOpen(false)
-                  setLessonStartPresetAvailable(true)
-                  setLessonStartPlan(null)
-                }}
-                disabled={lessonStartChoiceBusy}
-                className="min-h-[40px]"
               >
                 {localText('Đóng', 'Close')}
               </Button>

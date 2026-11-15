@@ -1,21 +1,22 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import type { LanguageLandingCopy } from '@/lib/hoc-ngoai-ngu/landing-copy'
+import { dropSavedLessonOffer, type LanguageLandingCopy } from '@/lib/hoc-ngoai-ngu/landing-copy'
 import { patchFreeLiveOffer } from '@/lib/english-coach-free-lessons'
 
 const LIVE = '/hoc-tieng-anh-ai/luyen-noi?hoc=ko&me=vi'
 const PRESET = '/hoc-bai-hoc-co-san?hoc=ko&me=vi'
 const WORDS = '/hoc-tieng-anh-ai/tu-moi'
 
-function withPrices(copy: LanguageLandingCopy, livePrice: string, presetPrice: string): LanguageLandingCopy {
-  const fill = (value: string) => value.replaceAll('{live}', livePrice).replaceAll('{preset}', presetPrice)
+function withPrices(copy: LanguageLandingCopy, livePrice: string, _presetPrice: string): LanguageLandingCopy {
+  const offered = dropSavedLessonOffer(copy)
+  const fill = (value: string) => value.replaceAll('{live}', livePrice).replaceAll('{preset}', '')
   return {
-    ...copy,
-    lead: fill(copy.lead),
-    facts: copy.facts.map((fact) => ({ term: fact.term, detail: fill(fact.detail) })),
-    modes: copy.modes.map((mode) => ({ ...mode, price: fill(mode.price), detail: fill(mode.detail) })),
-    steps: copy.steps.map((step) => ({ name: step.name, text: fill(step.text) })),
-    faqs: copy.faqs.map((item) => ({ question: item.question, answer: fill(item.answer) })),
-    closeLead: fill(copy.closeLead),
+    ...offered,
+    lead: fill(offered.lead),
+    facts: offered.facts.map((fact) => ({ term: fact.term, detail: fill(fact.detail) })),
+    modes: offered.modes.map((mode) => ({ ...mode, price: fill(mode.price), detail: fill(mode.detail) })),
+    steps: offered.steps.map((step) => ({ name: step.name, text: fill(step.text) })),
+    faqs: offered.faqs.map((item) => ({ question: item.question, answer: fill(item.answer) })),
+    closeLead: fill(offered.closeLead),
   }
 }
 

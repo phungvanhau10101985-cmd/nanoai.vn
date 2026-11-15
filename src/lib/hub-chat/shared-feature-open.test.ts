@@ -69,9 +69,8 @@ test('giúp tôi học bài lists study features instead of one tool', () => {
   assert.doesNotMatch(menu.message, /https?:\/\//)
   assert.deepEqual(
     menu.opens.map((open) => open.href),
-    ['/ho-tro-lam-bai', '/gia-su-ai', '/hoc-tieng-anh-ai', '/hoc-bai-hoc-co-san']
+    ['/ho-tro-lam-bai', '/gia-su-ai', '/hoc-tieng-anh-ai']
   )
-  assert.equal(menu.opens[3]?.label, 'Bài học có sẵn')
   assert.equal(resolveSharedFeatureOpen('Giúp tôi học bài', 'vi'), null)
 })
 

@@ -1263,7 +1263,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     key: 'hoc-tieng-anh-ai',
     pageTitle: 'Học ngoại ngữ AI, nói trực tiếp và được sửa lỗi',
     pageDescription:
-      'Học thử miễn phí 2 bài live. Luyện nói với giáo viên AI, câu sai được sửa ngay. Buổi sau 21.000đ. Bài có sẵn 12.000đ. Cần micro.',
+      'Học thử miễn phí 2 bài live. Luyện nói với giáo viên AI, câu sai được sửa ngay. Buổi sau 21.000đ. Cần micro.',
     path: '/hoc-tieng-anh-ai',
     keywords: [
       'học ngoại ngữ ai',
@@ -1275,16 +1275,15 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     ],
     serviceName: 'Học ngoại ngữ AI',
     serviceDescription: 'Nói với giáo viên AI, chọn tiếng mẹ đẻ và tiếng đang học, câu sai được sửa trong hội thoại.',
-    h2: 'Ba cách học: buổi live, bài có sẵn, từ mới',
+    h2: 'Hai cách học: buổi live và từ mới',
     overview:
-      'Người học chọn tiếng mẹ đẻ trong bảy ngôn ngữ và chọn tiếng muốn học. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Bài có sẵn là transcript đã lưu, 2 credit, 12.000đ. Danh sách từ mới mở không trừ thêm credit.',
-    benefits: ['Sửa câu ngay trong lượt nói', 'Tiếng mẹ đẻ không cố định tiếng Việt', 'Buổi live và bài có sẵn tách riêng'],
-    useCases: ['Luyện câu trước cuộc họp', 'Ôn bài đã lưu vào buổi tối', 'Xem lại từ đã giữ từ các buổi học'],
+      'Người học chọn tiếng mẹ đẻ trong bảy ngôn ngữ và chọn tiếng muốn học. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Danh sách từ mới mở không trừ thêm credit.',
+    benefits: ['Sửa câu ngay trong lượt nói', 'Tiếng mẹ đẻ không cố định tiếng Việt', 'Mỗi buổi live là hội thoại mới'],
+    useCases: ['Luyện câu trước cuộc họp', 'Nói lại một tình huống vừa gặp', 'Xem lại từ đã giữ từ các buổi học'],
     tips: ['Phòng yên để micro nghe đúng câu', 'Nói chậm nếu câu bị ngắt', 'Đổi tiếng mẹ đẻ khi người học không dùng tiếng Việt'],
     faqs: [
       { question: 'Tiếng mẹ đẻ có phải tiếng Việt không?', answer: 'Không. Người học chọn tiếng Việt, Anh, Trung, Nhật, Hàn, Thái hoặc Hindi.' },
       { question: 'Một buổi live giá bao nhiêu?', answer: 'Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là 3,5 credit, 21.000đ. Credit trừ khi mở buổi trả phí.' },
-      { question: 'Bài có sẵn khác buổi live thế nào?', answer: 'Bài có sẵn mở transcript đã lưu, 2 credit một bài. Buổi live là hội thoại mới, 3,5 credit.' },
       { question: 'Câu nói sai được sửa ra sao?', answer: 'Trong lượt hội thoại, câu sai được chỉ ra và thay bằng câu đúng hơn. Chú thích viết bằng tiếng mẹ đẻ đã chọn.' },
       { question: 'Xem từ mới có mất thêm tiền không?', answer: 'Không. Danh sách từ đã lưu mở không trừ thêm credit.' },
       { question: 'Cần micro không?', answer: 'Buổi nói cần micro. Trình duyệt hỏi quyền một lần. Phòng ồn thì nói lại câu đó.' },
@@ -1294,7 +1293,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     key: 'hoc-tieng-viet',
     pageTitle: 'Học tiếng Việt với AI cho người nước ngoài',
     pageDescription:
-      'Học thử miễn phí 2 bài live tiếng Việt cho người nước ngoài. Buổi sau 21.000đ. Bài 12.000đ. Câu sai được sửa ngay.',
+      'Học thử miễn phí 2 bài live tiếng Việt cho người nước ngoài. Buổi sau 21.000đ. Câu sai được sửa ngay.',
     path: '/hoc-tieng-viet',
     keywords: [
       'học tiếng việt',
@@ -1305,17 +1304,16 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     ],
     serviceName: 'Học tiếng Việt AI',
     serviceDescription: 'Người nước ngoài nói tiếng Việt với giáo viên AI. Tiếng mẹ đẻ là Anh, Trung, Nhật, Hàn, Thái hoặc Hindi. Câu sai được sửa trong hội thoại.',
-    h2: 'Ba cách học tiếng Việt: buổi live, bài có sẵn, từ mới',
+    h2: 'Hai cách học tiếng Việt: buổi live và từ mới',
     overview:
-      'Tiếng đang học khóa ở tiếng Việt. Người học chọn tiếng mẹ đẻ trong sáu ngôn ngữ còn lại. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Bài có sẵn là transcript đã lưu, 2 credit, 12.000đ. Chú thích câu sửa viết bằng tiếng mẹ đẻ.',
-    benefits: ['Tiếng Việt được khóa, không lẫn với tiếng khác', 'Chú thích bằng tiếng mẹ đẻ của người nước ngoài', 'Buổi live và bài có sẵn tách riêng'],
-    useCases: ['Luyện câu trước chuyến đi Việt Nam', 'Ôn bài tiếng Việt đã lưu', 'Xem lại từ tiếng Việt đã giữ'],
+      'Tiếng đang học khóa ở tiếng Việt. Người học chọn tiếng mẹ đẻ trong sáu ngôn ngữ còn lại. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Chú thích câu sửa viết bằng tiếng mẹ đẻ.',
+    benefits: ['Tiếng Việt được khóa, không lẫn với tiếng khác', 'Chú thích bằng tiếng mẹ đẻ của người nước ngoài', 'Mỗi buổi live là hội thoại mới'],
+    useCases: ['Luyện câu trước chuyến đi Việt Nam', 'Nói lại tình huống vừa gặp', 'Xem lại từ tiếng Việt đã giữ'],
     tips: ['Phòng yên để micro nghe đúng câu', 'Bắt đầu với tiếng mẹ đẻ tiếng Anh rồi đổi trong phòng', 'Nói chậm nếu câu bị ngắt'],
     faqs: [
       { question: 'Trang này có phải cho người Việt học tiếng Anh không?', answer: 'Không. Trang này cho người nước ngoài học tiếng Việt. Tiếng đang học khóa ở tiếng Việt.' },
       { question: 'Tiếng mẹ đẻ chọn được những gì?', answer: 'Tiếng Anh, Trung, Nhật, Hàn, Thái hoặc Hindi. Chú thích câu sửa viết bằng tiếng mẹ đẻ đó.' },
       { question: 'Một buổi live giá bao nhiêu?', answer: 'Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau tiếng Việt là 3,5 credit, 21.000đ.' },
-      { question: 'Bài có sẵn khác buổi live thế nào?', answer: 'Bài có sẵn mở transcript tiếng Việt đã lưu, 2 credit một bài. Buổi live là hội thoại mới, 3,5 credit.' },
       { question: 'Câu tiếng Việt sai được sửa ra sao?', answer: 'Trong lượt hội thoại, câu sai được thay bằng câu đúng hơn. Ví dụ việc đã xảy ra dùng “đã đi”, không chỉ “đi”.' },
       { question: 'Cần micro không?', answer: 'Buổi nói cần micro. Trình duyệt hỏi quyền một lần. Phòng ồn thì nói lại câu đó.' },
     ],
@@ -1324,7 +1322,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     key: 'hoc-tieng-trung',
     pageTitle: 'Học tiếng Trung với AI, nói và được sửa lỗi',
     pageDescription:
-      'Học thử miễn phí 2 bài live tiếng Trung. Buổi sau 21.000đ. Bài 12.000đ. Câu sai được sửa ngay. Cần micro.',
+      'Học thử miễn phí 2 bài live tiếng Trung. Buổi sau 21.000đ. Câu sai được sửa ngay. Cần micro.',
     path: '/hoc-tieng-trung',
     keywords: [
       'học tiếng trung',
@@ -1335,17 +1333,16 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     ],
     serviceName: 'Học tiếng Trung AI',
     serviceDescription: 'Nói tiếng Trung với giáo viên AI. Tiếng mẹ đẻ mặc định tiếng Việt, đổi được sang Anh, Nhật, Hàn, Thái hoặc Hindi. Câu sai được sửa trong hội thoại.',
-    h2: 'Ba cách học tiếng Trung: buổi live, bài có sẵn, từ mới',
+    h2: 'Hai cách học tiếng Trung: buổi live và từ mới',
     overview:
-      'Tiếng đang học khóa ở tiếng Trung. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Bài có sẵn là transcript đã lưu, 2 credit, 12.000đ. Câu thiếu 了 được sửa ngay. Chú thích viết bằng tiếng mẹ đẻ.',
-    benefits: ['Tiếng Trung được khóa, không lẫn với tiếng khác', 'Chú thích bằng tiếng mẹ đẻ', 'Buổi live và bài có sẵn tách riêng'],
-    useCases: ['Luyện câu trước cuộc họp với đối tác Trung Quốc', 'Ôn bài tiếng Trung đã lưu', 'Xem lại từ tiếng Trung đã giữ'],
+      'Tiếng đang học khóa ở tiếng Trung. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Câu thiếu 了 được sửa ngay. Chú thích viết bằng tiếng mẹ đẻ.',
+    benefits: ['Tiếng Trung được khóa, không lẫn với tiếng khác', 'Chú thích bằng tiếng mẹ đẻ', 'Mỗi buổi live là hội thoại mới'],
+    useCases: ['Luyện câu trước cuộc họp với đối tác Trung Quốc', 'Nói lại tình huống vừa gặp', 'Xem lại từ tiếng Trung đã giữ'],
     tips: ['Phòng yên để micro nghe đúng câu', 'Bắt đầu với tiếng mẹ đẻ tiếng Việt rồi đổi trong phòng', 'Nói chậm nếu câu bị ngắt'],
     faqs: [
       { question: 'Trang này học tiếng gì?', answer: 'Tiếng Trung. Tiếng đang học khóa ở tiếng Trung, không đổi sang tiếng Anh hay tiếng Việt.' },
       { question: 'Tiếng mẹ đẻ có phải tiếng Việt không?', answer: 'Mặc định là tiếng Việt. Người học cũng chọn tiếng Anh, Nhật, Hàn, Thái hoặc Hindi.' },
       { question: 'Một buổi live giá bao nhiêu?', answer: 'Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau tiếng Trung là 3,5 credit, 21.000đ.' },
-      { question: 'Bài có sẵn khác buổi live thế nào?', answer: 'Bài có sẵn mở transcript tiếng Trung đã lưu, 2 credit một bài. Buổi live là hội thoại mới, 3,5 credit.' },
       { question: 'Câu tiếng Trung sai được sửa ra sao?', answer: 'Trong lượt hội thoại, câu sai được thay bằng câu đúng hơn. Việc đã xong sáng nay cần trợ từ 了.' },
       { question: 'Cần micro không?', answer: 'Buổi nói cần micro. Trình duyệt hỏi quyền một lần. Phòng ồn thì nói lại câu đó.' },
     ],
@@ -1354,7 +1351,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     key: 'hoc-tieng-nhat',
     pageTitle: 'Học tiếng Nhật với AI, nói và được sửa lỗi',
     pageDescription:
-      'Học thử miễn phí 2 bài live tiếng Nhật. Buổi sau 21.000đ. Bài 12.000đ. Câu sai được sửa ngay. Cần micro.',
+      'Học thử miễn phí 2 bài live tiếng Nhật. Buổi sau 21.000đ. Câu sai được sửa ngay. Cần micro.',
     path: '/hoc-tieng-nhat',
     keywords: [
       'học tiếng nhật',
@@ -1365,17 +1362,16 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     ],
     serviceName: 'Học tiếng Nhật AI',
     serviceDescription: 'Nói tiếng Nhật với giáo viên AI. Tiếng mẹ đẻ mặc định tiếng Việt, đổi được sang Anh, Trung, Hàn, Thái hoặc Hindi. Câu sai được sửa trong hội thoại.',
-    h2: 'Ba cách học tiếng Nhật: buổi live, bài có sẵn, từ mới',
+    h2: 'Hai cách học tiếng Nhật: buổi live và từ mới',
     overview:
-      'Tiếng đang học khóa ở tiếng Nhật. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Bài có sẵn là transcript đã lưu, 2 credit, 12.000đ. Câu 行きます được sửa thành 行きました. Chú thích viết bằng tiếng mẹ đẻ.',
-    benefits: ['Tiếng Nhật được khóa, không lẫn với tiếng khác', 'Chú thích bằng tiếng mẹ đẻ', 'Buổi live và bài có sẵn tách riêng'],
-    useCases: ['Luyện câu trước cuộc họp với khách Nhật', 'Ôn bài tiếng Nhật đã lưu', 'Xem lại từ tiếng Nhật đã giữ'],
+      'Tiếng đang học khóa ở tiếng Nhật. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Câu 行きます được sửa thành 行きました. Chú thích viết bằng tiếng mẹ đẻ.',
+    benefits: ['Tiếng Nhật được khóa, không lẫn với tiếng khác', 'Chú thích bằng tiếng mẹ đẻ', 'Mỗi buổi live là hội thoại mới'],
+    useCases: ['Luyện câu trước cuộc họp với khách Nhật', 'Nói lại tình huống vừa gặp', 'Xem lại từ tiếng Nhật đã giữ'],
     tips: ['Phòng yên để micro nghe đúng câu', 'Bắt đầu với tiếng mẹ đẻ tiếng Việt rồi đổi trong phòng', 'Nói chậm nếu câu bị ngắt'],
     faqs: [
       { question: 'Trang này học tiếng gì?', answer: 'Tiếng Nhật. Tiếng đang học khóa ở tiếng Nhật, không đổi sang tiếng Anh hay tiếng Việt.' },
       { question: 'Tiếng mẹ đẻ có phải tiếng Việt không?', answer: 'Mặc định là tiếng Việt. Người học cũng chọn tiếng Anh, Trung, Hàn, Thái hoặc Hindi.' },
       { question: 'Một buổi live giá bao nhiêu?', answer: 'Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau tiếng Nhật là 3,5 credit, 21.000đ.' },
-      { question: 'Bài có sẵn khác buổi live thế nào?', answer: 'Bài có sẵn mở transcript tiếng Nhật đã lưu, 2 credit một bài. Buổi live là hội thoại mới, 3,5 credit.' },
       { question: 'Câu tiếng Nhật sai được sửa ra sao?', answer: 'Trong lượt hội thoại, câu sai được thay bằng câu đúng hơn. Việc đã xong sáng nay dùng 行きました, không dùng 行きます.' },
       { question: 'Cần micro không?', answer: 'Buổi nói cần micro. Trình duyệt hỏi quyền một lần. Phòng ồn thì nói lại câu đó.' },
     ],
@@ -1384,7 +1380,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     key: 'hoc-tieng-han',
     pageTitle: 'Học tiếng Hàn với AI, nói và được sửa lỗi',
     pageDescription:
-      'Học thử miễn phí 2 bài live tiếng Hàn. Buổi sau 21.000đ. Bài 12.000đ. Câu sai được sửa ngay. Cần micro.',
+      'Học thử miễn phí 2 bài live tiếng Hàn. Buổi sau 21.000đ. Câu sai được sửa ngay. Cần micro.',
     path: '/hoc-tieng-han',
     keywords: [
       'học tiếng hàn',
@@ -1395,17 +1391,16 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     ],
     serviceName: 'Học tiếng Hàn AI',
     serviceDescription: 'Nói tiếng Hàn với giáo viên AI. Tiếng mẹ đẻ mặc định tiếng Việt, đổi được sang Anh, Trung, Nhật, Thái hoặc Hindi. Câu sai được sửa trong hội thoại.',
-    h2: 'Ba cách học tiếng Hàn: buổi live, bài có sẵn, từ mới',
+    h2: 'Hai cách học tiếng Hàn: buổi live và từ mới',
     overview:
-      'Tiếng đang học khóa ở tiếng Hàn. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Bài có sẵn là transcript đã lưu, 2 credit, 12.000đ. Câu 가요 được sửa thành 갔어요. Chú thích viết bằng tiếng mẹ đẻ.',
-    benefits: ['Tiếng Hàn được khóa, không lẫn với tiếng khác', 'Chú thích bằng tiếng mẹ đẻ', 'Buổi live và bài có sẵn tách riêng'],
-    useCases: ['Luyện câu trước cuộc gọi với đối tác Hàn', 'Ôn bài tiếng Hàn đã lưu', 'Xem lại từ tiếng Hàn đã giữ'],
+      'Tiếng đang học khóa ở tiếng Hàn. Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau là hội thoại mới, 3,5 credit, 21.000đ. Câu 가요 được sửa thành 갔어요. Chú thích viết bằng tiếng mẹ đẻ.',
+    benefits: ['Tiếng Hàn được khóa, không lẫn với tiếng khác', 'Chú thích bằng tiếng mẹ đẻ', 'Mỗi buổi live là hội thoại mới'],
+    useCases: ['Luyện câu trước cuộc gọi với đối tác Hàn', 'Nói lại tình huống vừa gặp', 'Xem lại từ tiếng Hàn đã giữ'],
     tips: ['Phòng yên để micro nghe đúng câu', 'Bắt đầu với tiếng mẹ đẻ tiếng Việt rồi đổi trong phòng', 'Nói chậm nếu câu bị ngắt'],
     faqs: [
       { question: 'Trang này học tiếng gì?', answer: 'Tiếng Hàn. Tiếng đang học khóa ở tiếng Hàn, không đổi sang tiếng Anh hay tiếng Việt.' },
       { question: 'Tiếng mẹ đẻ có phải tiếng Việt không?', answer: 'Mặc định là tiếng Việt. Người học cũng chọn tiếng Anh, Trung, Nhật, Thái hoặc Hindi.' },
       { question: 'Một buổi live giá bao nhiêu?', answer: 'Học thử miễn phí 2 bài live, mỗi bài 10 lượt. Buổi sau tiếng Hàn là 3,5 credit, 21.000đ.' },
-      { question: 'Bài có sẵn khác buổi live thế nào?', answer: 'Bài có sẵn mở transcript tiếng Hàn đã lưu, 2 credit một bài. Buổi live là hội thoại mới, 3,5 credit.' },
       { question: 'Câu tiếng Hàn sai được sửa ra sao?', answer: 'Trong lượt hội thoại, câu sai được thay bằng câu đúng hơn. Việc đã xong sáng nay dùng 갔어요, không dùng 가요.' },
       { question: 'Cần micro không?', answer: 'Buổi nói cần micro. Trình duyệt hỏi quyền một lần. Phòng ồn thì nói lại câu đó.' },
     ],

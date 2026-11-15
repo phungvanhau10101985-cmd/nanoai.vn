@@ -63,16 +63,59 @@ const PATHS = {
   words: '/hoc-tieng-anh-ai/tu-moi',
 } as const
 
-function withPrices(copy: LanguageLandingCopy, livePrice: string, presetPrice: string): LanguageLandingCopy {
-  const fill = (value: string) => value.replaceAll('{live}', livePrice).replaceAll('{preset}', presetPrice)
+const PRESET_SENTENCE =
+  /[^.!?\n。！？]*?(?:\{preset\}|bài có sẵn|saved lessons?|已有课程|用意されたレッスン|준비된 수업)[^.!?\n。！？]*[.!?。！？]?/gi
+
+function scrubSavedLessonSentence(value: string): string {
+  return value.replace(PRESET_SENTENCE, ' ').replace(/\s{2,}/g, ' ').trim()
+}
+
+function twoStudyWays(value: string): string {
+  return value
+    .replaceAll('Cả ba cách', 'Cả hai cách')
+    .replaceAll('Ba cách', 'Hai cách')
+    .replaceAll('ba cách', 'hai cách')
+    .replaceAll('Three ways', 'Two ways')
+    .replaceAll('three ways', 'two ways')
+    .replaceAll('All three', 'Both')
+    .replaceAll('三种', '两种')
+    .replaceAll('3つの学び方', '2つの学び方')
+    .replaceAll('3つとも', '2つとも')
+    .replaceAll('세 가지', '두 가지')
+}
+
+/** Bài có sẵn không còn bán. Landing chỉ còn buổi live và từ mới. */
+export function dropSavedLessonOffer(copy: LanguageLandingCopy): LanguageLandingCopy {
+  const mentionsPreset = (value: string) =>
+    /\{preset\}|bài có sẵn|saved lessons?|已有课程|用意されたレッスン|준비된 수업/i.test(value)
   return {
     ...copy,
-    lead: fill(copy.lead),
-    facts: copy.facts.map((fact) => ({ term: fact.term, detail: fill(fact.detail) })),
-    modes: copy.modes.map((mode) => ({ ...mode, price: fill(mode.price), detail: fill(mode.detail) })),
-    steps: copy.steps.map((step) => ({ name: step.name, text: fill(step.text) })),
-    faqs: copy.faqs.map((item) => ({ question: item.question, answer: fill(item.answer) })),
-    closeLead: fill(copy.closeLead),
+    lead: scrubSavedLessonSentence(copy.lead),
+    ctaSecondary: twoStudyWays(copy.ctaSecondary),
+    facts: copy.facts.filter((fact) => !mentionsPreset(fact.term) && !mentionsPreset(fact.detail)),
+    modesTitle: twoStudyWays(copy.modesTitle),
+    modesLead: twoStudyWays(scrubSavedLessonSentence(copy.modesLead)),
+    modes: copy.modes.filter((mode) => mode.id !== 'preset'),
+    steps: copy.steps.map((step) => ({
+      name: step.name,
+      text: scrubSavedLessonSentence(step.text),
+    })),
+    faqs: copy.faqs.filter((item) => !mentionsPreset(item.question) && !mentionsPreset(item.answer)),
+    closeLead: scrubSavedLessonSentence(copy.closeLead),
+  }
+}
+
+function withPrices(copy: LanguageLandingCopy, livePrice: string, _presetPrice: string): LanguageLandingCopy {
+  const offered = dropSavedLessonOffer(copy)
+  const fill = (value: string) => value.replaceAll('{live}', livePrice).replaceAll('{preset}', '')
+  return {
+    ...offered,
+    lead: fill(offered.lead),
+    facts: offered.facts.map((fact) => ({ term: fact.term, detail: fill(fact.detail) })),
+    modes: offered.modes.map((mode) => ({ ...mode, price: fill(mode.price), detail: fill(mode.detail) })),
+    steps: offered.steps.map((step) => ({ name: step.name, text: fill(step.text) })),
+    faqs: offered.faqs.map((item) => ({ question: item.question, answer: fill(item.answer) })),
+    closeLead: fill(offered.closeLead),
   }
 }
 
