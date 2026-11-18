@@ -345,6 +345,27 @@
     overflow: hidden;
     padding: 0;
   }
+  /* Blur trên thẻ chat giữ position:fixed của ô gõ trong thẻ, không theo bàn phím. */
+  [data-home-chat-frame] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  /* Bàn phím mở: thanh đáy chui xuống dưới, ô gõ nằm sát mép bàn phím. */
+  body:has([data-home-kb='1']) nav.safe-area-pb {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  body:has([data-home-kb='1']) main {
+    padding-bottom: 0;
+  }
+}
+
+/* Desktop: surface-card blur would trap the floating composer inside the chat card. */
+@media (min-width: 768px) {
+  [data-home-chat-frame] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* Nút tự gắn nền trắng / gần trắng: tô màu và chữ đậm cho khỏi chìm vào thẻ. */

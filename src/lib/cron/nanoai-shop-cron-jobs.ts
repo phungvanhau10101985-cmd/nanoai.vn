@@ -19,6 +19,7 @@ import { partnerBunnyAccountConfigured, provisionMissingPartnerBunnyCdns } from 
 import { runLadipageOnViewBatch } from '@/lib/partner-website/landing/ladipage-on-view'
 import { ensureDailyPartnerMarketingBanners } from '@/lib/partner-website/promotions/partner-marketing-banner-cron'
 import { warmPublishedShopOutfitPicks } from '@/lib/partner-website/shop/pdp-outfit-suggestions'
+import { endShopHeavy, noteShopHeavyWaiting, tryBeginShopHeavy } from '@/lib/cron/shop-heavy-slot'
 
 export { runCustomerNotificationCron } from '@/lib/cron/customer-notification-cron'
 export { runLogoCleanupCron } from '@/lib/cron/logo-cleanup-cron'
@@ -66,14 +67,33 @@ export async function runBunnyCdnProvisionCron() {
   }
 }
 
-export async function runOutfitPicksCron() {
+export async function runOutfitPicksCron(limit = 6) {
   if (!isPgConfigured()) return dbSkipped()
-  return warmPublishedShopOutfitPicks(6)
+  const token = tryBeginShopHeavy('outfit')
+  if (!token) {
+    noteShopHeavyWaiting('outfit', true)
+    return { skipped: true, reason: 'busy' as const }
+  }
+  try {
+    const cap = Math.min(6, Math.max(1, Math.floor(limit) || 6))
+    return await warmPublishedShopOutfitPicks(cap)
+  } finally {
+    endShopHeavy(token)
+  }
 }
 
 export async function runLadipageOnViewCron() {
   if (!isPgConfigured()) return dbSkipped()
-  return runLadipageOnViewBatch(1)
+  const token = tryBeginShopHeavy('ladipage')
+  if (!token) {
+    noteShopHeavyWaiting('ladipage', true)
+    return { skipped: true, reason: 'busy' as const }
+  }
+  try {
+    return await runLadipageOnViewBatch(1)
+  } finally {
+    endShopHeavy(token)
+  }
 }
 
 export async function runMarketingCampaignCron() {

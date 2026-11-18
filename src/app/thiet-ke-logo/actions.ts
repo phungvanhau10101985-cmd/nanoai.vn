@@ -95,7 +95,7 @@ export async function createLogo(formData: FormData) {
 
   let apiKey = ''
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     apiKey = (await requireGoogleApiKeyForUser(user.id)).apiKey
     const genAI = new GoogleGenerativeAI(apiKey)
     model = genAI.getGenerativeModel({
@@ -125,6 +125,7 @@ export async function createLogo(formData: FormData) {
     const result = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       aspectRatio,
       parts: contentParts,
       gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),

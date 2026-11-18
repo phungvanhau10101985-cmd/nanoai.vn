@@ -12,7 +12,8 @@ import {
   insertPartnerMarketingBannerAssetFromPg,
   partnerShopHasLiveCustomDomainFromPg,
 } from '@/lib/db/messaging-partner-marketing-banner-pg'
-import { geminiQualityCredit, imageChargeFromForm } from '@/lib/ai/image-engine'
+import { geminiQualityCredit, imageChargeFromForm, parseFluxImageQuality } from '@/lib/ai/image-engine'
+import { publicFluxImageName } from '@/lib/ai/nanoai-image-names'
 import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
@@ -137,6 +138,7 @@ async function generateBannerImageBytes(input: {
       get: (name) => {
         if (name === 'imageEngine') return input.imageEngine ?? null
         if (name === 'gptQuality') return input.gptQuality ?? null
+        if (name === 'imageQuality') return input.imageQuality ?? null
         return null
       },
     },
@@ -145,7 +147,7 @@ async function generateBannerImageBytes(input: {
   if (priced.error) throw new Error(priced.error)
   const imageSize = String(input.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : '2K'
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (priced.engine !== 'gpt') {
+  if (priced.engine === 'gemini') {
     const genAI = new GoogleGenerativeAI(input.apiKey)
     model = genAI.getGenerativeModel({
       model: GEMINI_3_PRO_IMAGE.model,
@@ -158,6 +160,7 @@ async function generateBannerImageBytes(input: {
   const result = await runImageContent({
     engine: priced.engine,
     gptQuality: priced.gptQuality,
+    imageQuality: priced.geminiQuality,
     aspectRatio: PARTNER_MARKETING_BANNER_ASPECT,
     parts: [{ text: input.prompt }],
     gemini: () => model!.generateContent([{ text: input.prompt }], { safetySettings: SAFETY } as never),
@@ -314,6 +317,7 @@ export async function generatePartnerMarketingBanner(input: {
       get: (name) => {
         if (name === 'imageEngine') return input.imageEngine ?? null
         if (name === 'gptQuality') return input.gptQuality ?? null
+        if (name === 'imageQuality') return input.imageQuality ?? null
         return null
       },
     },
@@ -375,7 +379,12 @@ export async function generatePartnerMarketingBanner(input: {
       input.kind === 'holiday' ? key : partnerMarketingBannerDateKeyForKind(input.kind, day, month),
     discountPercent: input.discountPercent,
     prompt,
-    model: priced.engine === 'gpt' ? 'gpt-image-2' : GEMINI_3_PRO_IMAGE.model,
+    model:
+      priced.engine === 'gpt'
+        ? 'gpt-image-2'
+        : priced.engine === 'flux'
+          ? publicFluxImageName(parseFluxImageQuality(input.imageQuality))
+          : GEMINI_3_PRO_IMAGE.model,
     version,
     source: 'ai',
   })

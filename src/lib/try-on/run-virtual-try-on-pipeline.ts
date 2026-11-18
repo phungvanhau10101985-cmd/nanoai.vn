@@ -57,7 +57,7 @@ export type RunVirtualTryOnPipelineParams = {
   billingUserId: string
   prompt: string
   cost: number
-  imageQuality: '2K' | '4K'
+  imageQuality: '1.5K' | '2K' | '4K'
   userImage: File
   garmentFilesOrdered: File[]
   /** Mặc định Gemini để caller cũ không gửi field vẫn chạy Gemini. */
@@ -71,7 +71,7 @@ export type RunVirtualTryOnPipelineResult =
 
 export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelineParams): Promise<RunVirtualTryOnPipelineResult> {
   const { billingUserId, prompt, cost, imageQuality, userImage, garmentFilesOrdered } = params
-  const engine: ImageEngine = params.engine === 'gpt' ? 'gpt' : 'gemini'
+  const engine: ImageEngine = params.engine === 'gpt' || params.engine === 'flux' ? params.engine : 'gemini'
   const gptQuality = params.gptQuality ?? null
 
   if (!isPgConfigured()) {
@@ -161,7 +161,7 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
 
   const modelName = GEMINI_3_PRO_IMAGE.model
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (engine !== 'gpt') {
+  if (engine === 'gemini') {
     const resolvedGoogleKey = await resolveGoogleApiKeyForUser(billingUserId)
     if (!resolvedGoogleKey) {
       await removeTryOnStorageObjects(stagedPaths)
@@ -223,6 +223,7 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
       const genResult = await runImageContent({
         engine,
         gptQuality,
+        imageQuality,
         aspectRatio,
         parts: tryOnParts,
         gemini: () => model!.generateContent(tryOnParts, { safetySettings }),

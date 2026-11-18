@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { ImagePlus, Loader2, Plus, Trash2, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { HubImagePromptPolishButton } from '@/components/hub-chat/hub-image-prompt-polish-button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -226,6 +227,9 @@ export function HubMenuDesignPreparePanel({
   onDishesChange,
   onDishesBulkTextChange,
   onDishesBulkTextCommit,
+  optimizeLabel,
+  optimizeTitle,
+  onOptimizeDishes,
   onDishesCommit,
   onFinishFlow,
 }: {
@@ -245,6 +249,9 @@ export function HubMenuDesignPreparePanel({
   onDishesChange: (dishes: MenuDishItem[]) => void
   onDishesBulkTextChange: (text: string) => void
   onDishesBulkTextCommit?: (text: string) => void | Promise<void>
+  optimizeLabel?: string
+  optimizeTitle?: string
+  onOptimizeDishes?: () => void
   onDishesCommit?: (dishes: MenuDishItem[]) => void | Promise<void>
   onFinishFlow: () => void | Promise<void>
 }) {
@@ -370,6 +377,15 @@ export function HubMenuDesignPreparePanel({
             disabled={busy}
             className="min-h-[140px] text-xs"
           />
+          {optimizeLabel && onOptimizeDishes ? (
+            <HubImagePromptPolishButton
+              label={optimizeLabel}
+              title={optimizeTitle}
+              busy={busy}
+              disabled={dishesBulkText.trim().length < 2}
+              onClick={onOptimizeDishes}
+            />
+          ) : null}
         </div>
 
         <div className="space-y-2 rounded-md border border-emerald-100 bg-white/60 p-2.5 dark:border-emerald-900 dark:bg-emerald-950/25">

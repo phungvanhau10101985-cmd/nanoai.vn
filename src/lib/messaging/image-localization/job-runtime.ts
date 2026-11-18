@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { shopBackgroundRunsHere } from '@/lib/cron/shop-cron-process'
+import { endShopHeavy, shopHeavyHolder, shopHeavyWaiting, tryBeginShopHeavy } from '@/lib/cron/shop-heavy-slot'
 import {
   deleteTerminalImageLocJobsFromPg,
   fetchImageLocJobFromPg,
@@ -144,9 +145,45 @@ async function waitOffPeak(partnerId: string, job: ImageLocJob, epoch: number): 
   return true
 }
 
+async function waitImageLocTurn(
+  partnerId: string,
+  jobId: string,
+  epoch: number,
+  heavy: { token: number }
+): Promise<boolean> {
+  for (;;) {
+    if (shouldStopWorker(partnerId, jobId, epoch) || (await jobCancelled(partnerId, jobId))) return false
+    const listingFirst = shopHeavyWaiting('listing') || shopHeavyHolder() === 'listing'
+    const othersWantTurn =
+      listingFirst ||
+      shopHeavyWaiting('outfit') ||
+      shopHeavyWaiting('source-stock') ||
+      shopHeavyWaiting('ladipage')
+    if (heavy.token && !othersWantTurn && shopHeavyHolder() === 'image-loc') return true
+    if (heavy.token) {
+      endShopHeavy(heavy.token)
+      heavy.token = 0
+    }
+    if (othersWantTurn || (shopHeavyHolder() !== null && shopHeavyHolder() !== 'image-loc')) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      continue
+    }
+    const token = tryBeginShopHeavy('image-loc')
+    if (!token) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      continue
+    }
+    heavy.token = token
+    return true
+  }
+}
+
 async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: number): Promise<void> {
+  const heavy = { token: 0 }
+  try {
   const job = await fetchImageLocJobFromPg(partnerId, jobId)
   if (!job) return
+  if (!(await waitImageLocTurn(partnerId, jobId, epoch, heavy))) return
   const payload = (job.payload || {}) as ImageLocStartPayload
   const processed = uniqueIds(job.processed_product_ids)
   const processedSet = new Set(processed)
@@ -234,6 +271,11 @@ async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: 
     if (processedSet.has(inventoryId)) continue
     if (workerSuperseded(partnerId, jobId, epoch)) return
     if (isForceAborted(partnerId, jobId) || (await jobCancelled(partnerId, jobId))) {
+      await finalizeCancelled(partnerId, jobId, done, failed, skipped, total, processed, recent, skippedReports)
+      return
+    }
+    if (!(await waitImageLocTurn(partnerId, jobId, epoch, heavy))) {
+      if (workerSuperseded(partnerId, jobId, epoch)) return
       await finalizeCancelled(partnerId, jobId, done, failed, skipped, total, processed, recent, skippedReports)
       return
     }
@@ -432,6 +474,9 @@ async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: 
     failed,
     skipped,
   })
+  } finally {
+    if (heavy.token) endShopHeavy(heavy.token)
+  }
 }
 
 async function finalizeCancelled(
@@ -467,10 +512,11 @@ async function finalizeCancelled(
   })
 }
 
-function spawn(partnerId: string, jobId: string, resume: boolean, replaceStalled = false) {
-  if (!shopBackgroundRunsHere()) return
+function spawn(partnerId: string, jobId: string, resume: boolean, replaceStalled = false): 'started' | 'busy' | 'alive' | 'skipped' {
+  if (!shopBackgroundRunsHere()) return 'skipped'
   const key = workerKey(partnerId, jobId)
-  if (workerRegistry.has(key) && !replaceStalled) return
+  if (workerRegistry.has(key) && !replaceStalled) return 'alive'
+  if (workerRegistry.size > 0 && !(replaceStalled && workerRegistry.has(key))) return 'busy'
   const epoch = (workerEpoch.get(key) || 0) + 1
   workerEpoch.set(key, epoch)
   const p = runJob(partnerId, jobId, resume, epoch)
@@ -492,6 +538,7 @@ function spawn(partnerId: string, jobId: string, resume: boolean, replaceStalled
       }
     })
   workerRegistry.set(key, { promise: p, epoch })
+  return 'started'
 }
 
 export async function startImageLocalizationJob(
@@ -607,10 +654,13 @@ export async function resumeImageLocalizationAfterRestart(): Promise<{ resumed: 
       skipped += 1
       continue
     }
-    resumeAttemptsThisProcess.set(key, (resumeAttemptsThisProcess.get(key) || 0) + 1)
     const queued = String(job.status || '').toLowerCase() === 'queued'
-    spawn(job.partner_id, job.job_id, !queued, workerAlive)
+    const spawned = spawn(job.partner_id, job.job_id, !queued, workerAlive)
+    if (spawned === 'busy') break
+    if (spawned !== 'started') continue
+    resumeAttemptsThisProcess.set(key, (resumeAttemptsThisProcess.get(key) || 0) + 1)
     resumed += 1
+    break
   }
   return { resumed, skipped }
 }

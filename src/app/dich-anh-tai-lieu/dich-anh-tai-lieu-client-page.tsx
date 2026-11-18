@@ -148,7 +148,7 @@ export default function DichAnhTaiLieuClientPage() {
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [sourceLang, setSourceLang] = useState('')
   const [targetLang, setTargetLang] = useState('vi')
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageQuality, setImageQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gpt')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   useEffect(() => {
@@ -183,9 +183,10 @@ export default function DichAnhTaiLieuClientPage() {
   const { checkCreditsAndProceed } = useCredits()
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
   const unitCost = imageEngineCredit({
+      imageQuality: imageQuality,
     engine: imageEngine,
     gptQuality,
-    geminiCost: DOCUMENT_TRANSLATE_GEMINI_CREDITS[imageQuality],
+    geminiCost: imageQuality === '4K' ? DOCUMENT_TRANSLATE_GEMINI_CREDITS['4K'] : DOCUMENT_TRANSLATE_GEMINI_CREDITS['2K'],
   })
 
   const fetchCredits = async () => {

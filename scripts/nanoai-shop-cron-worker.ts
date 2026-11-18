@@ -1,6 +1,8 @@
 /**
  * Việc nền shop chạy ngoài process Next (:3000) để RSS web không chạm trần 2200 MiB.
  * PM2: nanoai-shop-cron. HTTP /api/cron/* vẫn gọi được tay.
+ * Cào, bản địa hóa, phối đồ, story và kiểm nguồn giữ nhịp cũ.
+ * Một lúc chỉ một việc nặng. Đang cào thì cào hết, rồi kiểm nguồn chạy tiếp.
  */
 import { config } from 'dotenv'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -106,10 +108,10 @@ async function fastTick(): Promise<void> {
   fastBusy = true
   try {
     const jobs = await import('../src/lib/cron/nanoai-shop-cron-jobs')
-    const image = await step('image-localization-resume', () => jobs.runImageLocalizationResumeCron(), false)
     const listing = await step('listing-import-resume', () => jobs.runListingImportResumeCron(), false)
-    if (resumedCount(image) > 0) console.log(`[shop-cron] image-localization-resume ${summarize(image)}`)
+    const image = await step('image-localization-resume', () => jobs.runImageLocalizationResumeCron(), false)
     if (resumedCount(listing) > 0) console.log(`[shop-cron] listing-import-resume ${summarize(listing)}`)
+    if (resumedCount(image) > 0) console.log(`[shop-cron] image-localization-resume ${summarize(image)}`)
   } finally {
     fastBusy = false
   }
@@ -167,6 +169,8 @@ async function clockTick(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const { primeShopHostPressure } = await import('../src/lib/cron/shop-host-pressure')
+  await primeShopHostPressure()
   console.log('[shop-cron] start', new Date().toISOString())
   await fastTick()
   await minuteTick()

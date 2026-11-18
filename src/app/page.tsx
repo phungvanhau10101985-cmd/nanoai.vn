@@ -6,10 +6,11 @@ import { HomeHubChatBar } from '@/components/home/home-hub-chat-bar'
 import { getServerDictionary } from '@/lib/i18n/server'
 
 export const metadata: Metadata = buildMetadata({
-  title: 'NanoAI - Sáng tạo không giới hạn cùng AI',
-  description: 'Trải nghiệm phòng thử đồ ảo với AI. Thử đồ 1-5 người, phục dựng ảnh, làm nét ảnh, ghép ảnh. Nhanh chóng, chính xác.',
+  title: 'Sáng tạo không giới hạn cùng AI',
+  description:
+    'Thiết kế, thử đồ, chỉnh ảnh và soạn giáo trình với NanoAI. Tin đầu mỗi hội thoại miễn phí. 1 credit = 6.000₫.',
   path: '/',
-  keywords: ['NanoAI', 'thử đồ online', 'thử đồ ảo', 'AI thử đồ', 'phối đồ', 'phục dựng ảnh', 'làm nét ảnh', 'ghép ảnh'],
+  keywords: ['NanoAI', 'thử đồ online', 'thiết kế logo', 'soạn giáo trình', 'xóa nền', 'chỉnh ảnh', 'credit'],
 })
 
 function HomeHubChatBarSkeleton() {
@@ -34,10 +35,10 @@ export default function Home() {
   const { locale, t } = getServerDictionary()
   return (
     <div className="max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden md:min-h-screen">
-      <section className="w-full max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden max-md:p-0 md:pb-14 md:pt-8 pb-10 pt-5">
+        <section className="w-full max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden max-md:p-0 md:pb-36 md:pt-8 pb-10 pt-5">
         <div className="mx-auto w-full max-w-7xl max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden max-md:px-0 px-3 sm:px-6 lg:px-8">
-          <h1 className="sr-only">
-            {t.app.siteName} - {t.app.defaultDescription || 'Nền tảng Trí tuệ Nhân tạo Đa tính năng'}
+          <h1 className="mb-2 px-1 text-2xl font-semibold tracking-tight text-slate-900 max-md:sr-only dark:text-slate-100">
+            {t.app.toolHub}
           </h1>
           <div className="max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:overflow-hidden space-y-6 md:space-y-8">
             <Suspense fallback={<HomeHubChatBarSkeleton />}>

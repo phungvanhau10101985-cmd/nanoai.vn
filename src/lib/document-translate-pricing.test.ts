@@ -17,4 +17,13 @@ describe('document translate job plan', () => {
     assert.equal(documentTranslateJobPlan('4K', 4).geminiSize, '4K')
     assert.equal(documentTranslateJobPlan('4K', 6).engine, 'gemini')
   })
+
+  it('keeps FLUX jobs on the stored flux tag instead of the shared credit amounts', () => {
+    assert.equal(documentTranslateJobPlan('flux-2k', 1).engine, 'flux')
+    assert.equal(documentTranslateJobPlan('flux-2k', 1).geminiSize, '2K')
+    assert.equal(documentTranslateJobPlan('flux-4k', 4).engine, 'flux')
+    assert.equal(documentTranslateJobPlan('flux-4k', 4).geminiSize, '4K')
+    assert.equal(documentTranslateJobPlan('flux-1.5k', 1).engine, 'flux')
+    assert.equal(documentTranslateJobPlan('flux-1.5k', 1).geminiSize, '1.5K')
+  })
 })

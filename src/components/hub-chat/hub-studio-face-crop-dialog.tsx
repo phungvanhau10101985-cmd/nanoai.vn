@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Crop, Eraser, ImagePlus, Loader2, PaintBucket, Sparkles, Sticker, Trash2, Type, Blend, Undo2, Wand2 } from 'lucide-react'
+import { Crop, Eraser, ImagePlus, Loader2, Sticker, Trash2, Type, Undo2, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -16,17 +16,11 @@ import { cropRegionToPrintSizeMm, formatMmSize, type FaceSizeMm } from '@/lib/pa
 import {
   exportFaceEditBlob,
   extractImageEdgeColors,
-  mergeOutpaintWithOriginalRegion,
-  type FaceEditCropRect,
   type FaceEditImageOverlay,
   type FaceEditOverlay,
   type FaceEditTextOverlay,
   type ImageEdgeColors,
 } from '@/lib/packaging/face-edit-export'
-import {
-  cropHasGapExtensions,
-  faceSizeAspectRatioLabel,
-} from '@/lib/packaging/face-crop-gaps'
 import {
   canvasToObjectUrl,
   clearMaskCanvas,
@@ -43,9 +37,7 @@ import {
   snapshotCanvasPixels,
 } from '@/lib/packaging/face-edit-eraser'
 import { magicInpaintCanvas, preloadMagicInpaintLibrary } from '@/lib/packaging/face-edit-magic-inpaint'
-import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
-import { geminiQualityCredit, imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
-import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
+import type { GptImageQuality } from '@/lib/ai/image-engine'
 import {
   cssColorToHex,
   ThemeColorConfirmPicker,
@@ -590,7 +582,6 @@ export function HubStudioFaceCropDialog({
   busy,
   onSave,
   onDone,
-  onOutpaintGaps,
   foldGuideRatios,
 }: {
   open: boolean
@@ -605,9 +596,11 @@ export function HubStudioFaceCropDialog({
   onOutpaintGaps?: (
     blob: Blob,
     aspectRatio: string,
-    engine?: { imageEngine: string; gptQuality: string; imageQuality?: string }
+    engine?: { imageEngine: string; gptQuality: string; imageQuality?: string },
+    printSizeMm?: FaceSizeMm
   ) => Promise<string | null>
   foldGuideRatios?: number[]
+  gptQualities?: readonly GptImageQuality[]
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -625,24 +618,7 @@ export function HubStudioFaceCropDialog({
   } | null>(null)
   const eraserUndoStackRef = useRef<ImageData[]>([])
   const mergedBlobUrlRef = useRef<string | null>(null)
-  const outpaintMergeCacheRef = useRef<{
-    aiUrl: string
-    originalUrl: string
-    crop: FaceEditCropRect
-    featherPx: number
-  } | null>(null)
   const [baseImageUrl, setBaseImageUrl] = useState(imageUrl)
-  const [outpaintMergeReady, setOutpaintMergeReady] = useState(false)
-  const [outpaintBusy, setOutpaintBusy] = useState(false)
-  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
-  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
-  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
-  const outpaintCost = imageEngineCredit({
-    engine: imageEngine,
-    gptQuality,
-    geminiCost: geminiQualityCredit(UI_MOCKUP_CREDIT, geminiQuality),
-  })
-  const [blendBusy, setBlendBusy] = useState(false)
   const [magicBusy, setMagicBusy] = useState(false)
   const [magicEraserMode, setMagicEraserMode] = useState<MagicEraserMode>('box')
   const [magicBoxPreview, setMagicBoxPreview] = useState<{ x: number; y: number; w: number; h: number } | null>(
@@ -664,7 +640,7 @@ export function HubStudioFaceCropDialog({
   })
   const [crop, setCrop] = useState<DisplayCrop>({ x: 0, y: 0, w: 100, h: 100 })
   const [overlays, setOverlays] = useState<FaceEditOverlay[]>([])
-  const [fillGapsWithEdgeColor, setFillGapsWithEdgeColor] = useState(true)
+  const [fillGapsWithEdgeColor, setFillGapsWithEdgeColor] = useState(false)
   const [edgeColors, setEdgeColors] = useState<ImageEdgeColors | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const dragMode = useRef<DragMode>(null)
@@ -706,14 +682,12 @@ export function HubStudioFaceCropDialog({
       return
     }
     resetLayers()
-    setFillGapsWithEdgeColor(true)
+    setFillGapsWithEdgeColor(false)
     setEdgeColors(null)
     if (mergedBlobUrlRef.current) {
       URL.revokeObjectURL(mergedBlobUrlRef.current)
       mergedBlobUrlRef.current = null
     }
-    outpaintMergeCacheRef.current = null
-    setOutpaintMergeReady(false)
     setEditTool('crop')
     setCropFrameMode('print')
     setMagicEraserMode('box')
@@ -892,95 +866,6 @@ export function HubStudioFaceCropDialog({
     [cropNatural, faceSizeMm, natural.h, natural.w]
   )
 
-  const hasCropGaps = useMemo(
-    () => cropHasGapExtensions(cropNatural, natural.w, natural.h),
-    [cropNatural, natural.h, natural.w]
-  )
-
-  const applyMergedPreview = useCallback(
-    async (mergedUrl: string) => {
-      if (mergedBlobUrlRef.current) URL.revokeObjectURL(mergedBlobUrlRef.current)
-      mergedBlobUrlRef.current = mergedUrl
-      setBaseImageUrl(mergedUrl)
-
-      const mergedImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new window.Image()
-        img.crossOrigin = 'anonymous'
-        img.onload = () => resolve(img)
-        img.onerror = () => reject(new Error('load merged failed'))
-        img.src = mergedUrl
-      })
-      const nw = mergedImg.naturalWidth
-      const nh = mergedImg.naturalHeight
-      setNatural({ w: nw, h: nh })
-      setEdgeColors(extractImageEdgeColors(mergedImg))
-      applyViewportLayout(nw, nh)
-    },
-    [applyViewportLayout, aspectValid]
-  )
-
-  const handleOutpaint = useCallback(async () => {
-    if (!onOutpaintGaps || !hasCropGaps || outpaintBusy || busy) return
-    setOutpaintBusy(true)
-    const originalUrl = baseImageUrl
-    const cropSnapshot = cropNatural
-    const featherPx = 40
-    try {
-      const blob = await exportFaceEditBlob(originalUrl, cropSnapshot, [], {
-        fillGapsWithEdgeColor: true,
-      })
-      const aiUrl = await onOutpaintGaps(blob, faceSizeAspectRatioLabel(faceSizeMm), {
-        imageEngine,
-        gptQuality,
-        imageQuality: geminiQuality,
-      })
-      if (!aiUrl) return
-      outpaintMergeCacheRef.current = { aiUrl, originalUrl, crop: cropSnapshot, featherPx }
-      const mergedUrl = await mergeOutpaintWithOriginalRegion(aiUrl, originalUrl, cropSnapshot, {
-        featherPx,
-        seamHealPx: 24,
-      })
-      await applyMergedPreview(mergedUrl)
-      setOutpaintMergeReady(true)
-      clearEraserUndoStack()
-    } finally {
-      setOutpaintBusy(false)
-    }
-  }, [
-    applyMergedPreview,
-    baseImageUrl,
-    busy,
-    cropNatural,
-    faceSizeMm,
-    hasCropGaps,
-    geminiQuality,
-    gptQuality,
-    imageEngine,
-    onOutpaintGaps,
-    outpaintBusy,
-    clearEraserUndoStack,
-  ])
-
-  const handleBlendSeams = useCallback(async () => {
-    const cache = outpaintMergeCacheRef.current
-    if (!cache || blendBusy || busy || outpaintBusy) return
-    setBlendBusy(true)
-    try {
-      cache.featherPx = Math.min(96, cache.featherPx + 16)
-      const seamHealPx = Math.min(56, 16 + cache.featherPx)
-      const mergedUrl = await mergeOutpaintWithOriginalRegion(
-        cache.aiUrl,
-        cache.originalUrl,
-        cache.crop,
-        { featherPx: cache.featherPx, seamHealPx }
-      )
-      await applyMergedPreview(mergedUrl)
-      clearEraserUndoStack()
-    } finally {
-      setBlendBusy(false)
-    }
-  }, [applyMergedPreview, blendBusy, busy, clearEraserUndoStack, outpaintBusy])
-
   const commitEraserEdit = useCallback(async () => {
     const canvas = editCanvasRef.current
     if (!canvas) return
@@ -988,8 +873,6 @@ export function HubStudioFaceCropDialog({
       const url = await canvasToObjectUrl(canvas)
       if (mergedBlobUrlRef.current) URL.revokeObjectURL(mergedBlobUrlRef.current)
       mergedBlobUrlRef.current = url
-      outpaintMergeCacheRef.current = null
-      setOutpaintMergeReady(false)
       setBaseImageUrl(url)
     } catch {
       /* ignore export failure */
@@ -1061,8 +944,6 @@ export function HubStudioFaceCropDialog({
           } else {
             editCanvasRef.current = resultCanvas
           }
-          outpaintMergeCacheRef.current = null
-          setOutpaintMergeReady(false)
           void commitEraserEdit()
         } catch {
           handleEraserUndo()
@@ -1490,64 +1371,6 @@ export function HubStudioFaceCropDialog({
                 {labels.deleteLayer}
               </Button>
             ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant={fillGapsWithEdgeColor ? 'default' : 'outline'}
-              className={`h-8 text-xs ${fillGapsWithEdgeColor ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
-              onClick={() => setFillGapsWithEdgeColor((v) => !v)}
-            >
-              <PaintBucket className="mr-1 h-3.5 w-3.5" />
-              {fillGapsWithEdgeColor ? labels.fillEdgeColor : labels.fillEdgeColorOff}
-            </Button>
-            {onOutpaintGaps ? (
-              <ImageEnginePicker
-                locale={locale}
-                engine={imageEngine}
-                onEngineChange={setImageEngine}
-                geminiQuality={geminiQuality}
-                onGeminiQualityChange={setGeminiQuality}
-                gptQuality={gptQuality}
-                onGptQualityChange={setGptQuality}
-                geminiCost2k={UI_MOCKUP_CREDIT}
-                geminiCost4k={UI_MOCKUP_CREDIT * 2}
-              />
-            ) : null}
-            {onOutpaintGaps ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 border-violet-300 text-xs text-violet-800 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/40"
-                disabled={busy || outpaintBusy || !hasCropGaps}
-                title={!hasCropGaps ? labels.outpaintNeedGaps : labels.outpaintCredit.replace('{n}', String(outpaintCost))}
-                onClick={() => void handleOutpaint()}
-              >
-                {outpaintBusy ? (
-                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-1 h-3.5 w-3.5" />
-                )}
-                {outpaintBusy ? labels.outpaintBusy : labels.outpaintBackground}
-              </Button>
-            ) : null}
-            {outpaintMergeReady ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 border-emerald-300 text-xs text-emerald-800 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-950/40"
-                disabled={busy || outpaintBusy || blendBusy}
-                onClick={() => void handleBlendSeams()}
-              >
-                {blendBusy ? (
-                  <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Blend className="mr-1 h-3.5 w-3.5" />
-                )}
-                {blendBusy ? labels.blendSeamsBusy : labels.blendSeams}
-              </Button>
-            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -1557,7 +1380,7 @@ export function HubStudioFaceCropDialog({
                 size="sm"
                 variant={editTool === 'crop' ? 'default' : 'outline'}
                 className={`h-8 text-xs ${editTool === 'crop' ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
-                disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                disabled={busy || magicBusy || !natural.w}
                 onClick={enterCropFrameMode}
               >
                 <Crop className="mr-1 h-3.5 w-3.5" />
@@ -1570,7 +1393,7 @@ export function HubStudioFaceCropDialog({
                     size="sm"
                     variant="outline"
                     className={subToolToggleClass(cropFrameMode === 'print', 'violet')}
-                    disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                    disabled={busy || magicBusy || !natural.w}
                     onClick={() => handleCropFrameModeChange('print')}
                   >
                     {labels.cropFrameModePrint}
@@ -1580,7 +1403,7 @@ export function HubStudioFaceCropDialog({
                     size="sm"
                     variant="outline"
                     className={subToolToggleClass(cropFrameMode === 'free', 'violet')}
-                    disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                    disabled={busy || magicBusy || !natural.w}
                     onClick={() => handleCropFrameModeChange('free')}
                   >
                     {labels.cropFrameModeFree}
@@ -1595,7 +1418,7 @@ export function HubStudioFaceCropDialog({
                 size="sm"
                 variant={editTool === 'eraser' ? 'default' : 'outline'}
                 className={`h-8 text-xs ${editTool === 'eraser' ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
-                disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                disabled={busy || magicBusy || !natural.w}
                 onClick={() => setEditTool('eraser')}
               >
                 <Eraser className="mr-1 h-3.5 w-3.5" />
@@ -1627,7 +1450,7 @@ export function HubStudioFaceCropDialog({
                 size="sm"
                 variant={editTool === 'magic' ? 'default' : 'outline'}
                 className={`h-8 border-fuchsia-300 text-xs ${editTool === 'magic' ? 'bg-fuchsia-600 hover:bg-fuchsia-700' : 'text-fuchsia-800 hover:bg-fuchsia-50 dark:border-fuchsia-800 dark:text-fuchsia-200 dark:hover:bg-fuchsia-950/40'}`}
-                disabled={busy || outpaintBusy || blendBusy || magicBusy || !natural.w}
+                disabled={busy || magicBusy || !natural.w}
                 onClick={() => {
                   preloadMagicInpaintLibrary()
                   setEditTool('magic')
@@ -1691,7 +1514,7 @@ export function HubStudioFaceCropDialog({
               size="sm"
               variant="outline"
               className="h-8 text-xs"
-              disabled={busy || outpaintBusy || blendBusy || magicBusy || eraserUndoCount === 0}
+              disabled={busy || magicBusy || eraserUndoCount === 0}
               title={labels.eraserUndoHint}
               onClick={() => handleEraserUndo()}
             >

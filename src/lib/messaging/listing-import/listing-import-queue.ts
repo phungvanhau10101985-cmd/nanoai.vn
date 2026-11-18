@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { redisGet, redisSetEx } from '@/lib/cache/redis'
 import { shopBackgroundRunsHere } from '@/lib/cron/shop-cron-process'
+import { endShopHeavy, noteShopHeavyWaiting, tryBeginShopHeavy } from '@/lib/cron/shop-heavy-slot'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import {
   deleteListingImportQueueFromPg,
@@ -24,6 +25,7 @@ import {
 } from '@/lib/messaging/listing-import/listing-import-types'
 
 const workerRegistry = new Map<string, Promise<void>>()
+const listingRetry = new Set<string>()
 const lockTails = new Map<string, Promise<void>>()
 
 function workerKey(partnerId: string, token: string): string {
@@ -247,7 +249,21 @@ export function ensureListingImportWorker(partnerId: string, token: string): boo
   const key = workerKey(partnerId, token)
   const existing = workerRegistry.get(key)
   if (existing) return true
+  const heavy = tryBeginShopHeavy('listing')
+  if (!heavy) {
+    noteShopHeavyWaiting('listing', true)
+    if (!listingRetry.has(key)) {
+      listingRetry.add(key)
+      setTimeout(() => {
+        listingRetry.delete(key)
+        ensureListingImportWorker(partnerId, token)
+      }, 1000)
+    }
+    return false
+  }
+  noteShopHeavyWaiting('listing', false)
   const run = workerLoop(partnerId, token).finally(() => {
+    endShopHeavy(heavy)
     if (workerRegistry.get(key) === run) workerRegistry.delete(key)
   })
   workerRegistry.set(key, run)
@@ -495,12 +511,16 @@ export async function exportListingImportSnapshotCsv(
 
 export async function resumeListingImportQueuesAfterRestart(): Promise<{ resumed: number }> {
   const rows = await listListingImportQueuesNeedingResumeFromPg()
+  const pending = rows.filter((row) => !listingImportWorkerAlive(row.partnerId, row.queueToken))
+  noteShopHeavyWaiting('listing', pending.length > 0 || workerRegistry.size > 0)
   let resumed = 0
-  for (const row of rows) {
-    if (listingImportWorkerAlive(row.partnerId, row.queueToken)) continue
+  for (const row of pending) {
     try {
       await resumeListingImport(row.partnerId, row.queueToken)
+      if (!listingImportWorkerAlive(row.partnerId, row.queueToken)) break
+      noteShopHeavyWaiting('listing', pending.length > 1)
       resumed += 1
+      break
     } catch (e) {
       console.warn('[listing-import auto-resume]', row.queueToken, e)
     }

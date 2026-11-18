@@ -334,7 +334,7 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
   const [flashSaving, setFlashSaving] = useState(false)
   const [bannerWorking, setBannerWorking] = useState(false)
   const [bannerEngine, setBannerEngine] = useState<ImageEngine>('gemini')
-  const [bannerGeminiQuality, setBannerGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [bannerGeminiQuality, setBannerGeminiQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [bannerGptQuality, setBannerGptQuality] = useState<GptImageQuality>('medium')
   const [iconWorking, setIconWorking] = useState(false)
   const [saleIcon, setSaleIcon] = useState<{

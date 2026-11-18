@@ -72,7 +72,7 @@ Show realistic mobile layout with status bar, navigation, cards, buttons, and re
 Flat UI design mockup only — return ONE image of the screen, no extra explanation text on the image borders.`
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (priced.engine !== 'gpt') {
+  if (priced.engine === 'gemini') {
     const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
     const genAI = new GoogleGenerativeAI(apiKey)
     model = genAI.getGenerativeModel({
@@ -105,6 +105,7 @@ Flat UI design mockup only — return ONE image of the screen, no extra explanat
     const result = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
+      imageQuality: priced.geminiQuality,
       aspectRatio: '9:16',
       parts,
       gemini: () => model!.generateContent(parts as never, { safetySettings } as never),

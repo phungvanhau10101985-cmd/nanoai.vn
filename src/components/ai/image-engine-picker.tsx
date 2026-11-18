@@ -2,8 +2,16 @@
 
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { GPT_IMAGE_CREDITS, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
-import { publicGeminiImageName, publicGptImageName } from '@/lib/ai/nanoai-image-names'
+import {
+  FLUX_IMAGE_CREDITS,
+  GPT_IMAGE_CREDITS,
+  parseFluxImageQuality,
+  type FluxImageQuality,
+  type GeminiImageQuality,
+  type GptImageQuality,
+  type ImageEngine,
+} from '@/lib/ai/image-engine'
+import { publicFluxImageName, publicGeminiImageName, publicGptImageName } from '@/lib/ai/nanoai-image-names'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -44,7 +52,7 @@ function QualityChoice({
 
 type PickerTier =
   | { key: string; engine: 'gpt'; quality: GptImageQuality; name: string; credit: number; purpose?: string }
-  | { key: string; engine: 'gemini'; quality: '2K' | '4K'; name: string; credit: number; purpose?: string }
+  | { key: string; engine: 'gemini' | 'flux'; quality: FluxImageQuality; name: string; credit: number; purpose?: string }
 
 export function ImageEnginePicker({
   locale,
@@ -57,14 +65,15 @@ export function ImageEnginePicker({
   gptQualities = ['low', 'medium', 'high'],
   geminiCost2k = 1,
   geminiCost4k,
-  engines = ['gemini', 'gpt'],
+  engines = ['gemini', 'gpt', 'flux'],
   qualityPurpose,
+  triggerClassName,
 }: {
   locale: string
   engine: ImageEngine
   onEngineChange: (engine: ImageEngine) => void
-  geminiQuality?: '2K' | '4K'
-  onGeminiQualityChange?: (quality: '2K' | '4K') => void
+  geminiQuality?: FluxImageQuality
+  onGeminiQualityChange?: (quality: FluxImageQuality) => void
   gptQuality: GptImageQuality
   onGptQualityChange: (quality: GptImageQuality) => void
   /** Mức GPT hiện trong hộp. Mặc định đủ low, medium, high. */
@@ -75,13 +84,19 @@ export function ImageEnginePicker({
   /** Engine được chọn. Một phần tử thì chỉ hiện mức của engine đó. */
   engines?: readonly ImageEngine[]
   /** Một dòng mục đích dưới từng mức. */
-  qualityPurpose?: Partial<Record<GptImageQuality | 'gemini2k' | 'gemini4k', string>>
+  qualityPurpose?: Partial<Record<GptImageQuality | 'gemini2k' | 'gemini4k' | 'flux15k' | 'flux2k' | 'flux4k', string>>
+  /** Lớp thêm cho nút đang chọn — thanh Hub dùng bản thấp hơn. */
+  triggerClassName?: string
 }) {
   const webLocale: WebLocale = locale === 'en' || locale === 'zh' || locale === 'ja' || locale === 'ko' ? locale : 'vi'
   const t = getDictionary(webLocale).imageGenerationClient
   const allowGemini = engines.includes('gemini')
   const allowGpt = engines.includes('gpt')
-  const shownGeminiQuality = geminiCost4k == null ? '2K' : (geminiQuality ?? '2K')
+  const allowFlux = engines.includes('flux')
+  const shownGeminiQuality: GeminiImageQuality =
+    geminiCost4k != null && geminiQuality === '4K' ? '4K' : '2K'
+  const parsedFlux = parseFluxImageQuality(geminiQuality)
+  const shownFluxQuality: FluxImageQuality = geminiCost4k == null && parsedFlux === '4K' ? '2K' : parsedFlux
   const [open, setOpen] = useState(false)
   const tiers: PickerTier[] = []
   if (allowGpt) {
@@ -116,31 +131,69 @@ export function ImageEnginePicker({
       })
     }
   }
-  const selected = tiers.find((tier) =>
-    tier.engine === 'gpt'
-      ? engine === 'gpt' && gptQuality === tier.quality
-      : engine === 'gemini' && shownGeminiQuality === tier.quality,
-  )
+  if (allowFlux) {
+    tiers.push({
+      key: 'flux-1.5k',
+      engine: 'flux',
+      quality: '1.5K',
+      name: publicFluxImageName('1.5K'),
+      credit: FLUX_IMAGE_CREDITS['1.5K'],
+      purpose: qualityPurpose?.flux15k,
+    })
+    tiers.push({
+      key: 'flux-2k',
+      engine: 'flux',
+      quality: '2K',
+      name: publicFluxImageName('2K'),
+      credit: FLUX_IMAGE_CREDITS['2K'],
+      purpose: qualityPurpose?.flux2k,
+    })
+    if (geminiCost4k != null) {
+      tiers.push({
+        key: 'flux-4k',
+        engine: 'flux',
+        quality: '4K',
+        name: publicFluxImageName('4K'),
+        credit: FLUX_IMAGE_CREDITS['4K'],
+        purpose: qualityPurpose?.flux4k,
+      })
+    }
+  }
+  const selected = tiers.find((tier) => {
+    if (tier.engine === 'gpt') return engine === 'gpt' && gptQuality === tier.quality
+    if (tier.engine === 'flux') return engine === 'flux' && shownFluxQuality === tier.quality
+    return engine === 'gemini' && shownGeminiQuality === tier.quality
+  })
   const selectedName = selected?.name
-    ?? (engine === 'gpt' ? publicGptImageName(gptQuality) : publicGeminiImageName(shownGeminiQuality))
+    ?? (engine === 'gpt'
+      ? publicGptImageName(gptQuality)
+      : engine === 'flux'
+        ? publicFluxImageName(shownFluxQuality)
+        : publicGeminiImageName(shownGeminiQuality))
   const selectedCredit = selected?.credit
     ?? (engine === 'gpt'
       ? GPT_IMAGE_CREDITS[gptQuality]
-      : shownGeminiQuality === '4K' && geminiCost4k != null
-        ? geminiCost4k
-        : geminiCost2k)
+      : engine === 'flux'
+        ? FLUX_IMAGE_CREDITS[shownFluxQuality]
+        : shownGeminiQuality === '4K' && geminiCost4k != null
+          ? geminiCost4k
+          : geminiCost2k)
   const triggerLabel = `${selectedName} (${formatCredit(selectedCredit, webLocale)})`
   const hasPurpose = tiers.some((tier) => Boolean(tier.purpose))
 
   function chooseTier(tier: PickerTier) {
-    if (tier.engine === 'gemini') {
-      if (!allowGemini) return
-      if (engine !== 'gemini') onEngineChange('gemini')
-      onGeminiQualityChange?.(tier.quality)
-    } else {
+    if (tier.engine === 'gpt') {
       if (!allowGpt) return
       if (engine !== 'gpt') onEngineChange('gpt')
       onGptQualityChange(tier.quality)
+    } else if (tier.engine === 'flux') {
+      if (!allowFlux) return
+      if (engine !== 'flux') onEngineChange('flux')
+      onGeminiQualityChange?.(tier.quality)
+    } else {
+      if (!allowGemini) return
+      if (engine !== 'gemini') onEngineChange('gemini')
+      onGeminiQualityChange?.(tier.quality)
     }
     setOpen(false)
   }
@@ -150,7 +203,10 @@ export function ImageEnginePicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-9 max-w-full shrink-0 items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2.5 text-xs font-medium text-violet-900 hover:bg-violet-100"
+          className={cn(
+            'inline-flex h-9 max-w-full shrink-0 items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-2.5 text-xs font-medium text-violet-900 hover:bg-violet-100',
+            triggerClassName
+          )}
           aria-label={`${t.imageEngineLabel}: ${triggerLabel}`}
         >
           <span className="truncate">{triggerLabel}</span>

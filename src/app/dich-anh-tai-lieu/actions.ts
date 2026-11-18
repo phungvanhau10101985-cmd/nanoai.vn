@@ -55,7 +55,7 @@ import { buildPdfFromTranslatedPages } from '@/lib/dich-anh-tai-lieu/pdf-page-pa
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
-import { DOCUMENT_TRANSLATE_GEMINI_CREDITS } from '@/lib/document-translate-pricing'
+import { DOCUMENT_TRANSLATE_GEMINI_CREDITS, translateStoredImageQuality } from '@/lib/document-translate-pricing'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
@@ -756,7 +756,7 @@ export async function startTranslatePdfBatch(
       jobIds: requeueIds,
       sourceLang,
       targetLang,
-      imageQuality,
+      imageQuality: translateStoredImageQuality(charge.engine, imageQuality),
       cost: COST_PER_PAGE,
     })
     if (requeued == null) return { error: 'Không xếp lại được trang đang dở.', batchId }
@@ -776,7 +776,7 @@ export async function startTranslatePdfBatch(
       historyId: item.historyId,
       sourceLang,
       targetLang,
-      imageQuality,
+      imageQuality: translateStoredImageQuality(charge.engine, imageQuality),
       cost: COST_PER_PAGE,
     })
     if (!job) return { error: 'Không thể tạo job. Kiểm tra DATABASE_URL và bảng translate_jobs.', batchId }
@@ -808,7 +808,7 @@ export async function startTranslatePdfBatch(
             historyId: historyItem.id,
             sourceLang,
             targetLang,
-            imageQuality,
+            imageQuality: translateStoredImageQuality(charge.engine, imageQuality),
             cost: COST_PER_PAGE,
           })
           if (!job) {
@@ -1267,7 +1267,7 @@ export async function startTranslateBatch(formData: FormData): Promise<{ batchId
       historyId: historyItem.id,
       sourceLang,
       targetLang,
-      imageQuality,
+      imageQuality: translateStoredImageQuality(charge.engine, imageQuality),
       cost,
     })
     if (!job) {

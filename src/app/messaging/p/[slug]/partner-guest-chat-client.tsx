@@ -1979,9 +1979,10 @@ export function PartnerGuestChatClient({
   const [tryOnOpenedViaEmbedQuery, setTryOnOpenedViaEmbedQuery] = useState(() => initialTryOnOpenFromGuestUrl(slug))
   const [tryOnBusy, setTryOnBusy] = useState(false)
   const [tryOnEngine, setTryOnEngine] = useState<ImageEngine>('gemini')
-  const [tryOnGeminiQuality, setTryOnGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [tryOnGeminiQuality, setTryOnGeminiQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [tryOnGptQuality, setTryOnGptQuality] = useState<GptImageQuality>('medium')
   const tryOnCost = imageEngineCredit({
+    imageQuality: tryOnGeminiQuality,
     engine: tryOnEngine,
     gptQuality: tryOnGptQuality,
     geminiCost: tryOnGeminiQuality === '4K' ? TRY_ON_COST_2K * 2.2 : TRY_ON_COST_2K,

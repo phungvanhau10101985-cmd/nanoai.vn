@@ -594,7 +594,7 @@ export function HubStudioMessageBubble({
 
   if (line.role === 'user') {
     return (
-      <div className="ml-6 max-w-full">
+      <div className="ml-6 max-w-full md:ml-auto md:flex md:max-w-[75%] md:justify-end">
         {isEditing ? (
           <div className="rounded-md bg-white px-2.5 py-2 text-sm text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100">
             <div className="space-y-2">
@@ -632,7 +632,7 @@ export function HubStudioMessageBubble({
             </div>
           </div>
         ) : (
-          <div className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-1 rounded-md bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm dark:bg-slate-800 dark:text-slate-100">
+          <div className="inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-1 rounded-md bg-white px-2.5 py-1.5 text-sm text-slate-800 shadow-sm md:rounded-[22px] md:bg-[#F0F2F5] md:px-4 md:py-2.5 dark:bg-slate-800 dark:text-slate-100 md:dark:bg-slate-800">
             <span className="whitespace-pre-wrap break-words">{line.content}</span>
             {onEditStep ? (
               <button
@@ -1136,6 +1136,7 @@ export function HubStudioMessageBubble({
               onDone={() => setCropOpen(false)}
               onOutpaintGaps={onOutpaintGaps}
               foldGuideRatios={st.faceFoldGuideRatios}
+              gptQualities={studioSession?.presetId === 'packaging_kit' ? ['medium', 'high'] : undefined}
             />
           ) : null}
             </>

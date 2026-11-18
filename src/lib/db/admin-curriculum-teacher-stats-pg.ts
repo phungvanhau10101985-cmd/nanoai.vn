@@ -14,6 +14,8 @@ export type AdminCurriculumTeacherStatRow = {
   openedCount: number
   purchaseCount: number
   lastActivityAt: string
+  buyerSource: string
+  buyerSourceDetail: string
 }
 
 export type AdminCurriculumTeacherStatSummary = {
@@ -42,6 +44,8 @@ type StatQueryRow = {
   opened_count: number | string
   purchase_count: number | string
   last_activity_at: Date | string
+  buyer_source: string | null
+  buyer_source_detail: string | null
 }
 
 const EMPTY_SUMMARY: AdminCurriculumTeacherStatSummary = {
@@ -134,12 +138,52 @@ function activityCte(): string {
       left join created on created.user_id = ids.user_id
       left join opened on opened.user_id = ids.user_id
       left join bought on bought.user_id = ids.user_id
+    ),
+    buyer_source as (
+      select distinct on (s.user_id)
+        s.user_id,
+        s.source,
+        s.detail
+      from (
+        select c.user_id,
+               c.created_source as source,
+               c.created_source_detail as detail,
+               c.created_at as at,
+               case c.created_source
+                 when 'facebook' then 3
+                 when 'tiktok' then 3
+                 when 'google_ads' then 3
+                 when 'other' then 2
+                 when 'direct' then 1
+                 else 0
+               end as source_rank
+        from public.worksheet_curricula c
+        where c.user_id is not null
+          and c.created_source <> ''
+        union all
+        select o.user_id,
+               o.opened_source,
+               o.opened_source_detail,
+               o.opened_at,
+               case o.opened_source
+                 when 'facebook' then 3
+                 when 'tiktok' then 3
+                 when 'google_ads' then 3
+                 when 'other' then 2
+                 when 'direct' then 1
+                 else 0
+               end
+        from public.user_opened_curricula o
+        where o.opened_source <> ''
+      ) s
+      order by s.user_id, s.source_rank desc, s.at asc
     )
   `
 }
 
 const PEOPLE_FROM = `
   from people
+  left join buyer_source on buyer_source.user_id = people.user_id
   left join public.profiles p on p.id = people.user_id
   left join auth.users au on au.id = people.user_id
   where lower(coalesce(au.email, '')) not like '${GUEST_EMAIL}'
@@ -187,7 +231,9 @@ export async function fetchAdminCurriculumTeacherStats(input: {
          people.created_count,
          people.opened_count,
          people.purchase_count,
-         people.last_activity_at
+         people.last_activity_at,
+         coalesce(buyer_source.source, '') as buyer_source,
+         coalesce(buyer_source.detail, '') as buyer_source_detail
        ${PEOPLE_FROM}
        ${searchSql}
        order by (people.purchase_count > 0) desc, people.last_activity_at desc nulls last
@@ -203,6 +249,8 @@ export async function fetchAdminCurriculumTeacherStats(input: {
       openedCount: asInt(row.opened_count),
       purchaseCount: asInt(row.purchase_count),
       lastActivityAt: asIso(row.last_activity_at),
+      buyerSource: String(row.buyer_source ?? ''),
+      buyerSourceDetail: String(row.buyer_source_detail ?? ''),
     }))
     return {
       summary: {

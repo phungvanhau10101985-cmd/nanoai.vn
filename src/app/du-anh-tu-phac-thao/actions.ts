@@ -100,7 +100,7 @@ export async function createImageFromSketch(formData: FormData) {
   const COST = charge.cost
 
   let googleApiKey = ''
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     googleApiKey = process.env.GOOGLE_API_KEY?.trim() || ''
     if (!googleApiKey) return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
   }
@@ -172,7 +172,7 @@ export async function createImageFromSketch(formData: FormData) {
   const instruction = `${BASE_INSTRUCTION}\n\n${MODE_DIRECTIVES[sketchMode]}${notesBlock}`
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     const genAI = new GoogleGenerativeAI(googleApiKey)
     model = genAI.getGenerativeModel({
       model: GEMINI_3_PRO_IMAGE.model,
@@ -190,6 +190,7 @@ export async function createImageFromSketch(formData: FormData) {
     const genResult = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       aspectRatio,
       parts: sketchParts,
       gemini: () =>

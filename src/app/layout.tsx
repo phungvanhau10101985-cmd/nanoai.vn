@@ -308,13 +308,13 @@ export async function generateMetadata(): Promise<Metadata> {
   // NanoAI platform default metadata
   return {
     ...buildMetadata({
-      title: "NanoAI - Sáng tạo không giới hạn cùng AI",
-      description: "Trải nghiệm phòng thử đồ ảo với AI. Thử đồ 1-5 người, phục dựng ảnh, làm nét ảnh, ghép ảnh. Nhanh chóng, chính xác.",
+      title: "Sáng tạo không giới hạn cùng AI",
+      description: "Thiết kế, thử đồ, chỉnh ảnh và soạn giáo trình với NanoAI. Tin đầu mỗi hội thoại miễn phí. 1 credit = 6.000₫.",
       path: "/",
       keywords: ["NanoAI", "thử đồ online", "thử đồ ảo", "AI thử đồ", "phối đồ", "phục dựng ảnh", "làm nét ảnh", "ghép ảnh"],
     }),
     title: {
-      default: "NanoAI - Sáng tạo không giới hạn cùng AI",
+      default: "Sáng tạo không giới hạn cùng AI | NanoAI",
       template: "%s | NanoAI",
     },
     manifest: "/manifest.webmanifest",

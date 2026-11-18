@@ -74,7 +74,7 @@ export default function TaoAnhTheClientPage() {
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
   const [step, setStep] = useState<Step>('UPLOAD')
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageQuality, setImageQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aspectRatio, setAspectRatio] = useState<string>('3:4')
@@ -88,9 +88,10 @@ export default function TaoAnhTheClientPage() {
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cost = imageEngineCredit({
+      imageQuality: imageQuality,
     engine: imageEngine,
     gptQuality,
-    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+    geminiCost: imageQuality === '4K' ? 3 : 1.5,
   })
   const t = useMemo(() => {
     if (uiLocale === 'en') return { err: 'Error', title: 'Create ID Photo', subtitle: 'Remove background and create standard ID photo sizes. 1.5-3 credits/image.', uploadCard: 'Upload portrait image', uploadDesc: 'Choose image, paste one (Ctrl+V), or paste image URL.', chooseOrPaste: 'Choose image or paste (Ctrl+V)', reselect: 'Select again', urlPlaceholder: 'Paste image URL then click Fetch', loading: 'Loading...', fetch: 'Fetch image', options: 'Options', optionsDesc: 'Choose ratio, extra request, and quality.', ratio: 'ID ratio', bgColor: 'Background color', shirtStyle: 'Shirt style', extra: 'Extra request', extraPlaceholder: 'e.g. white background, blue background, 3x4, 4x6...', quality: 'Image quality', create: 'Create ID photo', time: '* Time: 15-45 seconds', generatingTitle: 'Generating ID photo', generatingDesc: 'AI is removing background and standardizing ID photo', resultTitle: 'ID photo result', resultDesc: 'ID photo generated.', before: 'Before', after: 'After', retry: 'Try again', download: 'Download', footer: 'Sharper input gives better output. AI-generated images may contain minor errors.' }

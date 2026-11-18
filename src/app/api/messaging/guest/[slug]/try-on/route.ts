@@ -3,7 +3,7 @@ import { getUserForCreditAction } from '@/lib/auth'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { buildSinglePersonPrompt } from '@/lib/try-on/try-on-prompts'
 import { runVirtualTryOnPipeline } from '@/lib/try-on/run-virtual-try-on-pipeline'
-import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { imageChargeFromForm, parseFluxImageQuality } from '@/lib/ai/image-engine'
 import { getClientIpFromRequest } from '@/lib/api/simple-ip-rate-limit'
 import { resolveAuthUserEmail } from '@/lib/email/account-notification-email'
 import { reportCustomerError } from '@/lib/errors/customer-error-report-pg'
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const allGarments = [...garmentImages, ...garmentImagesFromUrl].slice(0, MAX_GARMENTS)
 
   const imageQualityRaw = String(formData.get('imageQuality') ?? '2K')
-  const imageQuality = imageQualityRaw === '4K' ? '4K' : '2K'
+  const imageQuality = parseFluxImageQuality(imageQualityRaw)
   const prompt = buildSinglePersonPrompt('female', '', garmentImages.length)
   const geminiCost = imageQuality === '4K' ? CHAT_TRY_ON_COST_2K * 2.2 : CHAT_TRY_ON_COST_2K
   const charge = imageChargeFromForm(formData, geminiCost)

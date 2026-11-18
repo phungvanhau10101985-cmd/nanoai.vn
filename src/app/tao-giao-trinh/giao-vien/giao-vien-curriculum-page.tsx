@@ -17,6 +17,19 @@ import { SlideProposalVote } from '../components/slide-proposal-vote'
 import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { PresentationControlBar } from '../components/presentation-control-bar'
+import { TeacherPhoneSandTimerPicker } from '../components/teacher-phone-sand-timer-picker'
+import { TeacherPhoneAutoPlayPicker } from '../components/teacher-phone-autoplay-picker'
+import { TeacherPhoneRemoteDialog } from '../components/teacher-phone-remote-dialog'
+import { TeacherWhiteboardCanvas, applyRemoteWhiteboard, emptyWhiteboardState } from '../components/teacher-whiteboard-canvas'
+import {
+  isTeacherLeftPaneWire,
+  isWhiteboardWireType,
+  sanitizeWhiteboardCamera,
+  sanitizeWhiteboardObjects,
+  teacherSlideLeftPaneFromMode,
+  type WhiteboardState,
+} from '../lib/teacher-whiteboard'
+import { createPhoneCommandQueue, phoneRemoteLoginOrigin } from '../lib/phone-remote-client'
 import { AnimatedCharReveal } from '../components/animated-char-reveal'
 import { CurriculumBlockContentWithEmbeds } from '../components/curriculum-block-content-with-embeds'
 import { WorksheetAnswerTypedBody } from '../components/worksheet-answer-typed-body'
@@ -865,10 +878,59 @@ function writeLessonReviewDone(userId: string | null, curriculumId: string | nul
   }
 }
 
+function asBoolRecord(value: unknown): Record<string, boolean> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const out: Record<string, boolean> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === 'boolean') out[k] = v
+  }
+  return out
+}
+
+function asNumberRecord(value: unknown): Record<string, number> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v
+  }
+  return out
+}
+
+/** Lệnh gõ thường chỉ tiến lên. Bản rỗng hoặc số nhỏ hơn không được kéo chữ về đầu. */
+function mergeTypingReveal(
+  prev: Record<string, number>,
+  incoming: Record<string, number>,
+  exact: boolean
+): Record<string, number> {
+  if (exact) return { ...incoming }
+  const incomingKeys = Object.keys(incoming)
+  if (incomingKeys.length === 0) return prev
+  const next = { ...prev }
+  for (const key of incomingKeys) {
+    const value = incoming[key] ?? 0
+    next[key] = Math.max(prev[key] ?? 0, value)
+  }
+  return next
+}
+
+function isTypingHeartbeat(msg: Record<string, unknown>): boolean {
+  return msg.type === 'worksheet-answer-reveal' && msg.control !== true
+}
+
+function pausedKeysOnSlide(paused: Record<string, boolean>, slideIndex: number): boolean {
+  const prefix = `${slideIndex}-`
+  for (const [key, value] of Object.entries(paused)) {
+    if (value === true && (key === String(slideIndex) || key.startsWith(prefix))) return true
+  }
+  return false
+}
+
 /** Giáo trình — mở từ Tạo giáo trình (`?t=`). Phiếu bài tập: `giao-vien-worksheet-page.tsx`. */
 export default function CurriculumViewPage() {
   const searchParams = useSearchParams()
   const worksheetId = searchParams?.get('worksheetId')
+  /** Điện thoại đã quét QR: id phiên, không phải máy chiếu desktop. */
+  const phoneFollowerId = (searchParams?.get('phone') || '').trim()
   /** Một tab GV = một kênh BroadcastChannel riêng — tránh hai cửa sổ HS nhận lẫn dữ liệu. */
   const [presentationSyncId] = useState(() => getOrCreatePresentationSyncId('teacher-curriculum'))
   useEffect(() => {
@@ -935,7 +997,13 @@ export default function CurriculumViewPage() {
   const [gvWorksheetEditBlockIndex, setGvWorksheetEditBlockIndex] = useState<number | null>(null)
   const [gvWorksheetEditBlockContent, setGvWorksheetEditBlockContent] = useState('')
   const [gvWorksheetEditSaving, setGvWorksheetEditSaving] = useState(false)
-  const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual' | 'infographic'>('curriculum')
+  const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual' | 'infographic' | 'whiteboard'>(() => {
+    if (typeof window === 'undefined') return 'curriculum'
+    return window.innerWidth < 768 || detectAppleSlideDevice() === 'ios' ? 'visual' : 'curriculum'
+  })
+  const [whiteboardState, setWhiteboardState] = useState<WhiteboardState>(() => emptyWhiteboardState())
+  const whiteboardStateRef = useRef(whiteboardState)
+  whiteboardStateRef.current = whiteboardState
   const [infographicGenerating, setInfographicGenerating] = useState(false)
   const [lessonInfographicGenerating, setLessonInfographicGenerating] = useState(false)
   const [infographicGptQuality, setInfographicGptQuality] = useState<GptImageQuality>('medium')
@@ -990,6 +1058,25 @@ export default function CurriculumViewPage() {
   /** Giá trị pause mới nhất — effect đổi slide đọc qua ref (không deps `answerTypingPaused` để tránh reset tiến độ khi bấm Tạm dừng). */
   const answerTypingPausedRef = useRef<Record<string, boolean>>({})
   answerTypingPausedRef.current = answerTypingPaused
+  const answerRevealProgressRef = useRef<Record<string, number>>({})
+  answerRevealProgressRef.current = answerRevealProgress
+  const answerTypingOnRef = useRef(answerTypingSegmentsGloballyEnabled)
+  answerTypingOnRef.current = answerTypingSegmentsGloballyEnabled
+  const answerVisibilityRef = useRef<Record<string, boolean>>({})
+  answerVisibilityRef.current = answerVisibility
+  const answerTypingSpeedMsRef = useRef(answerTypingSpeedMs)
+  answerTypingSpeedMsRef.current = answerTypingSpeedMs
+  const answerTypingEnabledRef = useRef(answerTypingEnabled)
+  answerTypingEnabledRef.current = answerTypingEnabled
+  const typingClientIdRef = useRef(`t${Math.random().toString(36).slice(2, 10)}`)
+  const typingClaimedRef = useRef(false)
+  const typingDriverRef = useRef(!phoneFollowerId)
+  const typingHydratedRef = useRef(false)
+  const typingHeartbeatTimerRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (!phoneFollowerId || typingClaimedRef.current) return
+    typingDriverRef.current = false
+  }, [phoneFollowerId])
 
   /** Block lời giải đang tới lượt gõ (cùng logic interval) — chỉ block này hiện bút khi `reveal === 0`. */
   const sequentialSolutionLeaderBlockIndex = useMemo(() => {
@@ -1169,8 +1256,10 @@ export default function CurriculumViewPage() {
           <button
             type="button"
             onClick={() => {
-              setAnswerTypingSegmentsGloballyEnabled((g) => !g)
+              const nextOn = !answerTypingSegmentsGloballyEnabled
+              setAnswerTypingSegmentsGloballyEnabled(nextOn)
               setAnswerTypingPaused({})
+              publishTypingState(true, { typingOn: nextOn, paused: {} })
             }}
             className={btn}
             title={
@@ -1193,14 +1282,13 @@ export default function CurriculumViewPage() {
             disabled={!typingOn || allAnswersHidden}
             onClick={() => {
               const nextPaused = !slidePaused
-              setAnswerTypingPaused((prev) => {
-                const n = { ...prev }
-                for (const k of typableKeys) {
-                  if (nextPaused) n[k] = true
-                  else delete n[k]
-                }
-                return n
-              })
+              const n: Record<string, boolean> = { ...answerTypingPaused }
+              for (const k of typableKeys) {
+                if (nextPaused) n[k] = true
+                else delete n[k]
+              }
+              setAnswerTypingPaused(n)
+              publishTypingState(true, { paused: n })
             }}
             className={btn}
             title={
@@ -1272,6 +1360,17 @@ export default function CurriculumViewPage() {
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   const hasHydratedFromCurriculumRef = useRef(false)
   const slidesRef = useRef<SlideItem[]>([])
+  const currentIndexRef = useRef(0)
+  currentIndexRef.current = currentIndex
+  const phoneFollowerIdRef = useRef(phoneFollowerId)
+  phoneFollowerIdRef.current = phoneFollowerId
+  const phoneQueueRef = useRef<ReturnType<typeof createPhoneCommandQueue> | null>(null)
+  const seenGenRef = useRef(0)
+  /** Lệnh slide vừa áp. Bản chỉ số cũ đang bay trên mạng không được kéo lùi slide này. */
+  const slideFollowHoldRef = useRef<{ index: number; until: number } | null>(null)
+  const seenRevisionRef = useRef(0)
+  const applyingSharedRef = useRef(false)
+  const chainProgrammaticScrollUntilRef = useRef(0)
   const visualAutoFillBlockedRef = useRef<Record<number, { visualInput1?: boolean; visualInput2?: boolean; visualInput3?: boolean; visualInput4?: boolean }>>({})
   const visualAutoFillInitializedRef = useRef<Record<number, boolean>>({})
   const visualManualEditedRef = useRef<Record<number, boolean>>({})
@@ -1485,10 +1584,23 @@ export default function CurriculumViewPage() {
   }, [viewportW])
   /** iPhone/iPad: layout chạm. Windows giữ mốc 768 và neo phải. */
   const apple = useAppleSlideShell()
-  /** Dưới 768px: hai cột xếp dọc full width; từ md: giữ layout neo phải + minWidth như cũ */
+  /** Dưới 768px: visual phía trên, chữ slide phía dưới. Desktop giữ hai cột. */
   const narrowTeacherLayout = viewportW < 768 || apple.ios
-  /** Điện thoại: giáo trình, slide, hoặc cả hai. Desktop không đọc state này. */
-  const [teacherPhonePane, setTeacherPhonePane] = useState<'curriculum' | 'both' | 'slide'>('slide')
+  const [phoneRemoteOpen, setPhoneRemoteOpen] = useState(false)
+  const [phoneSessionId, setPhoneSessionId] = useState<string | null>(null)
+  const phoneSessionIdRef = useRef(phoneSessionId)
+  phoneSessionIdRef.current = phoneSessionId
+  const [phoneLoginUrl, setPhoneLoginUrl] = useState<string | null>(null)
+  const [phoneRemoteBusy, setPhoneRemoteBusy] = useState(false)
+  const [phoneRemoteError, setPhoneRemoteError] = useState('')
+  const phoneImageActionsRef = useRef<HTMLDivElement | null>(null)
+  const phoneSnapshotRef = useRef<() => Record<string, unknown>>(() => ({}))
+  const applyPhoneCommandRef = useRef<(msg: Record<string, unknown>) => void>(() => {})
+  useEffect(() => {
+    if (!narrowTeacherLayout) return
+    setLeftPanelMode((mode) => (mode === 'infographic' ? mode : 'visual'))
+    setSlideViewMode('single')
+  }, [narrowTeacherLayout])
   // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
   const currentVisualPresentation = useMemo(() => {
     const s = slides[currentIndex]
@@ -1646,6 +1758,10 @@ export default function CurriculumViewPage() {
     if (content.trim().length > 0 || slides.length > 0) return
     if (typeof window === 'undefined') return
     if (runtimeHydratedRef.current) return
+    if (phoneFollowerId) {
+      runtimeHydratedRef.current = true
+      return
+    }
     runtimeHydratedRef.current = true
     try {
       const raw = window.sessionStorage.getItem(TEACHER_CURRICULUM_RUNTIME_CACHE_KEY)
@@ -1665,7 +1781,8 @@ export default function CurriculumViewPage() {
         lessonNo?: number | null
         curriculumInfographic?: SlideInfographic | null
         lessonInfographic?: SlideInfographic | null
-        leftPanelMode?: 'visual' | 'infographic'
+        leftPanelMode?: 'visual' | 'infographic' | 'whiteboard'
+        whiteboard?: { objects?: unknown; camera?: unknown; grid?: unknown }
         slideViewMode?: 'single' | 'triple'
         studentCurriculumRemoteMode?: 'single-slide' | 'markdown-all'
         infographicSourceView?: 'visual' | 'lesson' | 'curriculum'
@@ -1707,8 +1824,17 @@ export default function CurriculumViewPage() {
           : undefined
       )
       // Khôi phục state UI cũ — không nhảy về tab/visual khác.
-      if (cached?.leftPanelMode === 'visual' || cached?.leftPanelMode === 'infographic') {
+      if (cached?.leftPanelMode === 'visual' || cached?.leftPanelMode === 'infographic' || cached?.leftPanelMode === 'whiteboard') {
         setLeftPanelMode(cached.leftPanelMode)
+      }
+      if (cached?.whiteboard && typeof cached.whiteboard === 'object') {
+        setWhiteboardState((prev) => ({
+          ...prev,
+          objects: sanitizeWhiteboardObjects(cached.whiteboard?.objects),
+          camera: sanitizeWhiteboardCamera(cached.whiteboard?.camera),
+          grid: typeof cached.whiteboard?.grid === 'boolean' ? cached.whiteboard.grid : prev.grid,
+          draft: null,
+        }))
       }
       if (cached?.slideViewMode === 'single' || cached?.slideViewMode === 'triple') {
         setSlideViewMode(cached.slideViewMode)
@@ -1742,7 +1868,7 @@ export default function CurriculumViewPage() {
     } catch {
       /* ignore */
     }
-  }, [worksheetId, content, slides])
+  }, [worksheetId, content, slides, phoneFollowerId])
 
   useEffect(() => {
     if (worksheetId) return
@@ -1776,6 +1902,11 @@ export default function CurriculumViewPage() {
             slideViewMode,
             studentCurriculumRemoteMode,
             infographicSourceView,
+            whiteboard: {
+              objects: whiteboardState.objects,
+              camera: whiteboardState.camera,
+              grid: whiteboardState.grid,
+            },
             // Nét vẽ infographic theo slideKey - không mất sau reload.
             infographicDrawStrokesBySlide,
           })
@@ -1805,6 +1936,9 @@ export default function CurriculumViewPage() {
     studentCurriculumRemoteMode,
     infographicSourceView,
     infographicDrawStrokesBySlide,
+    whiteboardState.objects,
+    whiteboardState.camera,
+    whiteboardState.grid,
   ])
 
   useEffect(() => {
@@ -1821,6 +1955,10 @@ export default function CurriculumViewPage() {
     if (action === 'teacher-timer-start') setTeacherTimerRunning(true)
     else if (action === 'teacher-timer-stop') setTeacherTimerRunning(false)
     else if (action === 'teacher-timer-reset') { setTeacherTimerRunning(false); setTeacherTimerSeconds(0) }
+    if (phoneFollowerIdRef.current) {
+      phoneQueueRef.current?.push({ type: action })
+      return
+    }
     if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
     try {
       const w = studentViewWindowRef.current
@@ -1832,6 +1970,7 @@ export default function CurriculumViewPage() {
     } catch {
       /* ignore */
     }
+    if (phoneSessionIdRef.current) phoneQueueRef.current?.push({ type: action })
   }, [])
 
   useEffect(() => {
@@ -1841,6 +1980,10 @@ export default function CurriculumViewPage() {
   }, [teacherTimerRunning])
 
   const sendToStudentView = useCallback((msg: Record<string, unknown>) => {
+    if (phoneFollowerIdRef.current) {
+      phoneQueueRef.current?.push(msg)
+      return
+    }
     const payload = { ...msg, __syncSeq: syncSeqRef.current++ }
     try {
       const w = studentViewWindowRef.current
@@ -1853,6 +1996,55 @@ export default function CurriculumViewPage() {
       /* ignore */
     }
   }, [])
+
+  /** Điện thoại đã xếp lệnh trong sendToStudentView. Máy giáo viên xếp thêm cùng lệnh để điện thoại và học sinh đọc một hàng. */
+  const publishSessionCommand = useCallback((msg: Record<string, unknown>) => {
+    const payload = { ...msg, typingSource: typingClientIdRef.current }
+    sendToStudentView(payload)
+    if (phoneFollowerIdRef.current || !phoneSessionIdRef.current) return
+    phoneQueueRef.current?.push(payload)
+  }, [sendToStudentView])
+
+  const claimTypingDriver = useCallback(() => {
+    typingClaimedRef.current = true
+    typingDriverRef.current = true
+  }, [])
+
+  const buildTypingMessage = useCallback((control: boolean, overrides?: {
+    typingOn?: boolean
+    paused?: Record<string, boolean>
+    reveal?: Record<string, number>
+    enabled?: Record<string, boolean>
+  }) => {
+    const typingOn = overrides?.typingOn ?? answerTypingOnRef.current
+    const enabled = overrides?.enabled ?? (
+      typingOn === answerTypingOnRef.current
+        ? answerTypingEnabledRef.current
+        : Object.fromEntries(Object.keys(answerTypingEnabledRef.current).map((k) => [k, typingOn]))
+    )
+    return {
+      type: 'worksheet-answer-reveal',
+      worksheetAnswerReveal: overrides?.reveal ?? answerRevealProgressRef.current,
+      worksheetAnswerTypingEnabled: enabled,
+      worksheetAnswerTypingPaused: overrides?.paused ?? answerTypingPausedRef.current,
+      answerVisibility: answerVisibilityRef.current,
+      typingSpeedMs: answerTypingSpeedMsRef.current,
+      currentIndex: currentIndexRef.current,
+      typingOn,
+      control,
+      typingExact: Boolean(control),
+    } as Record<string, unknown>
+  }, [])
+
+  const publishTypingState = useCallback((control: boolean, overrides?: {
+    typingOn?: boolean
+    paused?: Record<string, boolean>
+    reveal?: Record<string, number>
+    enabled?: Record<string, boolean>
+  }) => {
+    claimTypingDriver()
+    publishSessionCommand(buildTypingMessage(control, overrides))
+  }, [buildTypingMessage, claimTypingDriver, publishSessionCommand])
 
   const tickPendingByKeyRef = useRef<Record<string, Record<string, unknown> | null>>({})
   const tickTimerByKeyRef = useRef<Record<string, number | null>>({})
@@ -2410,6 +2602,7 @@ export default function CurriculumViewPage() {
     /** Dùng ngay sau tạo infographic (state/ref chưa kịp cập nhật trong microtask) */
     curriculumInfographicWire?: SlideInfographic
   ) => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     const idx = typeof currentIndexOverride === 'number' ? currentIndexOverride : currentIndex
     const wireInfographic = curriculumInfographicWire ?? activeVisualInfographic
     const compactedSlides = compactSlidesForStudentWire(slidesToSend, idx)
@@ -2429,10 +2622,7 @@ export default function CurriculumViewPage() {
       ...(!worksheetId
         ? {
             studentCurriculumRightMode: studentCurriculumRemoteMode,
-            teacherSlideLeftPane:
-              leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
-                ? ('infographic' as const)
-                : ('visual' as const),
+            teacherSlideLeftPane: teacherSlideLeftPaneFromMode(leftPanelMode, currentVisualShowsInfographic),
             curriculumInfographic: wireInfographic ?? null,
           }
         : {}),
@@ -2521,7 +2711,9 @@ export default function CurriculumViewPage() {
       }
     }
 
-    setAnswerRevealProgress({})
+    if (!phoneFollowerIdRef.current || typingClaimedRef.current) {
+      setAnswerRevealProgress({})
+    }
     if (carryPause) {
       const s = sl[currentIndex]
       const blks = s?.blocks ?? []
@@ -2609,15 +2801,26 @@ export default function CurriculumViewPage() {
     return () => window.clearInterval(id)
   }, [worksheetId, curriculumId, answerTypingSpeedMs, currentIndex, slides, answerVisibility, answerTypingEnabled, answerTypingPaused, studentCurriculumRemoteMode])
 
-  /** Đẩy trạng thái gõ/hiện đáp án theo kênh nhẹ, tách khỏi payload slide lớn. */
+  /** Nhịp gõ chạy local trên mọi máy. Mạng chỉ gửi hiệu chỉnh ~280ms và lệnh bấm (tạm dừng / bật tắt). */
   useEffect(() => {
-    if (!(worksheetId || curriculumId) || !studentViewOpened) return
-    sendToStudentView({
-      type: 'worksheet-answer-reveal',
-      worksheetAnswerReveal: answerRevealProgress,
-      worksheetAnswerTypingEnabled: answerTypingEnabled,
-    })
-  }, [answerRevealProgress, answerTypingEnabled, worksheetId, curriculumId, studentViewOpened, sendToStudentView])
+    if (!(worksheetId || curriculumId)) return
+    if (!typingDriverRef.current) return
+    if (!studentViewOpened && !phoneFollowerId && !phoneSessionId) return
+    if (typingHeartbeatTimerRef.current != null) return
+    typingHeartbeatTimerRef.current = window.setTimeout(() => {
+      typingHeartbeatTimerRef.current = null
+      if (!typingDriverRef.current) return
+      publishSessionCommand(buildTypingMessage(false))
+    }, 280)
+  }, [answerRevealProgress, answerTypingEnabled, answerTypingPaused, answerVisibility, answerTypingSpeedMs, currentIndex, worksheetId, curriculumId, studentViewOpened, phoneFollowerId, phoneSessionId, buildTypingMessage, publishSessionCommand])
+  useEffect(() => {
+    return () => {
+      if (typingHeartbeatTimerRef.current != null) {
+        window.clearTimeout(typingHeartbeatTimerRef.current)
+        typingHeartbeatTimerRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!studentViewOpened) return
@@ -2745,10 +2948,12 @@ export default function CurriculumViewPage() {
     const nextIndex = action === 'slide-next'
       ? Math.min(currentIndex + 1, slides.length - 1)
       : Math.max(currentIndex - 1, 0)
+    slideFollowHoldRef.current = { index: nextIndex, until: Date.now() + 900 }
+    claimTypingDriver()
     setCurrentIndex(nextIndex)
     if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
-    sendToStudentView({ type: 'slide-go', index: nextIndex })
-  }, [commitCurrentSlideDraft, currentIndex, slides.length, sendToStudentView])
+    publishSessionCommand({ type: 'slide-go', index: nextIndex })
+  }, [claimTypingDriver, commitCurrentSlideDraft, currentIndex, slides.length, publishSessionCommand])
 
   const persistSlidesRef = useRef<(s: SlideItem[], curriculumInfographicOverride?: SlideInfographic) => Promise<void>>(async () => {})
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
@@ -2804,7 +3009,7 @@ export default function CurriculumViewPage() {
     }
   }, [curriculumId, slideMode, topic, toast, tr, activeLessonNo])
 
-  const leftWidePanel = leftPanelMode === 'visual' || leftPanelMode === 'infographic'
+  const leftWidePanel = leftPanelMode === 'visual' || leftPanelMode === 'infographic' || leftPanelMode === 'whiteboard'
 
   const generateCurriculumInfographic = useCallback(async () => {
     if (!curriculumId || worksheetId) return
@@ -3124,6 +3329,7 @@ export default function CurriculumViewPage() {
     void generateCurriculumInfographic()
   }, [hasCurriculumInfographic, confirmInfographicAction, generateCurriculumInfographic])
   const handleSwitchInfographicSource = useCallback((target: 'visual' | 'lesson' | 'curriculum') => {
+    if (leftPanelMode === 'whiteboard') setLeftPanelMode('visual')
     setInfographicSourceView(target)
     const targetInfographic =
       target === 'visual'
@@ -3176,7 +3382,24 @@ export default function CurriculumViewPage() {
     curriculumId,
     activeLessonNo,
     slideMode,
+    leftPanelMode,
   ])
+
+  const openTeacherWhiteboard = useCallback(() => {
+    setLeftPanelMode('whiteboard')
+    const wb = whiteboardStateRef.current
+    publishSessionCommand({ type: 'student-curriculum-left-pane', pane: 'whiteboard' })
+    publishSessionCommand({
+      type: 'whiteboard-sync',
+      objects: wb.objects,
+      camera: wb.camera,
+      grid: wb.grid,
+    })
+  }, [publishSessionCommand])
+
+  const broadcastWhiteboard = useCallback((msg: Record<string, unknown>) => {
+    publishSessionCommand(msg)
+  }, [publishSessionCommand])
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return
@@ -3208,10 +3431,7 @@ export default function CurriculumViewPage() {
         ...(!worksheetId
           ? {
               studentCurriculumRightMode: studentCurriculumRemoteMode,
-              teacherSlideLeftPane:
-                leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
-                  ? ('infographic' as const)
-                  : ('visual' as const),
+              teacherSlideLeftPane: teacherSlideLeftPaneFromMode(leftPanelMode, currentVisualShowsInfographic),
             }
           : {}),
         ...(!worksheetId && activeVisualInfographic ? { curriculumInfographic: activeVisualInfographic } : {}),
@@ -3252,6 +3472,11 @@ export default function CurriculumViewPage() {
         const [si, bi] = key.split('-').map(Number)
         if (!isNaN(si) && !isNaN(bi)) channel.postMessage({ type: 'quiz-session-settings', slideIndex: si, blockIndex: bi, quizDurationSeconds: settings.quizDurationSeconds, autoRevealOnTimerEnd: settings.autoRevealOnTimerEnd })
       })
+      if (!worksheetId && leftPanelMode === 'whiteboard') {
+        const wb = whiteboardStateRef.current
+        channel.postMessage({ type: 'student-curriculum-left-pane', pane: 'whiteboard' })
+        channel.postMessage({ type: 'whiteboard-sync', objects: wb.objects, camera: wb.camera, grid: wb.grid })
+      }
     }
     channel.addEventListener('message', onMessage)
     return () => {
@@ -3262,6 +3487,15 @@ export default function CurriculumViewPage() {
   }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, quizPopupOpen, quizFocusSlideIndex, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
+    if (phoneFollowerIdRef.current) {
+      setInfographicFullscreenOpen(false)
+      setTeacherExpandedCellIndex(typeof cellIndex === 'number' ? cellIndex : null)
+      setVisualFullscreenOpen(true)
+      sendToStudentView({ type: 'infographic-fullscreen-close' })
+      sendToStudentView({ type: 'presentation-mode', mode: 'slide-interaction' })
+      sendToStudentView({ type: 'visual-fullscreen-open', cellIndex: typeof cellIndex === 'number' ? cellIndex : undefined })
+      return
+    }
     setInfographicFullscreenOpen(false)
     sendToStudentView({ type: 'infographic-fullscreen-close' })
     setTeacherExpandedCellIndex(typeof cellIndex === 'number' ? cellIndex : null)
@@ -3338,6 +3572,15 @@ export default function CurriculumViewPage() {
   const openTeacherInfographicFullscreen = useCallback(() => {
     if (worksheetId) return
     if (!activeVisualInfographic) return
+    if (phoneFollowerIdRef.current) {
+      setVisualFullscreenOpen(false)
+      setTeacherExpandedCellIndex(null)
+      setInfographicFullscreenOpen(true)
+      sendToStudentView({ type: 'visual-fullscreen-close' })
+      sendToStudentView({ type: 'presentation-mode', mode: 'slide-interaction' })
+      sendToStudentView({ type: 'infographic-fullscreen-open' })
+      return
+    }
     setVisualFullscreenOpen(false)
     setTeacherExpandedCellIndex(null)
     sendToStudentView({ type: 'visual-fullscreen-close' })
@@ -4322,11 +4565,23 @@ export default function CurriculumViewPage() {
       return
     }
     const handlePointerMove = bindLatestPointerFrame(sendPointerMove)
+    let lastTouchClickAt = 0
+    const handleTouchPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') return
+      lastTouchClickAt = Date.now()
+      sendPointerClick(e)
+    }
+    const handleMouseDown = (e: MouseEvent) => {
+      if (Date.now() - lastTouchClickAt < 700) return
+      sendPointerClick(e)
+    }
     window.addEventListener('pointermove', handlePointerMove, { passive: true })
-    window.addEventListener('mousedown', sendPointerClick)
+    window.addEventListener('pointerdown', handleTouchPointerDown)
+    window.addEventListener('mousedown', handleMouseDown)
     return () => {
       window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('mousedown', sendPointerClick)
+      window.removeEventListener('pointerdown', handleTouchPointerDown)
+      window.removeEventListener('mousedown', handleMouseDown)
     }
   }, [sendToStudentView, visualFullscreenOpen, infographicFullscreenOpen, quizPopupOpen, worksheetId, leftPanelMode, activeVisualInfographic, slideViewMode])
 
@@ -4374,6 +4629,7 @@ export default function CurriculumViewPage() {
 
   useEffect(() => {
     if (worksheetId || studentCurriculumRemoteMode !== 'markdown-all' || slideViewMode !== 'single') return
+    if (narrowTeacherLayout) chainProgrammaticScrollUntilRef.current = Date.now() + 520
     const container = teacherSlideContentPaneRef.current
     const el = document.getElementById(`teacher-chain-slide-${currentIndex}`)
     if (!container || !el) return
@@ -4384,13 +4640,19 @@ export default function CurriculumViewPage() {
       const bias = Math.max(56, Math.round(container.clientHeight * 0.18))
       const extra = Math.max(16, Math.min(180, Math.round(eRect.height * 0.1)))
       const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight)
-      container.scrollTo({ top: Math.min(maxScroll, Math.max(0, elTop - bias + extra)), behavior: 'smooth' })
+      if (narrowTeacherLayout) chainProgrammaticScrollUntilRef.current = Date.now() + 220
+      container.scrollTo({
+        top: Math.min(maxScroll, Math.max(0, elTop - bias + extra)),
+        behavior: narrowTeacherLayout ? 'auto' : 'smooth',
+      })
     }, 80)
     return () => window.clearTimeout(timer)
-  }, [worksheetId, studentCurriculumRemoteMode, slideViewMode, currentIndex, slides.length])
+  }, [worksheetId, studentCurriculumRemoteMode, slideViewMode, currentIndex, slides.length, narrowTeacherLayout])
 
   useEffect(() => {
-    if (!studentViewOpened || slideViewMode !== 'single') return
+    if (slideViewMode !== 'single') return
+    if (!studentViewOpened && !phoneFollowerId) return
+    if (studentViewOpened && phoneSessionId && !phoneFollowerId) return
     const scrollEl = teacherSlideContentPaneRef.current
     if (!scrollEl) return
     const readAnchor = () => {
@@ -4473,12 +4735,15 @@ export default function CurriculumViewPage() {
       return { type: 'chain-pane-scroll', anchor: 'start', rel: 0 }
     }
     const emit = () => {
+      if (phoneFollowerId && Date.now() < chainProgrammaticScrollUntilRef.current) return
       sendTickToStudent('chain-pane-scroll', readAnchor(), 32)
     }
     emit()
     const retrySoon = window.setTimeout(emit, 140)
     const retryLater = window.setTimeout(emit, 420)
     scrollEl.addEventListener('scroll', emit, { passive: true })
+    scrollEl.addEventListener('touchmove', emit, { passive: true })
+    scrollEl.addEventListener('touchend', emit, { passive: true })
     const ro = new ResizeObserver(() => emit())
     ro.observe(scrollEl)
     const content = scrollEl.firstElementChild
@@ -4487,9 +4752,11 @@ export default function CurriculumViewPage() {
       window.clearTimeout(retrySoon)
       window.clearTimeout(retryLater)
       scrollEl.removeEventListener('scroll', emit)
+      scrollEl.removeEventListener('touchmove', emit)
+      scrollEl.removeEventListener('touchend', emit)
       ro.disconnect()
     }
-  }, [studentViewOpened, slideViewMode, studentCurriculumRemoteMode, currentIndex, sendToStudentView])
+  }, [studentViewOpened, phoneFollowerId, phoneSessionId, slideViewMode, studentCurriculumRemoteMode, currentIndex, sendToStudentView])
 
   const studentSlideWindowIsLive = useCallback((w: Window | null): w is Window => {
     if (!w || w.closed) return false
@@ -5369,10 +5636,7 @@ export default function CurriculumViewPage() {
               ...(!worksheetId
                 ? {
                     studentCurriculumRightMode: studentCurriculumRemoteMode,
-                    teacherSlideLeftPane:
-                      leftPanelMode === 'infographic' || (leftPanelMode === 'visual' && currentVisualShowsInfographic)
-                        ? ('infographic' as const)
-                        : ('visual' as const),
+                    teacherSlideLeftPane: teacherSlideLeftPaneFromMode(leftPanelMode, currentVisualShowsInfographic),
                   }
                 : {}),
               ...(!worksheetId && activeVisualInfographic ? { curriculumInfographic: activeVisualInfographic } : {}),
@@ -5391,6 +5655,11 @@ export default function CurriculumViewPage() {
             )
           }
           src.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
+          if (!worksheetId && leftPanelMode === 'whiteboard') {
+            const wb = whiteboardStateRef.current
+            src.postMessage({ type: 'student-curriculum-left-pane', pane: 'whiteboard' }, window.location.origin)
+            src.postMessage({ type: 'whiteboard-sync', objects: wb.objects, camera: wb.camera, grid: wb.grid }, window.location.origin)
+          }
         } catch {
           /* ignore */
         }
@@ -5495,6 +5764,7 @@ export default function CurriculumViewPage() {
       }
       if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number' && e.source === studentViewWindowRef.current) {
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
+        slideFollowHoldRef.current = { index: idx, until: Date.now() + 900 }
         commitCurrentSlideDraft()
         setCurrentIndex(idx)
       }
@@ -5508,7 +5778,7 @@ export default function CurriculumViewPage() {
       if (
         !worksheetId &&
         e.data?.type === 'student-curriculum-left-pane-changed' &&
-        (e.data?.pane === 'infographic' || e.data?.pane === 'visual') &&
+        (e.data?.pane === 'infographic' || e.data?.pane === 'visual' || e.data?.pane === 'whiteboard') &&
         e.source === studentViewWindowRef.current
       ) {
         setLeftPanelMode(e.data.pane)
@@ -5617,7 +5887,7 @@ export default function CurriculumViewPage() {
             : ''
         )
         setTopic(e.data.topic ?? '')
-        setCurrentIndex(e.data.currentIndex ?? 0)
+        if (!phoneSessionIdRef.current && !phoneFollowerIdRef.current) setCurrentIndex(e.data.currentIndex ?? 0)
         setCurriculumId(incomingCurriculumId)
         setActiveLessonNo(incomingLessonNo)
         const mode = e.data.slideMode === 'personal' || e.data.slideMode === 'shared' || e.data.slideMode === 'original' ? e.data.slideMode : null
@@ -5682,12 +5952,19 @@ export default function CurriculumViewPage() {
 
   useEffect(() => {
     if (worksheetId) return
-    if (!studentViewOpened) return
-    sendToStudentView({
-      type: 'student-curriculum-left-pane',
-      pane: currentVisualShowsInfographic ? 'infographic' : 'visual',
-    })
-  }, [worksheetId, studentViewOpened, currentVisualShowsInfographic, sendToStudentView])
+    if (!studentViewOpened && !phoneSessionId) return
+    const pane = teacherSlideLeftPaneFromMode(leftPanelMode, currentVisualShowsInfographic)
+    publishSessionCommand({ type: 'student-curriculum-left-pane', pane })
+    if (leftPanelMode === 'whiteboard') {
+      const wb = whiteboardStateRef.current
+      publishSessionCommand({
+        type: 'whiteboard-sync',
+        objects: wb.objects,
+        camera: wb.camera,
+        grid: wb.grid,
+      })
+    }
+  }, [worksheetId, studentViewOpened, currentVisualShowsInfographic, leftPanelMode, phoneSessionId, publishSessionCommand])
 
   useEffect(() => {
     slidesRef.current = slides
@@ -5910,10 +6187,617 @@ export default function CurriculumViewPage() {
     )
   }
 
+  const renderMobileBesideProposal = (slideIndex: number, blocks: SlideItem['blocks']) => {
+    if (!narrowTeacherLayout || studentCurriculumRemoteMode !== 'markdown-all') return null
+    return renderSlideQuizAction(slideIndex, blocks)
+  }
+
+  const renderPhoneTeacherControlBar = () => {
+    if (!narrowTeacherLayout || !content || slides.length === 0) return null
+    const slide = slides[currentIndex]
+    const blks = !slide ? [] : (Array.isArray(slide.blocks) && slide.blocks.length ? slide.blocks : slide.content ? parseContentToBlocks(slide.content ?? '') : [])
+    const typableIdx = typableSolutionBlockIndices(blks, answerRevealJumpOpts)
+    const typableKeys: string[] = []
+    const numberedTitle = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
+    const titleText = curriculumSlideTitleTypingText(currentIndex, slide?.title ?? '', numberedTitle)
+    if (!worksheetId && curriculumId && worksheetAnswerSegmentCount(titleText) > 0) typableKeys.push(curriculumSlideTitleRevealKey(currentIndex))
+    typableKeys.push(...typableIdx.map((bi) => `${currentIndex}-${bi}`))
+    const typingOn = typableKeys.length > 0 && answerTypingEnabled[typableKeys[0]] !== false
+    const slidePaused = typableKeys.length > 0 && typableKeys.every((k) => answerTypingPaused[k] === true)
+    const dockBtn = 'flex h-8 items-center rounded-lg border px-2 text-[11px] font-medium'
+    const dockIcon = 'flex h-8 w-8 items-center justify-center rounded-lg border border-white/35 bg-white/10 text-white'
+    const drawBtn = (on: boolean) => cn('rounded px-2 py-1 text-[11px]', on ? 'bg-white/30' : 'hover:bg-white/15')
+    return (
+      <div
+        className="absolute bottom-2 left-1/2 z-40 flex w-[min(98%,720px)] -translate-x-1/2 flex-col gap-1"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          data-infographic-toolbar="teacher-pane"
+          className="flex flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm"
+        >
+          <button type="button" onClick={() => setInfographicDrawTool('pen')} className={drawBtn(infographicDrawTool === 'pen')}>{tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}</button>
+          <button type="button" onClick={() => setInfographicDrawTool('eraser')} className={drawBtn(infographicDrawTool === 'eraser')}>{tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}</button>
+          <button type="button" onClick={() => setInfographicDrawBrushPx(3)} className={drawBtn(infographicDrawBrushPx === 3)}>{tr('S', 'S', '细', '細', '얇게')}</button>
+          <button type="button" onClick={() => setInfographicDrawBrushPx(5)} className={drawBtn(infographicDrawBrushPx === 5)}>{tr('M', 'M', '中', '中', '중간')}</button>
+          <button type="button" onClick={() => setInfographicDrawBrushPx(7)} className={drawBtn(infographicDrawBrushPx === 7)}>{tr('L', 'L', '粗', '太', '굵게')}</button>
+          {INFOGRAPHIC_DRAW_COLORS.map((color) => (
+            <button key={`gv-phone-${color}`} type="button" onClick={() => setInfographicDrawColor(color)} className={cn('h-3.5 w-3.5 rounded-full border', infographicDrawColor === color ? 'border-white' : 'border-white/40')} style={{ backgroundColor: color }} />
+          ))}
+          <button type="button" onClick={() => { undoInfographicStroke(activeInfographicStrokeKey); sendToStudentView({ type: 'infographic-draw-undo', slideIndex: activeInfographicStrokeKey }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+          <button type="button" onClick={() => { clearInfographicStrokes(activeInfographicStrokeKey); sendToStudentView({ type: 'infographic-draw-clear', slideIndex: activeInfographicStrokeKey }) }} className="rounded px-2 py-1 text-[11px] hover:bg-white/15">{tr('Clear', 'Clear', '清除', 'クリア', '지우기')}</button>
+        </div>
+        <div className="flex items-center gap-1 rounded-xl border border-white/25 bg-black/75 p-1.5 text-white shadow-lg backdrop-blur-sm">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            <TeacherPhoneAutoPlayPicker
+              running={remoteAutoPlay}
+              intervalSeconds={remoteAutoPlayIntervalMs / 1000}
+              className={cn(dockBtn, remoteAutoPlay ? 'border-amber-400/70 bg-amber-500/25 text-amber-100' : 'border-white/35 bg-white/10 text-white')}
+              onStop={() => {
+                setRemoteAutoPlay(false)
+                sendToStudentView({ type: 'set-auto-play', value: false })
+              }}
+              onStartSeconds={(seconds) => {
+                const ms = seconds * 1000
+                setRemoteAutoPlayIntervalMs(ms)
+                setRemoteAutoPlay(true)
+                sendToStudentView({ type: 'set-auto-play-interval', ms })
+                sendToStudentView({ type: 'set-auto-play', value: true })
+              }}
+              tr={tr}
+            />
+            <button
+              type="button"
+              className={cn(dockBtn, typingOn ? 'border-amber-400/70 bg-amber-500/25 text-amber-100' : 'border-white/35 bg-white/10 text-white')}
+              onClick={() => {
+                const nextOn = !answerTypingSegmentsGloballyEnabled
+                setAnswerTypingSegmentsGloballyEnabled(nextOn)
+                setAnswerTypingPaused({})
+                publishTypingState(true, { typingOn: nextOn, paused: {} })
+              }}
+            >
+              {typingOn ? tr('Tắt gõ', 'Typing off', '关打字', 'OFF', '끔') : tr('Bật gõ', 'Typing on', '开打字', 'ON', '켬')}
+            </button>
+            <button
+              type="button"
+              disabled={!typingOn}
+              className={cn(dockBtn, 'border-white/35 bg-white/10 text-white disabled:opacity-40')}
+              onClick={() => {
+                const nextPaused = !slidePaused
+                const n: Record<string, boolean> = { ...answerTypingPaused }
+                for (const k of typableKeys) {
+                  if (nextPaused) n[k] = true
+                  else delete n[k]
+                }
+                setAnswerTypingPaused(n)
+                publishTypingState(true, { paused: n })
+              }}
+            >
+              {slidePaused ? tr('Gõ tiếp', 'Resume', '继续', '再開', '재개') : tr('Tạm dừng', 'Pause', '暂停', '停止', '일시정지')}
+            </button>
+            {studentCurriculumRemoteMode === 'markdown-all' ? (
+              <button
+                type="button"
+                data-pointer-sync-id="student-mode-single-slide"
+                className={cn(dockBtn, 'border-white/35 bg-white/10 text-white')}
+                onClick={() => {
+                  setStudentCurriculumRemoteMode('single-slide')
+                  publishSessionCommand({ type: 'student-curriculum-right-mode', mode: 'single-slide' })
+                }}
+              >
+                {tr('Slide đơn', 'Single', '单张', '1枚', '한 장')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                data-pointer-sync-id="student-mode-markdown-all"
+                className={cn(dockBtn, 'border-white/35 bg-white/10 text-white')}
+                onClick={() => {
+                  setStudentCurriculumRemoteMode('markdown-all')
+                  publishSessionCommand({ type: 'student-curriculum-right-mode', mode: 'markdown-all' })
+                }}
+              >
+                {tr('Chuỗi slide', 'Sequence', '连续', '連続', '연속')}
+              </button>
+            )}
+          </div>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <button type="button" className={dockIcon} disabled={currentIndex === 0} onClick={() => sendSlideControl('slide-prev')}><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" className={dockIcon} disabled={currentIndex >= slides.length - 1} onClick={() => sendSlideControl('slide-next')}><ChevronRight className="h-4 w-4" /></button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  phoneSnapshotRef.current = () => ({
+    content,
+    topic,
+    currentIndex,
+    curriculumId,
+    lessonNo: activeLessonNo,
+    subjectId: lessonSubjectId,
+    slideMode,
+    personalViewSubMode,
+    hasOriginalSlides,
+    slides,
+    curriculumInfographic: curriculumInfographic ?? null,
+    lessonInfographic: lessonInfographic ?? null,
+    studentCurriculumRightMode: studentCurriculumRemoteMode,
+    infographicSourceView,
+    leftPanelMode,
+    whiteboard: {
+      objects: whiteboardState.objects,
+      camera: whiteboardState.camera,
+      grid: whiteboardState.grid,
+    },
+    teacherTimerSeconds,
+    teacherTimerRunning,
+    answerRevealProgress,
+    answerTypingPaused,
+    answerVisibility,
+    answerTypingSegmentsGloballyEnabled,
+    answerTypingSpeedMs,
+  })
+  applyPhoneCommandRef.current = (msg) => {
+    const type = typeof msg.type === 'string' ? msg.type : ''
+    const source = typeof msg.typingSource === 'string' ? msg.typingSource : ''
+    const fromSelf = source !== '' && source === typingClientIdRef.current
+    const fromOther = source !== '' && source !== typingClientIdRef.current
+    const typingHeartbeat = isTypingHeartbeat(msg)
+    if (fromOther && !typingHeartbeat && type !== 'mouse-pos' && type !== 'chain-pane-scroll') {
+      typingDriverRef.current = false
+    }
+    const mirrorToStudent = !phoneFollowerIdRef.current
+    if (type === 'worksheet-answer-reveal') {
+      if (fromSelf) return
+      const exact = msg.control === true && msg.typingExact === true
+      const paused = asBoolRecord(msg.worksheetAnswerTypingPaused)
+      if (msg.control === true) {
+        typingDriverRef.current = false
+        if (typeof msg.typingOn === 'boolean') setAnswerTypingSegmentsGloballyEnabled(msg.typingOn)
+        if (paused) setAnswerTypingPaused(paused)
+        const visible = asBoolRecord(msg.answerVisibility)
+        if (visible) setAnswerVisibility(visible)
+        if (typeof msg.typingSpeedMs === 'number' && msg.typingSpeedMs >= 15 && msg.typingSpeedMs <= 180) {
+          setAnswerTypingSpeedMs(msg.typingSpeedMs)
+        }
+      } else {
+        if (typingDriverRef.current) return
+        if (paused && Object.values(paused).some(Boolean)) setAnswerTypingPaused(paused)
+        if (pausedKeysOnSlide(answerTypingPausedRef.current, currentIndexRef.current)) return
+        if (typeof msg.typingSpeedMs === 'number' && msg.typingSpeedMs >= 15 && msg.typingSpeedMs <= 180) {
+          setAnswerTypingSpeedMs(msg.typingSpeedMs)
+        }
+      }
+      const reveal = asNumberRecord(msg.worksheetAnswerReveal)
+      if (reveal && (msg.control === true || !pausedKeysOnSlide(answerTypingPausedRef.current, currentIndexRef.current))) {
+        setAnswerRevealProgress((prev) => mergeTypingReveal(prev, reveal, exact))
+      }
+      if (mirrorToStudent) sendToStudentView(msg)
+      return
+    }
+    if (type === 'slide-go' && typeof msg.index === 'number') {
+      const max = Math.max(0, slidesRef.current.length - 1)
+      const idx = Math.max(0, Math.min(Math.floor(msg.index), max))
+      slideFollowHoldRef.current = { index: idx, until: Date.now() + 900 }
+      setCurrentIndex(idx)
+      if (mirrorToStudent) sendToStudentView({ type: 'slide-go', index: idx })
+    } else if (type === 'set-auto-play') {
+      setRemoteAutoPlay(Boolean(msg.value))
+    } else if (type === 'set-auto-play-interval' && typeof msg.ms === 'number') {
+      setRemoteAutoPlayIntervalMs(msg.ms)
+    } else if (type === 'teacher-timer-start') {
+      setTeacherTimerRunning(true)
+    } else if (type === 'teacher-timer-stop' || type === 'teacher-timer-reset') {
+      setTeacherTimerRunning(false)
+      if (type === 'teacher-timer-reset') setTeacherTimerSeconds(0)
+    } else if (
+      type === 'student-curriculum-right-mode' &&
+      (msg.mode === 'markdown-all' || msg.mode === 'single-slide')
+    ) {
+      setStudentCurriculumRemoteMode(msg.mode)
+      if (mirrorToStudent) sendToStudentView({ type: 'student-curriculum-right-mode', mode: msg.mode })
+    } else if (type === 'student-curriculum-left-pane' && isTeacherLeftPaneWire(msg.pane)) {
+      if (fromSelf) return
+      setLeftPanelMode(msg.pane === 'whiteboard' ? 'whiteboard' : 'visual')
+      if (mirrorToStudent) sendToStudentView(msg)
+    } else if (isWhiteboardWireType(type)) {
+      if (fromSelf) return
+      setWhiteboardState((prev) => applyRemoteWhiteboard(prev, msg))
+      if (mirrorToStudent) sendToStudentView(msg)
+    }
+  }
+
+  useEffect(() => {
+    const id = phoneFollowerId || phoneSessionId
+    if (!id) return
+    const queue = createPhoneCommandQueue(id)
+    phoneQueueRef.current = queue
+    return () => {
+      queue.stop()
+      if (phoneQueueRef.current === queue) phoneQueueRef.current = null
+    }
+  }, [phoneFollowerId, phoneSessionId])
+
+  useEffect(() => {
+    if (!phoneRemoteOpen || !phoneSessionId || phoneFollowerId) return
+    let stop = false
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/giao-trinh/phone-remote?id=${encodeURIComponent(phoneSessionId)}&live=1`, { credentials: 'same-origin' })
+        if (!res.ok || stop) return
+        const data = await res.json().catch(() => null)
+        if (data?.phoneReady) setPhoneRemoteOpen(false)
+      } catch {
+        /* lần sau kiểm tra tiếp */
+      }
+    }
+    void tick()
+    const id = window.setInterval(() => { void tick() }, 500)
+    return () => {
+      stop = true
+      window.clearInterval(id)
+    }
+  }, [phoneRemoteOpen, phoneSessionId, phoneFollowerId])
+
+  useEffect(() => {
+    if (!phoneRemoteOpen || phoneLoginUrl || phoneFollowerId) return
+    let cancel = false
+    setPhoneRemoteBusy(true)
+    setPhoneRemoteError('')
+    void (async () => {
+      try {
+        const res = await fetch('/api/giao-trinh/phone-remote', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ snapshot: phoneSnapshotRef.current(), index: currentIndexRef.current }),
+        })
+        const data = await res.json().catch(() => null)
+        if (cancel) return
+        if (!res.ok || !data?.ok || typeof data.id !== 'string' || typeof data.secret !== 'string') {
+          setPhoneRemoteError(res.status === 401
+            ? tr('Đăng nhập tài khoản giáo viên rồi tạo mã.', 'Sign in as the teacher, then create the code.', '请先登录教师账号再生成二维码。', '教師アカウントでログインしてからコードを作成してください。', '교사 계정으로 로그인한 뒤 코드를 만드세요.')
+            : tr('Không tạo được mã.', 'Could not create the code.', '无法生成二维码。', 'コードを作成できません。', '코드를 만들지 못했습니다.'))
+          return
+        }
+        setPhoneSessionId(data.id)
+        const origin = await phoneRemoteLoginOrigin()
+        if (cancel) return
+        setPhoneLoginUrl(`${origin}/giao-trinh/dien-thoai?k=${data.id}.${data.secret}`)
+      } catch {
+        if (!cancel) {
+          setPhoneRemoteError(tr('Không tạo được mã.', 'Could not create the code.', '无法生成二维码。', 'コードを作成できません。', '코드를 만들지 못했습니다.'))
+        }
+      } finally {
+        if (!cancel) setPhoneRemoteBusy(false)
+      }
+    })()
+    return () => { cancel = true }
+  }, [phoneRemoteOpen, phoneLoginUrl, phoneFollowerId, tr])
+
+  useEffect(() => {
+    if (!phoneSessionId || phoneFollowerId) return
+    const send = () => sendToStudentView({ type: 'phone-remote-bind', id: phoneSessionId })
+    send()
+    const id = window.setInterval(send, 2000)
+    return () => window.clearInterval(id)
+  }, [phoneSessionId, phoneFollowerId, sendToStudentView])
+
+  useEffect(() => {
+    const remoteId = phoneSessionId || phoneFollowerId
+    if (!remoteId) return
+    let after = 0
+    let stop = false
+    let priming = true
+    let busy = false
+    const tick = async () => {
+      if (busy || stop) return
+      busy = true
+      try {
+        const res = await fetch(`/api/giao-trinh/phone-remote/command?id=${encodeURIComponent(remoteId)}&after=${after}`, { credentials: 'same-origin' })
+        if (!res.ok) return
+        const data = await res.json().catch(() => null)
+        const list = Array.isArray(data?.commands) ? data.commands : []
+        let lastSlide: Record<string, unknown> | null = null
+        let lastTyping: Record<string, unknown> | null = null
+        let lastTypingControl: Record<string, unknown> | null = null
+        const fresh: Record<string, unknown>[] = []
+        for (const item of list) {
+          if (stop || !item || typeof item !== 'object') continue
+          const n = Number((item as { n?: unknown }).n)
+          if (Number.isFinite(n)) after = Math.max(after, n)
+          const msg = (item as { msg?: unknown }).msg
+          if (!msg || typeof msg !== 'object' || Array.isArray(msg)) continue
+          const record = msg as Record<string, unknown>
+          if (record.type === 'slide-go' && typeof record.index === 'number') lastSlide = record
+          else if (record.type === 'worksheet-answer-reveal' && record.control === true) lastTypingControl = record
+          else if (record.type === 'worksheet-answer-reveal') lastTyping = record
+          else fresh.push(record)
+        }
+        if (priming) {
+          if (list.length >= 40) return
+          priming = false
+          if (lastTyping) applyPhoneCommandRef.current(lastTyping)
+          if (lastTypingControl) applyPhoneCommandRef.current(lastTypingControl)
+          return
+        }
+        for (const msg of fresh) applyPhoneCommandRef.current(msg)
+        if (lastSlide) applyPhoneCommandRef.current(lastSlide)
+        if (lastTyping) applyPhoneCommandRef.current(lastTyping)
+        if (lastTypingControl) applyPhoneCommandRef.current(lastTypingControl)
+      } catch {
+        /* mạng chập chờn, lần sau kéo tiếp */
+      } finally {
+        busy = false
+      }
+    }
+    void tick()
+    const id = window.setInterval(() => { void tick() }, 280)
+    return () => {
+      stop = true
+      window.clearInterval(id)
+    }
+  }, [phoneSessionId, phoneFollowerId])
+
+  useEffect(() => {
+    if (phoneFollowerId) return
+    const id = phoneSessionId || phoneFollowerId
+    if (!id) return
+    if (applyingSharedRef.current) {
+      applyingSharedRef.current = false
+      return
+    }
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    const handle = window.setTimeout(() => {
+      void fetch('/api/giao-trinh/phone-remote', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          id,
+          snapshot: phoneSnapshotRef.current(),
+          seenRevision: seenRevisionRef.current,
+        }),
+      }).then(async (res) => {
+        const data = await res.json().catch(() => null)
+        if (!data?.ok) return
+        if (typeof data.revision === 'number') seenRevisionRef.current = data.revision
+        const gen = typeof data.indexGen === 'number' ? data.indexGen : 0
+        if (gen > seenGenRef.current && typeof data.index === 'number' && data.index !== currentIndexRef.current) {
+          const max = Math.max(0, slidesRef.current.length - 1)
+          const idx = Math.max(0, Math.min(Math.floor(data.index), max))
+          const held = slideFollowHoldRef.current
+          if (held && Date.now() < held.until && idx !== held.index) return
+          seenGenRef.current = gen
+          applyingSharedRef.current = true
+          setCurrentIndex(idx)
+        }
+      }).catch(() => { /* lần sau */ })
+    }, 500)
+    return () => window.clearTimeout(handle)
+  }, [phoneSessionId, phoneFollowerId, slides, content, studentCurriculumRemoteMode, currentIndex])
+
+  useEffect(() => {
+    if (phoneFollowerId || !phoneSessionId) return
+    let cancel = false
+    const pull = async () => {
+      try {
+        const res = await fetch(`/api/giao-trinh/phone-remote?id=${encodeURIComponent(phoneSessionId)}&live=1`, { credentials: 'same-origin' })
+        if (!res.ok || cancel) return
+        const data = await res.json().catch(() => null)
+        if (!data?.ok || cancel) return
+        const gen = typeof data.indexGen === 'number' ? data.indexGen : 0
+        const revision = typeof data.revision === 'number' ? data.revision : 0
+        if (typeof data.index === 'number' && gen > seenGenRef.current) {
+          const max = Math.max(0, slidesRef.current.length - 1)
+          const idx = Math.max(0, Math.min(Math.floor(data.index), max))
+          const held = slideFollowHoldRef.current
+          if (!(held && Date.now() < held.until && idx !== held.index)) {
+            seenGenRef.current = gen
+            if (idx !== currentIndexRef.current) {
+              applyingSharedRef.current = true
+              setCurrentIndex(idx)
+            }
+          }
+        }
+        if (revision > seenRevisionRef.current) {
+          const full = await fetch(`/api/giao-trinh/phone-remote?id=${encodeURIComponent(phoneSessionId)}`, { credentials: 'same-origin' })
+          const body = await full.json().catch(() => null)
+          if (cancel || !body?.ok || !body.snapshot) return
+          seenRevisionRef.current = typeof body.revision === 'number' ? body.revision : revision
+          const bodyGen = typeof body.indexGen === 'number' ? body.indexGen : seenGenRef.current
+          const indexIsNewer = bodyGen > seenGenRef.current
+          if (indexIsNewer) seenGenRef.current = bodyGen
+          applyingSharedRef.current = true
+          const snap = body.snapshot as Record<string, unknown>
+          const sl = Array.isArray(snap.slides) ? (snap.slides as SlideItem[]) : []
+          if (sl.length > 0 || (typeof snap.content === 'string' && snap.content.trim())) {
+            const sanitized = withoutAutoAddedReviewSlides(sl.map((s) => normalizeSlideVisualInputs(s)))
+            setSlides(sanitized)
+            slidesRef.current = sanitized
+            setSlideTitles(sanitized.map((s) => s?.title ?? ''))
+            if (typeof snap.content === 'string') setContent(snap.content)
+            if (typeof snap.topic === 'string') setTopic(snap.topic)
+            if (snap.studentCurriculumRightMode === 'markdown-all' || snap.studentCurriculumRightMode === 'single-slide') {
+              setStudentCurriculumRemoteMode(snap.studentCurriculumRightMode)
+            }
+          }
+          if (indexIsNewer && typeof body.index === 'number') {
+            const max = Math.max(0, slidesRef.current.length - 1)
+            const idx = Math.max(0, Math.min(Math.floor(body.index), max))
+            const held = slideFollowHoldRef.current
+            if (!(held && Date.now() < held.until && idx !== held.index)) setCurrentIndex(idx)
+          }
+        }
+      } catch {
+        /* lần sau */
+      }
+    }
+    void pull()
+    const id = window.setInterval(() => { void pull() }, 700)
+    return () => {
+      cancel = true
+      window.clearInterval(id)
+    }
+  }, [phoneSessionId, phoneFollowerId])
+
+  useEffect(() => {
+    if (!phoneFollowerId) return
+    let cancel = false
+    const revisionRef = { current: 0 }
+    const applySnap = (snap: Record<string, unknown>, index: number) => {
+      const sl = Array.isArray(snap.slides) ? (snap.slides as SlideItem[]) : []
+      const sanitized = withoutAutoAddedReviewSlides(sl.map((s) => normalizeSlideVisualInputs(s)))
+      const incomingContent = typeof snap.content === 'string' ? snap.content : ''
+      if (!incomingContent.trim() && sanitized.length === 0) return
+      setContent(incomingContent)
+      setTopic(typeof snap.topic === 'string' ? snap.topic : '')
+      if (typeof snap.curriculumId === 'string') setCurriculumId(snap.curriculumId)
+      setActiveLessonNo(Number.isFinite(Number(snap.lessonNo)) ? Math.max(1, Math.floor(Number(snap.lessonNo))) : null)
+      if (typeof snap.subjectId === 'string' && snap.subjectId.trim()) setLessonSubjectId(snap.subjectId.trim())
+      const mode = snap.slideMode === 'personal' || snap.slideMode === 'shared' || snap.slideMode === 'original' ? snap.slideMode : null
+      setSlideMode(mode)
+      setPersonalViewSubMode(snap.personalViewSubMode === 'original' ? 'original' : 'current')
+      setHasOriginalSlides(Boolean(snap.hasOriginalSlides))
+      const ci = snap.curriculumInfographic
+      if (ci && typeof ci === 'object' && typeof (ci as SlideInfographic).imageUrl === 'string') setCurriculumInfographic(ci as SlideInfographic)
+      const li = snap.lessonInfographic
+      if (li && typeof li === 'object' && typeof (li as SlideInfographic).imageUrl === 'string') setLessonInfographic(li as SlideInfographic)
+      if (snap.studentCurriculumRightMode === 'markdown-all' || snap.studentCurriculumRightMode === 'single-slide') {
+        setStudentCurriculumRemoteMode(snap.studentCurriculumRightMode)
+      }
+      if (snap.infographicSourceView === 'visual' || snap.infographicSourceView === 'lesson' || snap.infographicSourceView === 'curriculum') {
+        setInfographicSourceView(snap.infographicSourceView)
+      }
+      setSlideTitles(sanitized.map((s) => s?.title ?? ''))
+      setSlides(sanitized)
+      slidesRef.current = sanitized
+      hasHydratedFromCurriculumRef.current = true
+      const max = Math.max(0, sanitized.length - 1)
+      const idx = Math.max(0, Math.min(Math.floor(index) || 0, max))
+      if (idx !== currentIndexRef.current) setCurrentIndex(idx)
+      if (snap.leftPanelMode === 'whiteboard') setLeftPanelMode('whiteboard')
+      else setLeftPanelMode('visual')
+      const wb = snap.whiteboard
+      if (wb && typeof wb === 'object') {
+        setWhiteboardState((prev) => ({
+          ...prev,
+          objects: sanitizeWhiteboardObjects((wb as { objects?: unknown }).objects),
+          camera: sanitizeWhiteboardCamera((wb as { camera?: unknown }).camera),
+          grid: typeof (wb as { grid?: unknown }).grid === 'boolean' ? Boolean((wb as { grid?: unknown }).grid) : prev.grid,
+          draft: null,
+        }))
+      }
+      if (typingHydratedRef.current) return
+      typingHydratedRef.current = true
+      if (typeof snap.answerTypingSegmentsGloballyEnabled === 'boolean') {
+        setAnswerTypingSegmentsGloballyEnabled(snap.answerTypingSegmentsGloballyEnabled)
+      }
+      const snapReveal = asNumberRecord(snap.answerRevealProgress)
+      if (snapReveal) setAnswerRevealProgress(snapReveal)
+      const snapPaused = asBoolRecord(snap.answerTypingPaused)
+      if (snapPaused) setAnswerTypingPaused(snapPaused)
+      const snapVisible = asBoolRecord(snap.answerVisibility)
+      if (snapVisible) setAnswerVisibility(snapVisible)
+      if (typeof snap.answerTypingSpeedMs === 'number' && snap.answerTypingSpeedMs >= 15 && snap.answerTypingSpeedMs <= 180) {
+        setAnswerTypingSpeedMs(snap.answerTypingSpeedMs)
+      }
+    }
+    const load = async (live: boolean) => {
+      const res = await fetch(
+        `/api/giao-trinh/phone-remote?id=${encodeURIComponent(phoneFollowerId)}${live ? '&live=1' : ''}`,
+        { credentials: 'same-origin' }
+      )
+      if (!res.ok) {
+        if (!live && !cancel) {
+          setPhoneRemoteError(tr(
+            'Không mở được bảng điều khiển. Quét lại mã trên máy giáo viên.',
+            'Could not open the remote. Scan the code on the teacher computer again.',
+            '无法打开操控页。请在教师电脑上重新扫码。',
+            '操作画面を開けません。教師のパソコンでコードを読み直してください。',
+            '조작 화면을 열 수 없습니다. 교사 컴퓨터에서 코드를 다시 스캔하세요.'
+          ))
+        }
+        return
+      }
+      const data = await res.json().catch(() => null)
+      if (cancel || !data?.ok) return
+      setPhoneRemoteError('')
+      if (!live && data.snapshot && typeof data.snapshot === 'object') {
+        const gen = Number(data.indexGen) || 0
+        const rawIndex = Number(data.index) || 0
+        const held = slideFollowHoldRef.current
+        const blocked = Boolean(held && Date.now() < held.until && rawIndex !== held.index)
+        const snapIndex = gen < seenGenRef.current || blocked ? currentIndexRef.current : rawIndex
+        if (gen > seenGenRef.current && !blocked) seenGenRef.current = gen
+        revisionRef.current = Number(data.revision) || 1
+        applySnap(data.snapshot as Record<string, unknown>, snapIndex)
+        window.requestAnimationFrame(() => {
+          void fetch('/api/giao-trinh/phone-remote', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: phoneFollowerId, phoneReady: true }),
+          })
+        })
+        return
+      }
+      if (live && typeof data.revision === 'number' && data.revision !== revisionRef.current && revisionRef.current > 0) {
+        revisionRef.current = data.revision
+        void load(false)
+        return
+      }
+      if (live && typeof data.revision === 'number') seenRevisionRef.current = Math.max(seenRevisionRef.current, data.revision)
+      if (live && typeof data.indexGen === 'number' && data.indexGen > seenGenRef.current && typeof data.index === 'number') {
+        const max = Math.max(0, slidesRef.current.length - 1)
+        const idx = Math.max(0, Math.min(Math.floor(data.index), max))
+        const held = slideFollowHoldRef.current
+        if (!(held && Date.now() < held.until && idx !== held.index)) {
+          seenGenRef.current = data.indexGen
+          if (idx !== currentIndexRef.current) {
+            applyingSharedRef.current = true
+            setCurrentIndex(idx)
+          }
+        }
+      }
+    }
+    void load(false)
+    const id = window.setInterval(() => { void load(true) }, 700)
+    return () => {
+      cancel = true
+      window.clearInterval(id)
+    }
+  }, [phoneFollowerId, tr])
+
   const quizPopupSlideIndex = quizFocusSlideIndex ?? currentIndex
 
   return (
     <div key={apple.ios ? 'apple-ios' : apple.mac ? 'apple-mac' : 'win'} {...apple.shellProps} className={cn('fixed inset-0 z-50 flex h-screen w-screen flex-col items-stretch overflow-x-hidden bg-slate-950 text-white', narrowTeacherLayout || apple.mac ? 'overflow-hidden' : 'overflow-y-auto')}>
+      <TeacherPhoneRemoteDialog
+        open={phoneRemoteOpen}
+        loginUrl={phoneLoginUrl}
+        error={phoneRemoteError}
+        busy={phoneRemoteBusy}
+        onClose={() => setPhoneRemoteOpen(false)}
+        tr={tr}
+      />
+      {narrowTeacherLayout && content ? (
+        <style>{`
+          [data-teacher-phone-slide] [data-pointer-prose-root],
+          [data-teacher-phone-slide] [data-pointer-prose-root] p,
+          [data-teacher-phone-slide] [data-pointer-prose-root] li {
+            font-size: 13px !important;
+            line-height: 1.45 !important;
+          }
+          [data-teacher-phone-slide] h2 {
+            font-size: 15px !important;
+            margin-bottom: 0.35rem !important;
+          }
+        `}</style>
+      ) : null}
       {exampleReviewOpen ? (
         <LessonExampleReviewDialog
           markdown={content}
@@ -5981,8 +6865,8 @@ export default function CurriculumViewPage() {
       <div
         className={cn('flex flex-1 flex-col min-h-0 w-full', narrowTeacherLayout ? 'overflow-hidden' : 'shrink-0')}
       >
-      {/* Thanh điều khiển đặt trên cùng */}
-      <div className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm">
+      {/* Thanh điều khiển đặt trên cùng. Mobile gom vào thanh nổi cạnh Ảnh cả bài. */}
+      <div className={narrowTeacherLayout ? 'hidden' : 'shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm'}>
         <PresentationControlBar
           variant="teacher"
           tr={tr}
@@ -6006,7 +6890,8 @@ export default function CurriculumViewPage() {
           onNext={() => sendSlideControl('slide-next')}
           slideViewMode={slideViewMode}
           onSlideViewModeChange={(m) => setSlideViewMode(m)}
-          onOpenStudentView={slides.length > 0 ? openStudentView : undefined}
+          onOpenStudentView={!phoneFollowerId && slides.length > 0 ? openStudentView : undefined}
+          onPhoneControl={!phoneFollowerId && studentViewOpened ? () => setPhoneRemoteOpen(true) : undefined}
           hideIndex
           hideInsert
           hideTeacherLeftButtons
@@ -6017,9 +6902,87 @@ export default function CurriculumViewPage() {
 
       <header className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex flex-col">
         {/* Hàng thông tin – mobile: wrap, desktop: flex-nowrap */}
-        <div className={cn('px-3 md:px-5 py-2 flex items-center justify-end gap-2 md:gap-3 min-w-0 overflow-x-auto', narrowTeacherLayout ? 'flex-nowrap py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'flex-wrap md:flex-nowrap landscape:flex-nowrap')}>
+        <div className={cn('px-3 md:px-5 py-2 flex items-center gap-2 md:gap-3 min-w-0 overflow-x-auto', narrowTeacherLayout ? 'flex-nowrap justify-start py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'flex-wrap justify-end md:flex-nowrap landscape:flex-nowrap')}>
           <div className={cn('flex items-center gap-2 md:gap-3 shrink-0 min-w-max', narrowTeacherLayout ? 'flex-nowrap' : 'flex-wrap md:flex-nowrap landscape:flex-nowrap')}>
-            <span className="text-xs md:text-sm font-medium tabular-nums shrink-0 text-slate-300">{currentIndex + 1}/{slideTitles.length || slides.length}</span>
+            {narrowTeacherLayout && !worksheetId ? (
+              <div ref={phoneImageActionsRef} className="flex shrink-0 items-center overflow-hidden rounded-lg border border-slate-500/70 bg-slate-800/50">
+                <button
+                  type="button"
+                  onClick={() => handleSwitchInfographicSource('visual')}
+                  className={cn('h-7 px-2 text-[11px] font-medium', leftPanelMode !== 'whiteboard' && infographicSourceView === 'visual' ? 'bg-violet-500/30 text-violet-100' : 'text-slate-200')}
+                >
+                  {tr('Xem visual', 'Visual', '可视化', 'ビジュアル', '비주얼')}
+                </button>
+                <button
+                  type="button"
+                  onClick={openTeacherWhiteboard}
+                  className={cn('h-7 border-l border-slate-600/70 px-2 text-[11px] font-medium', leftPanelMode === 'whiteboard' ? 'bg-sky-500/30 text-sky-100' : 'text-slate-200')}
+                >
+                  {tr('Bảng trắng', 'Whiteboard', '白板', 'ホワイトボード', '화이트보드')}
+                </button>
+                {(() => {
+                  const lessonNo = activeLessonNo && activeLessonNo > 0 ? activeLessonNo : 1
+                  const lessonLabel = tr(`Ảnh tiết ${lessonNo}`, `Lesson ${lessonNo}`, `课时${lessonNo}`, `授業${lessonNo}`, `${lessonNo}차시`)
+                  const curriculumLabel = tr('Ảnh cả bài', 'Whole lesson', '整课图', '全体', '전체')
+                  if (!hasLessonInfographic && !hasCurriculumInfographic) return null
+                  const both = hasLessonInfographic && hasCurriculumInfographic
+                  const showingLesson = infographicSourceView === 'lesson'
+                  const showingCurriculum = infographicSourceView === 'curriculum'
+                  let label = curriculumLabel
+                  let target: 'lesson' | 'curriculum' = 'curriculum'
+                  let active = showingCurriculum && leftPanelMode !== 'whiteboard'
+                  if (both) {
+                    if (showingCurriculum) {
+                      label = lessonLabel
+                      target = 'lesson'
+                      active = false
+                    } else if (showingLesson) {
+                      label = curriculumLabel
+                      target = 'curriculum'
+                      active = false
+                    } else {
+                      label = lessonLabel
+                      target = 'lesson'
+                      active = false
+                    }
+                  } else if (hasLessonInfographic) {
+                    label = lessonLabel
+                    target = 'lesson'
+                    active = showingLesson && leftPanelMode !== 'whiteboard'
+                  } else {
+                    label = curriculumLabel
+                    target = 'curriculum'
+                    active = showingCurriculum && leftPanelMode !== 'whiteboard'
+                  }
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchInfographicSource(target)}
+                      className={cn(
+                        'h-7 border-l border-slate-600/70 px-2 text-[11px] font-medium',
+                        active ? 'bg-amber-500/30 text-amber-100' : 'text-slate-200'
+                      )}
+                    >
+                      {label}
+                    </button>
+                  )
+                })()}
+              </div>
+            ) : null}
+            {narrowTeacherLayout ? null : (
+              <span className="text-xs md:text-sm font-medium tabular-nums shrink-0 text-slate-300">{currentIndex + 1}/{slideTitles.length || slides.length}</span>
+            )}
+            {narrowTeacherLayout ? (
+              <TeacherPhoneSandTimerPicker
+                tr={tr}
+                elapsedSeconds={teacherTimerSeconds}
+                elapsedRunning={teacherTimerRunning}
+                onElapsedStart={() => sendTeacherTimer('teacher-timer-start')}
+                onElapsedStop={() => sendTeacherTimer('teacher-timer-stop')}
+                onElapsedReset={() => sendTeacherTimer('teacher-timer-reset')}
+                onStartMinutes={(minutes) => sendToStudentView({ type: 'sand-timer-start', seconds: minutes * 60 })}
+              />
+            ) : null}
             <h1 className="text-sm md:text-base font-semibold text-amber-400/95 tracking-tight">
               {worksheetId ? tr('Phiếu bài tập + Ghi chú', 'Worksheet + Notes', '练习+备注', 'ワークシート+メモ', '워크시트+메모') : tr('Giáo trình + Ghi chú', 'Curriculum + Notes', '课程+备注', 'カリキュラム+メモ', '교육과정+메모')}
             </h1>
@@ -6084,40 +7047,17 @@ export default function CurriculumViewPage() {
                 </button>
               </div>
             )}
-            {topic && <span className="text-slate-400 text-sm truncate max-w-[min(100vw-6rem,240px)] md:max-w-[180px]" title={topic}>{topic}</span>}
+            {topic && !narrowTeacherLayout ? <span className="text-slate-400 text-sm truncate max-w-[min(100vw-6rem,240px)] md:max-w-[180px]" title={topic}>{topic}</span> : null}
           </div>
         </div>
       </header>
 
-      {narrowTeacherLayout && content ? (
-        <div className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-700 bg-slate-900 p-1.5">
-          {(
-            [
-              ['curriculum', worksheetId ? tr('Phiếu', 'Sheet', '练习', '用紙', '학습지') : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')],
-              ['both', tr('Cả hai', 'Both', '同时', '両方', '함께')],
-              ['slide', tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTeacherPhonePane(id)}
-              className={cn(
-                'h-9 rounded-lg text-xs font-semibold',
-                teacherPhonePane === id ? 'bg-amber-400 text-slate-900' : 'text-slate-300'
-              )}
-              aria-pressed={teacherPhonePane === id}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
       {!content ? (
         <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-slate-900/30">
           <div className="text-center space-y-4 md:space-y-6 max-w-sm px-2">
-            {worksheetLoading ? (
+            {phoneFollowerId ? (
+              <p className="text-slate-400 text-sm">{phoneRemoteError || tr('Đang mở bảng điều khiển trên điện thoại...', 'Opening the phone remote...', '正在打开手机操控...', 'スマホ操作を開いています...', '휴대폰 조작 화면을 여는 중...')}</p>
+            ) : worksheetLoading ? (
               <p className="text-slate-400 text-sm">{tr('Đang tải phiếu bài tập...', 'Loading worksheet...', '正在加载练习...', 'ワークシートを読み込み中...', '워크시트 로딩 중...')}</p>
             ) : worksheetId ? (
               <p className="text-slate-400 text-sm">{tr('Không tải được phiếu bài tập.', 'Could not load worksheet.', '无法加载练习。', 'ワークシートを読み込めません。', '워크시트를 불러올 수 없습니다.')}</p>
@@ -6159,19 +7099,14 @@ export default function CurriculumViewPage() {
             className={cn(
               'min-w-0 flex flex-col overflow-hidden isolate bg-slate-900/20 border-slate-700/60',
               narrowTeacherLayout
-                ? cn(
-                    'w-full min-h-0 border-b border-r-0',
-                    teacherPhonePane === 'slide' && 'hidden',
-                    teacherPhonePane === 'curriculum' && 'flex-1',
-                    teacherPhonePane === 'both' && (apple.ios ? 'h-[min(30dvh,220px)] shrink-0' : 'h-[min(32vh,240px)] shrink-0')
-                  )
+                ? 'w-full min-h-0 flex-1 basis-0 border-b border-r-0'
                 : 'shrink-0 border-r',
               /* Luôn 50% — không đổi 45%/50% theo tab (nguyên nhân cụm Giáo trình|Infographic|Visual bị nhảy) */
               !narrowTeacherLayout && 'w-1/2'
             )}
           >
             {/* Cùng chiều cao với header cột phải (md:h-14). w-full + min-w-0: nội dung markdown không làm giãn cột và đẩy cụm tab. */}
-            <div className="flex h-12 w-full min-w-0 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-slate-700/60 bg-slate-900/30 px-3 text-xs font-medium uppercase tracking-wider text-slate-400 md:h-14 md:px-4">
+            <div className={narrowTeacherLayout ? 'hidden' : 'flex h-12 w-full min-w-0 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-slate-700/60 bg-slate-900/30 px-3 text-xs font-medium uppercase tracking-wider text-slate-400 md:h-14 md:px-4'}>
               <span className="shrink-0 truncate">{worksheetId ? tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트') : tr('Giáo trình', 'Curriculum', '课程', 'カリキュラム', '교육과정')}</span>
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <div className="ml-auto flex shrink-0 rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50">
@@ -6188,6 +7123,18 @@ export default function CurriculumViewPage() {
                   >
                     {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
                   </button>
+                  {worksheetId ? null : (
+                    <button
+                      type="button"
+                      onClick={openTeacherWhiteboard}
+                      className={[
+                        'px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center border-l border-slate-600/70',
+                        leftPanelMode === 'whiteboard' ? 'bg-sky-500/30 text-sky-200' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50',
+                      ].join(' ')}
+                    >
+                      {tr('Bảng trắng', 'Whiteboard', '白板', 'ホワイトボード', '화이트보드')}
+                    </button>
+                  )}
                   {(() => {
                     const canExpandCurriculumLeft =
                       worksheetId
@@ -6249,8 +7196,15 @@ export default function CurriculumViewPage() {
                 </div>
               </div>
             </div>
-            <div className={cn('min-w-0 flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', leftWidePanel && 'p-0 pr-0 space-y-0 overflow-hidden')}>
-              {leftPanelMode === 'visual' ? (
+            <div className={cn('min-w-0 flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', (leftWidePanel || (narrowTeacherLayout && (leftPanelMode === 'visual' || leftPanelMode === 'whiteboard'))) && 'p-0 pr-0 space-y-0 overflow-hidden')}>
+              {leftPanelMode === 'whiteboard' ? (
+                <TeacherWhiteboardCanvas
+                  state={whiteboardState}
+                  onStateChange={setWhiteboardState}
+                  onBroadcast={broadcastWhiteboard}
+                  tr={tr}
+                />
+              ) : leftPanelMode === 'visual' ? (
                 (() => {
                   const s = slides[currentIndex]
                   if (!s) return <p className="text-slate-500 text-sm">{tr('Không có slide', 'No slide', '无幻灯片', 'スライドなし', '슬라이드 없음')}</p>
@@ -6263,6 +7217,8 @@ export default function CurriculumViewPage() {
                   const canGenerateVisualInfographic = !worksheetId && !curriculumInfographic && !!curriculumId
                   const visualInfographicCostLabel = lessonInfographicCostLabel
                   const slideNum = currentIndex + 1
+                  const slideTotal = slideTitles.length || slides.length
+                  const visualCellLabel = (cell: number) => `${slideNum}-${cell}/${slideTotal}`
                   const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
                   const infographicStableBackground = 'linear-gradient(180deg, #0b1220 0%, #0f172a 100%)'
                   const visualUsesCurriculumInfographic = cells.some((c) =>
@@ -6279,10 +7235,13 @@ export default function CurriculumViewPage() {
                         background: visualUsesCurriculumInfographic || visualUsesFourCellData ? infographicStableBackground : gradient,
                       }}
                     >
-                      <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
-                        {slideNum}
-                      </div>
-                      {!worksheetId && (
+                      {narrowTeacherLayout ? null : (
+                        <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
+                          {slideNum}
+                        </div>
+                      )}
+                      {renderPhoneTeacherControlBar()}
+                      {!worksheetId && !narrowTeacherLayout && (
                         <div className="absolute right-4 top-2 z-10 flex flex-wrap items-center justify-end gap-2">
                           {renderInfographicEnginePicker()}
                           <button
@@ -6352,11 +7311,11 @@ export default function CurriculumViewPage() {
                           </div>
                         </div>
                       )}
-                      <div ref={teacherEmbeddedVisualFrameRef} className={cn('absolute inset-0 min-h-0 pt-14 pb-4 px-4', layout === 1 ? 'flex flex-col' : gridClass)}>
+                      <div ref={teacherEmbeddedVisualFrameRef} className={cn('absolute inset-0 min-h-0 px-4 pb-4', narrowTeacherLayout ? 'px-2 pb-2 pt-2' : 'pt-14', layout === 1 ? 'flex flex-col' : gridClass)}>
                         {layout === 1 ? (
                           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
                             <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
-                              {slideNum}-1
+                              {visualCellLabel(1)}
                             </span>
                             {cells[0]?.visualEmbed ? (
                               (() => {
@@ -6400,7 +7359,7 @@ export default function CurriculumViewPage() {
                                   <canvas data-teacher-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
                                   <div
                                     data-infographic-toolbar="teacher-pane"
-                                    className="absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm"
+                                    className={cn('absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm', narrowTeacherLayout && 'hidden')}
                                     onPointerDown={(e) => e.stopPropagation()}
                                     onClick={(e) => e.stopPropagation()}
                                   >
@@ -6459,7 +7418,7 @@ export default function CurriculumViewPage() {
                             {cells.map((cell, idx) => (
                               <div key={idx} className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
                                 <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
-                                  {slideNum}-{idx + 1}
+                                  {visualCellLabel(idx + 1)}
                                 </span>
                                 {(cell.visualEmbed || cell.imageUrl) && (
                                   <button
@@ -6515,7 +7474,7 @@ export default function CurriculumViewPage() {
                                       <canvas data-teacher-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
                                       <div
                                         data-infographic-toolbar="teacher-pane"
-                                        className="absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm"
+                                        className={cn('absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm', narrowTeacherLayout && 'hidden')}
                                         onPointerDown={(e) => e.stopPropagation()}
                                         onClick={(e) => e.stopPropagation()}
                                       >
@@ -6657,7 +7616,7 @@ export default function CurriculumViewPage() {
                             </div>
                             <div
                               data-infographic-toolbar="teacher-pane"
-                              className="z-20 mt-2 flex max-w-full flex-wrap items-center justify-center gap-1 self-center rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg"
+                              className={cn('z-20 mt-2 flex max-w-full flex-wrap items-center justify-center gap-1 self-center rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg', narrowTeacherLayout && 'hidden')}
                               onPointerDown={(e) => e.stopPropagation()}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -6781,24 +7740,23 @@ export default function CurriculumViewPage() {
             className={cn(
               'min-w-0 flex flex-col overflow-hidden isolate',
               narrowTeacherLayout
-                ? cn('w-full min-h-0', teacherPhonePane === 'curriculum' ? 'hidden' : 'flex-1')
+                ? 'w-full min-h-0 flex-1 basis-0'
                 : 'w-1/2 shrink-0'
             )}
           >
-            <div className={cn('flex shrink-0 items-center justify-between gap-2 border-b border-slate-700/60 bg-slate-900/30 text-xs font-medium uppercase tracking-wider text-slate-400', narrowTeacherLayout ? 'h-auto flex-col items-stretch gap-1.5 overflow-visible px-2 py-1.5' : 'h-12 overflow-hidden px-3 md:h-14 md:px-4')}>
-              <div className={cn('flex min-w-0 flex-1 items-center gap-2 md:gap-3', narrowTeacherLayout && 'w-full')}>
+            <div className={narrowTeacherLayout ? 'hidden' : 'flex h-12 shrink-0 items-center justify-between gap-2 overflow-hidden border-b border-slate-700/60 bg-slate-900/30 px-3 text-xs font-medium uppercase tracking-wider text-slate-400 md:h-14 md:px-4'}>
+              <div className={cn('flex min-w-0 flex-1 items-center gap-2 md:gap-3', narrowTeacherLayout && 'w-auto flex-none')}>
                 {!worksheetId && slides.length > 0 ? (
-                  <div className={cn('flex shrink-0 items-center gap-1 md:gap-1.5', narrowTeacherLayout && 'grid w-full grid-cols-2')} data-control="gv-remote-student-curriculum-mode">
+                  <div className="flex shrink-0 items-center gap-1 md:gap-1.5" data-control="gv-remote-student-curriculum-mode">
                     <button
                       type="button"
                       data-pointer-sync-id="student-mode-markdown-all"
                       onClick={() => {
                         setStudentCurriculumRemoteMode('markdown-all')
-                        sendToStudentView({ type: 'student-curriculum-right-mode', mode: 'markdown-all' })
+                        publishSessionCommand({ type: 'student-curriculum-right-mode', mode: 'markdown-all' })
                       }}
                       className={cn(
                         'flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium normal-case tracking-normal transition-colors md:h-9 md:px-3',
-                        narrowTeacherLayout && 'w-full justify-center',
                         studentCurriculumRemoteMode === 'markdown-all'
                           ? 'border-emerald-400/80 bg-emerald-500/25 text-emerald-200 ring-1 ring-emerald-400/45'
                           : 'border-slate-600/80 bg-slate-800/50 text-slate-300 hover:bg-slate-700/55'
@@ -6819,11 +7777,10 @@ export default function CurriculumViewPage() {
                       data-pointer-sync-id="student-mode-single-slide"
                       onClick={() => {
                         setStudentCurriculumRemoteMode('single-slide')
-                        sendToStudentView({ type: 'student-curriculum-right-mode', mode: 'single-slide' })
+                        publishSessionCommand({ type: 'student-curriculum-right-mode', mode: 'single-slide' })
                       }}
                       className={cn(
                         'flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium normal-case tracking-normal transition-colors md:h-9 md:px-3',
-                        narrowTeacherLayout && 'w-full justify-center',
                         studentCurriculumRemoteMode === 'single-slide'
                           ? 'border-amber-400/80 bg-amber-500/30 text-amber-200 ring-1 ring-amber-400/45'
                           : 'border-slate-600/80 bg-slate-800/50 text-slate-300 hover:bg-slate-700/55'
@@ -6847,9 +7804,13 @@ export default function CurriculumViewPage() {
                     : tr('3 slide: trước · hiện tại · sau', '3 slides: prev · current · next', '3张: 前·当前·后', '3枚: 前·現在·次', '3장: 이전·현재·다음')}
                 </span>
               </div>
-              <div data-control="slide-mode-xem-hoc-sinh" className={cn('flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50 shrink-0', narrowTeacherLayout && 'w-full justify-end')}>
-                <button type="button" onClick={() => setSlideViewMode('single')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'single' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="1 slide"><Square className="h-3.5 w-3.5 inline mr-1" />1</button>
-                <button type="button" onClick={() => setSlideViewMode('triple')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'triple' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="3 slide"><LayoutGrid className="h-3.5 w-3.5 inline mr-1" />3</button>
+              <div data-control="slide-mode-xem-hoc-sinh" className="flex shrink-0 overflow-hidden rounded-lg border border-slate-600/80 bg-slate-800/50">
+                {narrowTeacherLayout ? null : (
+                  <>
+                    <button type="button" onClick={() => setSlideViewMode('single')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'single' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="1 slide"><Square className="h-3.5 w-3.5 inline mr-1" />1</button>
+                    <button type="button" onClick={() => setSlideViewMode('triple')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'triple' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="3 slide"><LayoutGrid className="h-3.5 w-3.5 inline mr-1" />3</button>
+                  </>
+                )}
                 {!worksheetId ? (
                   <button
                     type="button"
@@ -6864,7 +7825,7 @@ export default function CurriculumViewPage() {
                     {tr('Duyệt', 'Review', '核对', '確認', '검토')}
                   </button>
                 ) : null}
-                <button
+                {phoneFollowerId ? null : <button
                   data-control="xem-học-sinh"
                   type="button"
                   onMouseDown={(e) => {
@@ -6882,7 +7843,7 @@ export default function CurriculumViewPage() {
                 >
                   <Presentation className="h-3.5 w-3.5 shrink-0" />
                   {tr('Học sinh', 'Students', '学生', '生徒', '학생')}
-                </button>
+                </button>}
               </div>
             </div>
             {slideViewMode === 'single' ? (
@@ -6896,7 +7857,7 @@ export default function CurriculumViewPage() {
                     : slide.content
                       ? parseContentToBlocks(slide.content ?? '')
                       : []
-                const typingBar = slideBlocks.length > 0 ? renderSlideLevelTypingToolbar(currentIndex, slideBlocks, 'comfortable') : null
+                const typingBar = !narrowTeacherLayout && slideBlocks.length > 0 ? renderSlideLevelTypingToolbar(currentIndex, slideBlocks, 'comfortable') : null
                 if (!typingBar) return null
                 return (
                   <div data-teacher-chrome className="shrink-0 border-b border-slate-700/60 bg-slate-950 px-3 py-2">
@@ -6904,7 +7865,7 @@ export default function CurriculumViewPage() {
                   </div>
                 )
               })()}
-              <div ref={teacherSlideContentPaneRef} className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 py-2">
+              <div ref={teacherSlideContentPaneRef} data-teacher-phone-slide={narrowTeacherLayout ? '' : undefined} className={cn('flex min-h-0 flex-1 items-start justify-start overflow-y-auto overflow-x-hidden overscroll-y-contain', narrowTeacherLayout ? 'px-2 py-1' : 'px-3 py-2')}>
                 {(() => {
                   const s = slides[currentIndex]
                   const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
@@ -6965,9 +7926,11 @@ export default function CurriculumViewPage() {
                               : raw
                             return (
                               <div key={si} className="w-full">
+                              {narrowTeacherLayout ? null : (
                               <div className="mb-1.5 flex flex-wrap items-center justify-end">
                                 {renderSlideQuizAction(si, pastBlks)}
                               </div>
+                              )}
                               <section
                                 id={`teacher-chain-slide-${si}`}
                                 data-teacher-chain-slide={si}
@@ -7014,13 +7977,23 @@ export default function CurriculumViewPage() {
                                     />
                                   ) : null}
                                 </div>
+                                {narrowTeacherLayout ? (
+                                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                    {curriculumId && !worksheetId ? (
+                                      <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: si, blockIndex: 0, type: 'add' })} className="text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1 text-emerald-300 hover:text-emerald-200 bg-emerald-500/20 border border-emerald-400/30">
+                                        <Plus className="h-3.5 w-3.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
+                                      </button>
+                                    ) : null}
+                                    {renderSlideQuizAction(si, pastBlks)}
+                                  </div>
+                                ) : null}
                               </section>
                               </div>
                             )
                           })}
                         </div>
                       ) : null}
-                      {mirrorChain && editingTitle !== currentIndex ? (
+                      {mirrorChain && editingTitle !== currentIndex && !(narrowTeacherLayout && !!curriculumId && !worksheetId && (slideMode === 'shared' || slideMode === 'original' || slideMode === null)) ? (
                         <div className={cn('mb-1.5 flex flex-wrap items-center justify-end', currentIndex > 0 && 'mt-6')}>
                           {renderSlideQuizAction(currentIndex, blks)}
                         </div>
@@ -7234,6 +8207,7 @@ export default function CurriculumViewPage() {
                                               setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: i, type: 'add', blockHeader: b.header })
                                             }
                                           }}
+                                          afterProposeAdd={i === 0 ? renderMobileBesideProposal(currentIndex, blks) : null}
                                           reportQuizWrong={reportQuizWrong}
                                           worksheetBlocksProposalDisabled={!!worksheetId}
                                           showWorksheetMarkdownEdit={!!worksheetId}
@@ -7340,6 +8314,7 @@ export default function CurriculumViewPage() {
                                                 <button type="button" disabled={false} onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: i, type: 'add', blockHeader: b.header })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', curriculumId ? 'text-emerald-300 hover:text-emerald-200 bg-emerald-500/20 border border-emerald-400/30' : 'text-emerald-400/60 bg-emerald-500/10 border border-emerald-400/20 cursor-not-allowed opacity-60')}>
                                                   <Plus className="h-3.5 w-3.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
                                                 </button>
+                                                {i === 0 ? renderMobileBesideProposal(currentIndex, blks) : null}
                                               </>
                                             )}
                                           </div>
@@ -7481,6 +8456,7 @@ export default function CurriculumViewPage() {
                                         <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: 0, type: 'add' })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', 'text-emerald-300 hover:text-emerald-200 bg-emerald-500/20 border border-emerald-400/30')}>
                                           <Plus className="h-3.5 w-3.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
                                         </button>
+                                        {renderMobileBesideProposal(currentIndex, blks)}
                                       </>
                                     )}
                                   </div>
@@ -7891,6 +8867,7 @@ export default function CurriculumViewPage() {
                                   <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: 0, type: 'add' })} className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 text-emerald-400 hover:text-emerald-300 bg-slate-700/50 border border-emerald-500/50">
                                     <Plus className="h-2.5 w-2.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
                                   </button>
+                                  {renderMobileBesideProposal(idx, blks)}
                                 </div>
                               )}
                               {proposals.filter((p) => p.slide_index === idx && p.block_index === 0).map((p) => (
@@ -8275,12 +9252,15 @@ export default function CurriculumViewPage() {
             answerRevealJumpOpts,
             curriculumSlideTitleTypingText(si, slideRow?.title ?? '', numberedTitle)
           )
-          setAnswerRevealProgress((prev) => ({ ...prev, ...distributed }))
+          const nextReveal = { ...answerRevealProgress, ...distributed }
+          setAnswerRevealProgress(nextReveal)
+          publishTypingState(true, { reveal: nextReveal })
         }}
         tr={tr}
       />
       <Toaster />
 
+      {narrowTeacherLayout ? null : (
       <button
         type="button"
         onClick={() => startStudentProjector()}
@@ -8296,6 +9276,7 @@ export default function CurriculumViewPage() {
         <MonitorPlay className="h-4 w-4" />
         <span className="hidden sm:inline">{tr('Trình chiếu HS', 'Project to student', '投影至学生', '生徒画面投影', '학생 화면 투영')}</span>
       </button>
+      )}
     </div>
   )
 }

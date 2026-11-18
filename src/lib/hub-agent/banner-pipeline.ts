@@ -56,6 +56,7 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
       get: (name) => {
         if (name === 'imageEngine') return input.imageEngine ?? null
         if (name === 'gptQuality') return input.gptQuality ?? null
+        if (name === 'imageQuality') return imageQuality ?? null
         return null
       },
     },
@@ -91,7 +92,7 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
   if (!historyItem) return { ok: false, error: 'Kh├┤ng thß╗â khß╗ƒi tß║ío phi├¬n xß╗¡ l├╜.' }
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (priced.engine !== 'gpt') {
+  if (priced.engine === 'gemini') {
     const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
     const genAI = new GoogleGenerativeAI(apiKey)
     model = genAI.getGenerativeModel({
@@ -118,6 +119,7 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
     const result = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
+      imageQuality: priced.geminiQuality,
       aspectRatio,
       parts: contentParts,
       gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),

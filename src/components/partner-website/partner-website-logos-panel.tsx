@@ -94,9 +94,10 @@ export function PartnerWebsiteLogosPanel({
   const [createRefUrl, setCreateRefUrl] = useState('')
   const [createStripBg, setCreateStripBg] = useState(false)
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
-  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [geminiQuality, setGeminiQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const logoImageCredit = imageEngineCredit({
+      imageQuality: geminiQuality,
     engine: imageEngine,
     gptQuality,
     geminiCost: geminiQualityCredit(1.5, geminiQuality),

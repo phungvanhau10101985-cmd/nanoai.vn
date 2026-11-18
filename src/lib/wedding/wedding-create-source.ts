@@ -167,6 +167,36 @@ function namedChannel(detail: string): string {
   return first.slice(0, 40)
 }
 
+/**
+ * Kênh sẽ ghi lúc khách bấm tạo.
+ * Lần chạm trình duyệt đã chọn kênh mạnh hơn; query trên trang hiện tại chỉ thắng khi chính nó là quảng cáo.
+ * Không có lần chạm và trang không có query thì trả null — bản ghi cũ giữ «chưa ghi».
+ */
+export function resolveRecordedCreateSource(
+  createSource: WeddingCreateSourcePayload | null | undefined,
+  referer: string | null | undefined,
+  now = Date.now(),
+): WeddingCreateSourceRecord | null {
+  const clientTouch: WeddingCreateTouch | null = createSource
+    ? {
+        search: String(createSource.search ?? ''),
+        referrer: String(createSource.referrer ?? ''),
+        pageHost: String(createSource.pageHost ?? ''),
+        at: now - 1,
+      }
+    : null
+  let pageTouch: WeddingCreateTouch = { search: '', referrer: '', pageHost: '', at: now }
+  try {
+    const url = new URL(String(referer || ''))
+    pageTouch = { search: url.search, referrer: '', pageHost: url.hostname, at: now }
+  } catch {
+    pageTouch = { search: '', referrer: '', pageHost: '', at: now }
+  }
+  const chosen = chooseWeddingCreateTouch(clientTouch, pageTouch, now)
+  if (!createSource && !pageTouch.search) return null
+  return resolveWeddingCreateSource(chosen.search, chosen.referrer, chosen.pageHost)
+}
+
 export function resolveWeddingCreateSource(search: string, referrer: string, pageHost = ''): WeddingCreateSourceRecord {
   const safeSearch = clipSearch(search)
   const safeReferrer = clipReferrer(referrer)

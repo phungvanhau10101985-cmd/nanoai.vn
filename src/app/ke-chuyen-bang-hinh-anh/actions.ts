@@ -101,7 +101,7 @@ export async function createStoryImage(formData: FormData) {
   const fullPrompt = `${PROMPT_BASE}\n\nCÂU CHUYỆN CẦN MINH HỌA:\n"${expandedStory}"`
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     model = genAI.getGenerativeModel({
       model: GEMINI_3_PRO_IMAGE.model,
       generationConfig: {
@@ -123,6 +123,7 @@ export async function createStoryImage(formData: FormData) {
     const result = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       aspectRatio,
       parts: [fullPrompt],
       gemini: () => model!.generateContent(fullPrompt, { safetySettings }),

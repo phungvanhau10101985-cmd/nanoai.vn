@@ -47,6 +47,8 @@ import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName, LEG
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, moveWindowToExternalScreen, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { detectAppleSlideDevice, useAppleSlideShell } from '../lib/apple-slide-shell'
+import { TeacherWhiteboardCanvas, applyRemoteWhiteboard, emptyWhiteboardState } from './teacher-whiteboard-canvas'
+import { isWhiteboardWireType, type WhiteboardState } from '../lib/teacher-whiteboard'
 
 /** Phần tử đang fullscreen (Fullscreen API, kể cả webkit). */
 function readFullscreenElement(): Element | null {
@@ -880,7 +882,7 @@ interface NanoAISlideViewerProps {
   /** Đồng bộ từ `curriculum-data` (GV) — cột phải một slide / cả khóa */
   syncedStudentCurriculumRightMode?: 'single-slide' | 'markdown-all' | null
   /** Đồng bộ từ `curriculum-data` (GV) — tab cột trái: Visual / Infographic (trong khung, không fullscreen) */
-  syncedStudentCurriculumLeftPane?: 'visual' | 'infographic' | null
+  syncedStudentCurriculumLeftPane?: 'visual' | 'infographic' | 'whiteboard' | null
   /** Một infographic cho cả giáo trình (không gắn từng slide) */
   curriculumInfographic?: SlideInfographic | null
 }
@@ -1358,7 +1360,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     currentIndex: number
     presentationMode: 'independent' | 'slide-interaction'
     studentCurriculumRightMode: 'single-slide' | 'markdown-all'
-    studentCurriculumLeftPaneTab: 'visual' | 'infographic'
+    studentCurriculumLeftPaneTab: 'visual' | 'infographic' | 'whiteboard'
   }>({
     currentIndex: 0,
     presentationMode: 'independent',
@@ -1373,6 +1375,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [, setTransitionDirection] = useState<'next' | 'prev'>('next')
   const initialSlideSyncedRef = useRef(false)
   const pendingSlideGoIndexRef = useRef<number | null>(null)
+  const latestPhoneSlideRef = useRef<{ index: number; at: number } | null>(null)
+  const latestPhoneModeRef = useRef<{ mode: 'single-slide' | 'markdown-all'; at: number } | null>(null)
+  const ignoreChainScrollUntilRef = useRef(0)
   const [personalViewSubMode, setPersonalViewSubMode] = useState<'current' | 'original'>('current')
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
   /** Slide mà popup trắc nghiệm đang mở. null = slide đang chiếu. */
@@ -1387,6 +1392,102 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     () => getPresentationBroadcastChannelName(!isTeacherView ? presentationBroadcastSyncId ?? undefined : undefined),
     [isTeacherView, presentationBroadcastSyncId]
   )
+  const [phoneRemoteId, setPhoneRemoteId] = useState<string | null>(null)
+  const phoneRemoteIdRef = useRef<string | null>(null)
+  phoneRemoteIdRef.current = phoneRemoteId
+  useEffect(() => {
+    if (isTeacherView) return
+    const take = (data: { type?: string; id?: string } | null) => {
+      if (data?.type === 'phone-remote-bind' && typeof data.id === 'string' && data.id.trim()) {
+        setPhoneRemoteId(data.id.trim())
+      }
+    }
+    const onMsg = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      take(event.data)
+    }
+    window.addEventListener('message', onMsg)
+    let channel: BroadcastChannel | null = null
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel(presentationBroadcastChannelName)
+      channel.addEventListener('message', (event) => take(event.data))
+    }
+    return () => {
+      window.removeEventListener('message', onMsg)
+      channel?.close()
+    }
+  }, [isTeacherView, presentationBroadcastChannelName])
+  useEffect(() => {
+    if (isTeacherView || !phoneRemoteId) return
+    let after = 0
+    let stop = false
+    const presence = (alive: boolean) => {
+      void fetch('/api/giao-trinh/phone-remote/presence', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: phoneRemoteId, alive }),
+      }).catch(() => { /* slide học sinh vừa đóng */ })
+    }
+    let priming = true
+    let busy = false
+    const deliver = (msg: Record<string, unknown>, tellTeacher: boolean) => {
+      window.dispatchEvent(new MessageEvent('message', { origin: window.location.origin, data: msg }))
+      if (!tellTeacher || msg.type !== 'slide-go') return
+      if (window.opener && !window.opener.closed) window.opener.postMessage(msg, window.location.origin)
+    }
+    const pull = async () => {
+      if (busy || stop) return
+      busy = true
+      try {
+        const res = await fetch(`/api/giao-trinh/phone-remote/command?id=${encodeURIComponent(phoneRemoteId)}&after=${after}`, { credentials: 'same-origin' })
+        if (!res.ok) return
+        const data = await res.json().catch(() => null)
+        const list = Array.isArray(data?.commands) ? data.commands : []
+        let lastSlide: number | null = null
+        let lastTyping: Record<string, unknown> | null = null
+        let lastTypingControl: Record<string, unknown> | null = null
+        const fresh: Record<string, unknown>[] = []
+        for (const item of list) {
+          if (stop || !item || typeof item !== 'object') continue
+          const n = Number((item as { n?: unknown }).n)
+          if (Number.isFinite(n)) after = Math.max(after, n)
+          const msg = (item as { msg?: unknown }).msg
+          if (!msg || typeof msg !== 'object' || Array.isArray(msg)) continue
+          const record = msg as Record<string, unknown>
+          if (record.type === 'slide-go' && typeof record.index === 'number') lastSlide = record.index
+          else if (record.type === 'worksheet-answer-reveal' && record.control === true) lastTypingControl = record
+          else if (record.type === 'worksheet-answer-reveal') lastTyping = record
+          else fresh.push(record)
+        }
+        if (priming) {
+          if (list.length >= 40) return
+          priming = false
+          if (lastTyping) deliver(lastTyping, false)
+          if (lastTypingControl) deliver(lastTypingControl, false)
+          return
+        }
+        for (const msg of fresh) deliver(msg, false)
+        if (lastSlide != null) deliver({ type: 'slide-go', index: lastSlide }, true)
+        if (lastTyping) deliver(lastTyping, false)
+        if (lastTypingControl) deliver(lastTypingControl, false)
+      } catch {
+        /* lần sau kéo tiếp */
+      } finally {
+        busy = false
+      }
+    }
+    presence(true)
+    void pull()
+    const beat = window.setInterval(() => presence(true), 4000)
+    const tick = window.setInterval(() => { void pull() }, 280)
+    return () => {
+      stop = true
+      window.clearInterval(beat)
+      window.clearInterval(tick)
+    }
+  }, [isTeacherView, phoneRemoteId])
   const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
   const [shareLoading, setShareLoading] = useState(false)
   const [screenShareOverlayVisible, setScreenShareOverlayVisible] = useState(true)
@@ -1406,7 +1507,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [curriculumInfographicProp])
   /** Giáo trình (không phiếu): tab cột trái chỉ còn Visual. */
   const [presenterLeftTab, setPresenterLeftTab] = useState<'visual' | 'infographic'>('visual')
-  const [studentCurriculumLeftPaneTab, setStudentCurriculumLeftPaneTab] = useState<'visual' | 'infographic'>('visual')
+  const [studentCurriculumLeftPaneTab, setStudentCurriculumLeftPaneTab] = useState<'visual' | 'infographic' | 'whiteboard'>('visual')
+  const [whiteboardState, setWhiteboardState] = useState<WhiteboardState>(() => emptyWhiteboardState())
   const isStudentCurriculumSlide = !isTeacherView && !worksheetPresentation
   const [infographicFullscreenOpen, setInfographicFullscreenOpen] = useState(false)
   const shouldRenderInlineInfographicCanvas = !visualFullscreenOpen && !infographicFullscreenOpen
@@ -1421,7 +1523,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       /* ignore */
     }
   }, [])
-  const notifyTeacherStudentCurriculumLeftPane = useCallback((pane: 'visual' | 'infographic') => {
+  const notifyTeacherStudentCurriculumLeftPane = useCallback((pane: 'visual' | 'infographic' | 'whiteboard') => {
     try {
       window.opener?.postMessage({ type: 'student-curriculum-left-pane-changed', pane }, window.location.origin)
     } catch {
@@ -1430,10 +1532,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [])
   useEffect(() => {
     if (syncedStudentCurriculumRightMode !== 'markdown-all' && syncedStudentCurriculumRightMode !== 'single-slide') return
+    const recent = latestPhoneModeRef.current
+    if (recent && Date.now() - recent.at < 8000 && recent.mode !== syncedStudentCurriculumRightMode) return
     setStudentCurriculumRightMode(syncedStudentCurriculumRightMode)
   }, [syncedStudentCurriculumRightMode])
   useEffect(() => {
-    if (syncedStudentCurriculumLeftPane !== 'infographic' && syncedStudentCurriculumLeftPane !== 'visual') return
+    if (syncedStudentCurriculumLeftPane !== 'infographic' && syncedStudentCurriculumLeftPane !== 'visual' && syncedStudentCurriculumLeftPane !== 'whiteboard') return
     setStudentCurriculumLeftPaneTab(syncedStudentCurriculumLeftPane)
   }, [syncedStudentCurriculumLeftPane])
   const fullscreenOverlayRef = useRef<HTMLDivElement>(null)
@@ -1623,7 +1727,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         currentIndex?: number
         presentationMode?: 'independent' | 'slide-interaction'
         studentCurriculumRightMode?: 'single-slide' | 'markdown-all'
-        studentCurriculumLeftPaneTab?: 'visual' | 'infographic'
+        studentCurriculumLeftPaneTab?: 'visual' | 'infographic' | 'whiteboard'
       } | null
       if (!data || typeof data !== 'object') return
       if (typeof data.at !== 'number' || Date.now() - data.at > 60_000) return
@@ -1636,7 +1740,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (data.studentCurriculumRightMode === 'markdown-all' || data.studentCurriculumRightMode === 'single-slide') {
         setStudentCurriculumRightMode(data.studentCurriculumRightMode)
       }
-      if (data.studentCurriculumLeftPaneTab === 'visual' || data.studentCurriculumLeftPaneTab === 'infographic') {
+      if (data.studentCurriculumLeftPaneTab === 'visual' || data.studentCurriculumLeftPaneTab === 'infographic' || data.studentCurriculumLeftPaneTab === 'whiteboard') {
         setStudentCurriculumLeftPaneTab(data.studentCurriculumLeftPaneTab)
       }
     } catch {
@@ -2852,12 +2956,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         t === 'student-curriculum-right-mode' &&
         (e.data?.mode === 'markdown-all' || e.data?.mode === 'single-slide')
       ) {
-        if (!isTeacherView && !worksheetPresentation) setStudentCurriculumRightMode(e.data.mode)
+        if (!isTeacherView && !worksheetPresentation) {
+          latestPhoneModeRef.current = { mode: e.data.mode, at: Date.now() }
+          setStudentCurriculumRightMode(e.data.mode)
+        }
       }
-      else if (t === 'student-curriculum-left-pane' && (e.data?.pane === 'infographic' || e.data?.pane === 'visual')) {
+      else if (t === 'student-curriculum-left-pane' && (e.data?.pane === 'infographic' || e.data?.pane === 'visual' || e.data?.pane === 'whiteboard')) {
         if (!isTeacherView && !worksheetPresentation) {
           setStudentCurriculumLeftPaneTab(e.data.pane)
           closeInfographicFullscreenRef.current({ fromMessage: true })
+        }
+      }
+      else if (isWhiteboardWireType(t)) {
+        if (!isTeacherView && !worksheetPresentation) {
+          setWhiteboardState((prev) => applyRemoteWhiteboard(prev, e.data as Record<string, unknown>))
         }
       }
       else if (t === 'quiz-popup-open' && typeof e.data?.value === 'boolean') {
@@ -2934,6 +3046,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
       else if (t === 'chain-pane-scroll' && !isTeacherView) {
+        if (Date.now() < ignoreChainScrollUntilRef.current) return
         chainScrollAnchorRef.current = e.data as Record<string, unknown>
         applyStudentChainPaneScroll(chainScrollAnchorRef.current)
         window.requestAnimationFrame(() => {
@@ -3838,7 +3951,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const nextSlides = baseSlidesForDisplay
     const idx = typeof initialSlideIndex === 'number' ? Math.max(0, Math.min(initialSlideIndex, nextSlides.length - 1)) : 0
     setCurrentIndex((prev) => {
-      // Student window must always follow teacher's current slide.
+      const phoneSlide = latestPhoneSlideRef.current
+      if (!isTeacherView && phoneSlide && phoneSlide.index !== idx && Date.now() - phoneSlide.at < 8000) {
+        return Math.max(0, Math.min(phoneSlide.index, Math.max(0, nextSlides.length - 1)))
+      }
       if (!isTeacherView && nextSlides.length > 0) {
         return idx
       }
@@ -3863,29 +3979,47 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }))
   }, [baseSlidesForDisplay, isTeacherView, currentIndex, studentCurriculumRightMode])
 
+  const lastPublishedSlideRef = useRef<{ index: number; at: number } | null>(null)
+  const publishStudentSlide = useCallback((index: number) => {
+    latestPhoneSlideRef.current = { index, at: Date.now() }
+    if (presentationMode !== 'slide-interaction') return
+    const prev = lastPublishedSlideRef.current
+    if (prev && prev.index === index && Date.now() - prev.at < 80) return
+    lastPublishedSlideRef.current = { index, at: Date.now() }
+    const id = phoneRemoteIdRef.current
+    if (id) {
+      void fetch('/api/giao-trinh/phone-remote/command', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, commands: [{ type: 'slide-go', index }] }),
+      }).catch(() => { /* máy giáo viên vẫn nhận qua cửa sổ cha */ })
+    }
+    if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: 'slide-go', index }, window.location.origin)
+    }
+  }, [presentationMode])
+
   const goNext = useCallback(() => {
     setAutoPlay(false)
     setTransitionDirection('next')
     setCurrentIndex((i) => {
       const next = Math.min(i + 1, slides.length - 1)
-      if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
-        window.opener.postMessage({ type: 'slide-go', index: next }, window.location.origin)
-      }
+      if (next !== i) publishStudentSlide(next)
       return next
     })
-  }, [slides.length, presentationMode])
+  }, [slides.length, publishStudentSlide])
 
   const goPrev = useCallback(() => {
     setAutoPlay(false)
     setTransitionDirection('prev')
     setCurrentIndex((i) => {
       const next = Math.max(i - 1, 0)
-      if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
-        window.opener.postMessage({ type: 'slide-go', index: next }, window.location.origin)
-      }
+      if (next !== i) publishStudentSlide(next)
       return next
     })
-  }, [presentationMode])
+  }, [publishStudentSlide])
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -3904,6 +4038,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           return
         }
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
+        latestPhoneSlideRef.current = { index: idx, at: Date.now() }
+        ignoreChainScrollUntilRef.current = Date.now() + 700
         setCurrentIndex((prev) => {
           setTransitionDirection(idx > prev ? 'next' : 'prev')
           return idx
@@ -4429,8 +4565,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   /** Chế độ “Chuỗi slide” trên cột phải: cuộn để đỉnh slide đang chọn nằm phía trên khung (dễ nhìn từ xa). */
   useEffect(() => {
     if (isTeacherView || worksheetPresentation) return
-    if (presentationMode === 'slide-interaction') return
-    if (typeof window !== 'undefined' && window.opener && !window.opener.closed) return
     if (studentCurriculumRightMode !== 'markdown-all') return
     if (!STUDENT_MD_CHAIN_AUTO_FOLLOW) return
     if (slides.length === 0) return
@@ -4465,7 +4599,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       lastMdAutoScrollAtRef.current = now
     }, 100)
     return () => window.clearTimeout(t)
-  }, [currentIndex, studentCurriculumRightMode, slides.length, isTeacherView, worksheetPresentation, presentationMode])
+  }, [currentIndex, studentCurriculumRightMode, slides.length, isTeacherView, worksheetPresentation])
 
   useEffect(() => {
     if (isTeacherView) return
@@ -4572,9 +4706,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       setTransitionDirection('next')
       setCurrentIndex((i) => {
         const next = i >= slides.length - 1 ? 0 : i + 1
-        if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener) {
-          window.opener.postMessage({ type: 'slide-go', index: next }, window.location.origin)
-        }
+        if (next !== i) publishStudentSlide(next)
         return next
       })
     }
@@ -4584,7 +4716,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (timeReady && segmentTypingReady) advance()
     }, 120)
     return () => window.clearInterval(id)
-  }, [autoPlay, slides.length, autoPlayIntervalMs, presentationMode, hasSegmentTypingWork, segmentTypingCompleted])
+  }, [autoPlay, slides.length, autoPlayIntervalMs, publishStudentSlide, hasSegmentTypingWork, segmentTypingCompleted])
 
   if (slides.length === 0) return null
 
@@ -5174,6 +5306,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           )}
           style={{ background: visualPaneBackground }}
         >
+          {isStudentCurriculumSlide && studentCurriculumLeftPaneTab === 'whiteboard' ? (
+            <div className="absolute inset-0 z-30">
+              <TeacherWhiteboardCanvas
+                readOnly
+                state={whiteboardState}
+                onStateChange={setWhiteboardState}
+                tr={tr}
+              />
+            </div>
+          ) : null}
           <div className="absolute top-2 left-2 md:top-4 md:left-4 landscape:top-4 landscape:left-4 w-8 h-8 md:w-9 md:h-9 landscape:w-9 landscape:h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-xs md:text-sm landscape:text-sm shadow-lg z-10">
             {currentIndex + 1}
           </div>

@@ -1040,7 +1040,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     key: 'tao-giao-trinh',
     pageTitle: 'Tạo giáo trình AI — hai màn giáo viên và học sinh, biểu đồ, PhET, YouTube',
     pageDescription:
-      'Hai giao diện tách riêng, thao tác đồng bộ. Vẽ biểu đồ và đồ thị, gắn thí nghiệm PhET, nhúng video YouTube vào bài. Slide theo tiết và phiếu. 1 credit = 6.000₫. Ba bài mới mỗi ngày không trừ credit.',
+      'Hai giao diện tách riêng, thao tác đồng bộ. Vẽ biểu đồ và đồ thị, gắn thí nghiệm PhET, nhúng video YouTube vào bài. Slide theo tiết và phiếu. 1 credit = 6.000₫. Hai bài mới mỗi ngày không trừ credit.',
     path: '/giao-trinh',
     keywords: [
       'tạo giáo trình',
@@ -1067,7 +1067,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     tips: [
       'Chọn đúng bộ sách và số bài trước khi tạo',
       'Chụp rõ một trang sách nếu tạo từ ảnh',
-      'Ba bài mới mỗi ngày không trừ credit. Bài thứ tư hoặc lần tạo lại mới trừ',
+      'Hai bài mới mỗi ngày không trừ credit. Bài thứ ba hoặc lần tạo lại mới trừ',
     ],
     faqs: [
       {
@@ -1096,7 +1096,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       {
         question: 'Khi nào trừ credit?',
         answer:
-          'Ba bài giáo trình mới mỗi ngày không trừ. Bài thứ tư, tạo từ ảnh khi vượt mức hoặc ghi đè, và lần tạo lại slide hoặc infographic thì trừ.',
+          'Hai bài giáo trình mới mỗi ngày không trừ. Bài thứ ba, tạo từ ảnh khi vượt mức hoặc ghi đè, và lần tạo lại slide hoặc infographic thì trừ.',
       },
     ],
   },

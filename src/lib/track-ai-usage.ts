@@ -74,8 +74,13 @@ export async function trackApiUsage(params: ApiUsageLogParams): Promise<void> {
 
     let effectiveUserId = userId ?? null
     if (effectiveUserId == null) {
-      const u = await getUserOrBypass()
-      effectiveUserId = u?.id ?? null
+      try {
+        const u = await getUserOrBypass()
+        effectiveUserId = u?.id ?? null
+      } catch {
+        // Cron và worker không có request store. Vẫn ghi usage, user để trống.
+        effectiveUserId = null
+      }
     }
 
     const pool = getPgPool()

@@ -113,7 +113,7 @@ export async function createSealLabelWithAI(formData: FormData) {
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
     model = genAI.getGenerativeModel({
       model: GEMINI_3_PRO_IMAGE.model,
@@ -143,6 +143,7 @@ export async function createSealLabelWithAI(formData: FormData) {
     const genResult = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       aspectRatio,
       parts: contentParts,
       gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),

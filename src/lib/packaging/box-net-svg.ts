@@ -18,6 +18,7 @@ import {
   type BoxDielineStructure,
 } from '@/lib/packaging/dieline-structure'
 import { dielineArtworkRotation } from '@/lib/packaging/dieline-orientation'
+import { lidDepthExtraMm } from '@/lib/packaging/paper-stock'
 import { buildDielineLayout } from '@/lib/packaging/box-dieline-geometry'
 
 export type BoxType = 'tuck-top' | 'sleeve'
@@ -623,6 +624,8 @@ export interface TuckEndArtworkPanel {
   slot: BoxFaceSlot
   /** Xoay ảnh trên tờ trải theo chiều gấp. Mockup 3D dùng chiều đã gấp. */
   rotation?: 0 | 90 | 180 | 270
+  /** cover = phủ kín mặt, dùng cho mặt gối nằm ngang. */
+  fit?: 'contain' | 'cover'
 }
 
 export interface TuckEndLayoutData {
@@ -646,6 +649,14 @@ export interface TuckEndLayoutData {
     h: number
     kind: 'window' | 'handle' | 'neck' | 'magnet'
     shape?: 'rect' | 'ellipse'
+  }>
+  /** Lớp spot không phải lỗ thủng: film cửa sổ và vùng không keo. */
+  overlays?: Array<{
+    x: number
+    y: number
+    w: number
+    h: number
+    kind: 'window-film' | 'glue-free'
   }>
   fingerNotches?: Array<{
     cx: number
@@ -705,14 +716,16 @@ export function getCrossFoldLayoutData(
     : { ...normalizeTuckBoxProductionParams(undefined, H), compensationGapMm: 0 }
   const pad = 2
   const glueTabMm = Math.min(productionParams.glueTabMm, Math.max(8, Math.min(W, H) * 0.8))
+  const lidH = W + lidDepthExtraMm(productionParams.paperThicknessMm)
+  const tuck = Math.min(14, glueTabMm)
   const x = pad + glueTabMm + W
-  const topY = pad + glueTabMm
-  const frontY = topY + W
+  const topY = pad + tuck
+  const frontY = topY + lidH
   const bottomY = frontY + H
   const backY = bottomY + W
 
   const panels: TuckEndArtworkPanel[] = [
-    { x, y: topY, w: L, h: W, slot: 'top' },
+    { x, y: topY, w: L, h: lidH, slot: 'top' },
     { x, y: frontY, w: L, h: H, slot: 'front' },
     { x: x + L, y: frontY, w: W, h: H, slot: 'right' },
     { x, y: bottomY, w: L, h: W, slot: 'bottom' },
@@ -722,6 +735,7 @@ export function getCrossFoldLayoutData(
 
   const cutSegments: [number, number, number, number][] = []
   const foldSegments: [number, number, number, number][] = []
+  const glueRects: Array<{ x: number; y: number; w: number; h: number }> = []
   const cut = (x1: number, y1: number, x2: number, y2: number) =>
     cutSegments.push([x1, y1, x2, y2])
   const fold = (x1: number, y1: number, x2: number, y2: number) =>
@@ -740,26 +754,37 @@ export function getCrossFoldLayoutData(
     x2: number,
     y2: number,
     outwardX: number,
-    outwardY: number
+    outwardY: number,
+    depth = glueTabMm,
+    glueZone = true
   ) => {
     const edgeLength = Math.hypot(x2 - x1, y2 - y1)
     const tx = (x2 - x1) / edgeLength
     const ty = (y2 - y1) / edgeLength
-    const inset = Math.min(4, edgeLength * 0.12, glueTabMm * 0.3)
-    const ax = x1 + tx * inset + outwardX * glueTabMm
-    const ay = y1 + ty * inset + outwardY * glueTabMm
-    const bx = x2 - tx * inset + outwardX * glueTabMm
-    const by = y2 - ty * inset + outwardY * glueTabMm
+    const inset = Math.min(4, edgeLength * 0.12, depth * 0.3)
+    const ax = x1 + tx * inset + outwardX * depth
+    const ay = y1 + ty * inset + outwardY * depth
+    const bx = x2 - tx * inset + outwardX * depth
+    const by = y2 - ty * inset + outwardY * depth
     fold(x1, y1, x2, y2)
     cut(x1, y1, ax, ay)
     cut(ax, ay, bx, by)
     cut(bx, by, x2, y2)
+    if (!glueZone) return
+    const xs = [x1, x2, ax, bx]
+    const ys = [y1, y2, ay, by]
+    glueRects.push({
+      x: Math.min(...xs),
+      y: Math.min(...ys),
+      w: Math.max(...xs) - Math.min(...xs),
+      h: Math.max(...ys) - Math.min(...ys),
+    })
   }
 
-  // Nắp trên dán vào ba cạnh còn lại.
-  addTab(x, topY, x + L, topY, 0, -1)
-  addTab(x, topY, x, frontY, -1, 0)
-  addTab(x + L, topY, x + L, frontY, 1, 0)
+  // Lưỡi và hai tai nắp để trống keo để mở lại được. Đáy và mặt sau mới dán.
+  addTab(x, topY, x + L, topY, 0, -1, tuck, false)
+  addTab(x, topY, x, frontY, -1, 0, glueTabMm, false)
+  addTab(x + L, topY, x + L, frontY, 1, 0, glueTabMm, false)
   // Đáy đã nối trước/sau; hai tai bên dán vào mặt hông.
   addTab(x, bottomY, x, backY, -1, 0)
   addTab(x + L, bottomY, x + L, backY, 1, 0)
@@ -774,23 +799,60 @@ export function getCrossFoldLayoutData(
   cut(x + L + W, frontY, x + L + W, frontY + H)
   cut(x + L, frontY, x + L + W, frontY)
   cut(x + L, frontY + H, x + L + W, frontY + H)
-  cut(x, backY + H, x + L, backY + H)
+  if (productionParams.fingerNotch && L >= 18) {
+    const radius = Math.min(6, Math.max(4, L * 0.16))
+    const cx = x + L / 2
+    const cy = backY + H
+    const arc: Array<[number, number]> = []
+    const steps = 8
+    for (let i = 0; i <= steps; i += 1) {
+      const t = Math.PI + ((Math.PI * 2 - Math.PI) * i) / steps
+      arc.push([cx + radius * Math.cos(t), cy + radius * Math.sin(t)])
+    }
+    cut(x, cy, cx - radius, cy)
+    for (let i = 0; i < arc.length - 1; i += 1) {
+      cut(arc[i]![0], arc[i]![1], arc[i + 1]![0], arc[i + 1]![1])
+    }
+    cut(cx + radius, cy, x + L, cy)
+  } else {
+    cut(x, backY + H, x + L, backY + H)
+  }
 
-  const maxX = Math.max(x + L + W, x + L + glueTabMm)
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const seg of cutSegments) {
+    minX = Math.min(minX, seg[0], seg[2])
+    minY = Math.min(minY, seg[1], seg[3])
+    maxX = Math.max(maxX, seg[0], seg[2])
+    maxY = Math.max(maxY, seg[1], seg[3])
+  }
+  const dx = -minX
+  const dy = -minY
+  const move = (seg: [number, number, number, number]): [number, number, number, number] => [
+    seg[0] + dx,
+    seg[1] + dy,
+    seg[2] + dx,
+    seg[3] + dy,
+  ]
   const orientedPanels = panels.map((panel) => ({
     ...panel,
+    x: panel.x + dx,
+    y: panel.y + dy,
     rotation: dielineArtworkRotation('cross_fold', panel.slot),
   }))
   return {
     panels: orientedPanels,
-    cutSegments,
-    foldSegments,
+    cutSegments: cutSegments.map(move),
+    foldSegments: foldSegments.map(move),
     bounds: {
-      widthMm: maxX + pad,
-      heightMm: backY + H + pad,
+      widthMm: maxX - minX,
+      heightMm: maxY - minY,
     },
     glueTabMm,
-    tuckTabMm: 0,
+    tuckTabMm: tuck,
+    glueRects: glueRects.map((rect) => ({ ...rect, x: rect.x + dx, y: rect.y + dy })),
   }
 }
 

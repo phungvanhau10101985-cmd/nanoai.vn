@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { execSync, spawn } from 'node:child_process'
 import { copyFileSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,8 +20,9 @@ function readDevPort() {
 
 const devPort = readDevPort()
 
-// 1. Stop Thu-do dev only (does not kill 188-com-vn on 8001/3001 or ngrok :3001)
-console.log(`[restart-server] Stopping Thu-do dev on port ${devPort} (188-com-vn safe)...`)
+// 1. Close every listen port owned by this project (duplicate Next/ngrok included).
+// Does not kill 188-com-vn on 8001/3001 or ngrok forwarding those ports.
+console.log(`[restart-server] Closing project ports, then restarting ${devPort} and ngrok (188-com-vn safe)...`)
 try {
   execSync(
     `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${stopPs1}" -DevPort ${devPort} -ProjectRoot "${root}"`,
@@ -58,5 +59,22 @@ try {
   }
 } catch {}
 
-// 4. Start dev server
+function startNgrokWindow(port) {
+  if (process.platform !== 'win32') {
+    console.log('[restart-server] Skip ngrok window (Windows only)')
+    return
+  }
+  const starter = resolve(__dirname, 'start-project-ngrok.cmd')
+  const child = spawn('cmd.exe', ['/c', starter, String(port)], {
+    cwd: root,
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+  })
+  child.unref()
+  console.log(`[restart-server] Started ngrok https://amia-canelike-exhibitively.ngrok-free.dev -> :${port}`)
+}
+
+// 4. Start the project port and ngrok
+startNgrokWindow(devPort)
 execSync('npm run dev', { stdio: 'inherit', cwd: root })

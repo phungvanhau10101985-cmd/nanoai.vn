@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
-import type { GptImageQuality, ImageEngine } from '@/lib/ai/image-engine'
+import { parseGeminiImageQuality, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { runImageContent } from '@/lib/ai/gpt-image'
 import { buildTranslatePrompt } from '@/lib/document-translate-prompt'
 
@@ -18,7 +18,7 @@ export async function translateOneImage(
   imageMime: string,
   sourceLang: string,
   targetLang: string,
-  imageQuality: '2K' | '4K',
+  imageQuality: string,
   userId: string,
   sourceLang2?: string | null,
   options?: {
@@ -32,18 +32,18 @@ export async function translateOneImage(
 ): Promise<{ buffer: Buffer; error?: string; words?: WordWithBbox[]; lines?: string[] }> {
   const prefix = options?.logPrefix ?? '[Gemini]'
   const retryRound = options?.retryRound ?? 1
-  const engine: ImageEngine = options?.engine === 'gpt' ? 'gpt' : 'gemini'
+  const engine: ImageEngine = options?.engine === 'gpt' || options?.engine === 'flux' ? options.engine : 'gemini'
   const imageToSend = imageBuffer
   const inputSizeKb = Math.round(imageToSend.length / 1024)
   console.log(`${prefix} [Dịch ảnh] Bắt đầu | input: ${inputSizeKb}KB | ${sourceLang}${sourceLang2 ? '+' + sourceLang2 : ''}→${targetLang} | quality=${imageQuality} | engine=${engine} | lần=${retryRound}`)
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (engine !== 'gpt') {
+  if (engine === 'gemini') {
     model = genAI.getGenerativeModel({
       model: GEMINI_3_PRO_IMAGE.model,
       generationConfig: {
         responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { imageSize: imageQuality },
+        imageConfig: { imageSize: parseGeminiImageQuality(imageQuality) },
       },
     })
   }
@@ -67,6 +67,7 @@ export async function translateOneImage(
   const result = await runImageContent({
     engine,
     gptQuality: options?.gptQuality ?? null,
+    imageQuality,
     parts: translateParts,
     gemini: () => model!.generateContent(translateParts, { safetySettings }),
   })

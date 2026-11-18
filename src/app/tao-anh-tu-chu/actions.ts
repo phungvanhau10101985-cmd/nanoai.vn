@@ -137,7 +137,7 @@ export async function createImageFromText(formData: FormData) {
     PROMPT_TEXT_ONLY + (hasRef ? REFERENCE_HINT : '') + styleBlock + `\n\nUSER DESCRIPTION:\n${promptEn}`
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
     model = genAI.getGenerativeModel({
       model: GEMINI_3_PRO_IMAGE.model,
@@ -166,6 +166,7 @@ export async function createImageFromText(formData: FormData) {
     const genResult = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       aspectRatio,
       parts: contentParts,
       gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),

@@ -209,7 +209,7 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
-  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [geminiQuality, setGeminiQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const fileRef = useRef<HTMLInputElement>(null)
   const renderBannerEnginePicker = () => (

@@ -18,7 +18,7 @@ export async function translatePdfPageFromParts(input: {
   sourceLang: string
   targetLang: string
   sourceLang2?: string | null
-  imageQuality: '2K' | '4K'
+  imageQuality: string
   engine?: ImageEngine
   gptQuality?: GptImageQuality | null
   retryRound?: number

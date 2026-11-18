@@ -1,4 +1,5 @@
 import { CURRICULUM_ORIGINAL_BODY_SQL } from '@/app/tao-giao-trinh/lib/curriculum-original-body'
+import { curriculumBuyerSourceForStorage } from '@/lib/curriculum/curriculum-buyer-source'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
@@ -637,20 +638,33 @@ export async function fetchUserOpenedCurriculaRowsPg(
   }
 }
 
-/** Khớp upsert `user_opened_curricula` (cập nhật `opened_at` khi mở lại). */
+/** Khớp upsert `user_opened_curricula` (cập nhật `opened_at` khi mở lại). Nguồn chỉ ghi khi dòng còn trống. */
 export async function upsertUserOpenedCurriculumPg(
   userId: string,
   curriculumId: string,
-  openedAtIso: string
+  openedAtIso: string,
+  buyerSource?: { source: string; detail: string } | null,
 ): Promise<{ error?: string }> {
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set' }
+  const stored = curriculumBuyerSourceForStorage(buyerSource)
   try {
     await pgQuery(
-      `insert into public.user_opened_curricula (user_id, curriculum_id, opened_at)
-       values ($1::uuid, $2::uuid, $3::timestamptz)
+      `insert into public.user_opened_curricula (
+         user_id, curriculum_id, opened_at, opened_source, opened_source_detail
+       )
+       values ($1::uuid, $2::uuid, $3::timestamptz, $4, $5)
        on conflict (user_id, curriculum_id)
-       do update set opened_at = excluded.opened_at`,
-      [userId, curriculumId, openedAtIso]
+       do update set
+         opened_at = excluded.opened_at,
+         opened_source = case
+           when user_opened_curricula.opened_source = '' then excluded.opened_source
+           else user_opened_curricula.opened_source
+         end,
+         opened_source_detail = case
+           when user_opened_curricula.opened_source = '' then excluded.opened_source_detail
+           else user_opened_curricula.opened_source_detail
+         end`,
+      [userId, curriculumId, openedAtIso, stored.source, stored.detail]
     )
     return {}
   } catch (e) {
@@ -1025,6 +1039,8 @@ export type InsertWorksheetCurriculumPgInput = {
   goals: string | null
   contentMarkdown: string
   lessonTopics: string[] | null
+  createdSource?: string | null
+  createdSourceDetail?: string | null
 }
 
 export async function insertWorksheetCurriculumPg(
@@ -1032,15 +1048,22 @@ export async function insertWorksheetCurriculumPg(
 ): Promise<{ id: string } | { error: string }> {
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set' }
   try {
+    const storedSource = curriculumBuyerSourceForStorage(
+      input.createdSource
+        ? { source: input.createdSource, detail: String(input.createdSourceDetail ?? '') }
+        : null,
+    )
     const row = await pgQueryOne<{ id: string }>(
       `insert into public.worksheet_curricula (
          user_id, topic, subject_id, grade_level_id, textbook_set_id,
          textbook_volume, textbook_isbn, lesson_number, lesson_type_id,
-         num_lessons, lesson_duration_minutes, goals, content_markdown, lesson_topics
+         num_lessons, lesson_duration_minutes, goals, content_markdown, lesson_topics,
+         created_source, created_source_detail
        ) values (
          $1::uuid, $2, $3, $4, $5,
          $6, $7, $8::numeric, $9,
-         $10, $11, $12, $13, $14::text[]
+         $10, $11, $12, $13, $14::text[],
+         $15, $16
        )
        returning id::text as id`,
       [
@@ -1058,6 +1081,8 @@ export async function insertWorksheetCurriculumPg(
         input.goals,
         input.contentMarkdown,
         input.lessonTopics,
+        storedSource.source,
+        storedSource.detail,
       ]
     )
     if (!row?.id) return { error: 'Insert không trả id.' }

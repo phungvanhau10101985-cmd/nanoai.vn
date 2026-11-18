@@ -124,10 +124,8 @@ import {
 import { composeWeddingSampleCopyWithDeepseek } from '@/lib/wedding/wedding-sample-compose-deepseek'
 import { capitalizeInvitationPersonName } from '@/lib/wedding/capitalize-person-name'
 import {
-  chooseWeddingCreateTouch,
-  resolveWeddingCreateSource,
+  resolveRecordedCreateSource,
   type WeddingCreateSourcePayload,
-  type WeddingCreateTouch,
 } from '@/lib/wedding/wedding-create-source'
 import {
   WEDDING_SAMPLE_COMPOSE_CREDIT,
@@ -1133,28 +1131,7 @@ export async function createNewWeddingCard(
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
-  const now = Date.now()
-  const clientTouch: WeddingCreateTouch | null = createSource
-    ? {
-        search: String(createSource.search ?? ''),
-        referrer: String(createSource.referrer ?? ''),
-        pageHost: String(createSource.pageHost ?? ''),
-        at: now - 1,
-      }
-    : null
-  let pageTouch: WeddingCreateTouch = { search: '', referrer: '', pageHost: '', at: now }
-  try {
-    const referer = (await headers()).get('referer') || ''
-    const url = new URL(referer)
-    pageTouch = { search: url.search, referrer: '', pageHost: url.hostname, at: now }
-  } catch {
-    pageTouch = { search: '', referrer: '', pageHost: '', at: now }
-  }
-  const chosen = chooseWeddingCreateTouch(clientTouch, pageTouch, now)
-  const recorded =
-    createSource || pageTouch.search
-      ? resolveWeddingCreateSource(chosen.search, chosen.referrer, chosen.pageHost)
-      : null
+  const recorded = resolveRecordedCreateSource(createSource, (await headers()).get('referer'))
   const draft = await createWeddingCardDraft(ownerUserId, 'luxury', occasionKey, recorded)
   let seeded = draft
   const groomName = capitalizeInvitationPersonName(clipOpening(opening?.groomName, 300))
@@ -1418,7 +1395,7 @@ export async function generateWeddingCardImage(formData: FormData) {
 
   const priced = imageChargeFromForm(formData, COST)
   if (priced.error) return { error: priced.error }
-  if (priced.engine !== 'gpt') {
+  if (priced.engine === 'gemini') {
     return { error: 'Nền thiệp chỉ tạo bằng NanoAI 2M hoặc NanoAI 2H.' }
   }
   if (priced.gptQuality === 'low') {
@@ -1475,6 +1452,7 @@ export async function generateWeddingCardImage(formData: FormData) {
     const genResult = await runImageContent<GeminiShaped>({
       engine: 'gpt',
       gptQuality: priced.gptQuality,
+      imageQuality: priced.geminiQuality,
       aspectRatio: WEDDING_BACKGROUND_ASPECT_RATIO,
       gptSize: WEDDING_GPT_BACKGROUND_SIZE,
       parts,
@@ -1575,7 +1553,7 @@ export async function generateWeddingCoverFrame(formData: FormData) {
   let charged = false
   try {
     let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-    if (priced.engine !== 'gpt') {
+    if (priced.engine === 'gemini') {
       const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(userId)).apiKey)
       model = genAI.getGenerativeModel({
         model: GEMINI_3_PRO_IMAGE.model,
@@ -1602,6 +1580,7 @@ export async function generateWeddingCoverFrame(formData: FormData) {
     const genResult = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
+      imageQuality: priced.geminiQuality,
       aspectRatio: '3:4',
       parts,
       gemini: () => model!.generateContent(parts as never, { safetySettings } as never),

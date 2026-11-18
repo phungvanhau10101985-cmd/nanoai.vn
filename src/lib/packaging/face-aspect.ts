@@ -1,4 +1,5 @@
-import { NANOAI_GEMINI_ASPECT_MODELS, NANOAI_GPT_ASPECT_MODELS } from '@/lib/ai/nanoai-image-names'
+import { FLUX_IMAGE_NAME, NANOAI_GEMINI_ASPECT_MODELS, NANOAI_GPT_ASPECT_MODELS } from '@/lib/ai/nanoai-image-names'
+import { boxFaceImageRoute, boxSizeStandardChoices, type BoxSizeSnapDirection } from '@/lib/packaging/box-face-engine'
 import type { WebLocale } from '@/lib/i18n/config'
 import { closestGeminiImageAspectRatio } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import {
@@ -138,12 +139,31 @@ function formatBoxDims(box: BoxDimensionsMm, locale: WebLocale): string {
   return `L ${l} × W ${w} × H ${h}`
 }
 
+const FLUX_FACE_LABEL = `${FLUX_IMAGE_NAME['1.5K']} / ${FLUX_IMAGE_NAME['2K']} / ${FLUX_IMAGE_NAME['4K']}`
+
+const FLUX_FACE_NOTE: Record<WebLocale, string> = {
+  vi: 'đúng khổ mặt',
+  en: 'true face ratio',
+  zh: '按真实面比例',
+  ja: '面の実比率',
+  ko: '면의 실제 비율',
+}
+
 function faceLine(locale: WebLocale, info: PackagingFaceAspectInfo): string {
   const role = FACE_ROLE[info.key][locale].name
   const orient = ORIENTATION_LABEL[info.orientation][locale]
   const w = formatMm(info.widthMm, locale)
   const h = formatMm(info.heightMm, locale)
-  return `• **${role}**: ${w} × ${h} — ${orient}, ${NANOAI_GEMINI_ASPECT_MODELS} **${info.geminiAspectRatio}**, ${NANOAI_GPT_ASPECT_MODELS} **${info.gptAspectRatio}**`
+  const route = boxFaceImageRoute(info.widthMm, info.heightMm)
+  const models = route.preferred === 'flux'
+    ? `${FLUX_FACE_LABEL} ${FLUX_FACE_NOTE[locale]}`
+    : [
+        route.geminiOk ? `${NANOAI_GEMINI_ASPECT_MODELS} **${route.geminiAspect}**` : '',
+        route.gptOk ? `${NANOAI_GPT_ASPECT_MODELS} **${route.gptAspect}**` : '',
+      ]
+        .filter(Boolean)
+        .join(', ')
+  return `• **${role}**: ${w} × ${h} — ${orient}, ${models}`
 }
 
 const CONFIRM_ACK =
@@ -156,39 +176,98 @@ export function isBoxFaceConfirmAck(message: string): boolean {
   return /^(ok|đúng|xác nhận|confirm|好的|确认|はい|네)\b/i.test(trimmed) && trimmed.length <= 24
 }
 
+function formatChoiceCm(mm: number, locale: WebLocale): string {
+  let text = (Math.round(mm * 100) / 1000).toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
+  if (locale === 'vi') text = text.replace('.', ',')
+  return `${text} cm`
+}
+
+function formatChoiceBox(box: BoxDimensionsMm, locale: WebLocale): string {
+  const length = formatChoiceCm(box.length, locale)
+  const width = formatChoiceCm(box.width, locale)
+  const height = formatChoiceCm(box.height, locale)
+  if (locale === 'zh') return `长 ${length} × 宽 ${width} × 高 ${height}`
+  if (locale === 'ja') return `長さ ${length} × 幅 ${width} × 高さ ${height}`
+  if (locale === 'ko') return `길이 ${length} × 너비 ${width} × 높이 ${height}`
+  if (locale === 'en') return `L ${length} × W ${width} × H ${height}`
+  return `Dài ${length} × Rộng ${width} × Cao ${height}`
+}
+
+const CHOICE_NAME: Record<BoxSizeSnapDirection, Record<WebLocale, string>> = {
+  larger: {
+    vi: 'Tỷ lệ lớn hơn',
+    en: 'Larger ratio',
+    zh: '较大比例',
+    ja: '大きい比率',
+    ko: '큰 비율',
+  },
+  smaller: {
+    vi: 'Tỷ lệ nhỏ hơn',
+    en: 'Smaller ratio',
+    zh: '较小比例',
+    ja: '小さい比率',
+    ko: '작은 비율',
+  },
+}
+
+export function boxSizeChoiceLabels(
+  locale: WebLocale,
+  dimensionsMm: BoxDimensionsMm
+): Array<{ direction: BoxSizeSnapDirection; label: string }> {
+  const choices = boxSizeStandardChoices(dimensionsMm)
+  return (['larger', 'smaller'] as const).flatMap((direction) => {
+    const choice = choices[direction]
+    if (!choice) return []
+    return [
+      {
+        direction,
+        label: `${CHOICE_NAME[direction][locale]} ${choice.aspects.join(' · ')} — ${formatChoiceBox(choice.dimensions, locale)}`,
+      },
+    ]
+  })
+}
+
 export function buildBoxFaceConfirmSummary(locale: WebLocale, dimensionsMm: BoxDimensionsMm): string {
   const plan = buildPackagingFaceAspectPlan(dimensionsMm)
   const lines = (['LxW', 'LxH', 'WxH'] as PackagingFaceKey[]).map((k) => faceLine(locale, plan[k]))
+  const choiceLabels = boxSizeChoiceLabels(locale, dimensionsMm)
 
   const headers: Record<WebLocale, { title: string; footer: string }> = {
     vi: {
-      title: `Đã ghi nhận hộp: **${formatBoxDims(dimensionsMm, locale)}**.\n\nXác nhận kích thước từng mặt — mỗi mặt chọn **tỷ lệ gần nhất mà model trả về được**:`,
-      footer:
-        '\n\nTrả lời **OK** nếu đúng, hoặc nhập lại kích thước Dài × Rộng × Cao nếu thứ tự các chiều khác.',
+      title: `Đã ghi nhận hộp: **${formatBoxDims(dimensionsMm, locale)}**.\n\nXác nhận kích thước từng mặt. Tỷ lệ gần chuẩn thì chốt về tỷ lệ model để phủ kín. Tỷ lệ lệch thì giữ đúng khổ:`,
+      footer: choiceLabels.length
+        ? '\n\nChọn một tỷ lệ bên dưới. Hoặc nhập lại Dài × Rộng × Cao nếu thứ tự các chiều khác.'
+        : '\n\nTrả lời **OK** nếu đúng, hoặc nhập lại kích thước Dài × Rộng × Cao nếu thứ tự các chiều khác.',
     },
     en: {
-      title: `Box recorded: **${formatBoxDims(dimensionsMm, locale)}**.\n\nConfirm each face — each face uses the **closest ratio that model can return**:`,
-      footer:
-        '\n\nReply **OK** if correct, or re-enter Length × Width × Height if your dimension order differs.',
+      title: `Box recorded: **${formatBoxDims(dimensionsMm, locale)}**.\n\nConfirm each face. A close ratio snaps to that model so the art covers the face. A distant ratio keeps the true size:`,
+      footer: choiceLabels.length
+        ? '\n\nPick one ratio below, or re-enter Length × Width × Height if your dimension order differs.'
+        : '\n\nReply **OK** if correct, or re-enter Length × Width × Height if your dimension order differs.',
     },
     zh: {
-      title: `已记录盒子：**${formatBoxDims(dimensionsMm, locale)}**。\n\n请确认各面尺寸 — 每面使用模型**能够返回的最接近比例**：`,
-      footer: '\n\n若正确请回复 **OK**，若长宽高的对应关系不同请重新输入尺寸。',
+      title: `已记录盒子：**${formatBoxDims(dimensionsMm, locale)}**。\n\n请确认各面尺寸。比例接近标准时改用模型比例并铺满该面。比例差太远时保持真实尺寸：`,
+      footer: choiceLabels.length
+        ? '\n\n请选择下方的一个比例。若长宽高的对应关系不同，请重新输入尺寸。'
+        : '\n\n若正确请回复 **OK**，若长宽高的对应关系不同请重新输入尺寸。',
     },
     ja: {
-      title: `箱サイズを記録しました：**${formatBoxDims(dimensionsMm, locale)}**。\n\n各面を確認 — 各面はモデルが**返せる最も近い比率**を使用：`,
-      footer:
-        '\n\n正しければ **OK**、寸法の対応が違う場合は 長さ×幅×高さ を再入力してください。',
+      title: `箱サイズを記録しました：**${formatBoxDims(dimensionsMm, locale)}**。\n\n各面を確認。近い比率はそのモデルの比率に合わせて面を埋め、遠い比率は実寸のまま：`,
+      footer: choiceLabels.length
+        ? '\n\n下のいずれかの比率を選んでください。寸法の対応が違う場合は再入力してください。'
+        : '\n\n正しければ **OK**、寸法の対応が違う場合は 長さ×幅×高さ を再入力してください。',
     },
     ko: {
-      title: `상자 크기 기록: **${formatBoxDims(dimensionsMm, locale)}**.\n\n각 면 확인 — 각 면은 모델이 **반환할 수 있는 가장 가까운 비율** 사용:`,
-      footer:
-        '\n\n맞으면 **OK**, 치수 순서가 다르면 길이 × 너비 × 높이를 다시 입력하세요.',
+      title: `상자 크기 기록: **${formatBoxDims(dimensionsMm, locale)}**.\n\n각 면을 확인하세요. 비율이 가까우면 그 모델 비율로 맞추어 면을 채우고, 멀면 실제 크기를 유지합니다:`,
+      footer: choiceLabels.length
+        ? '\n\n아래 비율 중 하나를 고르세요. 치수 순서가 다르면 다시 입력하세요.'
+        : '\n\n맞으면 **OK**, 치수 순서가 다르면 길이 × 너비 × 높이를 다시 입력하세요.',
     },
   }
 
   const h = headers[locale]
-  return `${h.title}\n\n${lines.join('\n')}${h.footer}`
+  const choiceBlock = choiceLabels.length ? `\n\n${choiceLabels.map((item) => `• ${item.label}`).join('\n')}` : ''
+  return `${h.title}\n\n${lines.join('\n')}${choiceBlock}${h.footer}`
 }
 
 export function buildBoxFaceConfirmStudioPayload(

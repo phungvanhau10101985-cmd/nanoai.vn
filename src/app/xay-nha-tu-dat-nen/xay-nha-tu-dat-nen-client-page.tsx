@@ -304,9 +304,10 @@ function StepWizard({
 }) {
   const { steps, current_step, house_info } = project
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
-  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [geminiQuality, setGeminiQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const imageCost = imageEngineCredit({
+      imageQuality: geminiQuality,
     engine: imageEngine,
     gptQuality,
     geminiCost: geminiQualityCredit(4, geminiQuality),
@@ -428,10 +429,10 @@ function Step1Form({
   checkCreditsAndProceed: (cost: number, fn: () => Promise<void>) => void
   cost: number
   imageEngine: ImageEngine
-  geminiQuality: '2K' | '4K'
+  geminiQuality: '1.5K' | '2K' | '4K'
   gptQuality: GptImageQuality
   onImageEngineChange: (engine: ImageEngine) => void
-  onGeminiQualityChange: (quality: '2K' | '4K') => void
+  onGeminiQualityChange: (quality: '1.5K' | '2K' | '4K') => void
   onGptQualityChange: (quality: GptImageQuality) => void
 }) {
   const houseLength = houseInfo?.houseLength ?? houseInfo?.houseFacadeWidth ?? ''

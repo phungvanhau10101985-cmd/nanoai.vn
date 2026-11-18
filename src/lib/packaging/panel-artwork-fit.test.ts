@@ -3,6 +3,7 @@ import test from 'node:test'
 import sharp from 'sharp'
 import {
   extendPanelArtworkBleed,
+  coverPanelArtworkToTrim,
   fitPanelArtworkToTrim,
   mmToPrintPx,
   preparePanelArtworkForDieline,
@@ -53,6 +54,18 @@ test('fitPanelArtworkToTrim keeps a horizontal bar height when the target is squ
     if (data[i] > 200) whiteRows += 1
   }
   assert.ok(whiteRows >= 28 && whiteRows <= 34, `expected ~30px bar, got ${whiteRows}`)
+})
+
+test('coverPanelArtworkToTrim fills the face and crops the overflow', async () => {
+  const source = await sharp({
+    create: { width: 400, height: 200, channels: 3, background: { r: 20, g: 40, b: 60 } },
+  })
+    .png()
+    .toBuffer()
+  const covered = await coverPanelArtworkToTrim(source, 25.4, 25.4)
+  const metadata = await sharp(covered).metadata()
+  assert.equal(metadata.width, mmToPrintPx(25.4))
+  assert.equal(metadata.height, mmToPrintPx(25.4))
 })
 
 test('extendPanelArtworkBleed adds bleed pixels on all sides', async () => {

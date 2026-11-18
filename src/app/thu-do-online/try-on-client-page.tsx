@@ -25,7 +25,7 @@ import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
 import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
-import { publicGeminiImageName, publicGptImageName } from '@/lib/ai/nanoai-image-names'
+import { publicImageEngineName } from '@/lib/ai/nanoai-image-names'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GarmentUploader } from './garment-uploader'
 import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
@@ -42,10 +42,10 @@ type Gender = 'male' | 'female' | 'unknown'
 
 function tryOnModelLabel(
   engine: ImageEngine,
-  geminiQuality: '2K' | '4K',
+  geminiQuality: '1.5K' | '2K' | '4K',
   gptQuality: GptImageQuality,
 ): string {
-  return engine === 'gpt' ? publicGptImageName(gptQuality) : publicGeminiImageName(geminiQuality)
+  return publicImageEngineName(engine, geminiQuality, gptQuality)
 }
 
 type TryOnMode = 'single' | 'couple' | 'group' | 'group4' | 'group5'
@@ -85,7 +85,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
 
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [customPrompt, setCustomPrompt] = useState<string>('')
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageQuality, setImageQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const { toast } = useToast()
@@ -186,6 +186,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     };
     const baseCost = costMap[tryOnMode];
     const cost = imageEngineCredit({
+      imageQuality: imageQuality,
       engine: imageEngine,
       gptQuality,
       geminiCost: imageQuality === '4K' ? baseCost * 2.2 : baseCost,

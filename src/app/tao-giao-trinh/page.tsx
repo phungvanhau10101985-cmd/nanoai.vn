@@ -1,6 +1,10 @@
+import { headers } from 'next/headers'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { CurriculumLanding } from '@/components/curriculum/curriculum-landing'
+import { CurriculumMobileLeadLanding } from '@/components/curriculum/curriculum-mobile-lead-landing'
+import { isCurriculumPhoneLeadUserAgent } from '@/lib/curriculum/curriculum-phone-lead-ua'
+import { CURRICULUM_DAILY_FREE_BODIES } from '@/lib/curriculum-ai-charge-policy'
 import TaoGiaoTrinhClientPage from './tao-giao-trinh-client-page'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
@@ -49,13 +53,23 @@ export default async function TaoGiaoTrinhPage() {
   }
   if (!isCatalogShopper(sessionUser)) {
     const loginHref = `/auth/login?next=${encodeURIComponent(seo.path)}`
+    const phoneLead = isCurriculumPhoneLeadUserAgent(headers().get('user-agent'))
     return (
-      <div className="app-shell">
+      <div className={phoneLead ? undefined : 'app-shell'}>
         <JsonLd data={jsonLd} />
         <JsonLd data={faqJsonLd} />
         <JsonLd data={productJsonLd} />
-        <CurriculumLanding copy={t.curriculumLanding} loginHref={loginHref} />
-        <div className="h-16 lg:hidden" aria-hidden />
+        {phoneLead ? (
+          <CurriculumMobileLeadLanding
+            copy={t.curriculumMobileLead}
+            locale={locale}
+            freeBodies={CURRICULUM_DAILY_FREE_BODIES}
+            creditVnd={new Intl.NumberFormat('vi-VN').format(CREDIT_UNIT_PRICE_VND)}
+          />
+        ) : (
+          <CurriculumLanding copy={t.curriculumLanding} loginHref={loginHref} />
+        )}
+        {phoneLead ? null : <div className="h-16 lg:hidden" aria-hidden />}
       </div>
     )
   }

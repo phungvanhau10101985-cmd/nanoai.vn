@@ -5,16 +5,19 @@ import type { TuckEndArtworkPanel, TuckEndLayoutData } from '@/lib/packaging/box
 export type PanelRotation = 0 | 90 | 180 | 270
 
 /**
- * Góc xoay hình trên dieline để sau khi gấp mặt đọc đúng.
- * 180° nghĩa là nắp (hoặc mặt sau chữ thập) phải xoay trên file in.
+ * Góc xoay hình trên file in.
+ * 180° lật đúng với mặt nằm dưới bản lề.
+ * 90° và 270° là góc ngược lại với góc gấp, để thành bên nằm ngang trên tờ
+ * mà chữ vẫn đứng khi dựng, và mockup cộng hai góc ra 0.
  */
 export function dielineArtworkRotation(
   structure: BoxDielineStructure,
   slot: BoxFaceSlot
 ): PanelRotation {
   const turn = foldTurnDegrees(structure, slot)
-  if (turn === 90 || turn === 180 || turn === 270) return turn
-  return 0
+  if (turn === 90) return 270
+  if (turn === 270) return 90
+  return turn === 180 ? 180 : 0
 }
 
 /**
@@ -24,29 +27,26 @@ export function dielineArtworkRotation(
 export function foldTurnDegrees(structure: BoxDielineStructure, slot: BoxFaceSlot): PanelRotation {
   const key = `${structure}:${slot}`
   const table: Record<string, PanelRotation> = {
-    'reverse_tuck:top': 180,
     'reverse_tuck:bottom': 180,
-    'straight_tuck:top': 180,
-    'straight_tuck:bottom': 0,
-    'cross_fold:top': 180,
+    'straight_tuck:bottom': 180,
     'cross_fold:back': 180,
-    'cross_fold:bottom': 0,
-    'crash_lock:top': 180,
-    'snap_lock:top': 180,
-    'window:top': 180,
+    'cross_fold:bottom': 180,
     'window:bottom': 180,
-    'handle:top': 180,
     'handle:bottom': 180,
-    'bottle:top': 180,
     'bottle:bottom': 180,
-    'hexagon:top': 180,
     'hexagon:bottom': 180,
-    'octagon:top': 180,
     'octagon:bottom': 180,
-    'telescope:top': 180,
-    'magnetic:top': 180,
-    'magnetic:bottom': 180,
-    'pillow:back': 180,
+    'tray:front': 180,
+    'tray:left': 90,
+    'tray:right': 270,
+    'telescope:front': 180,
+    'telescope:left': 90,
+    'telescope:right': 270,
+    'magnetic:front': 180,
+    'magnetic:left': 90,
+    'magnetic:right': 270,
+    'pillow:front': 270,
+    'pillow:back': 90,
   }
   return table[key] ?? 0
 }
@@ -72,14 +72,14 @@ export function measuredFoldTurn(
     near(panel.y, front.y + front.h) &&
     near(panel.x, front.x)
   ) {
-    return 180
+    return 90
   }
-  if (slot === 'top' && front && near(panel.y + panel.h, front.y) && near(panel.x, front.x)) return 180
-  if (slot === 'top' && back && near(panel.y + panel.h, back.y) && near(panel.x, back.x)) return 180
-  if (slot === 'bottom' && structure === 'tray') return 0
+  if (slot === 'top' && front && near(panel.y + panel.h, front.y) && near(panel.x, front.x)) return 0
+  if (slot === 'top' && back && near(panel.y + panel.h, back.y) && near(panel.x, back.x)) return 0
+  if (slot === 'front' && (structure === 'tray' || structure === 'telescope' || structure === 'magnetic')) return 180
+  if (slot === 'bottom' && (structure === 'tray' || structure === 'telescope' || structure === 'magnetic')) return 0
   if (slot === 'bottom' && back && near(panel.y, back.y + back.h) && near(panel.x, back.x)) return 180
-  if (slot === 'bottom' && front && near(panel.y, front.y + front.h) && near(panel.x, front.x)) return 0
-  if (slot === 'bottom' && structure === 'cross_fold' && front && near(panel.y, front.y + front.h)) return 0
+  if (slot === 'bottom' && front && near(panel.y, front.y + front.h) && near(panel.x, front.x)) return 180
   return null
 }
 

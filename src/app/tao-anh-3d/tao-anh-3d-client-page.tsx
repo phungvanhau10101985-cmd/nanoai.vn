@@ -46,7 +46,7 @@ export default function TaoAnh3DClientPage() {
   const [step, setStep] = useState<Step>('UPLOAD')
   const [productImage, setProductImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [logoImage, setLogoImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageQuality, setImageQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [note, setNote] = useState('')
@@ -58,9 +58,10 @@ export default function TaoAnh3DClientPage() {
   const { checkCreditsAndProceed } = useCredits()
   const productInputRef = useRef<HTMLInputElement>(null)
   const cost = imageEngineCredit({
+      imageQuality: imageQuality,
     engine: imageEngine,
     gptQuality,
-    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+    geminiCost: imageQuality === '4K' ? 3 : 1.5,
   })
   const logoInputRef = useRef<HTMLInputElement>(null)
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {

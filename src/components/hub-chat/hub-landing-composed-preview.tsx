@@ -71,6 +71,9 @@ export function HubLandingComposedPreview({
   onRemoveLogo,
   onGenerateLogo,
   modelPicker,
+  optimizeLabel,
+  optimizeTitle,
+  onOptimizeLogo,
 }: {
   locale: WebLocale
   title: string
@@ -85,6 +88,9 @@ export function HubLandingComposedPreview({
   onRemoveLogo?: () => void | Promise<void>
   onGenerateLogo?: (brief: string, stripBackground?: boolean) => void | Promise<void>
   modelPicker?: ReactNode
+  optimizeLabel?: string
+  optimizeTitle?: string
+  onOptimizeLogo?: () => void
 }) {
   const t = COPY[locale]
   const section = sections[0]
@@ -133,6 +139,9 @@ export function HubLandingComposedPreview({
           onRemoveLogo={onRemoveLogo}
           onGenerateLogo={onGenerateLogo}
           modelPicker={modelPicker}
+          optimizeLabel={optimizeLabel}
+          optimizeTitle={optimizeTitle}
+          onOptimizeBrief={onOptimizeLogo}
         />
       ) : null}
 

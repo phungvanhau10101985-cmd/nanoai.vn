@@ -87,7 +87,7 @@ export async function mergeImages(formData: FormData) {
   const historyItem = { id: inserted.id }
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     const { apiKey } = await requireGoogleApiKeyForUser(user.id)
     const genAI = new GoogleGenerativeAI(apiKey)
     model = genAI.getGenerativeModel({
@@ -117,6 +117,7 @@ export async function mergeImages(formData: FormData) {
     const result = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       parts: imageParts,
       gemini: () => model!.generateContent(imageParts, { safetySettings } as never),
     })

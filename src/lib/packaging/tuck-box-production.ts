@@ -11,7 +11,7 @@ export type TuckBoxProductionParams = {
   paperThicknessMm: number
   compensationGapMm: number
   paperStock: PaperStockId
-  /** Khoét ngón tay trên lưỡi gài. */
+  /** Khoét ngón tay trên mép mặt nhận lưỡi. */
   fingerNotch: boolean
   /** Khe khóa, bo góc lưỡi gài, vai khóa trên tai bụi. */
   lockDetails: boolean
@@ -21,6 +21,8 @@ export type TuckBoxProductionParams = {
   insertRows: number
   /** 0 = tự chia theo lòng hộp. */
   jarDiameterMm: number
+  /** 0 = lỗ cổ chai tạm. Dùng cho hộp đựng chai. */
+  neckDiameterMm: number
 }
 
 const NUMERIC_KEYS = [
@@ -32,6 +34,7 @@ const NUMERIC_KEYS = [
   'insertCols',
   'insertRows',
   'jarDiameterMm',
+  'neckDiameterMm',
 ] as const
 
 type NumericProductionKey = (typeof NUMERIC_KEYS)[number]
@@ -45,6 +48,7 @@ export const TUCK_BOX_PRODUCTION_RANGES: Record<NumericProductionKey, { min: num
   insertCols: { min: 1, max: 6 },
   insertRows: { min: 1, max: 6 },
   jarDiameterMm: { min: 0, max: 120 },
+  neckDiameterMm: { min: 0, max: 80 },
 }
 
 export function defaultTuckBoxProductionParams(heightMm: number): TuckBoxProductionParams {
@@ -60,6 +64,7 @@ export function defaultTuckBoxProductionParams(heightMm: number): TuckBoxProduct
     insertCols: 2,
     insertRows: 3,
     jarDiameterMm: 0,
+    neckDiameterMm: 0,
   }
 }
 

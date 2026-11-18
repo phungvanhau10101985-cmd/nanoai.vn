@@ -31,6 +31,7 @@ type MetaStandardEventName =
   | 'InitiateCheckout'
   | 'AddPaymentInfo'
   | 'Purchase'
+  | 'Lead'
 
 type CustomScalar = string | number | boolean
 type CustomValue = CustomScalar | CustomScalar[] | Array<Record<string, CustomScalar>>
@@ -119,6 +120,7 @@ export async function POST(request: NextRequest) {
     'InitiateCheckout',
     'AddPaymentInfo',
     'Purchase',
+    'Lead',
   ]
   if (!allowedEvents.includes(eventNameRaw as MetaStandardEventName)) {
     return NextResponse.json({ ok: false, error: 'invalid_event_name' }, { status: 400 })

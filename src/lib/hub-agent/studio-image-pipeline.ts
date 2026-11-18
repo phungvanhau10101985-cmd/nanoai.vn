@@ -13,9 +13,11 @@ import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { normalizeBannerAspectRatioForGemini } from '@/lib/banner-ad-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { geminiQualityCredit, imageChargeFromForm } from '@/lib/ai/image-engine'
+import { fluxPixelsForPrintMm } from '@/lib/ai/flux-image-size'
 import { runImageContent } from '@/lib/ai/gpt-image'
 import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
-import { closestGptFaceAspectRatio, getFaceGeminiAspectRatio } from '@/lib/packaging/face-aspect'
+import { boxFaceImageRoute, coerceBoxFaceEngine } from '@/lib/packaging/box-face-engine'
+import { coverPanelArtworkToTrim } from '@/lib/packaging/panel-artwork-fit'
 import { stripPackagingFaceTechnicalMeasurementsFromVisualPrompt } from '@/lib/packaging/face-print-prompt'
 import {
   chargedCreditsForLogoCreate,
@@ -325,11 +327,20 @@ export async function runStudioImagePipeline(input: {
     input.kind === 'logo' ? UI_MOCKUP_CREDIT : productStudioGeminiImageCredit(input.imageModel),
     input.imageSize === '4K' ? '4K' : '2K',
   )
+  const faceMm = input.kind === 'packaging_face' ? input.printSizeMm : undefined
+  const faceRoute = faceMm ? boxFaceImageRoute(faceMm.widthMm, faceMm.heightMm) : null
+  const faceEngine = faceRoute ? coerceBoxFaceEngine(input.imageEngine, faceRoute) : input.imageEngine
   const priced = imageChargeFromForm(
     {
       get: (name) => {
-        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'imageEngine') return faceEngine ?? null
         if (name === 'gptQuality') return input.gptQuality ?? null
+        if (name === 'imageQuality') {
+          const value = String(input.imageSize ?? '').trim().toUpperCase().replace(',', '.')
+          if (value === '4K') return '4K'
+          if (value === '1.5K') return '1.5K'
+          return '2K'
+        }
         return null
       },
     },
@@ -348,7 +359,7 @@ export async function runStudioImagePipeline(input: {
   const bunnyReady = await ensureBunnyWritableBeforeImageModel()
   if (!bunnyReady.ok) return { ok: false, error: bunnyReady.error }
 
-  const needGemini = priced.engine !== 'gpt'
+  const needGemini = priced.engine === 'gemini'
   const needStripKey = input.kind === 'logo' && stripLogoBackground
   let apiKey = ''
   if (needGemini || needStripKey) {
@@ -447,20 +458,27 @@ export async function runStudioImagePipeline(input: {
     let lastError = 'AI không trả về ảnh.'
     const modelId = (input.imageModel || GEMINI_3_PRO_IMAGE.model).trim() || GEMINI_3_PRO_IMAGE.model
     const omitImageSize = input.imageSize === null
-    const faceMm = input.kind === 'packaging_face' ? input.printSizeMm : undefined
-    const ratios = faceMm
-      ? [
-          priced.engine === 'gpt'
-            ? closestGptFaceAspectRatio(faceMm.widthMm, faceMm.heightMm)
-            : getFaceGeminiAspectRatio(faceMm.widthMm, faceMm.heightMm),
-        ]
-      : priced.engine === 'gpt'
-        ? aspectRatioAttempts.slice(0, 1)
-        : aspectRatioAttempts
-    if (faceMm && ratios[0]) {
+    const fluxQuality = priced.fluxQuality ?? '2K'
+    const fluxSize =
+      priced.engine === 'flux' && faceMm
+        ? fluxPixelsForPrintMm(faceMm.widthMm, faceMm.heightMm, {
+            quality: fluxQuality,
+            hasImages: refUrls.length + productUrls.length > 0,
+          })
+        : null
+    const ratios = fluxSize
+      ? ['1:1']
+      : faceMm && faceRoute
+        ? [priced.engine === 'gpt' ? faceRoute.gptAspect : faceRoute.geminiAspect]
+        : priced.engine === 'gpt' || priced.engine === 'flux'
+          ? aspectRatioAttempts.slice(0, 1)
+          : aspectRatioAttempts
+    if (faceMm && (fluxSize || ratios[0])) {
       const lead = parts[0] as { text?: string }
       if (lead && typeof lead.text === 'string') {
-        lead.text += `\n\nCANVAS RATIO: the image canvas is exactly ${ratios[0]}. Cover every pixel of that canvas. Scale the product and background until they touch all four edges. Do not draw a smaller rectangle, card, mat, or thick solid frame inside it. Do not letterbox. Do not print the ratio or any measurements.`
+        lead.text += fluxSize
+          ? `\n\nCANVAS SIZE: the image is exactly ${fluxSize.width}×${fluxSize.height} pixels, the true face ratio. Cover every pixel. Full bleed, no border, no frame. Quoted print copy must appear exactly, with correct Vietnamese diacritics when the copy is Vietnamese. Do not letterbox. Do not print measurements.`
+          : `\n\nCANVAS RATIO: the image canvas is exactly ${ratios[0]}. Cover every pixel of that canvas. Scale the product and background until they touch all four edges. Do not draw a smaller rectangle, card, mat, or thick solid frame inside it. Do not letterbox. Do not print the ratio or any measurements.`
       }
     }
     for (const aspectRatio of ratios) {
@@ -479,6 +497,8 @@ export async function runStudioImagePipeline(input: {
         const result = await runImageContent({
           engine: priced.engine,
           gptQuality: priced.gptQuality,
+          imageQuality: priced.geminiQuality,
+          fluxSize,
           aspectRatio,
           parts,
           gemini: () => model!.generateContent(parts as never, { safetySettings } as never),
@@ -503,6 +523,9 @@ export async function runStudioImagePipeline(input: {
           'base64'
         )
         let resultBuffer = resultBufferRaw
+        if (input.kind === 'packaging_face' && faceMm) {
+          resultBuffer = await coverPanelArtworkToTrim(resultBuffer, faceMm.widthMm, faceMm.heightMm)
+        }
         let charged = imageCredit
         if (input.kind === 'logo' && stripLogoBackground) {
           const stripped = await stripLogoBackgroundToTransparentPng({

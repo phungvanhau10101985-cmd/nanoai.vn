@@ -196,6 +196,8 @@ export type HubStudioSession = {
   landingPage?: {
     /** Logo thương hiệu — ghép vào hero & các section banner. */
     logoUrl?: string
+    /** Prompt logo AI — giữ sau khi bấm Tối ưu AI. */
+    logoBrief?: string
     /** Link công khai lần publish gần nhất. */
     publishedShareUrl?: string
     publishedShareToken?: string

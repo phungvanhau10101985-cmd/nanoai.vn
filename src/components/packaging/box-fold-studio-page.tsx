@@ -9,12 +9,14 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { saveHubThreadId } from '@/lib/hub-chat/hub-chat-prefill'
 import {
   BOX_FACE_SLOT_ORDER,
+  getBoxFaceSlotDimensionsMm,
   getBoxFaceSlotLabel,
   resolveMockupSlotUrl,
   type BoxFaceSlot,
   type FaceSourceMode,
 } from '@/lib/packaging/box-face-slots'
 import { getBoxDielineLayoutData, type TuckEndLayoutData } from '@/lib/packaging/box-net-svg'
+import { dielineDisplayBounds } from '@/lib/packaging/dieline-sheet-bounds'
 import { applyBoxNetFaceMap, type BoxNetFaceMap } from '@/lib/packaging/box-net-face-map'
 import {
   BOX_DIELINE_GROUPS,
@@ -63,6 +65,7 @@ type Copy = {
   cols: string
   rows: string
   jar: string
+  neck: string
   sheet: string
   note: string
   loading: string
@@ -103,8 +106,9 @@ const COPY: Record<WebLocale, Copy> = {
     cols: 'Cột khay',
     rows: 'Hàng khay',
     jar: 'Đường kính hũ (mm)',
+    neck: 'Đường kính nắp chai (mm)',
     sheet: 'Tờ',
-    note: 'Chọn kiểu gấp thì tờ trải đổi ngay. Khung bên phải là hộp sáu mặt để xem ảnh sau khi gấp. Hộp lục giác, ống và âm dương lấy đúng hình ở tờ trải và file in.',
+    note: 'Chọn kiểu gấp thì tờ trải đổi ngay. Khung bên phải dựng theo kiểu: lục giác, bát giác, ống tròn, khay, gối và âm dương không còn là hộp chữ nhật.',
     loading: 'Đang mở tờ trải…',
     login: 'Cần đăng nhập để mở tờ trải của hội thoại này.',
     loginAction: 'Đăng nhập',
@@ -147,8 +151,9 @@ const COPY: Record<WebLocale, Copy> = {
     cols: 'Tray columns',
     rows: 'Tray rows',
     jar: 'Jar diameter (mm)',
+    neck: 'Cap diameter (mm)',
     sheet: 'Sheet',
-    note: 'Choosing a fold relayouts the net immediately. The right panel is a six-face box for checking the art after folding. Hexagon, tube, and telescope shapes are exact on the net and in the print file.',
+    note: 'Choosing a fold relayouts the net immediately. The preview follows the style: hexagon, octagon, tube, tray, pillow and telescope are no longer a plain rectangle.',
     loading: 'Opening the layout…',
     login: 'Sign in to open this conversation’s box layout.',
     loginAction: 'Sign in',
@@ -191,8 +196,9 @@ const COPY: Record<WebLocale, Copy> = {
     cols: '内托列',
     rows: '内托行',
     jar: '罐径（mm）',
+    neck: '瓶盖直径（mm）',
     sheet: '纸张',
-    note: '选择盒型后展开图立即重排。右侧是六面盒，用来看折叠后的画面。六边形、圆管和天地盖的准确形状在展开图和印刷文件上。',
+    note: '选择盒型后展开图立即重排。右侧预览跟随盒型：六边形、八边形、圆管、托盘、枕头盒和天地盖不再是普通长方体。',
     loading: '正在打开展开图…',
     login: '请登录后打开此对话的盒型展开。',
     loginAction: '登录',
@@ -235,8 +241,9 @@ const COPY: Record<WebLocale, Copy> = {
     cols: '中仕切り列',
     rows: '中仕切り行',
     jar: '瓶の直径（mm）',
+    neck: 'キャップ径（mm）',
     sheet: '用紙',
-    note: '折り方を選ぶと展開がすぐ変わります。右は六面の箱で、折った後の絵を確認します。六角形、丸筒、かぶせ箱の正確な形は展開と印刷ファイルです。',
+    note: '折り方を選ぶと展開がすぐ変わります。右側の見本も形に従います。六角形、八角形、丸筒、トレー、ピロー、かぶせ箱は普通の直方体ではありません。',
     loading: '展開を開いています…',
     login: 'この会話の展開を開くにはログインしてください。',
     loginAction: 'ログイン',
@@ -279,8 +286,9 @@ const COPY: Record<WebLocale, Copy> = {
     cols: '트레이 열',
     rows: '트레이 행',
     jar: '병 지름 (mm)',
+    neck: '마개 지름 (mm)',
     sheet: '전지',
-    note: '접기 방식을 고르면 전개가 바로 바뀝니다. 오른쪽은 여섯 면 상자로, 접은 뒤의 그림을 봅니다. 육각, 원통, 뚜껑 분리형의 정확한 모양은 전개와 인쇄 파일에 있습니다.',
+    note: '접기 방식을 고르면 전개가 바로 바뀝니다. 오른쪽 미리보기도 구조를 따릅니다. 육각, 팔각, 원통, 트레이, 필로우, 뚜껑 분리형은 평범한 직육면체가 아닙니다.',
     loading: '전개를 여는 중…',
     login: '이 대화의 전개를 열려면 로그인하세요.',
     loginAction: '로그인',
@@ -325,45 +333,14 @@ function fileNameFromDisposition(header: string | null, fallback: string): strin
 }
 
 function placeOriginAtTopLeft(layout: TuckEndLayoutData): TuckEndLayoutData {
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  const see = (x: number, y: number) => {
-    minX = Math.min(minX, x)
-    minY = Math.min(minY, y)
-    maxX = Math.max(maxX, x)
-    maxY = Math.max(maxY, y)
-  }
-  for (const [x1, y1, x2, y2] of layout.cutSegments) {
-    see(x1, y1)
-    see(x2, y2)
-  }
-  for (const [x1, y1, x2, y2] of layout.foldSegments) {
-    see(x1, y1)
-    see(x2, y2)
-  }
-  for (const panel of layout.panels) {
-    see(panel.x, panel.y)
-    see(panel.x + panel.w, panel.y + panel.h)
-  }
-  for (const rect of layout.glueRects ?? []) {
-    see(rect.x, rect.y)
-    see(rect.x + rect.w, rect.y + rect.h)
-  }
-  for (const hole of layout.knockouts ?? []) {
-    see(hole.x, hole.y)
-    see(hole.x + hole.w, hole.y + hole.h)
-  }
-  for (const mark of layout.fingerNotches ?? []) {
-    see(mark.cx - mark.r, mark.cy - mark.r)
-    see(mark.cx + mark.r, mark.cy + mark.r)
-  }
-  if (!Number.isFinite(minX) || !Number.isFinite(minY)) return layout
+  const extent = dielineDisplayBounds(layout)
+  if (!Number.isFinite(extent.minX) || !Number.isFinite(extent.minY)) return layout
+  const minX = extent.minX
+  const minY = extent.minY
   const dx = (value: number, origin: number) => Math.round((value - origin) * 100) / 100
   return {
     ...layout,
-    bounds: { widthMm: dx(maxX, minX), heightMm: dx(maxY, minY) },
+    bounds: { widthMm: extent.widthMm, heightMm: extent.heightMm },
     panels: layout.panels.map((panel) => ({ ...panel, x: dx(panel.x, minX), y: dx(panel.y, minY) })),
     cutSegments: layout.cutSegments.map(([x1, y1, x2, y2]) => [
       dx(x1, minX),
@@ -568,6 +545,7 @@ function BoxFoldEditor({
   const [cols, setCols] = useState(String(loaded.production?.insertCols ?? 2))
   const [rows, setRows] = useState(String(loaded.production?.insertRows ?? 3))
   const [jar, setJar] = useState(String(loaded.production?.jarDiameterMm ?? 0))
+  const [neck, setNeck] = useState(String(loaded.production?.neckDiameterMm ?? 0))
   const [faceMap, setFaceMap] = useState<BoxNetFaceMap>(loaded.faceMap)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [armed, setArmed] = useState<BoxFaceSlot | null>(null)
@@ -599,10 +577,11 @@ function BoxFoldEditor({
           insertCols: Number(cols),
           insertRows: Number(rows),
           jarDiameterMm: Number(jar.replace(',', '.')),
+          neckDiameterMm: Number(neck.replace(',', '.')),
         },
         loaded.dimensions.height
       ),
-    [cols, glue, jar, loaded.dimensions.height, loaded.production, notch, rows, stock]
+    [cols, glue, jar, loaded.dimensions.height, loaded.production, neck, notch, rows, stock]
   )
 
   const layout = useMemo(() => {
@@ -822,6 +801,7 @@ function BoxFoldEditor({
           <div className="mt-3 grid grid-cols-2 gap-2">
             {BOX_FACE_SLOT_ORDER.map((slot) => {
               const url = resolveMockupSlotUrl(slot, loaded.faceSlots)
+              const [faceW, faceH] = getBoxFaceSlotDimensionsMm(slot, loaded.dimensions)
               const active =
                 armed === slot || (selected ? (faceMap[selected.slot] ?? selected.slot) === slot : false)
               return (
@@ -835,10 +815,13 @@ function BoxFoldEditor({
                   }
                   onClick={() => onThumb(slot)}
                 >
-                  <span className="block aspect-[3/4] bg-[#111]">
+                  <span
+                    className="flex items-center justify-center bg-[#111]"
+                    style={{ aspectRatio: `${Math.max(faceW, 1)} / ${Math.max(faceH, 1)}` }}
+                  >
                     {url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={url} alt="" className="h-full w-full object-cover" />
+                      <img src={url} alt="" className="h-full w-full object-contain" />
                     ) : null}
                   </span>
                   <span className="block truncate px-1 py-1 text-[10px] text-white/80">
@@ -970,7 +953,7 @@ function BoxFoldEditor({
                             y={panel.y}
                             width={panel.w}
                             height={panel.h}
-                            preserveAspectRatio="xMidYMid slice"
+                            preserveAspectRatio="xMidYMid meet"
                             clipPath={`url(#${clipId})`}
                             transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}
                           />
@@ -1289,6 +1272,17 @@ function BoxFoldEditor({
                   />
                 </label>
               </div>
+            ) : null}
+            {structure === 'bottle' ? (
+              <label className="block text-white/70">
+                {t.neck}
+                <input
+                  className="mt-1 h-8 w-full rounded-md bg-white px-2 text-sm text-slate-900"
+                  inputMode="decimal"
+                  value={neck}
+                  onChange={(event) => setNeck(event.target.value)}
+                />
+              </label>
             ) : null}
             {notice ? <p className="text-[11px] leading-snug text-[#99f6e4]">{notice}</p> : null}
           </div>

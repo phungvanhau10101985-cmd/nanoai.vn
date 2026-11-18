@@ -32,11 +32,11 @@ import type { BoxDielineStructure } from '@/lib/packaging/dieline-structure'
 import { dielineArtworkRotation, foldTurnDegrees } from '@/lib/packaging/dieline-orientation'
 
 const FOLD_CAPTION: Record<WebLocale, string> = {
-  vi: 'File in xoay nắp 180° theo chiều gấp. Mockup này đọc mặt đã gấp đúng chiều.',
-  en: 'The print file rotates the lid 180° with the fold. This mockup shows the folded face upright.',
-  zh: '印刷文件按折叠方向把盖旋转 180°。此样机显示折叠后的正面。',
-  ja: '印刷ファイルは折りに合わせて蓋を180°回転します。このモックアップは折った後の向きです。',
-  ko: '인쇄 파일은 접는 방향에 맞춰 뚜껑을 180° 돌립니다. 이 목업은 접은 뒤의 면입니다.',
+  vi: 'Chân chữ trên nắp hướng về bản lề. Mockup đọc cùng chiều với file in sau khi gấp.',
+  en: 'Lid lettering points its feet at the hinge. This mockup matches the print after folding.',
+  zh: '盖面文字的字脚朝向折线。此样机与折叠后的印刷文件同向。',
+  ja: '蓋の文字の下端は折り目を向きます。このモックアップは折った後の印刷と同じ向きです。',
+  ko: '뚜껑 글자의 아랫부분이 접는 선을 향합니다. 이 목업은 접은 뒤의 인쇄와 같은 방향입니다.',
 }
 
 type FaceSlots = Partial<
@@ -104,6 +104,63 @@ const FULLSCREEN_NESTED_OVERLAY_CLASS = 'z-[2147483648]'
 const FULLSCREEN_NESTED_CONTENT_CLASS = 'z-[2147483649]'
 
 const INITIAL_ROTATION = { x: -18, y: 28 }
+
+type Quat = { x: number; y: number; z: number; w: number }
+
+function axisAngle(x: number, y: number, z: number, deg: number): Quat {
+  const half = (deg * Math.PI) / 360
+  const s = Math.sin(half)
+  return { x: x * s, y: y * s, z: z * s, w: Math.cos(half) }
+}
+
+function mulQuat(a: Quat, b: Quat): Quat {
+  return {
+    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+  }
+}
+
+function normalizeQuat(q: Quat): Quat {
+  const n = Math.hypot(q.x, q.y, q.z, q.w) || 1
+  return { x: q.x / n, y: q.y / n, z: q.z / n, w: q.w / n }
+}
+
+/** CSS rotateX(x) rotateY(y): Y áp trước, rồi X. */
+function quatFromView(xDeg: number, yDeg: number): Quat {
+  return mulQuat(axisAngle(1, 0, 0, xDeg), axisAngle(0, 1, 0, yDeg))
+}
+
+/** Kéo ngang/dọc xoay quanh trục màn hình, không kẹt cực. */
+function tumbleQuat(q: Quat, dx: number, dy: number): Quat {
+  const yaw = axisAngle(0, 1, 0, dx * 0.45)
+  const pitch = axisAngle(1, 0, 0, -dy * 0.45)
+  return normalizeQuat(mulQuat(mulQuat(pitch, yaw), q))
+}
+
+function quatToMatrix3d(q: Quat): string {
+  const { x, y, z, w } = normalizeQuat(q)
+  const xx = x * x
+  const yy = y * y
+  const zz = z * z
+  const xy = x * y
+  const xz = x * z
+  const yz = y * z
+  const wx = w * x
+  const wy = w * y
+  const wz = w * z
+  const m00 = 1 - 2 * (yy + zz)
+  const m01 = 2 * (xy - wz)
+  const m02 = 2 * (xz + wy)
+  const m10 = 2 * (xy + wz)
+  const m11 = 1 - 2 * (xx + zz)
+  const m12 = 2 * (yz - wx)
+  const m20 = 2 * (xz - wy)
+  const m21 = 2 * (yz + wx)
+  const m22 = 1 - 2 * (xx + yy)
+  return `matrix3d(${m00},${m10},${m20},0,${m01},${m11},${m21},0,${m02},${m12},${m22},0,0,0,0,1)`
+}
 
 /** Approximate 2D bounds after CSS rotateX + rotateY (Y applied first). */
 function mockupProjectedBounds(
@@ -199,6 +256,8 @@ type MockupController = {
     width: number
     height: number
     transform: string
+    clip?: string
+    radius?: string
   }>
   faceUrls: Partial<Record<BoxFaceSlot, string>>
   autoRotate: boolean
@@ -209,22 +268,122 @@ type MockupController = {
   stopDragging: (event: PointerEvent<HTMLDivElement>) => void
 }
 
+function rectFaces(length: number, width: number, height: number, lift = 0) {
+  const rise = lift ? `translateY(${-lift}px) ` : ''
+  return [
+    { slot: 'front' as const, width: length, height, transform: `${rise}translateZ(${width / 2}px)` },
+    { slot: 'back' as const, width: length, height, transform: `${rise}rotateY(180deg) translateZ(${width / 2}px)` },
+    { slot: 'right' as const, width, height, transform: `${rise}rotateY(90deg) translateZ(${length / 2}px)` },
+    { slot: 'left' as const, width, height, transform: `${rise}rotateY(-90deg) translateZ(${length / 2}px)` },
+    { slot: 'top' as const, width: length, height: width, transform: `${rise}rotateX(90deg) translateZ(${height / 2}px)` },
+    { slot: 'bottom' as const, width: length, height: width, transform: `${rise}rotateX(-90deg) translateZ(${height / 2}px)` },
+  ]
+}
+
+function facesForStructure(
+  structure: BoxDielineStructure | undefined,
+  length: number,
+  width: number,
+  height: number
+): MockupController['faces'] {
+  const box = () => rectFaces(length, width, height)
+  if (structure === 'hexagon' || structure === 'octagon') {
+    const sides = structure === 'hexagon' ? 6 : 8
+    const across = Math.max(length, width)
+    const side = structure === 'hexagon' ? across / Math.sqrt(3) : across / (1 + Math.SQRT2)
+    const slots: BoxFaceSlot[] = ['front', 'right', 'back', 'left']
+    const clip =
+      structure === 'hexagon'
+        ? 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)'
+        : 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)'
+    const faces: MockupController['faces'] = []
+    for (let index = 0; index < sides; index += 1) {
+      faces.push({
+        slot: slots[index % slots.length]!,
+        width: side,
+        height,
+        transform: `rotateY(${(360 / sides) * index}deg) translateZ(${across / 2}px)`,
+      })
+    }
+    faces.push(
+      {
+        slot: 'top',
+        width: across,
+        height: across,
+        transform: `rotateX(90deg) translateZ(${height / 2}px)`,
+        clip,
+      },
+      {
+        slot: 'bottom',
+        width: across,
+        height: across,
+        transform: `rotateX(-90deg) translateZ(${height / 2}px)`,
+        clip,
+      }
+    )
+    return faces
+  }
+  if (structure === 'tube') {
+    const diameter = Math.min(length, width)
+    const count = 16
+    const slots: BoxFaceSlot[] = ['front', 'right', 'back', 'left']
+    const faces: MockupController['faces'] = []
+    for (let index = 0; index < count; index += 1) {
+      faces.push({
+        slot: slots[index % slots.length]!,
+        width: (Math.PI * diameter) / count + 0.8,
+        height,
+        transform: `rotateY(${(360 / count) * index}deg) translateZ(${diameter / 2}px)`,
+      })
+    }
+    faces.push(
+      {
+        slot: 'top',
+        width: diameter,
+        height: diameter,
+        transform: `rotateX(90deg) translateZ(${height / 2}px)`,
+        radius: '50%',
+      },
+      {
+        slot: 'bottom',
+        width: diameter,
+        height: diameter,
+        transform: `rotateX(-90deg) translateZ(${height / 2}px)`,
+        radius: '50%',
+      }
+    )
+    return faces
+  }
+  if (structure === 'tray') return box().filter((face) => face.slot !== 'top')
+  if (structure === 'pillow') {
+    return box().map((face) => ({
+      ...face,
+      radius: face.slot === 'front' || face.slot === 'back' ? '22%' : '10%',
+    }))
+  }
+  if (structure === 'telescope') {
+    const lidH = Math.max(18, height * 0.42)
+    const lift = (height - lidH) / 2
+    return [
+      ...box(),
+      ...rectFaces(length * 1.08, width * 1.08, lidH, lift).filter((face) => face.slot !== 'bottom'),
+    ]
+  }
+  if (structure === 'sleeve_tray') return box().filter((face) => face.slot !== 'top')
+  return box()
+}
+
 function usePackagingBoxMockup3D(
   dimensionsMm: { length: number; width: number; height: number },
   faceSlots: FaceSlots,
   viewport: ViewportSize | null,
-  viewPreset?: 'outside' | 'inside'
+  viewPreset?: 'outside' | 'inside',
+  structure?: BoxDielineStructure
 ): MockupController {
   const boxRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
-  const rotationRef = useRef({ ...INITIAL_ROTATION })
-  const dragRef = useRef<{
-    pointerId: number
-    x: number
-    y: number
-    rotateX: number
-    rotateY: number
-  } | null>(null)
+  const quatRef = useRef<Quat>(quatFromView(INITIAL_ROTATION.x, INITIAL_ROTATION.y))
+  const dragRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
   const [autoRotate, setAutoRotate] = useState(true)
 
   const geometry = useMemo(
@@ -243,8 +402,7 @@ function usePackagingBoxMockup3D(
 
   const applyRotation = useCallback(() => {
     if (!boxRef.current) return
-    const { x, y } = rotationRef.current
-    boxRef.current.style.transform = `rotateX(${x}deg) rotateY(${y}deg)`
+    boxRef.current.style.transform = quatToMatrix3d(quatRef.current)
   }, [])
 
   useEffect(() => {
@@ -253,7 +411,7 @@ function usePackagingBoxMockup3D(
 
   useEffect(() => {
     if (!viewPreset) return
-    rotationRef.current = viewPreset === 'inside' ? { x: 58, y: 24 } : { ...INITIAL_ROTATION }
+    quatRef.current = viewPreset === 'inside' ? quatFromView(58, 24) : quatFromView(INITIAL_ROTATION.x, INITIAL_ROTATION.y)
     if (viewPreset === 'inside') setAutoRotate(false)
     applyRotation()
   }, [applyRotation, viewPreset])
@@ -265,7 +423,7 @@ function usePackagingBoxMockup3D(
     const tick = (now: number) => {
       const elapsed = Math.min(now - previous, 50)
       previous = now
-      rotationRef.current.y += elapsed * 0.018
+      quatRef.current = normalizeQuat(mulQuat(axisAngle(0, 1, 0, elapsed * 0.018), quatRef.current))
       applyRotation()
       frame = requestAnimationFrame(tick)
     }
@@ -273,26 +431,49 @@ function usePackagingBoxMockup3D(
     return () => cancelAnimationFrame(frame)
   }, [applyRotation, autoRotate])
 
-  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    setAutoRotate(false)
-    dragRef.current = {
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      rotateX: rotationRef.current.x,
-      rotateY: rotationRef.current.y,
+  useEffect(() => {
+    const onMove = (event: PointerEvent) => {
+      const drag = dragRef.current
+      if (!drag || event.pointerId !== drag.pointerId) return
+      if (event.buttons === 0) {
+        dragRef.current = null
+        return
+      }
+      const dx = event.clientX - drag.x
+      const dy = event.clientY - drag.y
+      drag.x = event.clientX
+      drag.y = event.clientY
+      if (!dx && !dy) return
+      quatRef.current = tumbleQuat(quatRef.current, dx, dy)
+      applyRotation()
     }
-    event.currentTarget.setPointerCapture(event.pointerId)
+    const onUp = (event: PointerEvent) => {
+      if (dragRef.current?.pointerId !== event.pointerId) return
+      dragRef.current = null
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [applyRotation])
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setAutoRotate(false)
+    dragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      /* kéo vẫn chạy qua sự kiện trên window */
+    }
   }
 
-  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    rotationRef.current = {
-      x: Math.max(-80, Math.min(80, drag.rotateX - (event.clientY - drag.y) * 0.35)),
-      y: drag.rotateY + (event.clientX - drag.x) * 0.45,
-    }
-    applyRotation()
+  const onPointerMove = (_event: PointerEvent<HTMLDivElement>) => {
+    /* Xoay xử lý trên window để không mất kéo khi con trỏ ra khỏi hộp. */
   }
 
   const stopDragging = (event: PointerEvent<HTMLDivElement>) => {
@@ -304,48 +485,12 @@ function usePackagingBoxMockup3D(
   }
 
   const resetView = () => {
-    rotationRef.current = { ...INITIAL_ROTATION }
+    quatRef.current = quatFromView(INITIAL_ROTATION.x, INITIAL_ROTATION.y)
     applyRotation()
   }
 
   const { length: l, width: w, height: h } = geometry
-  const faces = useMemo(
-    () =>
-      [
-        { slot: 'front' as const, width: l, height: h, transform: `translateZ(${w / 2}px)` },
-        {
-          slot: 'back' as const,
-          width: l,
-          height: h,
-          transform: `rotateY(180deg) translateZ(${w / 2}px)`,
-        },
-        {
-          slot: 'right' as const,
-          width: w,
-          height: h,
-          transform: `rotateY(90deg) translateZ(${l / 2}px)`,
-        },
-        {
-          slot: 'left' as const,
-          width: w,
-          height: h,
-          transform: `rotateY(-90deg) translateZ(${l / 2}px)`,
-        },
-        {
-          slot: 'top' as const,
-          width: l,
-          height: w,
-          transform: `rotateX(90deg) translateZ(${h / 2}px)`,
-        },
-        {
-          slot: 'bottom' as const,
-          width: l,
-          height: w,
-          transform: `rotateX(-90deg) translateZ(${h / 2}px)`,
-        },
-      ] satisfies MockupController['faces'],
-    [h, l, w]
-  )
+  const faces = useMemo(() => facesForStructure(structure, l, w, h), [h, l, structure, w])
 
   return {
     boxRef,
@@ -412,7 +557,7 @@ function PackagingBoxMockup3DScene({
   return (
     <div
       ref={sceneRef}
-      className={`relative w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing ${sceneClassName}`}
+      className={`relative w-full cursor-grab touch-none select-none overflow-visible active:cursor-grabbing ${sceneClassName}`}
       style={{ perspective: `${resolvedPerspective}px` }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -430,7 +575,7 @@ function PackagingBoxMockup3DScene({
           willChange: 'transform',
         }}
       >
-        {faces.map((face) => {
+        {faces.map((face, index) => {
           const url = faceUrls[face.slot]
           const transform =
             face.slot === 'top' && open > 0
@@ -438,14 +583,16 @@ function PackagingBoxMockup3DScene({
               : face.transform
           return (
             <div
-              key={face.slot}
-              className="absolute overflow-hidden border border-black/10 bg-[#c9b08a] shadow-sm [backface-visibility:hidden] [transform:translateZ(0)]"
+              key={`${face.slot}-${index}`}
+              className="pointer-events-none absolute overflow-hidden border border-black/10 bg-[#c9b08a] shadow-sm [backface-visibility:hidden]"
               style={{
                 width: `${face.width}px`,
                 height: `${face.height}px`,
                 marginLeft: `${-face.width / 2}px`,
                 marginTop: `${-face.height / 2}px`,
                 transform,
+                clipPath: face.clip,
+                borderRadius: face.radius,
                 backfaceVisibility: 'hidden',
                 backgroundColor: boardColor,
               }}
@@ -456,7 +603,7 @@ function PackagingBoxMockup3DScene({
                 <img
                   src={url}
                   alt={getBoxFaceSlotLabel(face.slot, locale)}
-                  className="h-full w-full select-none object-cover object-center"
+                  className="h-full w-full select-none object-contain object-center"
                   style={
                     structure
                       ? {
@@ -546,7 +693,7 @@ function PackagingBoxMockup3DViewport({
 }) {
   const sceneWrapRef = useRef<HTMLDivElement>(null)
   const viewport = useViewportSize(sceneWrapRef)
-  const controller = usePackagingBoxMockup3D(dimensionsMm, faceSlots, viewport, viewPreset)
+  const controller = usePackagingBoxMockup3D(dimensionsMm, faceSlots, viewport, viewPreset, structure)
 
   return (
     <div className={wrapperClassName}>

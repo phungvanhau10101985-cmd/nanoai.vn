@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
+import { boxDesignImageTier, requestedStudioImageSize } from '@/lib/ai/image-engine'
 import { HUB_CHAT_CREDIT, shouldChargeHubChatTurn } from '@/lib/hub-chat/hub-chat-catalog'
 import { buildBannerImageGenerationPrompt } from '@/lib/hub-chat/banner-image-prompt-builder'
 import { buildMenuImageGenerationPrompt } from '@/lib/hub-chat/menu-image-prompt-builder'
@@ -214,6 +215,7 @@ import {
   isBoxFaceConfirmAck,
   packagingBoxConfirmStudioExtras,
 } from '@/lib/packaging/face-aspect'
+import { boxSizeStandardChoices, type BoxSizeSnapDirection } from '@/lib/packaging/box-face-engine'
 import {
   appendStudioUiColorPaletteToPrompt,
   formatStudioColorPaletteBriefFromSelections,
@@ -307,6 +309,8 @@ import {
   isFirstPackagingFaceStep,
   isPackagingFaceStepKey,
   isPackagingFaceReEdit,
+  boxFoldHandoffReply,
+  isBoxFoldHandoff,
   packagingStepKeyToSizeKey,
   packagingStepKeyToSlot,
   parseSecondaryFaceIntent,
@@ -318,10 +322,15 @@ import {
 } from '@/lib/packaging/hub-face-steps'
 import { resolveDielineSlotUrls, BOX_FACE_COPY_SOURCE, getBoxFaceSlotLabel } from '@/lib/packaging/box-face-slots'
 import { runFaceCropOutpaint } from '@/lib/packaging/face-crop-outpaint'
+import { packagingFacePolishApiReady } from '@/lib/packaging/face-prompt-polish'
 import {
-  packagingFacePolishApiReady,
-  polishPackagingFaceDraft,
-} from '@/lib/packaging/face-prompt-polish'
+  imagePromptPolishAllowed,
+  type ImagePromptPolishTarget,
+} from '@/lib/hub-chat/image-prompt-polish-shared'
+import {
+  persistPolishedImagePrompt,
+  polishImagePromptDraft,
+} from '@/lib/hub-chat/image-prompt-polish'
 import {
   isFacePolishSkipDraft,
   isPackagingFacePolishStep,
@@ -467,6 +476,7 @@ export type HubStudioAction =
   | 'skip_packaging_face'
   | 'copy_packaging_face'
   | 'polish_packaging_face_prompt'
+  | 'polish_image_prompt'
   | 'classify_flow_switch'
   | 'classify_feature_intent'
   | 'select_feature'
@@ -502,6 +512,7 @@ export type HubStudioHandlerInput = {
   menuVenueName?: string
   landingSectionCopy?: string
   landingLogoBrief?: string
+  polishTarget?: ImagePromptPolishTarget
   stripBackground?: boolean
   imageEngine?: string | null
   gptQuality?: string | null
@@ -517,6 +528,7 @@ export type HubStudioHandlerInput = {
   boxDielineStructure?: string
   boxNetFaceMap?: unknown
   boxDimensionsMm?: Partial<BoxDimensionsMm>
+  boxSizeSnap?: 'larger' | 'smaller'
   bagDimensionsMm?: Partial<{ width: number; height: number; gusset: number }>
   boxProduction?: Partial<TuckBoxProductionParams>
   barcodeEntries?: PackagingBarcodeFormEntry[]
@@ -577,6 +589,64 @@ const BOX_SIZE_STEP_KEYS = ['box_size', 'box_size_length', 'box_size_width', 'bo
 
 function isBoxSizeStepKey(stepKey: string | null | undefined): boolean {
   return BOX_SIZE_STEP_KEYS.includes(stepKey as (typeof BOX_SIZE_STEP_KEYS)[number])
+}
+
+const BOX_SNAP_PICK: Record<WebLocale, string> = {
+  vi: 'Có hai cỡ đúng tỷ lệ. Bấm **Tỷ lệ lớn hơn** hoặc **Tỷ lệ nhỏ hơn** ở dưới.',
+  en: 'Two exact sizes are available. Choose **Larger ratio** or **Smaller ratio** below.',
+  zh: '有两个精确比例。请选择下方的**较大比例**或**较小比例**。',
+  ja: '正確な比率が二つあります。下の**大きい比率**か**小さい比率**を選んでください。',
+  ko: '정확한 비율이 두 개입니다. 아래 **큰 비율** 또는 **작은 비율**을 고르세요.',
+}
+
+function applyBoxSizeSnap(
+  session: HubStudioSession,
+  direction: BoxSizeSnapDirection | undefined
+): { session: HubStudioSession; aspects: string[]; needsPick: boolean } {
+  const box = session.packaging?.dimensionsMm
+  if (!box) return { session, aspects: [], needsPick: false }
+  const choices = boxSizeStandardChoices(box)
+  if (!direction && choices.larger && choices.smaller) return { session, aspects: [], needsPick: true }
+  const picked = direction === 'larger' ? choices.larger : direction === 'smaller' ? choices.smaller : choices.larger ?? choices.smaller
+  if (!picked) return { session, aspects: [], needsPick: Boolean(direction) }
+  const next = picked.dimensions
+  const changed = next.length !== box.length || next.width !== box.width || next.height !== box.height
+  if (!changed) return { session, aspects: [], needsPick: false }
+  return {
+    session: {
+      ...session,
+      packaging: {
+        ...session.packaging!,
+        dimensionsMm: next,
+        facesConfirmed: false,
+        faceAspectRatios: undefined,
+      },
+      briefNotes: {
+        ...session.briefNotes,
+        box_size: `${next.length} × ${next.width} × ${next.height} mm`,
+      },
+    },
+    aspects: picked.aspects,
+    needsPick: false,
+  }
+}
+
+function boxSnapNote(locale: WebLocale, aspects: string[], dimensions: BoxDimensionsMm): string {
+  const mm = (value: number) => {
+    let text = (Math.round(value * 100) / 100).toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+    if (locale === 'vi') text = text.replace('.', ',')
+    return text
+  }
+  const size = `${mm(dimensions.length)} × ${mm(dimensions.width)} × ${mm(dimensions.height)} mm`
+  const ratio = aspects.join(' · ')
+  const rows: Record<WebLocale, string> = {
+    vi: `Đã chốt kích thước **${size}** theo tỷ lệ ${ratio}.`,
+    en: `Size set to **${size}** at ${ratio}.`,
+    zh: `已将尺寸定为 **${size}**，比例 ${ratio}。`,
+    ja: `サイズを **${size}**（${ratio}）に確定しました。`,
+    ko: `크기를 **${size}** (${ratio})로 확정했습니다.`,
+  }
+  return rows[locale]
 }
 
 function completeBoxFaceConfirmSession(session: HubStudioSession, ackLabel: string): HubStudioSession {
@@ -1126,11 +1196,15 @@ function advanceAfterPackagingFaceStep(
     const next = nextPendingStep(nextSession.processSteps)
     nextSession.currentStepKey = next?.key ?? null
     nextSession.processSteps = setStepInProgress(nextSession.processSteps, nextSession.currentStepKey)
-    reply = next
-      ? t.studioApprovedNext.replace('{screen}', screenLabel).replace('{next}', next.label)
-      : t.studioAllDone
-    if (nextSession.presetId && nextSession.currentStepKey) {
-      reply = appendStepAsk(reply, locale, nextSession.presetId, nextSession.currentStepKey)
+    if (isBoxFoldHandoff(stepKey, next?.key)) {
+      reply = boxFoldHandoffReply(locale, screenLabel)
+    } else {
+      reply = next
+        ? t.studioApprovedNext.replace('{screen}', screenLabel).replace('{next}', next.label)
+        : t.studioAllDone
+      if (nextSession.presetId && nextSession.currentStepKey) {
+        reply = appendStepAsk(reply, locale, nextSession.presetId, nextSession.currentStepKey)
+      }
     }
   }
   return { session: nextSession, reply }
@@ -2282,8 +2356,14 @@ async function generateAsset(
     verbatimPrompt: isLandingFull,
     stripBackground: generator === 'logo' ? opts?.stripBackground : undefined,
     imageEngine: opts?.imageEngine,
-    gptQuality: opts?.gptQuality,
-    imageSize: String(opts?.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
+    gptQuality:
+      workSession.presetId === 'packaging_kit'
+        ? boxDesignImageTier({ gptQuality: opts?.gptQuality, imageQuality: opts?.imageQuality }).gptQuality
+        : opts?.gptQuality,
+    imageSize:
+      workSession.presetId === 'packaging_kit'
+        ? boxDesignImageTier({ gptQuality: opts?.gptQuality, imageQuality: opts?.imageQuality }).imageQuality
+        : requestedStudioImageSize(opts?.imageQuality),
   }
 
   let gen: Awaited<ReturnType<typeof runStudioImagePipeline>> | null = null
@@ -2679,6 +2759,12 @@ function buildAskForNextStep(
 
   const nextLabel = stepLabel(session, nextKey, locale)
   let reply: string
+  if (isBoxFoldHandoff(approvedScreenKey, nextKey)) {
+    return {
+      reply: boxFoldHandoffReply(locale, approvedScreenLabel),
+      studio: { processSteps: session.processSteps },
+    }
+  }
   if (isLogoDesignStep(session.presetId, approvedScreenKey)) {
     reply = t.studioLogoApprovedNext.replace('{next}', nextLabel)
   } else {
@@ -3558,9 +3644,10 @@ async function finishApprove(
 
   const t = getDictionary(locale).hubChat
   const nextLabel = next?.label ?? ''
-  const reply =
-    stayOnApprovedStep
-      ? t.studioStepSavedStay.replace('{screen}', pending.screenLabel)
+  const reply = stayOnApprovedStep
+    ? t.studioStepSavedStay.replace('{screen}', pending.screenLabel)
+    : isBoxFoldHandoff(pending.screenKey, next?.key)
+      ? boxFoldHandoffReply(locale, pending.screenLabel)
       : next
         ? t.studioApprovedNext.replace('{screen}', pending.screenLabel).replace('{next}', nextLabel)
         : t.studioAllDone
@@ -4413,13 +4500,17 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
   }
 
-  if (action === 'polish_packaging_face_prompt') {
+  if (action === 'polish_packaging_face_prompt' || action === 'polish_image_prompt') {
     const stepKey = session.currentStepKey
+    const target: ImagePromptPolishTarget = input.polishTarget ?? 'composer'
     if (
-      !stepKey ||
-      !session.discoveryComplete ||
-      session.pendingPreview ||
-      !isPackagingFacePolishStep(session.presetId, stepKey)
+      !imagePromptPolishAllowed({
+        presetId: session.presetId,
+        stepKey,
+        discoveryComplete: session.discoveryComplete,
+        pendingPreview: Boolean(session.pendingPreview),
+        target,
+      })
     ) {
       return {
         ok: false,
@@ -4431,7 +4522,11 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
     const draft = input.message?.trim() ?? ''
-    if (isFacePolishSkipDraft(draft)) {
+    if (
+      target === 'composer' &&
+      isPackagingFacePolishStep(session.presetId, stepKey) &&
+      isFacePolishSkipDraft(draft)
+    ) {
       return {
         ok: false,
         reply: '',
@@ -4474,7 +4569,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const charge = await deductUserCredits(
       input.userId,
       PACKAGING_FACE_PROMPT_POLISH_CREDIT,
-      'hub-studio-face-prompt-polish'
+      'hub-studio-image-prompt-polish'
     )
     if (!charge.ok) {
       return {
@@ -4486,15 +4581,19 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         error: charge.code === 'INSUFFICIENT_CREDITS' ? t.studioFacePolishNeedCredit : charge.error,
       }
     }
-    const faceLabel = stepLabel(session, stepKey, input.locale).split('—')[0]?.trim() || stepKey
-    const polished = await polishPackagingFaceDraft({
+    const faceLabel = stepKey
+      ? stepLabel(session, stepKey, input.locale).split('—')[0]?.trim() || stepKey
+      : target
+    const polished = await polishImagePromptDraft({
       draft,
-      faceLabel,
+      stepLabel: faceLabel,
       locale: input.locale,
+      generator: stepKey ? getStepGenerator(session.presetId, stepKey) : null,
+      target,
       userId: input.userId,
     })
     if (!polished.ok) {
-      await refundUserCredits(input.userId, charge.charged, 'hub-studio-face-prompt-polish').catch(
+      await refundUserCredits(input.userId, charge.charged, 'hub-studio-image-prompt-polish').catch(
         () => undefined
       )
       const error =
@@ -4514,7 +4613,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         error,
       }
     }
-    session = saveCurrentStudioStepBrief(session, polished.text)
+    session = persistPolishedImagePrompt(session, stepKey ?? '', polished.text, target)
     await pgSaveHubThreadSession(input.threadId, session)
     return {
       ok: true,
@@ -5398,6 +5497,19 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         error: t.errorGeneric,
       }
     }
+    const snapped = applyBoxSizeSnap(session, input.boxSizeSnap)
+    if (snapped.needsPick) {
+      reply = BOX_SNAP_PICK[input.locale]
+      await pgSaveHubThreadSession(input.threadId, session)
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        studio: { processSteps: session.processSteps },
+      })
+      return { ok: true, reply, session, threadId: input.threadId, chargedChat: 0 }
+    }
+    session = snapped.session
     const ackLabel = t.studioBoxFaceConfirmed.replace(/\*\*/g, '')
     session = completeBoxFaceConfirmSession(session, ackLabel)
     const advanced = advanceDiscoveryAfterBriefAnswer(
@@ -5409,12 +5521,18 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     )
     session = advanced.session
     reply = advanced.reply
+    if (snapped.aspects.length && session.packaging?.dimensionsMm) {
+      reply = `${boxSnapNote(input.locale, snapped.aspects, session.packaging.dimensionsMm)}\n\n${reply}`
+    }
     studio = advanced.studio
     await pgSaveHubThreadSession(input.threadId, session)
     const userMessageId = await pgInsertHubChatMessage({
       threadId: input.threadId,
       role: 'user',
-      content: ackLabel,
+      content:
+        snapped.aspects.length && session.packaging?.dimensionsMm
+          ? boxSnapNote(input.locale, snapped.aspects, session.packaging.dimensionsMm).replace(/\*\*/g, '')
+          : ackLabel,
       studio: { stepKey: 'box_face_confirm' },
     })
     await pgInsertHubChatMessage({
@@ -5927,7 +6045,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       stripBackground: input.stripBackground,
       imageEngine: input.imageEngine,
       gptQuality: input.gptQuality,
-      imageSize: String(input.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
+      imageSize: requestedStudioImageSize(input.imageQuality),
     })
     if (!gen.ok) {
       return {
@@ -6978,14 +7096,20 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioFaceUploadNeedFile }
     }
     const aspectRatio = input.cropAspectRatio?.trim() || '16:9'
+    const boxTier =
+      session.presetId === 'packaging_kit'
+        ? boxDesignImageTier({ gptQuality: input.gptQuality, imageQuality: input.imageQuality })
+        : null
     const gen = await runFaceCropOutpaint({
       userId: input.userId,
       imageBuffer: files[0]!.buffer,
       mimeType: files[0]!.mimeType,
       aspectRatio,
       imageEngine: input.imageEngine,
-      gptQuality: input.gptQuality,
-      imageQuality: input.imageQuality,
+      gptQuality: boxTier ? boxTier.gptQuality : input.gptQuality,
+      imageQuality: boxTier ? boxTier.imageQuality : input.imageQuality,
+      widthMm: input.cropSizeMm?.width,
+      heightMm: input.cropSizeMm?.height,
     })
     if (!gen.ok) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: gen.error }
@@ -7863,13 +7987,30 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
 
     let forceCompleteBoxFaceConfirm = false
+    let boxSnapAckNote = ''
     if (
       session.presetId === 'packaging_kit' &&
       session.currentStepKey === 'box_face_confirm' &&
       session.packaging?.dimensionsMm &&
       isBoxFaceConfirmAck(message)
     ) {
-      const plan = buildPackagingFaceAspectPlan(session.packaging.dimensionsMm)
+      const snapped = applyBoxSizeSnap(session, undefined)
+      if (snapped.needsPick) {
+        reply = BOX_SNAP_PICK[input.locale]
+        await pgSaveHubThreadSession(input.threadId, session)
+        await pgInsertHubChatMessage({
+          threadId: input.threadId,
+          role: 'assistant',
+          content: reply,
+          studio: { processSteps: session.processSteps },
+        })
+        return { ok: true, reply, session, threadId: input.threadId, chargedChat }
+      }
+      session = snapped.session
+      if (snapped.aspects.length && session.packaging?.dimensionsMm) {
+        boxSnapAckNote = boxSnapNote(input.locale, snapped.aspects, session.packaging.dimensionsMm)
+      }
+      const plan = buildPackagingFaceAspectPlan(session.packaging!.dimensionsMm)
       session.packaging = {
         ...session.packaging,
         faceAspectRatios: faceAspectRatiosFromPlan(plan),
@@ -8276,7 +8417,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         ja: '底面・正面/背面・側面のサイズを確認しました。',
         ko: '바닥/앞·뒤/측면 크기를 확인했습니다.',
       } satisfies Record<WebLocale, string>
-      reply = ackRows[input.locale]
+      reply = boxSnapAckNote ? `${boxSnapAckNote}\n\n${ackRows[input.locale]}` : ackRows[input.locale]
     }
 
     const aiRetry: HubStudioAiRetryHint = activeDesign

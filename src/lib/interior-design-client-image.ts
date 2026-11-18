@@ -11,7 +11,7 @@ const LARGE_FILE_BYTES = 1_800_000
 
 export async function compressInteriorImageForAi(
   file: File,
-  options?: { imageQuality?: '2K' | '4K' }
+  options?: { imageQuality?: '1.5K' | '2K' | '4K' }
 ): Promise<File> {
   if (typeof window === 'undefined') return file
   if (!file.type.startsWith('image/')) return file

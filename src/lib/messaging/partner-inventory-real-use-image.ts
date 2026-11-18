@@ -18,6 +18,7 @@ const IMAGE_MODEL = GEMINI_3_PRO_IMAGE.model
 
 function imageLedgerFromUsage(um: { logModel?: string } | undefined): { provider: string; model: string } {
   if (um?.logModel === 'gpt-image-2') return { provider: 'openai', model: 'gpt-image-2' }
+  if (um?.logModel === 'NanoAI F1.5K' || um?.logModel === 'NanoAI F2K' || um?.logModel === 'NanoAI F4K') return { provider: 'bfl', model: um.logModel }
   return { provider: 'google', model: IMAGE_MODEL }
 }
 
@@ -139,13 +140,13 @@ async function generateRealUseLifestyleBuffer(
   const priced = pricedEngine(choice)
   if (priced.error) return null
   const key = process.env.GOOGLE_API_KEY?.trim()
-  if (priced.engine !== 'gpt' && !key) return null
+  if (priced.engine === 'gemini' && !key) return null
   const inline = await fetchImageAsInlinePart(productImageUrl)
   if (!inline) return null
   const prompt = slot === 1 ? REAL_USE_PROMPT_SLOT1 : REAL_USE_PROMPT_SLOT2
   const parts = [prompt, { inlineData: { mimeType: inline.mimeType, data: inline.data } }]
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (priced.engine !== 'gpt') {
+  if (priced.engine === 'gemini') {
     const genAI = new GoogleGenerativeAI(key!)
     model = genAI.getGenerativeModel({
       model: IMAGE_MODEL,
@@ -165,6 +166,7 @@ async function generateRealUseLifestyleBuffer(
     const genResult = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
+      imageQuality: priced.geminiQuality,
       aspectRatio: '3:4',
       parts,
       gemini: () => model!.generateContent(parts as never, { safetySettings } as never),

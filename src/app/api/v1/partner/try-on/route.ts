@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { imageChargeFromForm, parseFluxImageQuality } from '@/lib/ai/image-engine'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { tryOnCostMap, buildSinglePersonPrompt } from '@/lib/try-on/try-on-prompts'
 import { runVirtualTryOnPipeline } from '@/lib/try-on/run-virtual-try-on-pipeline'
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     const imageQualityRaw = String(formData.get('imageQuality') ?? '2K')
-    const imageQuality = imageQualityRaw === '4K' ? '4K' : '2K'
+    const imageQuality = parseFluxImageQuality(imageQualityRaw)
 
     const genderRaw = String(formData.get('gender') ?? 'male').toLowerCase()
     const genderLabel = genderRaw === 'female' ? 'female' : 'male'

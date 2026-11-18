@@ -91,7 +91,6 @@ async function buildDielinePackage(input: BoxDielineInput) {
     safeZoneMm: production.safeZoneMm,
   })
   const style = boxDielineStructureCopy(structure, 'vi').label
-  const hasGlue = (layout.glueRects?.length ?? 0) > 0
   const tuckLid =
     structure === 'straight_tuck' ||
     structure === 'reverse_tuck' ||
@@ -100,12 +99,22 @@ async function buildDielinePackage(input: BoxDielineInput) {
     structure === 'window' ||
     structure === 'handle' ||
     structure === 'bottle' ||
-    structure === 'magnetic'
+    structure === 'hexagon' ||
+    structure === 'octagon' ||
+    structure === 'cross_fold'
   const legend = [
     `${style} · ${input.boxLength}×${input.boxWidth}×${input.boxHeight} mm`,
-    `Bleed ${bleedMm} mm · vùng an toàn ${production.safeZoneMm} mm${hasGlue ? ` · tai dán ${production.glueTabMm} mm` : ''}`,
-    `Giấy ${production.paperStock} ${production.paperThicknessMm} mm${tuckLid ? ` · nắp/đáy +${lidDepthExtraMm(production.paperThicknessMm)} mm` : ''}${tuckLid ? ` · hẹp lưỡi ${TUCK_SIDE_RELIEF_MM} mm/bên` : ''}`,
-    'Nét cắt CutContour, nét gấp Crease, overprint. Ảnh in là raster; nét cắt và nét gấp là vector.',
+    structure === 'insert'
+      ? 'Lót không dùng bleed và không có tai dán.'
+      : `Bleed ${bleedMm} mm · vùng an toàn ${production.safeZoneMm} mm`,
+    `Giấy ${production.paperStock} ${production.paperThicknessMm} mm${
+      tuckLid
+        ? ` · nắp/đáy +${lidDepthExtraMm(production.paperThicknessMm)} mm · hẹp lưỡi ${TUCK_SIDE_RELIEF_MM} mm/bên`
+        : ''
+    }`,
+    structure === 'insert'
+      ? 'Nét cắt CutContour, nét gấp Crease. Không có ảnh in.'
+      : 'Nét cắt CutContour, nét gấp Crease, overprint. Ảnh in là raster; nét cắt và nét gấp là vector.',
     ...(layout.legendLines ?? []),
   ]
   const title = `Box dieline ${style} ${input.boxLength}x${input.boxWidth}x${input.boxHeight} mm`

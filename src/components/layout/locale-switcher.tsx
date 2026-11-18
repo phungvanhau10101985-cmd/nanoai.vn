@@ -81,7 +81,7 @@ export function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
             size="sm"
             onClick={() => setLocale(locale)}
             disabled={pending}
-            className="h-7 shrink-0 px-2 text-xs"
+            className="h-11 min-w-11 shrink-0 px-3 text-sm"
           >
             {LABELS[locale]}
           </Button>

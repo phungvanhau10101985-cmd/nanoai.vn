@@ -7,6 +7,7 @@ if exist "%LOCALAPPDATA%\Programs\nodejs\npm.cmd" (
 )
 
 REM Next.js dev mac dinh 3000. Neu ban dat PORT trong .env.local khac — sua DEV_PORT cho trung.
+REM Dong moi cong LISTEN cua chinh du an nay (ke ca Next/ngrok bi trung sang cong khac), roi bat lai dung cong du an + ngrok.
 REM 188-com-vn local: backend 8001 + frontend 3001 — KHONG bi script nay kill (xem scripts/restart-server-stop-dev.ps1).
 set "DEV_PORT=3000"
 if exist ".env.local" (
@@ -20,11 +21,18 @@ echo   RESET - Thu-do-online (khong anh huong 188-com-vn)
 echo ========================================
 echo.
 
-echo [1/7] Giai phong dev Thu-do ^(PORT=%DEV_PORT% only — 188 giu 8001/3001^)...
+echo [1/7] Dong moi cong dang chay trung cua du an ^(roi se bat lai port %DEV_PORT% + ngrok. 188 giu 8001/3001^)...
 REM Do not pass -ProjectRoot "%~dp0" — trailing \ before " breaks PowerShell quoting.
 REM Script defaults ProjectRoot to parent of scripts\ (this repo root).
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\restart-server-stop-dev.ps1" -DevPort %DEV_PORT%
-echo       Da dung process Thu-do tren port %DEV_PORT% + ngrok forward %DEV_PORT%
+set "STOP_RC=%ERRORLEVEL%"
+if "%STOP_RC%"=="0" (
+    echo       Da dong cac cong trung cua du an. Se khoi dong lai port %DEV_PORT% va ngrok.
+) else if "%STOP_RC%"=="3" (
+    echo       [CANH BAO] Port %DEV_PORT% van dang bi chiem. Van tiep tuc khoi dong.
+) else (
+    echo       [CANH BAO] Giai phong cong tra ma %STOP_RC%. Van tiep tuc khoi dong.
+)
 timeout /t 2 /nobreak >nul
 echo.
 
@@ -86,13 +94,12 @@ echo       Worker dang khoi dong...
 timeout /t 5 /nobreak >nul
 echo.
 
-echo [7/7] Khoi dong ngrok (^http %DEV_PORT%^ — chi tunnel Thu-do^)...
-where ngrok >nul 2>&1
+echo [7/7] Khoi dong ngrok ^(https://amia-canelike-exhibitively.ngrok-free.dev -^> port %DEV_PORT%^)...
+call "%~dp0scripts\start-project-ngrok.cmd" %DEV_PORT%
 if errorlevel 1 (
-    echo       [CANH BAO] Khong tim thay ngrok trong PATH — bo qua. Dev local: http://localhost:%DEV_PORT%
+    echo       [CANH BAO] ngrok khong khoi dong duoc. Dev local: http://localhost:%DEV_PORT%
 ) else (
-    start "NGROK Thu-do %DEV_PORT%" cmd /k "cd /d "%~dp0" && ngrok http %DEV_PORT%"
-    echo       ngrok Thu-do dang khoi dong (188 ngrok 3001 khong bi dong)...
+    echo       ngrok Thu-do dang khoi dong. 188 ngrok 3001 khong bi dong.
 )
 echo.
 echo ========================================

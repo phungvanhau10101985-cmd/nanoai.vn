@@ -219,6 +219,58 @@ export function typableSolutionBlockIndices(
   return out
 }
 
+/**
+ * Một nhịp gõ: +1 segment cho tiêu đề hoặc một block, trên xuống.
+ * Trả về đúng `prev` khi không có gì để gõ, để React khỏi render lại.
+ */
+export function advanceSlideRevealOneStep(
+  prev: Record<string, number>,
+  slide: { title?: string; blocks?: BlockLikeForSequentialReveal[] } | undefined,
+  slideIndex: number,
+  opts: SlideSolutionSegmentOpts & {
+    numberedTitle: boolean
+    typingEnabled?: Record<string, boolean>
+    typingPaused?: Record<string, boolean>
+    answerVisibility?: Record<string, boolean>
+  }
+): Record<string, number> {
+  if (!slide) return prev
+  const next = { ...prev }
+  const step = (key: string, total: number) => {
+    const cur = next[key] ?? 0
+    if (cur >= total) return false
+    next[key] = cur + 1
+    return true
+  }
+
+  if (opts.hasCurriculumSegmentTyping && !opts.worksheetPresentation) {
+    const titleText = curriculumSlideTitleTypingText(slideIndex, slide.title ?? '', opts.numberedTitle)
+    const titleTotal = worksheetAnswerSegmentCount(titleText)
+    if (titleTotal > 0) {
+      const titleKey = curriculumSlideTitleRevealKey(slideIndex)
+      if (opts.typingPaused?.[titleKey] === true) return prev
+      if (opts.answerVisibility?.[titleKey] !== false && opts.typingEnabled?.[titleKey] !== false) {
+        if (step(titleKey, titleTotal)) return next
+      }
+    }
+  }
+
+  const blocks = slide.blocks
+  if (!blocks?.length) return prev
+  for (let bi = 0; bi < blocks.length; bi++) {
+    const block = blocks[bi]
+    const shouldType = opts.worksheetPresentation ? Boolean(block.isAnswer) : opts.hasCurriculumSegmentTyping
+    if (!shouldType) continue
+    const key = `${slideIndex}-${bi}`
+    if (opts.answerVisibility?.[key] === false) continue
+    if (opts.typingPaused?.[key] === true) return prev
+    if (opts.typingEnabled?.[key] === false) continue
+    const total = blockTypingSegmentCount(block, opts)
+    if (step(key, total)) return next
+  }
+  return prev
+}
+
 /** Tổng số segment (ký tự + embed) của mọi block gõ trên một slide. */
 export function slideSolutionSegmentsGlobalTotal(
   blocks: BlockLikeForSequentialReveal[],

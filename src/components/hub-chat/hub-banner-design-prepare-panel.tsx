@@ -5,6 +5,7 @@ import { useRef } from 'react'
 import { ImagePlus, Loader2, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { HubImagePromptPolishButton } from '@/components/hub-chat/hub-image-prompt-polish-button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -148,6 +149,9 @@ export function HubBannerDesignPreparePanel({
   onDomainNameCommit,
   onOverlayTextChange,
   onOverlayTextCommit,
+  optimizeLabel,
+  optimizeTitle,
+  onOptimizeOverlay,
   onUploadLogo,
   onRemoveLogo,
   onUploadProductFiles,
@@ -169,6 +173,9 @@ export function HubBannerDesignPreparePanel({
   onOverlayTextChange: (text: string) => void
   /** Persist to session on blur / before generate. */
   onOverlayTextCommit?: (text: string) => void | Promise<void>
+  optimizeLabel?: string
+  optimizeTitle?: string
+  onOptimizeOverlay?: () => void
   onUploadLogo: (files: FileList) => void | Promise<void>
   onRemoveLogo: () => void | Promise<void>
   onUploadProductFiles: (files: FileList) => void | Promise<void>
@@ -271,6 +278,15 @@ export function HubBannerDesignPreparePanel({
           className="min-h-[72px] resize-y text-sm"
           disabled={busy}
         />
+        {optimizeLabel && onOptimizeOverlay ? (
+          <HubImagePromptPolishButton
+            label={optimizeLabel}
+            title={optimizeTitle}
+            busy={busy}
+            disabled={overlayText.trim().length < 2}
+            onClick={onOptimizeOverlay}
+          />
+        ) : null}
       </div>
 
       <div className="space-y-2">

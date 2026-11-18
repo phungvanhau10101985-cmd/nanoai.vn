@@ -3,7 +3,9 @@ import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { geminiQualityCredit, imageChargeFromForm } from '@/lib/ai/image-engine'
+import { fluxPixelsForPrintMm } from '@/lib/ai/flux-image-size'
 import { runImageContent } from '@/lib/ai/gpt-image'
+import { boxFaceImageRoute, coerceBoxFaceEngine } from '@/lib/packaging/box-face-engine'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
@@ -32,6 +34,8 @@ export async function runFaceCropOutpaint(input: {
   imageEngine?: string | null
   gptQuality?: string | null
   imageQuality?: string | null
+  widthMm?: number
+  heightMm?: number
 }): Promise<FaceCropOutpaintResult> {
   let balance = 0
   try {
@@ -39,11 +43,23 @@ export async function runFaceCropOutpaint(input: {
   } catch {
     return { ok: false, error: 'Không đọc được số dư credits.' }
   }
+  const faceRoute =
+    input.widthMm && input.heightMm && input.widthMm > 0 && input.heightMm > 0
+      ? boxFaceImageRoute(input.widthMm, input.heightMm)
+      : null
+  const faceEngine = faceRoute ? coerceBoxFaceEngine(input.imageEngine, faceRoute) : input.imageEngine
+  const aspectRatio =
+    faceRoute && faceEngine === 'gpt'
+      ? faceRoute.gptAspect
+      : faceRoute && faceEngine === 'gemini'
+        ? faceRoute.geminiAspect
+        : input.aspectRatio
   const priced = imageChargeFromForm(
     {
       get: (name) => {
-        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'imageEngine') return faceEngine ?? null
         if (name === 'gptQuality') return input.gptQuality ?? null
+        if (name === 'imageQuality') return input.imageQuality ?? null
         return null
       },
     },
@@ -59,7 +75,7 @@ export async function runFaceCropOutpaint(input: {
   if (!bunnyReady.ok) return { ok: false, error: bunnyReady.error }
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (priced.engine !== 'gpt') {
+  if (priced.engine === 'gemini') {
     const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
     const genAI = new GoogleGenerativeAI(apiKey)
     model = genAI.getGenerativeModel({
@@ -71,7 +87,14 @@ export async function runFaceCropOutpaint(input: {
     })
   }
 
-  const prompt = `${OUTPAINT_PROMPT}\nTarget aspect ratio: ${input.aspectRatio}.`
+  const fluxSize =
+    priced.engine === 'flux' && input.widthMm && input.heightMm
+      ? fluxPixelsForPrintMm(input.widthMm, input.heightMm, {
+          quality: priced.fluxQuality ?? '2K',
+          hasImages: true,
+        })
+      : null
+  const prompt = `${OUTPAINT_PROMPT}\nTarget aspect ratio: ${aspectRatio}.`
   const imagePart = {
     inlineData: { data: input.imageBuffer.toString('base64'), mimeType: input.mimeType || 'image/png' },
   }
@@ -86,7 +109,9 @@ export async function runFaceCropOutpaint(input: {
     const result = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
-      aspectRatio: input.aspectRatio,
+      imageQuality: priced.geminiQuality,
+      aspectRatio,
+      fluxSize,
       parts: [prompt, imagePart],
       gemini: () => model!.generateContent([prompt, imagePart], { safetySettings }),
     })

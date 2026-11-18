@@ -48,7 +48,7 @@ export default function ThietKeLogoClientPage() {
   const [step, setStep] = useState<Step>('UPLOAD')
   const [note, setNote] = useState('')
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageQuality, setImageQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aspectRatio, setAspectRatio] = useState<string>('1:1')
@@ -58,9 +58,10 @@ export default function ThietKeLogoClientPage() {
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const generateCost = imageEngineCredit({
+      imageQuality: imageQuality,
     engine: imageEngine,
     gptQuality,
-    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+    geminiCost: imageQuality === '4K' ? 3 : 1.5,
   })
   const cost = stripBg ? generateCost + 1.5 : generateCost
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import {
   ContentEmbed,
   parseQuizData,
@@ -49,6 +49,8 @@ export type WorksheetAnswerTypedBodyProps = {
   onEditBlock: () => void
   onProposeEdit: () => void
   onProposeAdd: () => void
+  /** Mobile chuỗi slide: nút Tạo câu hỏi đặt cạnh Đề xuất bổ sung. Desktop không truyền. */
+  afterProposeAdd?: ReactNode
   /** Phiếu bài tập trên slide GV: thay Đề xuất sửa/bổ sung bằng một nút Sửa (popup giống trang phiếu). */
   showWorksheetMarkdownEdit?: boolean
   onEditWorksheetMarkdown?: () => void
@@ -184,6 +186,7 @@ export function WorksheetAnswerTypedBody({
   onRemoveEmbed,
   onEditBlock,
   onProposeAdd,
+  afterProposeAdd,
   showWorksheetMarkdownEdit,
   onEditWorksheetMarkdown,
   reportQuizWrong,
@@ -354,6 +357,7 @@ export function WorksheetAnswerTypedBody({
               <Plus className="h-3.5 w-3.5" />
               {tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
             </button>
+            {afterProposeAdd}
           </>
         )}
       </div>

@@ -50,6 +50,14 @@ export const API_COST_PER_1M: Record<string, ModelUsdRates> = {
    * Output $30/1M trên token API trả về. Không đặt outputImage — nếu không, size 2K/4K sẽ thay token bằng bảng Gemini.
    */
   'gpt-image-2': { input: 5, output: 30 },
+  /**
+   * FLUX 3. 1 credit BFL = $0,01. Log ghi `candidatesTokenCount = credit × 1000`
+   * và output $10 / 1M token → USD = credit × 0,01. Không đặt outputImage.
+   */
+  'flux-3-image': { input: 0, output: 10 },
+  'NanoAI F1.5K': { input: 0, output: 10 },
+  'NanoAI F2K': { input: 0, output: 10 },
+  'NanoAI F4K': { input: 0, output: 10 },
 
   /** Gemini 3.1 Pro Preview — bậc theo prompt 200k token. */
   'gemini-3.1-pro-preview': { input: 2, output: 12, inputLong: 4, outputLong: 18 },

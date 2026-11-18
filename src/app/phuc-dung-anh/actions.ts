@@ -113,7 +113,7 @@ export async function restoreImage(formData: FormData) {
   }
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
     model = genAI.getGenerativeModel({
       model: GEMINI_3_PRO_IMAGE.model,
@@ -138,6 +138,7 @@ export async function restoreImage(formData: FormData) {
     const result = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       parts: [prompt, imagePart],
       gemini: () => model!.generateContent([prompt, imagePart], { safetySettings }),
     })

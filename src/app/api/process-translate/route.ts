@@ -160,7 +160,9 @@ async function handleProcessTranslate(request: NextRequest) {
   const targetLang = String(job.target_lang || 'vi')
   const plan = documentTranslateJobPlan(job.image_quality, Number(job.cost) || 0)
   const imageQuality = plan.geminiSize
-  const cost = Number(job.cost) || TRANSLATE_COSTS[imageQuality]
+  const cost =
+    Number(job.cost) ||
+    (imageQuality === '4K' ? TRANSLATE_COSTS['4K'] : imageQuality === '1.5K' ? 1 : TRANSLATE_COSTS['2K'])
   const { engine, gptQuality } = plan
   if (engine === 'gpt' && gptQuality === 'low') {
     const errText = 'Trang này không dùng NanoAI 2L. Chọn NanoAI 2M hoặc NanoAI 2H.'
@@ -170,7 +172,7 @@ async function handleProcessTranslate(request: NextRequest) {
   }
 
   const apiKey = process.env.GOOGLE_API_KEY
-  if (engine !== 'gpt' && !apiKey) {
+  if (engine === 'gemini' && !apiKey) {
     const errText = 'Thiếu GOOGLE_API_KEY trong cấu hình server'
     await markTranslateJobFailedPg(resolvedJobId, errText)
     await notifyTranslateFailed(errText)

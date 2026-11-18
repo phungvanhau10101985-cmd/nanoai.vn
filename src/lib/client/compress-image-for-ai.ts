@@ -70,7 +70,7 @@ async function compressViaImageElement(file: File, maxEdge: number): Promise<Fil
 /** Giữ file gốc nếu trình duyệt không vẽ được (HEIC lạ). */
 export async function compressImageFileForAi(
   file: File,
-  options?: { imageQuality?: '2K' | '4K' }
+  options?: { imageQuality?: '1.5K' | '2K' | '4K' }
 ): Promise<File> {
   if (typeof window === 'undefined') return file
   if (!looksLikeImage(file)) return file

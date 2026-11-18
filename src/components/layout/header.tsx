@@ -58,7 +58,7 @@ export async function Header() {
   }
 
   return (
-    <header data-nanoai-chrome="" className="sticky top-0 z-50 w-full border-b border-border/60 bg-background [--site-header-height:3rem] backdrop-blur-xl supports-[backdrop-filter]:bg-background/65 lg:[--site-header-height:3.5rem]">
+    <header data-nanoai-chrome="" className="sticky top-0 z-50 w-full border-b border-border/60 bg-background [--site-header-height:3rem] backdrop-blur-xl supports-[backdrop-filter]:bg-background/65 md:bg-background/95 md:shadow-sm md:[--site-header-height:3.75rem] lg:[--site-header-height:4rem]">
       <div className="container mx-auto max-w-7xl px-3 py-2 sm:px-6 lg:px-8 lg:py-2.5 xl:px-10">
         <div className="flex items-center justify-between gap-2 sm:gap-3.5 lg:gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 md:max-w-none md:flex-none md:gap-3.5 lg:gap-4">
@@ -80,14 +80,14 @@ export async function Header() {
               <span className="min-w-0 truncate text-sm font-semibold tracking-tight sm:text-base lg:text-lg">{t.app.siteName}</span>
             </Link>
             <LocaleSwitcher currentLocale={locale} />
-            <nav className="hidden items-center md:flex">
+            <nav className="hidden items-center lg:flex">
               <Link href="/dashboard">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 gap-1.5 rounded-lg px-2.5 text-xs lg:h-9 lg:px-3 lg:text-sm lg:shadow-sm"
+                  className="h-11 gap-1.5 rounded-lg px-3 text-sm shadow-sm"
                 >
-                  <LayoutGrid className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
+                  <LayoutGrid className="h-4 w-4" />
                   {t.app.toolHub}
                 </Button>
               </Link>
@@ -102,7 +102,7 @@ export async function Header() {
                 <HeaderUserMenu user={user} credits={credits} isAdmin={isAdmin} t={clientDictionary} />
               </>
             ) : (
-              <LoginNavButton label={t.app.login} className="rounded-lg px-2.5 py-1.5 text-xs" />
+              <LoginNavButton label={t.app.login} className="rounded-lg px-2.5 py-1.5 text-xs md:h-11 md:px-3 md:py-0 md:text-sm" />
             )}
           </div>
         </div>

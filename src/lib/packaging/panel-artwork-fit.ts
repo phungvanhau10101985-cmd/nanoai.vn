@@ -107,6 +107,26 @@ export async function preparePanelArtworkForDieline(
   }
 }
 
+/** Phóng ảnh tới đúng khổ mặt và cắt phần dư, không kéo méo, không chừa viền trắng. */
+export async function coverPanelArtworkToTrim(
+  buffer: Buffer,
+  widthMm: number,
+  heightMm: number,
+  dpi = PANEL_PRINT_DPI
+): Promise<Buffer> {
+  const widthPx = mmToPrintPx(widthMm, dpi)
+  const heightPx = mmToPrintPx(heightMm, dpi)
+  const safeBuffer = await ensureImageWithinLimits(buffer)
+  return sharp(safeBuffer, { limitInputPixels: false })
+    .resize(widthPx, heightPx, {
+      fit: 'cover',
+      position: 'centre',
+      kernel: sharp.kernel.lanczos3,
+    })
+    .png()
+    .toBuffer()
+}
+
 /** Normalize generated/uploaded face art to exact print trim pixels before storage. */
 export async function normalizePanelArtworkToPrintSize(
   buffer: Buffer,

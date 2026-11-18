@@ -57,11 +57,14 @@ export type MetaStandardEventName =
   | 'InitiateCheckout'
   | 'AddPaymentInfo'
   | 'Purchase'
+  | 'Lead'
 
 function sendMetaStandardEventToServer(params: {
   eventName: MetaStandardEventName
   eventId: string
   customData?: Record<string, unknown>
+  customerEmail?: string
+  customerPhone?: string
 }): void {
   if (!canUseDom()) return
   let externalId = ''
@@ -82,6 +85,8 @@ function sendMetaStandardEventToServer(params: {
     fbc: readClickId('_fbc', 'nano_meta_fbc'),
     fbp: readClickId('_fbp', 'nano_meta_fbp'),
     externalId,
+    ...(params.customerEmail ? { customerEmail: params.customerEmail } : {}),
+    ...(params.customerPhone ? { customerPhone: params.customerPhone } : {}),
   }
   void fetch('/api/tracking/meta-standard-event', {
     method: 'POST',
@@ -133,6 +138,8 @@ export function fireMetaStandardEvent(
     customData?: Record<string, unknown>
     skipDedupe?: boolean
     eventId?: string
+    customerEmail?: string
+    customerPhone?: string
   }
 ): boolean {
   if (!canUseDom()) return false
@@ -163,6 +170,8 @@ export function fireMetaStandardEvent(
     eventName,
     eventId,
     ...(customData ? { customData } : {}),
+    ...(options?.customerEmail ? { customerEmail: options.customerEmail } : {}),
+    ...(options?.customerPhone ? { customerPhone: options.customerPhone } : {}),
   })
   if (!skipDedupe) {
     markSentEvent(key)

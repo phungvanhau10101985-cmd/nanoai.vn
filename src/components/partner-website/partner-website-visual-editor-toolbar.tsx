@@ -1910,7 +1910,7 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [uploadBusy, setUploadBusy] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
-  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [geminiQuality, setGeminiQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiImageColor, setAiImageColor] = useState(() =>

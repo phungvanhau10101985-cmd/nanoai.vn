@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import {
   WEDDING_CREATE_SOURCE_STORAGE_KEY,
   chooseWeddingCreateTouch,
+  resolveRecordedCreateSource,
   resolveWeddingCreateSource,
   weddingCreateSourceBootstrapJs,
   weddingCreateSourceView,
@@ -86,6 +87,24 @@ describe('resolveWeddingCreateSource', () => {
       source: 'direct',
       detail: '',
     })
+  })
+})
+
+describe('resolveRecordedCreateSource', () => {
+  it('keeps the stored ad touch, and only records a page query when the browser sent nothing', () => {
+    assert.deepEqual(
+      resolveRecordedCreateSource(
+        { search: '?fbclid=1&utm_source=facebook&utm_medium=cpc&utm_campaign=tet', referrer: '', pageHost: 'nanoai.vn' },
+        'https://nanoai.vn/tao-giao-trinh',
+        NOW,
+      ),
+      { source: 'facebook', detail: 'facebook · cpc · tet' },
+    )
+    assert.equal(resolveRecordedCreateSource(null, 'https://nanoai.vn/tao-giao-trinh', NOW), null)
+    assert.deepEqual(
+      resolveRecordedCreateSource(null, 'https://nanoai.vn/tao-thiep-moi-cuoi-ai?gclid=1&utm_source=google&utm_medium=cpc', NOW),
+      { source: 'google_ads', detail: 'google · cpc' },
+    )
   })
 })
 

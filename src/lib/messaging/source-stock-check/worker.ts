@@ -1,4 +1,6 @@
 import { shopBackgroundRunsHere } from '@/lib/cron/shop-cron-process'
+import { shopHeavyBusy, shopHeavyWaiting, tryBeginShopHeavy, endShopHeavy, noteShopHeavyWaiting } from '@/lib/cron/shop-heavy-slot'
+import { shopHostBlocksBackground } from '@/lib/cron/shop-host-pressure'
 import { redisGet, redisSetEx } from '@/lib/cache/redis'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -271,20 +273,39 @@ async function workerLoop(): Promise<void> {
         await sleep(idle * 1000)
         continue
       }
+      if (shopHeavyBusy() || shopHeavyWaiting('listing') || shopHostBlocksBackground()) {
+        noteShopHeavyWaiting('source-stock', true)
+        await sleep(5_000)
+        continue
+      }
       const paused = await listPausedPartnerIdsFromPg()
       const mem = popMemory(paused)
       const next = mem || (await claimDueSourceStockFromPg())
       if (!next) {
+        noteShopHeavyWaiting('source-stock', false)
         await sleep(idle * 1000)
         continue
       }
       if (paused.has(next.partnerId)) {
+        noteShopHeavyWaiting('source-stock', false)
         memoryQueue.unshift(next)
         queuedKeys.add(memKey(next.partnerId, next.inventoryId))
         await sleep(idle * 1000)
         continue
       }
-      await checkProductSourceStock(next.partnerId, next.inventoryId, next.previousStatus)
+      const heavy = tryBeginShopHeavy('source-stock')
+      if (!heavy) {
+        noteShopHeavyWaiting('source-stock', true)
+        memoryQueue.unshift(next)
+        queuedKeys.add(memKey(next.partnerId, next.inventoryId))
+        await sleep(5_000)
+        continue
+      }
+      try {
+        await checkProductSourceStock(next.partnerId, next.inventoryId, next.previousStatus)
+      } finally {
+        endShopHeavy(heavy)
+      }
       await sleep(sourceStockCheckIntervalSeconds() * 1000)
     } catch (e) {
       console.warn('[source-stock loop]', e instanceof Error ? e.message : e)
@@ -434,7 +455,7 @@ export async function getSourceStockWorkerAdminSnapshot(partnerId: string): Prom
     effective_idle_reason: idle,
     effective_idle_hint_vi: reasonVi || null,
     deployment_notes_vi:
-      'Vòng scrape chạy trong PM2 nanoai-shop-cron, không trong process web. Cờ pause lưu DB theo workspace. Nhịp sống ghi Redis pw:cron:source-stock:alive.',
+      'Vòng scrape chạy trong PM2 nanoai-shop-cron, không trong process web. Đang cào listing thì không mở Chromium. Cờ pause lưu DB theo workspace. Nhịp sống ghi Redis pw:cron:source-stock:alive.',
     checking,
     last_completed: lastCompleted,
     next_upcoming_primary: upcoming[0] ?? null,

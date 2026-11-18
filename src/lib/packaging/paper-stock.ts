@@ -12,7 +12,7 @@ export const PAPER_STOCK_IDS: PaperStockId[] = [
 /** Độ dày điển hình (mm) của giấy bìa thường dùng cho hộp. */
 export const PAPER_STOCK_THICKNESS_MM: Record<Exclude<PaperStockId, 'custom'>, number> = {
   ivory_300: 0.42,
-  ivory_350: 0.5,
+  ivory_350: 0.42,
   duplex_300: 0.45,
   duplex_350: 0.55,
 }

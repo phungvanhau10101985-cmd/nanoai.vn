@@ -46,12 +46,13 @@ export function buildMetadata(config: PageSEOConfig): Metadata {
   } = config
 
   const url = `${SITE_URL}${path}`
-  const fullTitle = `${title} | ${SITE_NAME}`
+  const trimmedTitle = title.trim()
+  const fullTitle = trimmedTitle.endsWith(`| ${SITE_NAME}`) ? trimmedTitle : `${trimmedTitle} | ${SITE_NAME}`
   const keywordsStr = keywords.length > 0 ? keywords.join(', ') : undefined
   const resolvedOgImage = ogImage || (path === '/' ? DEFAULT_OG_IMAGE : buildOgImageUrl(title, path))
 
   return {
-    title: fullTitle,
+    title: { absolute: fullTitle },
     description,
     keywords: keywordsStr,
     authors: [{ name: SITE_NAME, url: SITE_URL }],

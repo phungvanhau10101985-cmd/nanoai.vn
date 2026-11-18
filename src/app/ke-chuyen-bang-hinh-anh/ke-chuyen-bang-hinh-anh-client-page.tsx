@@ -46,7 +46,7 @@ export default function KeChuyenBangHinhAnhClientPage() {
   const [uiLocale, setUiLocale] = useState<UiLocale>('vi')
   const [step, setStep] = useState<Step>('INPUT')
   const [prompt, setPrompt] = useState('')
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageQuality, setImageQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aspectRatio, setAspectRatio] = useState<string>('4:3')
@@ -54,9 +54,10 @@ export default function KeChuyenBangHinhAnhClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const cost = imageEngineCredit({
+      imageQuality: imageQuality,
     engine: imageEngine,
     gptQuality,
-    geminiCost: imageQuality === '2K' ? 3 : 6,
+    geminiCost: imageQuality === '4K' ? 6 : 3,
   })
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en

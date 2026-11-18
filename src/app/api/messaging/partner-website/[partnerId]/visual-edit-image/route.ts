@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
+import { requestedStudioImageSize } from '@/lib/ai/image-engine'
 import { runStudioImagePipeline } from '@/lib/hub-agent/studio-image-pipeline'
 import { parseLogoStripBackgroundFlag } from '@/lib/remove-background-png'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
@@ -81,7 +82,7 @@ export async function POST(
       kind === 'logo' ? parseLogoStripBackgroundFlag(body.stripBackground) : undefined,
     imageEngine: body.imageEngine,
     gptQuality: body.gptQuality,
-    imageSize: String(body.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
+    imageSize: requestedStudioImageSize(body.imageQuality),
   })
 
   if (!result.ok) {

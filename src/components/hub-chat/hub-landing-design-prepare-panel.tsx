@@ -4,6 +4,7 @@ import { useRef, type ReactNode } from 'react'
 import { ImagePlus, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { HubImagePromptPolishButton } from '@/components/hub-chat/hub-image-prompt-polish-button'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { LandingDesignStepKey } from '@/lib/hub-chat/hub-studio-preset-flows'
@@ -93,6 +94,10 @@ export function HubLandingDesignPreparePanel({
   busy,
   onSectionCopyChange,
   onLogoBriefChange,
+  optimizeLabel,
+  optimizeTitle,
+  onOptimizeSection,
+  onOptimizeLogo,
   onUploadLogo,
   onRemoveLogo,
   onGenerateLogo,
@@ -109,6 +114,10 @@ export function HubLandingDesignPreparePanel({
   busy?: boolean
   onSectionCopyChange: (value: string) => void
   onLogoBriefChange: (value: string) => void
+  optimizeLabel?: string
+  optimizeTitle?: string
+  onOptimizeSection?: () => void
+  onOptimizeLogo?: () => void
   onUploadLogo?: (files: FileList) => void | Promise<void>
   onRemoveLogo?: () => void | Promise<void>
   onGenerateLogo?: (brief: string, stripBackground?: boolean) => void | Promise<void>
@@ -137,6 +146,9 @@ export function HubLandingDesignPreparePanel({
         onRemoveLogo={onRemoveLogo}
         onGenerateLogo={onGenerateLogo}
         modelPicker={modelPicker}
+        optimizeLabel={optimizeLabel}
+        optimizeTitle={optimizeTitle}
+        onOptimizeBrief={onOptimizeLogo}
       />
 
       <div className="flex flex-col gap-1.5">
@@ -150,6 +162,15 @@ export function HubLandingDesignPreparePanel({
           disabled={busy}
           className="min-h-[120px] resize-y text-sm"
         />
+        {optimizeLabel && onOptimizeSection ? (
+          <HubImagePromptPolishButton
+            label={optimizeLabel}
+            title={optimizeTitle}
+            busy={busy}
+            disabled={sectionCopy.trim().length < 2}
+            onClick={onOptimizeSection}
+          />
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-2">

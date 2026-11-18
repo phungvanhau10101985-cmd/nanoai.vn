@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, Timer, RotateCcw, Presentation, Square, LayoutGrid, Monitor, Link2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Printer, BarChart2, Play, Pause, Settings2, Timer, RotateCcw, Presentation, Square, LayoutGrid, Monitor, Link2, Smartphone } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
@@ -99,6 +99,8 @@ export interface PresentationControlBarProps {
   phoneTeacher?: boolean
   /** MacBook: thanh điều khiển cuộn ngang khi không đủ chỗ. Windows không truyền prop này. */
   appleMacBar?: boolean
+  /** Giáo viên, khi giao diện học sinh đang mở: hiện mã QR điều khiển từ điện thoại. */
+  onPhoneControl?: () => void
 }
 
 export function PresentationControlBar({
@@ -148,6 +150,7 @@ export function PresentationControlBar({
   phoneStudent = false,
   phoneTeacher = false,
   appleMacBar = false,
+  onPhoneControl,
 }: PresentationControlBarProps) {
   const isStudent = variant === 'student'
   const isTeacher = variant === 'teacher'
@@ -285,6 +288,24 @@ export function PresentationControlBar({
           </>
         )}
 
+        {onPhoneControl ? (
+          <button
+            type="button"
+            data-control="dieu-khien-dt"
+            onClick={onPhoneControl}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-sky-400/50 bg-sky-500/20 px-2.5 text-xs font-medium text-sky-100 hover:bg-sky-500/30"
+            title={tr(
+              'Quét mã để điều khiển slide từ điện thoại. Điện thoại đăng nhập đúng tài khoản giáo viên.',
+              'Show a QR code. The phone signs in as this teacher and controls the student screen.',
+              '显示二维码。手机以该教师账号登录并控制学生画面。',
+              'QRを表示。スマホがこの教師アカウントでログインし、生徒画面を操作します。',
+              'QR을 표시합니다. 휴대폰이 이 교사 계정으로 로그인하고 학생 화면을 조작합니다.'
+            )}
+          >
+            <Smartphone className="h-4 w-4 shrink-0" />
+            {tr('Điều khiển ĐT', 'Phone remote', '手机操控', 'スマホ操作', '폰 조작')}
+          </button>
+        ) : null}
         {/* 1. Đồng hồ giáo viên – student ẩn hẳn để không tạo khoảng trống */}
         {!hideTeacherTimer && (
           <div

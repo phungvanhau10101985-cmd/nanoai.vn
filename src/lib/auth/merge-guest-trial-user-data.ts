@@ -189,11 +189,21 @@ export async function mergeGuestTrialUserDataAfterLogin(input: MergeInput): Prom
 
     await runMergeStep(client, 800, async () => {
       await client.query(
-        `insert into public.user_opened_curricula (user_id, curriculum_id, opened_at)
-         select $1::uuid, g.curriculum_id, g.opened_at
+        `insert into public.user_opened_curricula (
+           user_id, curriculum_id, opened_at, opened_source, opened_source_detail
+         )
+         select $1::uuid, g.curriculum_id, g.opened_at, g.opened_source, g.opened_source_detail
          from public.user_opened_curricula g
          where g.user_id = $2::uuid
-         on conflict (user_id, curriculum_id) do nothing`,
+         on conflict (user_id, curriculum_id) do update set
+           opened_source = case
+             when user_opened_curricula.opened_source = '' then excluded.opened_source
+             else user_opened_curricula.opened_source
+           end,
+           opened_source_detail = case
+             when user_opened_curricula.opened_source = '' then excluded.opened_source_detail
+             else user_opened_curricula.opened_source_detail
+           end`,
         [realUserId, guestUserId]
       )
       await client.query(`delete from public.user_opened_curricula where user_id = $2::uuid`, [guestUserId])

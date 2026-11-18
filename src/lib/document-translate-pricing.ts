@@ -1,4 +1,4 @@
-import { GPT_IMAGE_CREDITS, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { GPT_IMAGE_CREDITS, parseFluxImageQuality, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 
 /**
  * Giá Gemini trên trang dịch ảnh. 1 credit = 6.000đ.
@@ -25,7 +25,7 @@ function gptQualityFromCost(cost: number): GptImageQuality {
 export function documentTranslateJobPlan(
   storedQuality: string | null | undefined,
   cost: number
-): { engine: ImageEngine; gptQuality: GptImageQuality | null; geminiSize: DocumentTranslateGeminiSize } {
+): { engine: ImageEngine; gptQuality: GptImageQuality | null; geminiSize: DocumentTranslateGeminiSize | '1.5K' } {
   const stored = String(storedQuality || '').trim().toLowerCase()
   const geminiSize: DocumentTranslateGeminiSize = stored === '4k' || stored === 'gemini-4k' ? '4K' : '2K'
   if (stored.startsWith('gpt-')) {
@@ -33,6 +33,21 @@ export function documentTranslateJobPlan(
     const gptQuality: GptImageQuality = quality === 'low' || quality === 'high' ? quality : 'medium'
     return { engine: 'gpt', gptQuality, geminiSize }
   }
+  if (stored.startsWith('flux-')) {
+    const fluxQuality = parseFluxImageQuality(stored.replace('flux-', ''))
+    return { engine: 'flux', gptQuality: null, geminiSize: fluxQuality }
+  }
   if (isGptCredit(cost)) return { engine: 'gpt', gptQuality: gptQualityFromCost(cost), geminiSize }
   return { engine: 'gemini', gptQuality: null, geminiSize }
+}
+
+/** Job dịch lưu `flux-1.5k` / `flux-2k` / `flux-4k` vì F1.5K trùng GPT 1 credit và F2K trùng Gemini 2K. */
+export function translateStoredImageQuality(engine: ImageEngine, quality: string): string {
+  if (engine === 'flux') {
+    const fluxQuality = parseFluxImageQuality(quality)
+    if (fluxQuality === '4K') return 'flux-4k'
+    if (fluxQuality === '1.5K') return 'flux-1.5k'
+    return 'flux-2k'
+  }
+  return quality
 }

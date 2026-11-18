@@ -97,7 +97,7 @@ export async function createIdCard(formData: FormData) {
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     const { apiKey } = await requireGoogleApiKeyForUser(user.id)
     const genAI = new GoogleGenerativeAI(apiKey)
     model = genAI.getGenerativeModel({
@@ -123,6 +123,7 @@ export async function createIdCard(formData: FormData) {
     const result = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       aspectRatio,
       parts: [prompt, imagePart],
       gemini: () => model!.generateContent([prompt, imagePart], { safetySettings }),

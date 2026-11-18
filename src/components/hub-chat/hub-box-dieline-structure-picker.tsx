@@ -32,6 +32,7 @@ const COPY: Record<
     cols: string
     rows: string
     jar: string
+    neck: string
     action: string
     stocks: Record<PaperStockId, string>
   }
@@ -46,6 +47,7 @@ const COPY: Record<
     cols: 'Số cột lót',
     rows: 'Số hàng lót',
     jar: 'Đường kính hũ (mm, 0 = tự tính)',
+    neck: 'Đường kính nắp chai (mm, 0 = tạm)',
     action: 'Tạo file in',
     stocks: {
       ivory_300: 'Ivory 300 gsm',
@@ -65,6 +67,7 @@ const COPY: Record<
     cols: 'Insert columns',
     rows: 'Insert rows',
     jar: 'Jar diameter (mm, 0 = auto)',
+    neck: 'Cap diameter (mm, 0 = provisional)',
     action: 'Create the print file',
     stocks: {
       ivory_300: 'Ivory 300 gsm',
@@ -84,6 +87,7 @@ const COPY: Record<
     cols: '内衬列数',
     rows: '内衬行数',
     jar: '瓶径（mm，0 = 自动）',
+    neck: '瓶盖直径（mm，0 = 暂定）',
     action: '生成印刷文件',
     stocks: {
       ivory_300: '象牙卡 300 gsm',
@@ -103,6 +107,7 @@ const COPY: Record<
     cols: '中仕切り列',
     rows: '中仕切り行',
     jar: '瓶の直径（mm、0 = 自動）',
+    neck: 'キャップ径（mm、0 = 仮）',
     action: '印刷ファイルを作成',
     stocks: {
       ivory_300: 'アイボリー 300 gsm',
@@ -122,6 +127,7 @@ const COPY: Record<
     cols: '속지 열',
     rows: '속지 행',
     jar: '병 지름 (mm, 0 = 자동)',
+    neck: '마개 지름 (mm, 0 = 임시)',
     action: '인쇄 파일 만들기',
     stocks: {
       ivory_300: '아이보리 300 gsm',
@@ -160,6 +166,7 @@ export function HubBoxDielineStructurePicker({
   const [cols, setCols] = useState(String(production?.insertCols ?? 2))
   const [rows, setRows] = useState(String(production?.insertRows ?? 3))
   const [jar, setJar] = useState(String(production?.jarDiameterMm ?? 0))
+  const [neck, setNeck] = useState(String(production?.neckDiameterMm ?? 0))
   useEffect(() => {
     setDraftStructure(resolveBoxDielineStructure(selectedStructure, structureVersion))
   }, [selectedStructure, structureVersion])
@@ -177,8 +184,9 @@ export function HubBoxDielineStructurePicker({
       insertCols: Number(cols),
       insertRows: Number(rows),
       jarDiameterMm: Number(jar.replace(',', '.')),
+      neckDiameterMm: Number(neck.replace(',', '.')),
     }
-  }, [cols, dimensionsMm.height, glue, jar, notch, production, rows, safe, stock])
+  }, [cols, dimensionsMm.height, glue, jar, neck, notch, production, rows, safe, stock])
 
   const boxDimensions = {
     lengthMm: dimensionsMm.length,
@@ -260,6 +268,12 @@ export function HubBoxDielineStructurePicker({
             <Input className="h-8 bg-white text-sm" value={jar} disabled={busy} onChange={(event) => setJar(event.target.value)} />
           </label>
         </div>
+      ) : null}
+      {draftStructure === 'bottle' ? (
+        <label className="mt-2 block space-y-1">
+          <span className="text-xs text-muted-foreground">{t.neck}</span>
+          <Input className="h-8 bg-white text-sm" value={neck} disabled={busy} onChange={(event) => setNeck(event.target.value)} />
+        </label>
       ) : null}
       <Button
         type="button"

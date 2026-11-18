@@ -1,4 +1,5 @@
 import type { Json } from '@/types/database.types'
+import { requestedStudioImageSize } from '@/lib/ai/image-engine'
 
 /**
  * PS.1 — Product Studio: đăng sản phẩm thủ công/AI (tham chiếu 188 manual_product_create,
@@ -90,10 +91,10 @@ export type ProductStudioJobPayload = {
   detailCount?: number
   imageModel?: ProductStudioImageModel
   /** Thiếu = Gemini. */
-  imageEngine?: 'gemini' | 'gpt'
+  imageEngine?: 'gemini' | 'gpt' | 'flux'
   gptQuality?: 'low' | 'medium' | 'high'
-  /** NanoAI 2K hoặc NanoAI 4K. Thiếu = 2K. Flash 2.5 không dùng 4K. */
-  imageQuality?: '2K' | '4K'
+  /** NanoAI 2K hoặc NanoAI 4K. FLUX còn NanoAI F1.5K. Thiếu = 2K. Flash 2.5 không dùng 4K. */
+  imageQuality?: '1.5K' | '2K' | '4K'
   aspectRatio?: string
   modelPresence?: ProductStudioModelPresence
   modelGender?: string
@@ -271,12 +272,12 @@ export function jsonToProductStudioPayload(raw: Json): ProductStudioJobPayload {
     galleryCount: Number(o.galleryCount ?? 5) || 5,
     detailCount: Number(o.detailCount ?? 3) || 3,
     imageModel: o.imageModel === 'flash' || o.imageModel === 'flash3' ? o.imageModel : 'pro',
-    imageEngine: String(o.imageEngine ?? '').trim().toLowerCase() === 'gpt' ? 'gpt' : undefined,
+    imageEngine: (['gpt', 'flux'] as const).find((engine) => engine === String(o.imageEngine ?? '').trim().toLowerCase()),
     gptQuality:
       o.gptQuality === 'low' || o.gptQuality === 'medium' || o.gptQuality === 'high'
         ? o.gptQuality
         : undefined,
-    imageQuality: String(o.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
+    imageQuality: requestedStudioImageSize(o.imageQuality),
     aspectRatio: String(o.aspectRatio ?? '1:1').trim() || '1:1',
     modelPresence: o.modelPresence === 'model' ? 'model' : 'none',
     modelGender: String(o.modelGender ?? '').trim(),

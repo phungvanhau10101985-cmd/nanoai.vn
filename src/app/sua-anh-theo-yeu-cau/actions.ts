@@ -69,7 +69,7 @@ export async function editImageByPrompt(formData: FormData) {
   const buffer = Buffer.from(await image.arrayBuffer())
   const imagePart = { inlineData: { data: buffer.toString('base64'), mimeType: image.type } }
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     const { apiKey } = await requireGoogleApiKeyForUser(user.id)
     const genAI = new GoogleGenerativeAI(apiKey)
     model = genAI.getGenerativeModel({
@@ -93,6 +93,7 @@ export async function editImageByPrompt(formData: FormData) {
     const result = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       parts: [prompt, imagePart],
       gemini: () => model!.generateContent([prompt, imagePart], { safetySettings }),
     })

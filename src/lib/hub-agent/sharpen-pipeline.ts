@@ -69,6 +69,7 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
       get: (name) => {
         if (name === 'imageEngine') return input.imageEngine ?? null
         if (name === 'gptQuality') return input.gptQuality ?? null
+        if (name === 'imageQuality') return imageQuality ?? null
         return null
       },
     },
@@ -103,7 +104,7 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
   if (!historyItem) return { ok: false, error: 'Không thể khởi tạo phiên xử lý.' }
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (priced.engine !== 'gpt') {
+  if (priced.engine === 'gemini') {
     const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
     const genAI = new GoogleGenerativeAI(apiKey)
     model = genAI.getGenerativeModel({
@@ -131,6 +132,7 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
     const result = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
+      imageQuality: priced.geminiQuality,
       parts: [prompt, imagePart],
       gemini: () => model!.generateContent([prompt, imagePart], { safetySettings }),
     })

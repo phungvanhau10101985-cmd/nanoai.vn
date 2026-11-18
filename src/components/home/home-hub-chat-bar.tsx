@@ -1,9 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   ImagePlus,
   Loader2,
@@ -474,6 +476,75 @@ function updateLatestStudioImageUrl(
   return markApprovedPackagingMockupLine(lines, screenKey, imageUrl)
 }
 
+const HUB_DESKTOP_CHIP_CLASS =
+  'shrink-0 rounded-full border px-2.5 py-1 text-xs transition-colors disabled:opacity-50 md:inline-flex md:h-7 md:items-center md:px-2 md:py-0 md:leading-none'
+
+function HubDesktopChipRail({
+  children,
+  prevLabel,
+  nextLabel,
+}: {
+  children: ReactNode
+  prevLabel: string
+  nextLabel: string
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ left: false, right: false })
+
+  const syncEdges = useCallback(() => {
+    const el = scrollerRef.current
+    if (!el) return
+    const left = el.scrollLeft > 2
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2
+    setEdges((prev) => (prev.left === left && prev.right === right ? prev : { left, right }))
+  }, [])
+
+  useLayoutEffect(() => {
+    syncEdges()
+    const el = scrollerRef.current
+    if (!el) return
+    const onScroll = () => syncEdges()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncEdges) : null
+    observer?.observe(el)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      observer?.disconnect()
+    }
+  }, [syncEdges, children])
+
+  const scrollByDir = (dir: -1 | 1) => {
+    const el = scrollerRef.current
+    if (!el) return
+    el.scrollBy({ left: dir * Math.max(180, Math.round(el.clientWidth * 0.72)), behavior: 'smooth' })
+  }
+
+  const showArrows = edges.left || edges.right
+  const arrowClass =
+    'flex h-7 w-6 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-25 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+
+  return (
+    <div className="hidden min-w-0 items-center gap-0.5 md:order-1 md:flex">
+      {showArrows ? (
+        <button type="button" className={arrowClass} aria-label={prevLabel} disabled={!edges.left} onClick={() => scrollByDir(-1)}>
+          <ChevronLeft className="h-4 w-4" aria-hidden />
+        </button>
+      ) : null}
+      <div
+        ref={scrollerRef}
+        className="flex h-8 min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {children}
+      </div>
+      {showArrows ? (
+        <button type="button" className={arrowClass} aria-label={nextLabel} disabled={!edges.right} onClick={() => scrollByDir(1)}>
+          <ChevronRight className="h-4 w-4" aria-hidden />
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 function stepStatusIcon(status: string) {
   if (status === 'done') return <Check className="h-3.5 w-3.5 text-emerald-600" />
   if (status === 'skipped') return <X className="h-3.5 w-3.5 text-muted-foreground" />
@@ -492,7 +563,11 @@ function formatThreadUpdatedAt(iso: string, locale: WebLocale): string {
   }
 }
 
-
+/** Khoảng từ đáy layout tới đáy vùng nhìn — phần bàn phím che. */
+function homeKeyboardOverlapPx(layoutHeight: number, offsetTop: number, visualHeight: number) {
+  const visualBottom = Math.max(0, offsetTop) + Math.max(0, visualHeight)
+  return Math.max(0, Math.round(layoutHeight - visualBottom))
+}
 
 export function HomeHubChatBar() {
   const router = useRouter()
@@ -524,7 +599,7 @@ export function HomeHubChatBar() {
   imageEngineRef.current = imageEngine
   gptQualityRef.current = gptQuality
   geminiQualityRef.current = geminiQuality
-  const renderImageModelPicker = () => (
+  const renderImageModelPicker = (triggerClassName?: string) => (
     <ImageEnginePicker
       locale={uiLocale}
       engine={imageEngine}
@@ -535,6 +610,7 @@ export function HomeHubChatBar() {
       onGptQualityChange={setGptQuality}
       geminiCost2k={UI_MOCKUP_CREDIT}
       geminiCost4k={UI_MOCKUP_CREDIT * 2}
+      triggerClassName={triggerClassName}
     />
   )
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
@@ -583,7 +659,11 @@ export function HomeHubChatBar() {
 
   const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
-    const el = narrow ? homeFrameScrollRef.current ?? chatScrollRef.current : chatScrollRef.current
+    if (!narrow) {
+      studioWorkflowAnchorRef.current?.scrollIntoView({ behavior, block: 'end' })
+      return
+    }
+    const el = homeFrameScrollRef.current ?? chatScrollRef.current
     if (!el) return
     el.scrollTo({ top: el.scrollHeight, behavior })
   }, [])
@@ -3365,73 +3445,71 @@ export function HomeHubChatBar() {
     }
   }, [featureFeedbackBusy, featureFeedbackDraft, hc.errorGeneric, hc.featureFeedbackNeedText, hc.featureFeedbackSent, hc.loginRequired, toast])
 
-  const featureFeedbackControl = (
-    <div className="flex flex-col gap-2 max-md:hidden">
-      {featureFeedbackOpen ? (
-        <div className="rounded-xl border border-indigo-200 bg-white p-3 shadow-sm dark:border-indigo-800 dark:bg-slate-950">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-indigo-950 dark:text-indigo-100">{hc.featureFeedbackTitle}</p>
-              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{hc.featureFeedbackHint}</p>
-            </div>
-            <button
-              type="button"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-              aria-label={hc.featureFeedbackClose}
-              onClick={() => setFeatureFeedbackOpen(false)}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <Textarea
-            ref={featureFeedbackRef}
-            value={featureFeedbackDraft}
-            onChange={(e) => setFeatureFeedbackDraft(e.target.value)}
-            placeholder={hc.featureFeedbackPlaceholder}
-            aria-label={hc.featureFeedbackTitle}
-            rows={3}
-            maxLength={800}
-            disabled={featureFeedbackBusy}
-            className="mt-2 min-h-[72px] resize-y text-sm"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault()
-                void submitFeatureFeedback()
-              }
-            }}
-          />
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              className="h-9 bg-indigo-600 hover:bg-indigo-700"
-              disabled={featureFeedbackBusy || featureFeedbackDraft.trim().length < 2}
-              onClick={() => void submitFeatureFeedback()}
-            >
-              {featureFeedbackBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquarePlus className="h-4 w-4" />}
-              {hc.featureFeedbackSend}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-9"
-              disabled={featureFeedbackBusy}
-              onClick={() => setFeatureFeedbackOpen(false)}
-            >
-              {hc.featureFeedbackClose}
-            </Button>
-          </div>
+  const featureFeedbackForm = featureFeedbackOpen ? (
+    <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-2.5 dark:border-indigo-800 dark:bg-indigo-950/30">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-indigo-950 dark:text-indigo-100">{hc.featureFeedbackTitle}</p>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{hc.featureFeedbackHint}</p>
         </div>
-      ) : (
         <button
           type="button"
-          className="inline-flex w-fit items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/80 px-3 py-1.5 text-xs font-medium text-indigo-800 transition-colors hover:border-indigo-400 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-100 dark:hover:border-indigo-500"
-          onClick={openFeatureFeedback}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+          aria-label={hc.featureFeedbackClose}
+          onClick={() => setFeatureFeedbackOpen(false)}
         >
-          <MessageSquarePlus className="h-3.5 w-3.5" />
-          {hc.featureFeedbackOpen}
+          <X className="h-4 w-4" />
         </button>
-      )}
+      </div>
+      <Textarea
+        ref={featureFeedbackRef}
+        value={featureFeedbackDraft}
+        onChange={(e) => setFeatureFeedbackDraft(e.target.value)}
+        placeholder={hc.featureFeedbackPlaceholder}
+        aria-label={hc.featureFeedbackTitle}
+        rows={2}
+        maxLength={800}
+        disabled={featureFeedbackBusy}
+        className="mt-2 min-h-[56px] resize-y text-sm"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault()
+            void submitFeatureFeedback()
+          }
+        }}
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          className="h-8 bg-indigo-600 hover:bg-indigo-700"
+          disabled={featureFeedbackBusy || featureFeedbackDraft.trim().length < 2}
+          onClick={() => void submitFeatureFeedback()}
+        >
+          {featureFeedbackBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquarePlus className="h-4 w-4" />}
+          {hc.featureFeedbackSend}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-8"
+          disabled={featureFeedbackBusy}
+          onClick={() => setFeatureFeedbackOpen(false)}
+        >
+          {hc.featureFeedbackClose}
+        </Button>
+      </div>
     </div>
+  ) : null
+
+  const featureFeedbackButton = (
+    <button
+      type="button"
+      className="inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-1.5 text-[11px] font-medium text-indigo-700 transition-colors hover:bg-indigo-50 dark:text-indigo-200 dark:hover:bg-indigo-950/40"
+      onClick={openFeatureFeedback}
+    >
+      <MessageSquarePlus className="h-3.5 w-3.5" />
+      {hc.featureFeedbackOpen}
+    </button>
   )
 
   useEffect(() => {
@@ -3672,12 +3750,85 @@ export function HomeHubChatBar() {
     field.style.height = `${next}px`
   }, [message])
 
+  useLayoutEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    let keyboardWasOpen = false
+    let raf = 0
+
+    const apply = () => {
+      const pill = studioTextareaRef.current?.closest('[data-home-composer]') as HTMLElement | null
+      const frame = pill?.closest('[data-home-chat-frame]') as HTMLElement | null
+      const scroller = homeFrameScrollRef.current
+      if (!pill || !frame) return
+      if (!mq.matches) {
+        frame.removeAttribute('data-home-kb')
+        pill.style.bottom = ''
+        if (scroller) scroller.style.paddingBottom = ''
+        keyboardWasOpen = false
+        return
+      }
+      const vv = window.visualViewport
+      const visualHeight = vv?.height ?? window.innerHeight
+      const overlap = homeKeyboardOverlapPx(window.innerHeight, vv?.offsetTop ?? 0, visualHeight)
+      const active = document.activeElement
+      const focused = active instanceof Node && pill.contains(active)
+      // Đang gõ: đáy ô = mép bàn phím. Layout đã co thì overlap = 0, ô nằm sát đáy mới.
+      const keyboard = focused
+      frame.setAttribute('data-home-kb', keyboard ? '1' : '0')
+      const nav = document.querySelector('nav.safe-area-pb')
+      const navHeight = nav?.getBoundingClientRect().height ?? 0
+      const dock = navHeight >= 48 ? Math.ceil(navHeight) : 64
+      pill.style.bottom = `${keyboard ? overlap : dock}px`
+      const composerHeight = Math.ceil(pill.getBoundingClientRect().height)
+      if (scroller) {
+        scroller.style.paddingBottom = `${composerHeight + (keyboard ? overlap : 0)}px`
+        if (keyboard && !keyboardWasOpen) scroller.scrollTop = scroller.scrollHeight
+      }
+      if (keyboard && !keyboardWasOpen) window.scrollTo(0, 0)
+      keyboardWasOpen = keyboard
+    }
+
+    const schedule = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(apply)
+    }
+
+    apply()
+    const ro = new ResizeObserver(schedule)
+    const pill = studioTextareaRef.current?.closest('[data-home-composer]')
+    if (pill) ro.observe(pill)
+    const nav = document.querySelector('nav.safe-area-pb')
+    if (nav) ro.observe(nav)
+    mq.addEventListener('change', schedule)
+    window.addEventListener('resize', schedule)
+    window.addEventListener('orientationchange', schedule)
+    window.addEventListener('focusin', schedule)
+    window.addEventListener('focusout', schedule)
+    window.visualViewport?.addEventListener('resize', schedule)
+    window.visualViewport?.addEventListener('scroll', schedule)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+      mq.removeEventListener('change', schedule)
+      window.removeEventListener('resize', schedule)
+      window.removeEventListener('orientationchange', schedule)
+      window.removeEventListener('focusin', schedule)
+      window.removeEventListener('focusout', schedule)
+      window.visualViewport?.removeEventListener('resize', schedule)
+      window.visualViewport?.removeEventListener('scroll', schedule)
+      const frame = document.querySelector('[data-home-chat-frame]')
+      frame?.removeAttribute('data-home-kb')
+    }
+  }, [])
+
   return (
     <div
       data-home-chat-frame=""
-      className="surface-card relative border border-indigo-100/80 shadow-sm max-md:flex max-md:h-full max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden max-md:rounded-none max-md:border-0 max-md:bg-background max-md:shadow-none dark:border-indigo-900/40"
+      data-keyboard-manual=""
+      className="surface-card relative border border-indigo-100/80 shadow-sm max-md:flex max-md:h-full max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden max-md:rounded-none max-md:border-0 max-md:bg-background max-md:shadow-none md:border-0 md:bg-transparent md:shadow-none dark:border-indigo-900/40"
     >
-      <div className="shrink-0 border-b border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-3 sm:px-5 sm:py-4 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
+      <div className="shrink-0 border-b border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-3 sm:px-5 sm:py-4 md:hidden dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
         <div className="flex items-start gap-2">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100 sm:text-lg">
@@ -3689,7 +3840,7 @@ export function HomeHubChatBar() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:max-h-[calc(100dvh-13rem)] lg:flex-row lg:items-stretch">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row lg:items-stretch">
         <aside className="flex shrink-0 flex-col border-b border-indigo-100 bg-indigo-50/40 dark:border-indigo-900/50 dark:bg-indigo-950/20 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-5.5rem)] lg:w-64 lg:overflow-hidden lg:self-start lg:border-b-0 lg:border-r xl:w-72">
           <div className="shrink-0 p-3 lg:border-b lg:border-indigo-100/80 dark:lg:border-indigo-900/50">
             <Button
@@ -3711,10 +3862,10 @@ export function HomeHubChatBar() {
           <div className="hidden min-h-0 flex-1 flex-col lg:flex">{renderChatHistoryPanel()}</div>
         </aside>
 
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col max-md:overflow-hidden lg:overflow-y-auto">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col max-md:overflow-hidden lg:overflow-visible">
           <div
             ref={homeFrameScrollRef}
-            className="space-y-3 px-3 py-3 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-y-auto max-md:overscroll-contain max-md:bg-muted/20 max-md:px-0 max-md:pb-0 max-md:pt-2 sm:px-5 sm:py-4"
+            className="space-y-3 px-3 py-3 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-y-auto max-md:overscroll-contain max-md:bg-muted/20 max-md:px-0 max-md:pb-24 max-md:pt-2 sm:px-5 sm:py-4"
           >
         {studioSession?.processSteps?.length ? (
           <div className="rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-2 dark:border-violet-900 dark:bg-violet-950/20">
@@ -3744,12 +3895,10 @@ export function HomeHubChatBar() {
         ) : null}
 
         {lines.length > 0 && (
-          <div ref={studioWorkflowAnchorRef} className="space-y-3">
+          <div ref={studioWorkflowAnchorRef} className="space-y-3 md:scroll-mb-48">
             <div
               ref={chatScrollRef}
-              className={`space-y-2 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2 max-md:max-h-none max-md:overflow-visible max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 dark:border-slate-800 dark:bg-slate-900/40 ${
-                shouldPinStudioWorkflowView ? 'md:max-h-[min(60vh,520px)]' : 'md:max-h-80'
-              }`}
+              className="space-y-2 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2 max-md:max-h-none max-md:overflow-visible max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-transparent md:p-0 dark:border-slate-800 dark:bg-slate-900/40 md:dark:bg-transparent"
             >
             {displayLines.map((line) => {
               const displayLine =
@@ -4515,13 +4664,18 @@ export function HomeHubChatBar() {
           ) : null}
 
           </div>
-          <div className="max-md:!mt-auto max-md:shrink-0 max-md:border-t max-md:border-border max-md:bg-background max-md:px-2 max-md:pb-2 max-md:pt-2 max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.12)] dark:max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.45)] md:space-y-3 md:px-3 md:pb-0 sm:md:px-5">
+          <div className="hidden h-36 shrink-0 md:block" aria-hidden="true" />
+          <div className="max-md:contents md:pointer-events-none md:fixed md:inset-x-0 md:bottom-0 md:z-40 md:pb-3 md:pt-3">
+          <div className="max-md:contents mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
+          <div className="max-md:contents lg:pl-64 xl:pl-72">
+          <div data-home-dock="" className="max-md:contents md:pointer-events-auto md:mx-auto md:flex md:w-full md:min-w-0 md:max-w-[840px] md:flex-col md:gap-1 md:rounded-2xl md:border md:border-slate-200 md:bg-white md:px-2.5 md:py-1.5 md:shadow-[0_4px_18px_rgba(15,23,42,0.10)] dark:md:border-slate-700 dark:md:bg-slate-950">
+          <div data-home-composer="" className="max-md:fixed max-md:inset-x-0 max-md:bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] max-md:z-[45] max-md:!mt-auto max-md:shrink-0 max-md:border-t max-md:border-border max-md:bg-background max-md:px-2 max-md:pb-2 max-md:pt-2 max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.12)] dark:max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.45)] md:order-2 md:bg-transparent md:p-0 md:shadow-none">
           {!hideStepInputComposer ? (
             <div className="flex flex-col gap-2 max-md:rounded-xl max-md:border-2 max-md:border-border max-md:bg-background max-md:p-1.5">
               {studioSession?.presetId && getActiveStepKey(studioSession) && studioInputPlaceholder ? (
                 <p className="text-xs font-medium text-foreground">{studioInputPlaceholder}</p>
               ) : null}
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end md:items-center md:gap-1.5">
                 <Textarea
                   ref={studioTextareaRef}
                   value={message}
@@ -4530,7 +4684,7 @@ export function HomeHubChatBar() {
                   aria-label={chatInputPlaceholder || hc.send}
                   rows={1}
                   disabled={busy}
-                  className="min-h-9 w-full min-w-0 flex-1 resize-none rounded-full border-0 bg-[#F0F2F5] px-3 py-2 text-[15px] leading-5 shadow-none ring-0 ring-offset-0 placeholder:text-[#65676B] focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-white/10 md:min-h-[80px] md:resize-y md:rounded-md md:border md:border-input md:bg-background md:text-sm md:leading-normal md:ring-offset-background md:focus-visible:ring-2 md:focus-visible:ring-ring md:focus-visible:ring-offset-2"
+                  className="min-h-9 w-full min-w-0 flex-1 resize-none rounded-full border-0 bg-[#F0F2F5] px-3 py-2 text-[15px] leading-5 shadow-none ring-0 ring-offset-0 placeholder:text-[#65676B] focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-white/10 md:min-h-9 md:resize-none md:rounded-none md:border-0 md:bg-transparent md:px-1.5 md:py-1.5 md:text-sm md:leading-5 md:shadow-none md:ring-0 md:focus-visible:ring-0"
                   onPaste={(event) => {
                     if (busy || !showStudioUpload || !clipboardHasImagePayload(event.clipboardData)) return
                     event.preventDefault()
@@ -4557,11 +4711,11 @@ export function HomeHubChatBar() {
                     }
                   }}
                 />
-                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  {renderImageModelPicker()}
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 md:gap-1.5">
+                  {renderImageModelPicker('md:h-8 md:max-w-[11.5rem] md:rounded-full md:px-2 md:text-[11px]')}
                   <Button
                     type="button"
-                    className="h-10 shrink-0 bg-indigo-600 hover:bg-indigo-700 max-md:h-9 max-md:w-9 max-md:rounded-full max-md:px-0 sm:h-auto"
+                    className="h-10 w-10 shrink-0 rounded-full bg-indigo-600 px-0 hover:bg-indigo-700 max-md:h-9 max-md:w-9 md:h-8 md:w-8"
                     disabled={
                       busy ||
                       (showGenerateCurrentStep
@@ -4571,19 +4725,16 @@ export function HomeHubChatBar() {
                     onClick={() => void sendMessage(message)}
                   >
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    <span className="max-md:sr-only">{busy ? hc.thinking : hc.send}</span>
+                    <span className="sr-only">{busy ? hc.thinking : hc.send}</span>
                   </Button>
                 </div>
               </div>
-              {featureFeedbackControl}
             </div>
-          ) : (
-            featureFeedbackControl
-          )}
+          ) : null}
         </div>
 
         {showGenerateCurrentStep ? (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5 md:order-2">
             {bannerGenerateMissingHints.length > 0 ? (
               <p className="text-xs text-amber-800 dark:text-amber-200">
                 {bannerGenerateMissingHints.join(' · ')}
@@ -4646,85 +4797,78 @@ export function HomeHubChatBar() {
         ) : null}
 
         {showPostFlowSuggestions ? (
-          <div className="max-h-52 space-y-2 overflow-y-auto pr-1 max-md:hidden">
-            <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200">{hc.studioPostFlowSuggestHint}</p>
+          <HubDesktopChipRail prevLabel={hc.featureChipPrev} nextLabel={hc.featureChipNext}>
+            <p className="sr-only">{hc.studioPostFlowSuggestHint}</p>
             {postFlowFeatureGroups.map((group) => (
-              <div key={group.groupKey}>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700/80 dark:text-violet-300/80">
-                  {group.groupLabel}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {group.entries.map((entry) => (
-                    <button
-                      key={entry.key}
-                      type="button"
-                      disabled={busy}
-                      onClick={() => openCatalogFeature(entry.key, 'new_thread')}
-                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-900 transition-colors hover:border-emerald-400 disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
-                    >
-                      {entry.label}
-                    </button>
-                  ))}
-                </div>
+              <div key={group.groupKey} className="contents">
+                {group.entries.map((entry) => (
+                  <button
+                    key={entry.key}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => openCatalogFeature(entry.key, 'new_thread')}
+                    className={`${HUB_DESKTOP_CHIP_CLASS} border-emerald-200 bg-emerald-50 text-emerald-900 hover:border-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100`}
+                  >
+                    {entry.label}
+                  </button>
+                ))}
               </div>
             ))}
-          </div>
+          </HubDesktopChipRail>
         ) : !hideStepInputComposer && showFeaturePicker && !isActiveStudioFlow(studioSession) && activeStepSuggestions.length === 0 ? (
-          <div className="max-h-52 space-y-2 overflow-y-auto pr-1 max-md:hidden">
-            <p className="text-xs font-medium text-muted-foreground">{hc.featurePickerHint}</p>
+          <HubDesktopChipRail prevLabel={hc.featureChipPrev} nextLabel={hc.featureChipNext}>
+            <p className="sr-only">{hc.featurePickerHint}</p>
             {featureCatalogGroups.map((group, groupIndex) => (
-              <div key={`${group.groupKey}-${groupIndex}`}>
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700/80 dark:text-violet-300/80">
-                  {group.groupLabel}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {group.entries.map((entry) => (
-                    <button
-                      key={entry.key}
-                      type="button"
-                      disabled={busy}
-                      onClick={() => openCatalogFeature(entry.key, 'current')}
-                      className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-800 transition-colors hover:border-violet-400 disabled:opacity-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
-                    >
-                      {entry.label}
-                    </button>
-                  ))}
-                </div>
+              <div key={`${group.groupKey}-${groupIndex}`} className="contents">
+                {group.entries.map((entry) => (
+                  <button
+                    key={entry.key}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => openCatalogFeature(entry.key, 'current')}
+                    className={`${HUB_DESKTOP_CHIP_CLASS} border-violet-200 bg-violet-50 text-violet-800 hover:border-violet-400 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200`}
+                  >
+                    {entry.label}
+                  </button>
+                ))}
               </div>
             ))}
-          </div>
+          </HubDesktopChipRail>
         ) : !hideStepInputComposer && activeStepSuggestions.length > 0 ? (
-          <div className="max-md:hidden">
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">{hc.suggested}</p>
-            <div className="flex flex-wrap gap-1.5">
-              {activeStepSuggestions.map((item) => (
-                <button
-                  key={`${item.label}-${item.message}`}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setMessage(item.message)
-                    focusStudioChat()
-                  }}
-                  className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-800 transition-colors hover:border-violet-400 disabled:opacity-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <HubDesktopChipRail prevLabel={hc.featureChipPrev} nextLabel={hc.featureChipNext}>
+            <p className="sr-only">{hc.suggested}</p>
+            {activeStepSuggestions.map((item) => (
+              <button
+                key={`${item.label}-${item.message}`}
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setMessage(item.message)
+                  focusStudioChat()
+                }}
+                className={`${HUB_DESKTOP_CHIP_CLASS} border-violet-200 bg-violet-50 text-violet-800 hover:border-violet-400 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </HubDesktopChipRail>
         ) : null}
 
-          <div className="-mx-3 border-t border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-2.5 max-md:hidden sm:-mx-5 sm:px-5 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-indigo-200 bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:border-indigo-800 dark:bg-slate-900/80 dark:text-indigo-300">
+          <div className="hidden min-w-0 flex-col gap-1.5 md:order-3 md:flex">
+            {featureFeedbackForm}
+            <div className="flex min-w-0 items-center gap-2 border-t border-slate-100 pt-1 dark:border-slate-800">
+              {featureFeedbackOpen ? null : featureFeedbackButton}
+              <p className="min-w-0 flex-1 truncate text-[11px] font-medium leading-4 text-indigo-700 dark:text-indigo-300" title={hc.creditNote}>
                 {hc.creditNote}
-              </span>
-              <span className="text-[11px] text-muted-foreground sm:text-xs">
-                {hc.modelLabel}:{' '}
-                <span className="font-medium text-slate-700 dark:text-slate-200">{modelLabel}</span>
-              </span>
+              </p>
+              <p className="shrink-0 text-[11px] leading-4 text-muted-foreground">
+                {hc.modelLabel}: <span className="font-medium text-slate-700 dark:text-slate-200">{modelLabel}</span>
+              </p>
             </div>
+          </div>
+          </div>
+          </div>
+          </div>
           </div>
         </div>
       </div>

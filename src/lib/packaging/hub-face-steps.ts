@@ -1,4 +1,19 @@
-import type { HubPackagingState, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import type { WebLocale } from '@/lib/i18n/config'
+import { WEB_LOCALES } from '@/lib/i18n/config'
+import type {
+  HubPackagingState,
+  HubStudioMessagePayload,
+  HubStudioProcessStep,
+  HubStudioSession,
+} from '@/lib/hub-chat/hub-studio-types'
+import {
+  boxDielineStructureCopy,
+  BOX_DIELINE_STRUCTURE_KEYS,
+  parseBoxDielineStructure,
+  resolveBoxDielineStructure,
+  type BoxDielineStructure,
+} from '@/lib/packaging/dieline-structure'
+import { generateTuckEndBlankSvg, getBoxDielineLayoutData } from '@/lib/packaging/box-net-svg'
 import type { PackagingFaceKey } from './dimensions'
 import { getFaceDimensionsMm, normalizeBoxDimensionsMm } from './dimensions'
 import {
@@ -262,6 +277,214 @@ export function getPackagingFaceSizeForStep(
     return null
   }
   return { widthMm, heightMm }
+}
+
+const BOX_FOLD_HANDOFF_REPLY: Record<WebLocale, (screen: string) => string> = {
+  vi: (screen) =>
+    `Đã lưu ảnh cho ${screen}. Bấm Mở trang dàn hộp ngay bên dưới để chọn kiểu gấp.`,
+  en: (screen) =>
+    `Saved the image for ${screen}. Use Open the box layout just below to choose the fold.`,
+  zh: (screen) => `已保存 ${screen} 的图片。请点下方「打开盒型展开」选择盒型。`,
+  ja: (screen) => `${screen} の画像を保存しました。すぐ下の「展開ページを開く」から折り方を選んでください。`,
+  ko: (screen) => `${screen} 이미지를 저장했습니다. 바로 아래 «전개 페이지 열기»에서 접기 방식을 고르세요.`,
+}
+
+/** Ảnh thứ 6 (mặt trái) vừa xong và bước kế tiếp là dàn tờ trải. */
+export function isBoxFoldHandoff(
+  approvedStepKey: string | null | undefined,
+  nextStepKey: string | null | undefined
+): boolean {
+  return approvedStepKey === 'face_left' && nextStepKey === 'box_net_2d'
+}
+
+export function boxFoldHandoffReply(locale: WebLocale, screenLabel: string): string {
+  return BOX_FOLD_HANDOFF_REPLY[locale](screenLabel)
+}
+
+const BOX_FOLD_HANDOFF_MARKERS = [
+  'Tiếp theo: Dàn 2D',
+  'Next: 2D fold layout',
+  '下一步：二维折叠展开',
+  '次：2D展開',
+  '다음: 2D 접기',
+  'Mở trang dàn hộp ngay bên dưới',
+  'Open the box layout just below',
+  '请点下方「打开盒型展开」',
+  'すぐ下の「展開ページを開く」',
+  '바로 아래 «전개 페이지 열기»',
+]
+
+/** Câu bàn giao sau ảnh thứ 6. Không khớp câu mở đầu chỉ nhắc «dàn 2D». */
+export function boxFoldHandoffText(content?: string | null): boolean {
+  const text = content ?? ''
+  return BOX_FOLD_HANDOFF_MARKERS.some((marker) => text.includes(marker))
+}
+
+/** Tin nhắn lưu ảnh mặt trái, lúc đó dàn 2D vừa được mở. */
+export function studioMessageOpensBoxFold(
+  studio:
+    | {
+        screenKey?: string
+        showApproveReference?: boolean
+        processSteps?: Pick<HubStudioProcessStep, 'key' | 'status'>[]
+      }
+    | null
+    | undefined,
+  content?: string | null
+): boolean {
+  if (studio?.showApproveReference) return false
+  if (boxFoldHandoffText(content)) return true
+  if (!studio || studio.screenKey !== 'face_left') return false
+  return Boolean(
+    studio.processSteps?.some((step) => step.key === 'box_net_2d' && step.status === 'in_progress')
+  )
+}
+
+const FOLD_LABELS_LONGEST_FIRST = [...new Set(
+  WEB_LOCALES.flatMap((locale) =>
+    BOX_DIELINE_STRUCTURE_KEYS.map((key) => boxDielineStructureCopy(key, locale).label)
+  )
+)].sort((a, b) => b.length - a.length)
+
+const DIELINE_DOWNLOAD: Record<WebLocale, string> = {
+  vi: 'Tải Dieline PDF',
+  en: 'Download Dieline PDF',
+  zh: '下载 Dieline PDF',
+  ja: 'Dieline PDFをダウンロード',
+  ko: 'Dieline PDF 다운로드',
+}
+
+const FOLD_TOKEN = '\u0000fold\u0000'
+
+/** Đổi mọi tên kiểu gấp trong câu thành kiểu đang chốt. */
+export function rewriteFoldMentions(content: string, currentLabel: string): string {
+  if (!currentLabel) return content
+  let next = content.split(currentLabel).join(FOLD_TOKEN)
+  for (const label of FOLD_LABELS_LONGEST_FIRST) {
+    if (!label || label === currentLabel) continue
+    if (next.includes(label)) next = next.split(label).join(FOLD_TOKEN)
+  }
+  return next.split(FOLD_TOKEN).join(currentLabel)
+}
+
+type FoldThreadLine = {
+  role: string
+  content: string
+  studio?: HubStudioMessagePayload | null
+}
+
+export type ChosenFoldThreadInput = {
+  locale: WebLocale
+  structure?: string | null
+  structureVersion?: number | null
+  dimensionsMm?: { length: number; width: number; height: number } | null
+  production?: HubPackagingState['production']
+  mockupUrl?: string | null
+  dielineUrl?: string | null
+  dielineVariants?: HubPackagingState['dielineVariants']
+  dielineCutter?: HubPackagingState['dielineCutter']
+  dielineWarnings?: string[] | null
+}
+
+function currentDielineArtifacts(
+  locale: WebLocale,
+  structure: BoxDielineStructure,
+  input: ChosenFoldThreadInput
+): HubStudioMessagePayload['dielineArtifacts'] | null {
+  const variant = input.dielineVariants?.[structure]
+  const url = variant?.url || input.dielineUrl || ''
+  if (!url) return null
+  const cutter = input.dielineCutter
+  return [
+    {
+      structure,
+      url,
+      fileName: variant?.fileName || 'dieline.pdf',
+      label: boxDielineStructureCopy(structure, locale).label,
+      downloadLabel: DIELINE_DOWNLOAD[locale],
+      blankPdfUrl: cutter?.pdfUrl,
+      blankSvgUrl: cutter?.svgUrl,
+      blankDxfUrl: cutter?.dxfUrl,
+      blankPdfFileName: cutter?.pdfFileName,
+      blankSvgFileName: cutter?.svgFileName,
+      blankDxfFileName: cutter?.dxfFileName,
+    },
+  ]
+}
+
+/**
+ * Phần hội thoại sau nút dàn hộp đọc kiểu gấp đang lưu:
+ * chữ, file in, kích thước tờ và ảnh mockup.
+ */
+export function applyChosenFoldToThread<T extends FoldThreadLine>(lines: T[], input: ChosenFoldThreadInput): T[] {
+  const structure = parseBoxDielineStructure(input.structure ?? '')
+    ? resolveBoxDielineStructure(input.structure, input.structureVersion)
+    : null
+  if (!structure) return lines
+  const handoff = lines.findIndex(
+    (line) => line.role === 'assistant' && studioMessageOpensBoxFold(line.studio, line.content)
+  )
+  if (handoff < 0) return lines
+  const label = boxDielineStructureCopy(structure, input.locale).label
+  const artifacts = currentDielineArtifacts(input.locale, structure, input)
+  let layout: ReturnType<typeof getBoxDielineLayoutData> | null = null
+  let wireframe: string | null = null
+  if (input.dimensionsMm) {
+    try {
+      const box = {
+        lengthMm: input.dimensionsMm.length,
+        widthMm: input.dimensionsMm.width,
+        heightMm: input.dimensionsMm.height,
+      }
+      layout = getBoxDielineLayoutData(structure, box, input.production)
+      wireframe = generateTuckEndBlankSvg(box, input.production, input.locale, structure)
+    } catch {
+      layout = null
+      wireframe = null
+    }
+  }
+  return lines.map((line, index) => {
+    if (index <= handoff) return line
+    const content = rewriteFoldMentions(line.content, label)
+    const studio = line.studio
+    if (!studio) {
+      return content === line.content ? line : { ...line, content }
+    }
+    const isDieline =
+      studio.screenKey === 'box_dieline_pdf' ||
+      Boolean(studio.dielineArtifacts?.length) ||
+      studio.artifactKind === 'pdf'
+    const isMockup = studio.screenKey === 'box_mockup_3d'
+    let nextStudio = studio
+    if (isMockup && input.mockupUrl && studio.imageUrl !== input.mockupUrl) {
+      nextStudio = { ...nextStudio, imageUrl: input.mockupUrl }
+    }
+    if (isDieline && artifacts) {
+      nextStudio = {
+        ...nextStudio,
+        dielineArtifacts: artifacts,
+        dielineWarnings: input.dielineWarnings ?? nextStudio.dielineWarnings,
+        artifactUrl: artifacts[0]?.url ?? nextStudio.artifactUrl,
+        artifactFileName: artifacts[0]?.fileName ?? nextStudio.artifactFileName,
+        artifactKind: nextStudio.artifactKind ?? 'pdf',
+      }
+    }
+    if (isDieline && layout && nextStudio.boxProductionSummary) {
+      nextStudio = {
+        ...nextStudio,
+        boxProductionSummary: {
+          ...nextStudio.boxProductionSummary,
+          netWidthMm: layout.bounds.widthMm,
+          netHeightMm: layout.bounds.heightMm,
+        },
+      }
+    }
+    if (isDieline && wireframe && nextStudio.boxWireframeSvg) {
+      nextStudio = { ...nextStudio, boxWireframeSvg: wireframe }
+    }
+    if (content === line.content && nextStudio === studio) return line
+    return { ...line, content, studio: nextStudio }
+  })
 }
 
 export function copySourceUrlForSlot(

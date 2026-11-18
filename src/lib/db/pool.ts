@@ -18,6 +18,7 @@ export function isPgConfigured(): boolean {
  * Chỉ gọi sau khi đã migrate DB và set `DATABASE_URL` trỏ tới instance mới.
  *
  * - `PG_POOL_MAX`: mặc định 10, tối đa 30. Với DB nhỏ / tier giới hạn kết nối, có thể đặt 3–5.
+ * - `PG_POOL_IDLE_MS`: mặc định 30000. Process cron đặt 5000 để trả kết nối sớm.
  * - Nên dùng connection pooler (PgBouncer, port «pooler» trên host cloud) nếu deploy serverless nhiều instance.
  */
 export function getPgPool(): Pool {
@@ -30,7 +31,7 @@ export function getPgPool(): Pool {
     globalForPool.__nanoaiPgPool = new Pool({
       connectionString: url,
       max,
-      idleTimeoutMillis: 30_000,
+      idleTimeoutMillis: Math.min(120_000, Math.max(1_000, parseInt(process.env.PG_POOL_IDLE_MS || '30000', 10) || 30_000)),
       connectionTimeoutMillis: Math.min(30_000, Math.max(2_000, parseInt(process.env.PG_CONNECT_TIMEOUT_MS || '10000', 10) || 10_000)),
     })
   }

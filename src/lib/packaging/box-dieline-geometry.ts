@@ -16,6 +16,8 @@ type Seg = [number, number, number, number]
 type Rect = { x: number; y: number; w: number; h: number }
 type Flap = { slot: BoxFaceSlot; x: number; y: number; w: number; h: number }
 
+type Overlay = Rect & { kind: 'window-film' | 'glue-free' }
+
 type Build = {
   panels: TuckEndLayoutData['panels']
   cuts: Seg[]
@@ -23,6 +25,7 @@ type Build = {
   glueRects: Rect[]
   flaps: Flap[]
   knockouts: NonNullable<TuckEndLayoutData['knockouts']>
+  overlays: Overlay[]
   fingerNotches: NonNullable<TuckEndLayoutData['fingerNotches']>
   glueTabMm: number
   tuckTabMm: number
@@ -127,13 +130,14 @@ function roundedRect(rect: Rect, radius: number): Pt[] {
   }
   return dedupe([
     { x: x + r, y },
-    ...fillet({ x: x + r, y }, { x: x2, y }, { x: x2, y: y + r }, r),
+    { x: x2 - r, y },
+    ...arcPoints(x2 - r, y + r, r, -Math.PI / 2, 0, 6),
     { x: x2, y: y2 - r },
-    ...fillet({ x: x2, y: y2 - r }, { x: x2, y: y2 }, { x: x2 - r, y: y2 }, r),
+    ...arcPoints(x2 - r, y2 - r, r, 0, Math.PI / 2, 6),
     { x: x + r, y: y2 },
-    ...fillet({ x: x + r, y: y2 }, { x, y: y2 }, { x, y: y2 - r }, r),
+    ...arcPoints(x + r, y2 - r, r, Math.PI / 2, Math.PI, 6),
     { x, y: y + r },
-    ...fillet({ x, y: y + r }, { x, y }, { x: x + r, y }, r),
+    ...arcPoints(x + r, y + r, r, Math.PI, (Math.PI * 3) / 2, 6),
     { x: x + r, y },
   ])
 }
@@ -182,38 +186,39 @@ function panel(
 }
 
 function shiftBuild(build: Build) {
-  let minX = 0
-  let minY = 0
-  let maxX = build.widthMm
-  let maxY = build.heightMm
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
   const see = (x: number, y: number) => {
     minX = Math.min(minX, x)
     minY = Math.min(minY, y)
     maxX = Math.max(maxX, x)
     maxY = Math.max(maxY, y)
   }
-  for (const seg of [...build.cuts, ...build.folds]) {
+  for (const seg of build.cuts) {
     see(seg[0], seg[1])
     see(seg[2], seg[3])
   }
-  const dx = minX < 2 ? 2 - minX : 0
-  const dy = minY < 2 ? 2 - minY : 0
-  if (dx === 0 && dy === 0) {
-    build.widthMm = Math.max(build.widthMm, maxX + 2)
-    build.heightMm = Math.max(build.heightMm, maxY + 2)
-    return
-  }
+  if (!Number.isFinite(minX)) return
+  const dx = -minX
+  const dy = -minY
   const moveSeg = (seg: Seg): Seg => [r3(seg[0] + dx), r3(seg[1] + dy), r3(seg[2] + dx), r3(seg[3] + dy)]
   build.cuts = build.cuts.map(moveSeg)
   build.folds = build.folds.map(moveSeg)
-  const moveRect = <T extends Rect>(rect: T): T => ({ ...rect, x: rect.x + dx, y: rect.y + dy })
+  const moveRect = <T extends Rect>(rect: T): T => ({ ...rect, x: r3(rect.x + dx), y: r3(rect.y + dy) })
   build.panels = build.panels.map(moveRect)
   build.glueRects = build.glueRects.map(moveRect)
   build.flaps = build.flaps.map(moveRect)
   build.knockouts = build.knockouts.map(moveRect)
-  build.fingerNotches = build.fingerNotches.map((notch) => ({ ...notch, cx: notch.cx + dx, cy: notch.cy + dy }))
-  build.widthMm = maxX + dx + 2
-  build.heightMm = maxY + dy + 2
+  build.overlays = build.overlays.map(moveRect)
+  build.fingerNotches = build.fingerNotches.map((notch) => ({
+    ...notch,
+    cx: r3(notch.cx + dx),
+    cy: r3(notch.cy + dy),
+  }))
+  build.widthMm = r3(maxX - minX)
+  build.heightMm = r3(maxY - minY)
 }
 
 function finish(structure: BoxDielineStructure, build: Build): TuckEndLayoutData {
@@ -228,6 +233,7 @@ function finish(structure: BoxDielineStructure, build: Build): TuckEndLayoutData
     glueRects: build.glueRects,
     flapExtensions: build.flaps,
     knockouts: build.knockouts,
+    overlays: build.overlays,
     fingerNotches: build.fingerNotches,
     bodyStrip: structureUsesBodyStrip(structure),
     legendLines: build.legend,
@@ -242,6 +248,7 @@ function emptyBuild(glue: number, tuck: number): Build {
     glueRects: [],
     flaps: [],
     knockouts: [],
+    overlays: [],
     fingerNotches: [],
     glueTabMm: glue,
     tuckTabMm: tuck,
@@ -344,8 +351,8 @@ function pushReceivingNotch(
   slot: BoxFaceSlot
 ) {
   const span = xR - xL
-  const radius = Math.min(8, span * 0.16)
-  if (!enabled || span < 18 || radius < 3.5) {
+  const radius = Math.min(6, Math.max(4, span * 0.22))
+  if (!enabled || span < radius * 2 + 4) {
     pushLine(build.cuts, xL, y, xR, y)
     return
   }
@@ -482,8 +489,7 @@ function buildTuckFamily(
   build.heightMm = netBottom + pad
   build.legend.push(
     `L ${L} mm · W ${W} mm · H ${H} mm`,
-    `Giấy ${resolved.params.paperThicknessMm} mm · nắp/đáy +${resolved.lidExtra} mm`,
-    `Tai dán ${glue} mm · hẹp lưỡi/tai ${resolved.side} mm/bên`
+    `Tai dán ${glue} mm chồng lên mặt ${W} mm. Mặt đó giữ đủ bề rộng, không trừ độ dày giấy.`
   )
   return build
 }
@@ -540,40 +546,47 @@ function addCrashBottom(
   const depth = box.W / 2 + box.lidExtra
   const y0 = box.bodyBottom
   const y1 = y0 + depth
-  const gap = 0
-  const major = (xL: number, xR: number, mirror: boolean) => {
-    const a = xL + gap
-    const b = xR - gap
-    const w = b - a
+  const inset = 0.5
+  const hook = Math.min(4.2, box.W * 0.16)
+  const openGap = (x: number) => pushLine(build.cuts, x - inset, y0, x + inset, y0)
+  const hookFlap = (xL: number, xR: number, mirror: boolean, flushL = false, flushR = false) => {
+    const a = flushL ? xL : xL + inset
+    const b = flushR ? xR : xR - inset
+    const nose = mirror ? a : b
+    const head = mirror ? a + hook * 2.4 : b - hook * 2.4
     const pts: Pt[] = mirror
       ? [
           { x: a, y: y0 },
-          { x: a, y: y0 + depth * 0.55 },
-          { x: a + w * 0.08, y: y1 },
-          { x: b - w * 0.12, y: y1 },
-          { x: b, y: y0 + depth * 0.2 },
+          { x: a, y: y0 + depth * 0.2 },
+          { x: nose + 0.4, y: y0 + depth * 0.42 },
+          { x: head, y: y0 + depth * 0.58 },
+          { x: head, y: y1 },
+          { x: b - (b - a) * 0.08, y: y1 },
+          { x: b, y: y0 + depth * 0.22 },
           { x: b, y: y0 },
         ]
       : [
           { x: a, y: y0 },
-          { x: a, y: y0 + depth * 0.2 },
-          { x: a + w * 0.12, y: y1 },
-          { x: b - w * 0.08, y: y1 },
-          { x: b, y: y0 + depth * 0.55 },
+          { x: a, y: y0 + depth * 0.22 },
+          { x: a + (b - a) * 0.08, y: y1 },
+          { x: head, y: y1 },
+          { x: head, y: y0 + depth * 0.58 },
+          { x: nose - 0.4, y: y0 + depth * 0.42 },
+          { x: b, y: y0 + depth * 0.2 },
           { x: b, y: y0 },
         ]
     build.cuts.push(...segsOf(pts))
-    pushLine(build.folds, xL, y0, xR, y0)
+    pushLine(build.folds, a, y0, b, y0)
   }
-  const minor = (xL: number, xR: number, mirror: boolean) => {
-    const a = xL + gap
-    const b = xR - gap
+  const diagonalFlap = (xL: number, xR: number, mirror: boolean, flushL = false, flushR = false) => {
+    const a = flushL ? xL : xL + inset
+    const b = flushR ? xR : xR - inset
     const run = Math.min(b - a, depth)
     const knee = mirror ? b - run : a + run
     const pts: Pt[] = mirror
       ? [
           { x: a, y: y0 },
-          { x: a, y: y0 + depth * 0.2 },
+          { x: a, y: y0 + depth * 0.22 },
           { x: knee, y: y1 },
           { x: b, y: y1 },
           { x: b, y: y0 },
@@ -582,23 +595,30 @@ function addCrashBottom(
           { x: a, y: y0 },
           { x: a, y: y1 },
           { x: knee, y: y1 },
-          { x: b, y: y0 + depth * 0.2 },
+          { x: b, y: y0 + depth * 0.22 },
           { x: b, y: y0 },
         ]
     build.cuts.push(...segsOf(pts))
-    pushLine(build.folds, xL, y0, xR, y0)
+    pushLine(build.folds, a, y0, b, y0)
     pushLine(build.folds, mirror ? b : a, y0, knee, y1)
+    const slotW = Math.min(6, (b - a) * 0.28)
+    const slotX = mirror ? b - run * 0.55 - slotW : a + run * 0.55
+    const slotY = y0 + depth * 0.62
+    pushLine(build.cuts, slotX, slotY, slotX + slotW, slotY)
     build.glueRects.push(
       mirror
-        ? { x: a, y: y0 + depth * 0.35, w: (b - a) * 0.5, h: depth * 0.65 }
-        : { x: knee, y: y0 + depth * 0.35, w: b - knee, h: depth * 0.65 }
+        ? { x: a, y: y0 + depth * 0.28, w: Math.max(4, (knee - a) * 0.7), h: depth * 0.55 }
+        : { x: knee, y: y0 + depth * 0.28, w: Math.max(4, (b - knee) * 0.7), h: depth * 0.55 }
     )
   }
-  major(box.x0, box.x1, false)
-  minor(box.x1, box.x2, false)
-  major(box.x2, box.x3, true)
-  minor(box.x3, box.x4, true)
-  build.legend.push('Đáy khóa tự động: cánh lớn trên mặt dài, cánh nhỏ có đường chéo dán.')
+  hookFlap(box.x0, box.x1, false, true, false)
+  openGap(box.x1)
+  diagonalFlap(box.x1, box.x2, false)
+  openGap(box.x2)
+  hookFlap(box.x2, box.x3, true)
+  openGap(box.x3)
+  diagonalFlap(box.x3, box.x4, true, false, true)
+  build.legend.push('Đáy khóa tự động: móc ở mặt trước và mặt sau, khe và keo trên hai hông, khe hở 1 mm.')
   return y1
 }
 
@@ -606,52 +626,84 @@ function addSnapBottom(
   build: Build,
   box: { x0: number; x1: number; x2: number; x3: number; x4: number; bodyBottom: number; L: number; W: number; lidExtra: number }
 ): number {
-  const depth = Math.max(14, box.W * 0.48 + box.lidExtra)
-  const tongue = 12
   const y0 = box.bodyBottom
-  const inset = 1
-  const flap = (xL: number, xR: number, h: number) => {
-    const pts = [
-      { x: xL, y: y0 },
-      { x: xL + inset, y: y0 + h },
-      { x: xR - inset, y: y0 + h },
-      { x: xR, y: y0 },
-    ]
-    build.cuts.push(...segsOf(pts))
-    pushLine(build.folds, xL, y0, xR, y0)
-  }
-  flap(box.x0, box.x1, depth)
-  flap(box.x2, box.x3, depth)
-  const leftW = box.x4 - box.x3
-  flap(box.x3, box.x4, depth * 0.92)
-  const slitW = Math.min(leftW * 0.46, box.L * 0.28)
-  const slitX = box.x3 + (leftW - slitW) / 2
-  const slitY = y0 + depth * 0.55
-  pushLine(build.cuts, slitX, slitY, slitX + slitW, slitY)
-  const tongueW = Math.min(leftW * 0.42, slitW * 0.85)
-  const tx = box.x1 + (box.W - tongueW) / 2
-  const yTongue = y0 + depth
-  build.cuts.push(
-    ...segsOf(
-      roundCorners(
-        [
-          { x: box.x1, y: y0 },
-          { x: box.x1 + inset, y: y0 + depth },
-          { x: tx, y: y0 + depth },
-          { x: tx, y: yTongue + tongue },
-          { x: tx + tongueW, y: yTongue + tongue },
-          { x: tx + tongueW, y: y0 + depth },
-          { x: box.x2 - inset, y: y0 + depth },
-          { x: box.x2, y: y0 },
-        ],
-        [3, 4],
-        2.5
-      )
+  const inset = 0.5
+  const sideDepth = Math.max(10, box.W * 0.42)
+  const backDepth = Math.max(sideDepth + 4, box.W * 0.62)
+  const tongue = Math.min(14, Math.max(8, box.W * 0.28))
+  const frontDepth = Math.max(10, box.W * 0.48)
+  const notchRadius = Math.min(7, Math.max(3.5, (box.L - inset * 2) * 0.18))
+  const tongueNeck = Math.max(6, notchRadius * 2 - 1.2)
+  let reach = y0 + frontDepth + tongue
+  const span = (xL: number, xR: number, flushL: boolean, flushR: boolean) => ({
+    a: flushL ? xL : xL + inset,
+    b: flushR ? xR : xR - inset,
+  })
+  const sideFlap = (xL: number, xR: number, flushL: boolean, flushR: boolean) => {
+    const { a, b } = span(xL, xR, flushL, flushR)
+    const taper = Math.min(4, Math.max(1.5, (b - a) * 0.16))
+    build.cuts.push(
+      ...segsOf([
+        { x: a, y: y0 },
+        { x: a + taper, y: y0 + sideDepth },
+        { x: b - taper, y: y0 + sideDepth },
+        { x: b, y: y0 },
+      ])
     )
+    pushLine(build.folds, a, y0, b, y0)
+  }
+  const notchFlap = (xL: number, xR: number) => {
+    const { a, b } = span(xL, xR, false, false)
+    const mid = (a + b) / 2
+    const radius = notchRadius
+    const yOuter = y0 + backDepth
+    build.cuts.push(
+      ...segsOf([
+        { x: a, y: y0 },
+        { x: a, y: yOuter },
+        { x: mid - radius, y: yOuter },
+        ...arcPoints(mid, yOuter, radius, Math.PI, Math.PI * 2, 8),
+        { x: b, y: yOuter },
+        { x: b, y: y0 },
+      ])
+    )
+    pushLine(build.folds, a, y0, b, y0)
+    reach = Math.max(reach, yOuter)
+  }
+  const tongueFlap = (xL: number, xR: number) => {
+    const { a, b } = span(xL, xR, true, false)
+    const mid = (a + b) / 2
+    const tongueW = Math.min(tongueNeck, b - a - 4)
+    const barb = 0.4
+    const yBody = y0 + frontDepth
+    const yTip = yBody + tongue
+    const half = tongueW / 2
+    build.cuts.push(
+      ...segsOf([
+        { x: a, y: y0 },
+        { x: a, y: yBody },
+        { x: mid - half, y: yBody },
+        { x: mid - half - barb, y: yBody + 3 },
+        { x: mid - half, y: yTip },
+        { x: mid + half, y: yTip },
+        { x: mid + half + barb, y: yBody + 3 },
+        { x: mid + half, y: yBody },
+        { x: b, y: yBody },
+        { x: b, y: y0 },
+      ])
+    )
+    pushLine(build.folds, a, y0, b, y0)
+    reach = Math.max(reach, yTip)
+  }
+  tongueFlap(box.x0, box.x1)
+  sideFlap(box.x1, box.x2, false, false)
+  notchFlap(box.x2, box.x3)
+  sideFlap(box.x3, box.x4, false, true)
+  for (const x of [box.x1, box.x2, box.x3]) pushLine(build.cuts, x - inset, y0, x + inset, y0)
+  build.legend.push(
+    `Đáy 1-2-3: gấp hai hông, gấp mặt sau có khía chữ U Ø ${r3(notchRadius * 2)} mm, lưỡi hẹp hơn miệng khía 1,2 mm. Bốn cánh đan nhau, không keo.`
   )
-  pushLine(build.folds, box.x1, y0, box.x2, y0)
-  build.legend.push('Đáy 1-2-3: lưỡi ở mặt hông phải gài vào khe mặt hông trái.')
-  return y0 + depth + tongue
+  return reach
 }
 
 function placeTray(
@@ -735,7 +787,12 @@ function buildTelescope(structure: BoxDielineStructure, d: BoxDimensions, resolv
   const gap = 14
   const glue = resolved.params.glueTabMm
   const build = emptyBuild(glue, 0)
-  const base = placeTray(build, structure, 2, 2, L, W, baseWall, glue, 'bottom', {})
+  const base = placeTray(build, structure, 2, 2, L, W, baseWall, glue, 'bottom', {
+    front: 'front',
+    back: 'back',
+    left: 'left',
+    right: 'right',
+  })
   placeTray(build, structure, 2 + base.width + gap, 2, lidL, lidW, lidWall, glue, 'top', {
     front: 'front',
     back: 'back',
@@ -752,125 +809,169 @@ function buildTelescope(structure: BoxDielineStructure, d: BoxDimensions, resolv
   return build
 }
 
-function buildMagnetic(structure: BoxDielineStructure, d: BoxDimensions, resolved: Resolved): Build {
-  const { lengthMm: L, widthMm: W, heightMm: H } = d
-  const pad = 2
-  const lidDepth = W + resolved.lidExtra
-  const flapH = 22
-  const x = pad + H
-  let y = pad
-  const build = emptyBuild(resolved.params.glueTabMm, 0)
-  const flapW = Math.max(20, L - 8)
-  const flapX = x + (L - flapW) / 2
+function placeBoardCross(build: Build, x: number, y: number, length: number, width: number, wall: number) {
+  const x0 = x + wall
+  const x1 = x0 + length
+  const y0 = y
+  const y1 = y + wall
+  const y2 = y1 + width
+  const y3 = y2 + wall
+  const xl = x
+  const xr = x1 + wall
   build.cuts.push(
     ...segsOf([
-      { x: flapX, y: y + flapH },
-      { x: flapX, y },
-      { x: flapX + flapW, y },
-      { x: flapX + flapW, y: y + flapH },
+      { x: x0, y: y0 },
+      { x: x1, y: y0 },
+      { x: x1, y: y1 },
+      { x: xr, y: y1 },
+      { x: xr, y: y2 },
+      { x: x1, y: y2 },
+      { x: x1, y: y3 },
+      { x: x0, y: y3 },
+      { x: x0, y: y2 },
+      { x: xl, y: y2 },
+      { x: xl, y: y1 },
+      { x: x0, y: y1 },
+      { x: x0, y: y0 },
     ])
   )
-  const magnetW = Math.min(28, flapW * 0.45)
-  const magnetH = 12
-  build.knockouts.push({
-    x: flapX + (flapW - magnetW) / 2,
-    y: y + (flapH - magnetH) / 2,
-    w: magnetW,
-    h: magnetH,
-    kind: 'magnet',
-    shape: 'rect',
+  pushLine(build.folds, x0, y1, x1, y1)
+  pushLine(build.folds, x0, y2, x1, y2)
+  pushLine(build.folds, x0, y1, x0, y2)
+  pushLine(build.folds, x1, y1, x1, y2)
+}
+
+function markTurnIn(build: Build, originX: number, originY: number, floorL: number, floorW: number, wallH: number, turn: number) {
+  const fx = originX + wallH
+  const fy = originY + wallH
+  const yBack = originY + turn
+  const yFront = fy + floorW + wallH - turn
+  const xLeft = originX + turn
+  const xRight = fx + floorL + wallH - turn
+  pushLine(build.folds, fx, yBack, fx + floorL, yBack)
+  pushLine(build.folds, fx, yFront, fx + floorL, yFront)
+  pushLine(build.folds, xLeft, fy, xLeft, fy + floorW)
+  pushLine(build.folds, xRight, fy, xRight, fy + floorW)
+}
+
+function buildMagnetic(structure: BoxDielineStructure, d: BoxDimensions, resolved: Resolved): Build {
+  const { lengthMm: L, widthMm: W, heightMm: H } = d
+  const board = 1.8
+  const turn = 14
+  const gap = 18
+  const paper = resolved.params.paperThicknessMm
+  const build = emptyBuild(turn, 0)
+  const baseFloorL = r3(L + 2 * board)
+  const baseFloorW = r3(W + 2 * board)
+  const baseWall = r3(H + board + turn)
+  const lidClear = r3(2 * paper + 1)
+  const lidL = r3(baseFloorL + lidClear)
+  const lidW = r3(baseFloorW + lidClear)
+  const lidWallBoard = Math.max(18, Math.min(28, H * 0.35))
+  const lidFloorL = r3(lidL + 2 * board)
+  const lidFloorW = r3(lidW + 2 * board)
+  const lidWall = r3(lidWallBoard + board + turn)
+  const base = placeTray(build, structure, 2, 2, baseFloorL, baseFloorW, baseWall, turn, 'bottom', {
+    front: 'front',
+    back: 'back',
+    left: 'left',
+    right: 'right',
   })
-  y += flapH
-  build.panels.push(panel(structure, 'top', x, y, L, lidDepth))
-  pushLine(build.folds, flapX, y, flapX + flapW, y)
-  pushLine(build.folds, x, y + lidDepth, x + L, y + lidDepth)
-  build.panels.push(panel(structure, 'left', x - H, y, H, lidDepth))
-  build.panels.push(panel(structure, 'right', x + L, y, H, lidDepth))
-  pushLine(build.folds, x, y, x, y + lidDepth)
-  pushLine(build.folds, x + L, y, x + L, y + lidDepth)
-  pushLine(build.cuts, x - H, y, x - H, y + lidDepth)
-  pushLine(build.cuts, x - H, y, x, y)
-  pushLine(build.cuts, x - H, y + lidDepth, x, y + lidDepth)
-  pushLine(build.cuts, x + L + H, y, x + L + H, y + lidDepth)
-  pushLine(build.cuts, x + L, y, x + L + H, y)
-  pushLine(build.cuts, x + L, y + lidDepth, x + L + H, y + lidDepth)
-  y += lidDepth
-  build.panels.push(panel(structure, 'back', x, y, L, H))
-  y += H
-  build.panels.push(panel(structure, 'bottom', x, y, L, W))
-  pushLine(build.folds, x, y, x + L, y)
-  pushLine(build.folds, x, y + W, x + L, y + W)
-  build.panels.push(panel(structure, 'front', x, y + W, L, H))
-  const frontTop = y + W
-  build.knockouts.push({
-    x: x + (L - magnetW) / 2,
-    y: frontTop + H - magnetH - 6,
-    w: magnetW,
-    h: magnetH,
-    kind: 'magnet',
-    shape: 'rect',
+  markTurnIn(build, 2, 2, baseFloorL, baseFloorW, baseWall, turn)
+  const lidX = 2 + base.width + gap
+  const lid = placeTray(build, structure, lidX, 2, lidFloorL, lidFloorW, lidWall, turn, 'top', {
+    front: 'front',
+    back: 'back',
+    left: 'left',
+    right: 'right',
   })
-  pushLine(build.cuts, x, frontTop, x, frontTop + H)
-  pushLine(build.cuts, x + L, frontTop, x + L, frontTop + H)
-  pushLine(build.cuts, x, frontTop + H, x + L, frontTop + H)
-  pushLine(build.folds, x, y, x, y + W)
-  pushLine(build.folds, x + L, y, x + L, y + W)
-  pushLine(build.cuts, x - H, y, x - H, y + W)
-  pushLine(build.cuts, x - H, y, x, y)
-  pushLine(build.cuts, x - H, y + W, x, y + W)
-  pushLine(build.cuts, x + L + H, y, x + L + H, y + W)
-  pushLine(build.cuts, x + L, y, x + L + H, y)
-  pushLine(build.cuts, x + L, y + W, x + L + H, y + W)
-  build.widthMm = x + L + H + pad
-  build.heightMm = frontTop + H + pad
-  build.legend.push('Vùng nam châm để trống mực. Nam châm dán sau, không bế thủng.')
+  markTurnIn(build, lidX, 2, lidFloorL, lidFloorW, lidWall, turn)
+  const markMagnet = (host: (typeof build.panels)[number]) => {
+    const w = Math.min(18, host.w * 0.42)
+    const h = Math.min(10, Math.max(6, host.h * 0.28))
+    build.knockouts.push({
+      x: host.x + (host.w - w) / 2,
+      y: host.y + host.h - h - 3,
+      w,
+      h,
+      kind: 'magnet',
+      shape: 'rect',
+    })
+  }
+  for (const host of build.panels.filter((item) => item.slot === 'front')) markMagnet(host)
+  const boardY = 2 + Math.max(base.height, lid.height) + gap
+  placeBoardCross(build, 2, boardY, L, W, H)
+  placeBoardCross(build, lidX, boardY, lidL, lidW, lidWallBoard)
+  build.widthMm = Math.max(lidX + lid.width, lidX + lidFloorL + lidWall * 2) + 4
+  build.heightMm = boardY + Math.max(W + H * 2, lidW + lidWallBoard * 2) + 4
+  build.legend.push(
+    `Nắp chụp cứng, không bản lề. Lõi ${board} mm rạch V theo nếp: đáy ${L}×${W}×${H}, nắp lòng ${lidL}×${lidW}.`,
+    `Giấy bọc lớn hơn lõi: đáy ${baseFloorL}×${baseFloorW}, thành ${baseWall} mm = ${H} + lõi + turn-in ${turn}. Nếp turn-in cách mép ${turn} mm.`,
+    'Vùng nam châm để trống mực trên thành trước. Không bế thủng.'
+  )
   return build
 }
 
 function buildSleeveTray(structure: BoxDielineStructure, d: BoxDimensions, resolved: Resolved): Build {
-  const { lengthMm: L, widthMm: W, heightMm: H } = d
   const glue = resolved.params.glueTabMm
   const pad = 2
+  const t = resolved.params.paperThicknessMm
+  const c = Math.max(0.6, resolved.params.compensationGapMm || 0.8)
+  const sorted = [d.lengthMm, d.widthMm, d.heightMm].sort((a, b) => b - a)
+  const slide = sorted[0]!
+  const floorW = sorted[1]!
+  const wall = sorted[2]!
+  const trayLen = slide
+  const trayWid = floorW
+  const trayWall = wall
+  const sleeveLen = r3(slide + c)
+  const acrossW = r3(trayWid + 2 * t + c)
+  const acrossH = r3(trayWall + t + c)
   const build = emptyBuild(glue, 0)
   const x0 = pad
   const bodyTop = pad
-  build.panels.push(
-    panel(structure, 'front', x0, bodyTop, L, H),
-    panel(structure, 'right', x0 + L, bodyTop, W, H),
-    panel(structure, 'back', x0 + L + W, bodyTop, L, H),
-    panel(structure, 'left', x0 + L + W + L, bodyTop, W, H)
-  )
-  const xEnd = x0 + 2 * L + 2 * W
-  pushLine(build.folds, x0 + L, bodyTop, x0 + L, bodyTop + H)
-  pushLine(build.folds, x0 + L + W, bodyTop, x0 + L + W, bodyTop + H)
-  pushLine(build.folds, x0 + 2 * L + W, bodyTop, x0 + 2 * L + W, bodyTop + H)
-  pushLine(build.folds, xEnd, bodyTop, xEnd, bodyTop + H)
-  const inset = Math.min(4, H * 0.08)
+  const spans = [acrossW, acrossH, acrossW, acrossH]
+  const slots: Array<'front' | 'right' | 'back' | 'left'> = ['front', 'right', 'back', 'left']
+  let xCursor = x0
+  for (let i = 0; i < spans.length; i += 1) {
+    const span = spans[i]!
+    build.panels.push(panel(structure, slots[i]!, xCursor, bodyTop, span, sleeveLen))
+    if (i > 0) pushLine(build.folds, xCursor, bodyTop, xCursor, bodyTop + sleeveLen)
+    xCursor += span
+  }
+  const xEnd = xCursor
+  pushLine(build.folds, xEnd, bodyTop, xEnd, bodyTop + sleeveLen)
+  const inset = Math.min(4, sleeveLen * 0.08)
   build.cuts.push(
     ...segsOf([
       { x: xEnd, y: bodyTop },
       { x: xEnd + glue, y: bodyTop + inset },
-      { x: xEnd + glue, y: bodyTop + H - inset },
-      { x: xEnd, y: bodyTop + H },
+      { x: xEnd + glue, y: bodyTop + sleeveLen - inset },
+      { x: xEnd, y: bodyTop + sleeveLen },
     ])
   )
-  build.glueRects.push({ x: xEnd, y: bodyTop, w: glue, h: H })
-  pushLine(build.cuts, x0, bodyTop, x0, bodyTop + H)
-  const notchR = Math.min(10, L * 0.12)
-  const nx = x0 + L / 2
-  build.cuts.push(...segsOf([{ x: x0, y: bodyTop }, ...arcPoints(nx, bodyTop, notchR, Math.PI, 0, 8), { x: x0 + L, y: bodyTop }]))
-  pushLine(build.cuts, x0 + L, bodyTop, xEnd, bodyTop)
-  pushLine(build.cuts, x0, bodyTop + H, xEnd, bodyTop + H)
-  build.fingerNotches.push({ cx: nx, cy: bodyTop, r: notchR, slot: 'front', edge: 'top' })
-  const t = resolved.compensate ? resolved.params.paperThicknessMm : 0
-  const trayLen = Math.max(24, H - 1)
-  const trayWid = Math.max(16, Math.min(L, W) - 2 * t - 1.2)
-  const trayWall = Math.max(12, Math.min(L, W) * 0.62)
+  build.glueRects.push({ x: xEnd, y: bodyTop, w: glue, h: sleeveLen })
+  pushLine(build.cuts, x0, bodyTop, x0, bodyTop + sleeveLen)
+  const notchR = Math.min(8, acrossW * 0.28)
+  const nx = x0 + acrossW / 2
+  if (notchR >= 3.2 && acrossW > notchR * 2 + 4) {
+    build.cuts.push(
+      ...segsOf([{ x: x0, y: bodyTop }, ...arcPoints(nx, bodyTop, notchR, Math.PI, 0, 8), { x: x0 + acrossW, y: bodyTop }])
+    )
+    build.fingerNotches.push({ cx: nx, cy: bodyTop, r: notchR, slot: 'front', edge: 'top' })
+  } else {
+    pushLine(build.cuts, x0, bodyTop, x0 + acrossW, bodyTop)
+  }
+  pushLine(build.cuts, x0 + acrossW, bodyTop, xEnd, bodyTop)
+  pushLine(build.cuts, x0, bodyTop + sleeveLen, xEnd, bodyTop + sleeveLen)
   const trayX = xEnd + glue + 12
   placeTray(build, structure, trayX, pad, trayLen, trayWid, trayWall, Math.min(glue, 14), 'bottom', {})
   build.widthMm = trayX + trayLen + trayWall * 2 + pad
-  build.heightMm = Math.max(H, trayWid + trayWall * 2) + pad * 2
-  build.legend.push(`Khay trượt ${r3(trayLen)}×${r3(trayWid)} mm, thành ${r3(trayWall)} mm, dài gần hết ống.`)
+  build.heightMm = Math.max(sleeveLen, trayWid + trayWall * 2) + pad * 2
+  build.legend.push(
+    `Khay lòng ${r3(trayLen)}×${r3(trayWid)}×${r3(trayWall)} mm bằng sản phẩm.`,
+    `Ống lòng ${acrossW}×${acrossH}×${sleeveLen} mm = khay + 2t + khe.`
+  )
   return build
 }
 
@@ -948,6 +1049,7 @@ function placePolygonLid(
         right,
         b
       )
+      pushLine(build.folds, left.x, left.y, right.x, right.y)
       continue
     }
     path.push(a)
@@ -980,7 +1082,7 @@ function buildPrism(structure: BoxDielineStructure, d: BoxDimensions, resolved: 
   for (let i = 0; i < sides; i += 1) {
     const slot = slots[i % slots.length]!
     const x = x0 + i * sideW
-    if (i < 4) build.panels.push(panel(structure, slot, x, bodyTop, sideW, H))
+    build.panels.push(panel(structure, slot, x, bodyTop, sideW, H))
     if (i > 0) pushLine(build.folds, x, bodyTop, x, bodyTop + H)
   }
   const xEnd = x0 + sides * sideW
@@ -1008,27 +1110,28 @@ function buildPrism(structure: BoxDielineStructure, d: BoxDimensions, resolved: 
   }
   build.widthMm = xEnd + glue + pad + sideW
   build.heightMm = bodyTop + H + lidReach + tuck + pad
-  build.legend.push(`${sides} cạnh, mỗi cạnh ${r3(sideW)} mm. Nắp đa giác bằng miệng hộp.`)
+  build.legend.push(`${sides} cạnh, mỗi cạnh ${r3(sideW)} mm. Tai dán ${r3(glue)} mm. Nắp đa giác có nếp lưỡi.`)
   return build
 }
 
 function buildPillow(structure: BoxDielineStructure, d: BoxDimensions, resolved: Resolved): Build {
-  const L = d.lengthMm
-  const face = d.heightMm
-  const end = Math.min(d.widthMm * 0.42, L * 0.22)
-  const glue = resolved.params.glueTabMm
-  const pad = 2
-  const x = pad + end
-  const y = pad
+  const sorted = [d.lengthMm, d.widthMm, d.heightMm].sort((a, b) => b - a)
+  const axis = sorted[0]!
+  const secA = sorted[1]!
+  const secB = sorted[2]!
+  const glue = Math.min(15, Math.max(12, resolved.params.glueTabMm))
+  const endDepth = ((secA + secB) / 2) * 0.5
+  const half = secA + secB
+  const girth = half * 2
+  const totalLen = axis + endDepth * 2
   const build = emptyBuild(glue, 0)
-  build.panels.push(panel(structure, 'front', x, y, L, face), panel(structure, 'back', x, y + face, L, face))
-  pushLine(build.folds, x, y + face, x + L, y + face)
-  const leftTip = { x: pad, y: y + face }
-  const rightTip = { x: x + L + end, y: y + face }
+  const y0 = 0
+  const midY = half
+  const yGlue = girth
   const curve = (from: Pt, tip: Pt, to: Pt) => {
     const pts: Pt[] = []
-    for (let i = 0; i <= 10; i += 1) {
-      const t = i / 10
+    for (let i = 0; i <= 12; i += 1) {
+      const t = i / 12
       const u = 1 - t
       pts.push({
         x: u * u * from.x + 2 * u * t * tip.x + t * t * to.x,
@@ -1037,26 +1140,45 @@ function buildPillow(structure: BoxDielineStructure, d: BoxDimensions, resolved:
     }
     return pts
   }
-  const bottom = y + 2 * face
+  const leftOuter = curve({ x: endDepth, y: y0 }, { x: -endDepth, y: midY }, { x: endDepth, y: yGlue })
+  const rightOuter = curve(
+    { x: totalLen - endDepth, y: y0 },
+    { x: totalLen + endDepth, y: midY },
+    { x: totalLen - endDepth, y: yGlue }
+  )
+  const creaseInset = endDepth * 0.42
+  const leftCrease = curve({ x: endDepth, y: y0 }, { x: creaseInset, y: midY }, { x: endDepth, y: yGlue })
+  const rightCrease = curve(
+    { x: totalLen - endDepth, y: y0 },
+    { x: totalLen - creaseInset, y: midY },
+    { x: totalLen - endDepth, y: yGlue }
+  )
+  const leftReturn = [...leftOuter].reverse()
   build.cuts.push(
     ...segsOf([
-      { x, y },
-      { x: x + L, y },
-      ...curve({ x: x + L, y }, { x: rightTip.x, y: y + face * 0.35 }, rightTip),
-      ...curve(rightTip, { x: rightTip.x, y: y + face * 1.65 }, { x: x + L, y: bottom }),
-      { x: x + L, y: bottom + glue },
-      { x, y: bottom + glue },
-      { x, y: bottom },
-      ...curve({ x, y: bottom }, { x: leftTip.x, y: y + face * 1.65 }, leftTip),
-      ...curve(leftTip, { x: leftTip.x, y: y + face * 0.35 }, { x, y }),
+      { x: endDepth, y: y0 },
+      { x: totalLen - endDepth, y: y0 },
+      ...rightOuter.slice(1),
+      { x: totalLen - endDepth, y: yGlue + glue },
+      { x: endDepth, y: yGlue + glue },
+      { x: endDepth, y: yGlue },
+      ...leftReturn.slice(1),
     ])
   )
-  pushLine(build.folds, x, bottom, x + L, bottom)
-  build.glueRects.push({ x, y: bottom, w: L, h: glue })
-  build.flaps.push({ slot: 'front', x: pad, y, w: end, h: face }, { slot: 'front', x: x + L, y, w: end, h: face })
-  build.widthMm = x + L + end + pad
-  build.heightMm = bottom + glue + pad
-  build.legend.push('Hộp gối: gấp đôi theo đường giữa, tai dán liền mép dưới.')
+  build.folds.push(...segsOf(leftCrease), ...segsOf(rightCrease))
+  pushLine(build.folds, 0, midY, totalLen, midY)
+  pushLine(build.folds, endDepth, yGlue, totalLen - endDepth, yGlue)
+  build.glueRects.push({ x: endDepth, y: yGlue, w: axis, h: glue })
+  build.panels.push(
+    { ...panel(structure, 'front', endDepth, y0, axis, half), fit: 'cover' },
+    { ...panel(structure, 'back', endDepth, midY, axis, half), fit: 'cover' }
+  )
+  build.widthMm = totalLen
+  build.heightMm = yGlue + glue
+  build.legend.push(
+    `Hộp gối trục ${r3(axis)} mm, chu vi ${r3(girth)} mm + tai dán ${r3(glue)} mm.`,
+    'Hai đầu là cung cắt, nếp cong nằm trong, nếp giữa chạy hết mép cắt.'
+  )
   return build
 }
 
@@ -1073,7 +1195,11 @@ function buildTube(structure: BoxDielineStructure, d: BoxDimensions, resolved: R
   const pad = 2
   const gap = 12
   const build = emptyBuild(glue, 0)
-  build.panels.push(panel(structure, 'front', pad, pad, circ, H))
+  const tubeSlots: Array<'front' | 'right' | 'back' | 'left'> = ['front', 'right', 'back', 'left']
+  const tubeSpan = circ / tubeSlots.length
+  for (let i = 0; i < tubeSlots.length; i += 1) {
+    build.panels.push(panel(structure, tubeSlots[i]!, pad + tubeSpan * i, pad, tubeSpan, H))
+  }
   pushLine(build.cuts, pad, pad, pad, pad + H)
   pushLine(build.cuts, pad, pad, pad + circ, pad)
   pushLine(build.cuts, pad, pad + H, pad + circ, pad + H)
@@ -1090,19 +1216,29 @@ function buildTube(structure: BoxDielineStructure, d: BoxDimensions, resolved: R
   pushLine(build.folds, xGlue, pad, xGlue, pad + H)
   const placeLid = (cx: number, cy: number, slot: BoxFaceSlot, inner: number) => {
     const outer = inner + skirt
-    build.cuts.push(...segsOf(circle(cx, cy, outer, 48)))
-    build.folds.push(...segsOf(circle(cx, cy, inner, 40)))
-    for (let step = 0; step < 18; step += 1) {
-      const angle = (step / 18) * Math.PI * 2
-      pushLine(
-        build.cuts,
-        cx + Math.cos(angle) * inner,
-        cy + Math.sin(angle) * inner,
-        cx + Math.cos(angle) * outer,
-        cy + Math.sin(angle) * outer
-      )
+    const count = 18
+    const mouth = (skirt * 2 * Math.PI) / count
+    const half = mouth / 2 / outer
+    const boundary: Pt[] = []
+    for (let step = 0; step < count; step += 1) {
+      const tip = ((step + 1) / count) * Math.PI * 2
+      const from = tip - (Math.PI * 2) / count + half
+      const to = tip - half
+      boundary.push(...arcPoints(cx, cy, outer, from, to, 3))
+      boundary.push({ x: cx + Math.cos(tip) * inner, y: cy + Math.sin(tip) * inner })
     }
-    build.panels.push(panel(structure, slot, cx - inner, cy - inner, inner * 2, inner * 2))
+    boundary.push(boundary[0]!)
+    build.cuts.push(...segsOf(boundary))
+    build.folds.push(...segsOf(circle(cx, cy, inner, 40)))
+    const artR = Math.max(4, inner - 1.2)
+    build.panels.push(panel(structure, slot, cx - artR, cy - artR, artR * 2, artR * 2))
+    for (let step = 0; step < count; step += 1) {
+      const tip = ((step + 0.5) / count) * Math.PI * 2
+      const gx = cx + Math.cos(tip) * (inner + skirt * 0.55)
+      const gy = cy + Math.sin(tip) * (inner + skirt * 0.55)
+      const size = 3
+      build.glueRects.push({ x: gx - size / 2, y: gy - size / 2, w: size, h: size })
+    }
   }
   const span = Math.max(topInner, bottomInner) + skirt
   const cx = xGlue + glue + gap + span
@@ -1111,7 +1247,7 @@ function buildTube(structure: BoxDielineStructure, d: BoxDimensions, resolved: R
   build.widthMm = cx + span * 4 + gap + pad
   build.heightMm = Math.max(H, span * 2) + pad * 2
   build.legend.push(
-    `Ống Ø ${r3(diameter)} mm, chu vi ${r3(circ)} mm. Nắp ngoài lớn hơn đáy trong. Vành ${skirt} mm có rãnh dán.`
+    `Ống Ø ${r3(diameter)} mm, chu vi ${r3(circ)} mm. Art đĩa nằm trong nếp 1,2 mm. Vành ${skirt} mm có keo trên từng tab.`
   )
   return build
 }
@@ -1120,21 +1256,68 @@ function buildInsert(d: BoxDimensions, resolved: Resolved): Build {
   const cols = resolved.params.insertCols
   const rows = resolved.params.insertRows
   const wall = Math.min(45, Math.max(16, Math.min(d.heightMm * 0.55, 40)))
-  const pitchX = d.lengthMm / cols
-  const pitchY = d.widthMm / rows
-  const jar =
-    resolved.params.jarDiameterMm > 0
-      ? resolved.params.jarDiameterMm
-      : Math.max(18, Math.min(pitchX, pitchY) * 0.72)
+  const lengthA = Math.max(8, d.lengthMm - 1)
+  const lengthB = Math.max(8, d.widthMm - 1)
+  const pitchA = cols > 1 ? lengthA / cols : lengthA
+  const pitchB = rows > 1 ? lengthB / rows : lengthB
   const slotW = Math.max(0.6, resolved.params.paperThicknessMm + 0.25)
+  const cell = Math.min(pitchA, pitchB) - slotW
+  const fits = Math.max(0, r3(cell - 1))
+  const requested = resolved.params.jarDiameterMm
+  if (fits < 12 && Math.min(d.lengthMm, d.widthMm) >= 24) {
+    const plate = r3(Math.min(d.lengthMm, d.widthMm) - 1)
+    const hole = r3(Math.max(8, Math.min(plate - 8, plate * 0.72)))
+    const foot = 12
+    const footW = r3(Math.max(10, plate - 8))
+    const pad = 4
+    const build = emptyBuild(0, 0)
+    const x = pad
+    const y = pad + foot
+    const footX = x + (plate - footW) / 2
+    build.cuts.push(
+      ...segsOf([
+        { x: footX, y: pad },
+        { x: footX + footW, y: pad },
+        { x: footX + footW, y },
+        { x: x + plate, y },
+        { x: x + plate, y: y + plate },
+        { x: footX + footW, y: y + plate },
+        { x: footX + footW, y: y + plate + foot },
+        { x: footX, y: y + plate + foot },
+        { x: footX, y: y + plate },
+        { x, y: y + plate },
+        { x, y },
+        { x: footX, y },
+        { x: footX, y: pad },
+      ])
+    )
+    pushLine(build.folds, footX, y, footX + footW, y)
+    pushLine(build.folds, footX, y + plate, footX + footW, y + plate)
+    const radius = hole / 2
+    build.cuts.push(...segsOf(circle(x + plate / 2, y + plate / 2, radius, 32)))
+    build.knockouts.push({
+      x: x + plate / 2 - radius,
+      y: y + plate / 2 - radius,
+      w: hole,
+      h: hole,
+      kind: 'neck',
+      shape: 'ellipse',
+    })
+    build.widthMm = plate + pad * 2
+    build.heightMm = plate + foot * 2 + pad * 2
+    build.legend.push(
+      `Tấm chèn ${plate}×${plate} mm, nhỏ hơn lòng hộp 1 mm, lỗ Ø ${hole} mm, hai chân ${foot} mm. Lưới ${cols}×${rows} chỉ còn ô Ø ${r3(fits)} mm nên không giữ được lọ này.`
+    )
+    return build
+  }
   const pad = 4
   const gap = 8
   const build = emptyBuild(0, 0)
   let x = pad
   let y = pad
   let maxX = pad
-  const addStrip = (length: number, crosses: number, pitch: number) => {
-    const strip: Rect = { x, y, w: length, h: wall }
+  const addStrip = (length: number, crosses: number) => {
+    const pitch = length / (crosses + 1)
     build.cuts.push(
       ...segsOf([
         { x, y },
@@ -1153,102 +1336,114 @@ function buildInsert(d: BoxDimensions, resolved: Resolved): Build {
     }
     x += length + gap
     maxX = Math.max(maxX, x)
-    return strip
   }
   if (rows > 1) {
-    for (let i = 0; i < rows - 1; i += 1) addStrip(d.lengthMm - 1, cols - 1, pitchX)
+    for (let i = 0; i < rows - 1; i += 1) addStrip(lengthA, cols - 1)
   }
   x = pad
   y += wall + gap
   if (cols > 1) {
     for (let i = 0; i < cols - 1; i += 1) {
-      const length = d.widthMm - 1
+      const pitch = lengthB / rows
       build.cuts.push(
         ...segsOf([
           { x, y },
-          { x: x + length, y },
-          { x: x + length, y: y + wall },
+          { x: x + lengthB, y },
+          { x: x + lengthB, y: y + wall },
           { x, y: y + wall },
           { x, y },
         ])
       )
       for (let k = 1; k <= rows - 1; k += 1) {
-        const sx = x + pitchY * k - slotW / 2
+        const sx = x + pitch * k - slotW / 2
         const sy = y
         pushLine(build.cuts, sx, sy, sx, sy + wall / 2)
         pushLine(build.cuts, sx + slotW, sy, sx + slotW, sy + wall / 2)
         pushLine(build.cuts, sx, sy + wall / 2, sx + slotW, sy + wall / 2)
       }
-      x += length + gap
+      x += lengthB + gap
       maxX = Math.max(maxX, x)
     }
   }
-  build.widthMm = Math.max(maxX, pad + d.lengthMm) + pad
+  build.widthMm = Math.max(maxX, pad + lengthA) + pad
   build.heightMm = y + (cols > 1 ? wall : 0) + pad
-  build.legend.push(
-    `Lót ${cols}×${rows} ô, hũ Ø ${r3(jar)} mm, vách cao ${r3(wall)} mm.`,
-    'Rãnh lồng sâu một nửa vách. Xoay các dải còn lại 90° khi lắp.'
-  )
+  const jarNote =
+    requested > 0 && requested > fits + 0.05
+      ? `Ô khoảng ${r3(cell)} mm không chứa hũ Ø ${r3(requested)} mm. Vừa tối đa Ø ${fits} mm.`
+      : `Ô vừa hũ tới Ø ${requested > 0 ? r3(requested) : fits} mm.`
+  build.legend.push(`Lót ${cols}×${rows}, dải ${r3(lengthA)}×${r3(lengthB)} mm, vách ${r3(wall)} mm.`, jarNote)
   return build
 }
 
 function addWindow(build: Build) {
   const front = build.panels.find((item) => item.slot === 'front')
+  const side = build.panels.find((item) => item.slot === 'right')
   if (!front) return
-  const left = build.glueTabMm + 3
-  const marginY = Math.max(8, front.h * 0.16)
-  const width = front.w - left - 3
-  const height = front.h - marginY * 2
-  if (width < 6 || height < 6) {
-    build.legend.push('Mặt trước không đủ chỗ cho cửa sổ sau tai dán.')
+  const glueClear = build.glueTabMm + 3
+  const frontFree = front.w - glueClear - 4
+  const host = frontFree >= 18 || !side ? front : side
+  const onFront = host === front
+  const marginX = Math.max(6, onFront ? glueClear : 6)
+  const topReserve = Math.max(26, host.h * 0.28)
+  const bottomReserve = Math.max(22, host.h * 0.22)
+  const width = host.w - marginX * 2
+  const height = host.h - topReserve - bottomReserve
+  if (width < 8 || height < 12) {
+    build.legend.push('Không đủ chỗ cho cửa sổ sau khi chừa tai dán và ô lô/logo.')
     return
   }
   const rect = {
-    x: front.x + left,
-    y: front.y + marginY,
+    x: host.x + marginX,
+    y: host.y + topReserve,
     w: width,
     h: height,
   }
   build.cuts.push(...segsOf(roundedRect(rect, 3)))
   build.knockouts.push({ ...rect, kind: 'window', shape: 'rect' })
-  build.legend.push('Cửa sổ mặt trước: bế thủng và dán film trong sau khi in.')
+  const filmGap = 2
+  const filmOut = 3
+  const film = {
+    x: Math.max(host.x + filmGap, rect.x - filmOut),
+    y: Math.max(host.y + filmGap, rect.y - filmOut),
+    w: Math.min(host.x + host.w - filmGap, rect.x + rect.w + filmOut) - Math.max(host.x + filmGap, rect.x - filmOut),
+    h: Math.min(host.y + host.h - filmGap, rect.y + rect.h + filmOut) - Math.max(host.y + filmGap, rect.y - filmOut),
+  }
+  build.overlays.push({ ...film, kind: 'window-film' }, { ...film, kind: 'glue-free' })
+  const insetX = r3(film.x - host.x)
+  build.legend.push(
+    onFront
+      ? `Cửa sổ mặt trước. Film cách nếp ${insetX} mm, không chạm nếp, không keo.`
+      : `Cửa sổ ở hông phải, chừa ${r3(topReserve)} mm trên và ${r3(bottomReserve)} mm dưới cho logo và ô lô. Film cách nếp ${insetX} mm.`
+  )
 }
 
 function addHandle(build: Build) {
-  const top = build.panels.find((item) => item.slot === 'top')
-  if (!top || build.tuckTabMm < 8) {
-    build.legend.push('Hộp quá hẹp nên chưa có quai xách.')
+  const back = build.panels.find((item) => item.slot === 'back')
+  if (!back) {
+    build.legend.push('Không có mặt sau để gắn quai.')
     return
   }
-  const handleW = Math.min(top.w * 0.7, top.w - 8)
-  const handleH = Math.min(22, Math.max(12, build.tuckTabMm))
-  if (handleW < 16) {
-    build.legend.push('Hộp quá hẹp nên chưa có quai xách.')
+  const holeW = 25
+  const holeH = 15
+  const margin = 4
+  const handleW = Math.min(back.w - 2, Math.max(holeW + margin * 2, 33))
+  const handleH = holeH + margin * 2
+  if (handleW < holeW + 6) {
+    build.legend.push('Mặt sau hẹp hơn lỗ quai 25×15 mm. Hộp này không phù hợp để xách.')
     return
   }
-  const x0 = top.x + (top.w - handleW) / 2
+  const x0 = back.x + (back.w - handleW) / 2
   const x1 = x0 + handleW
-  const yFold = top.y - build.tuckTabMm
-  const next: Seg[] = []
-  let found = false
-  for (const seg of build.cuts) {
-    const horizontal = Math.abs(seg[1] - yFold) < 0.25 && Math.abs(seg[3] - yFold) < 0.25
-    const a = Math.min(seg[0], seg[2])
-    const b = Math.max(seg[0], seg[2])
-    if (!horizontal || b <= x0 + 0.2 || a >= x1 - 0.2) {
-      next.push(seg)
-      continue
-    }
-    found = true
-    if (a < x0 - 0.2) next.push([r3(a), r3(yFold), r3(x0), r3(yFold)])
-    if (b > x1 + 0.2) next.push([r3(x1), r3(yFold), r3(b), r3(yFold)])
-  }
-  if (!found) {
-    build.legend.push('Hộp quá hẹp nên chưa có quai xách.')
-    return
-  }
-  build.cuts.length = 0
-  build.cuts.push(...next)
+  const yFold = back.y
+  const band = 8
+  build.cuts = build.cuts.filter((seg) => {
+    const within = (x: number, y: number) =>
+      x >= back.x - 0.4 && x <= back.x + back.w + 0.4 && y >= yFold - 0.4 && y <= yFold + band
+    return !(within(seg[0], seg[1]) && within(seg[2], seg[3]))
+  })
+  build.fingerNotches = build.fingerNotches.filter((notch) => notch.slot !== 'back')
+  pushLine(build.cuts, back.x, yFold, x0, yFold)
+  pushLine(build.cuts, x1, yFold, back.x + back.w, yFold)
   const yTip = yFold - handleH
   build.cuts.push(
     ...segsOf([
@@ -1259,30 +1454,96 @@ function addHandle(build: Build) {
     ])
   )
   pushLine(build.folds, x0, yFold, x1, yFold)
-  const holeW = handleW * 0.5
-  const holeH = Math.min(10, handleH - 8)
-  if (holeH >= 6) {
-    const hole = { x: x0 + (handleW - holeW) / 2, y: yTip + 4, w: holeW, h: holeH }
-    build.cuts.push(...segsOf(roundedRect(hole, 4)))
-    build.knockouts.push({ ...hole, kind: 'handle', shape: 'ellipse' })
+  const hole = {
+    x: x0 + (handleW - holeW) / 2,
+    y: yTip + margin,
+    w: holeW,
+    h: holeH,
   }
-  build.legend.push('Quai xách liền mép lưỡi nắp.')
+  build.cuts.push(...segsOf(roundedRect(hole, 4)))
+  build.knockouts.push({ ...hole, kind: 'handle', shape: 'ellipse' })
+  const narrow = Math.min(back.w, back.h) < 60
+  build.legend.push(
+    narrow
+      ? 'Quai liền mặt sau, lỗ 25×15 mm. Hộp dưới 60 mm nên quai không thoải mái khi xách.'
+      : 'Quai liền mặt sau, lỗ 25×15 mm. Quai đứng lên khỏi miệng hộp, không đi theo lưỡi gài.'
+  )
 }
 
-function addNeck(build: Build) {
+function addNeck(build: Build, requestedMm: number) {
   const top = build.panels.find((item) => item.slot === 'top')
-  if (!top) return
-  const d = Math.min(top.w, top.h) * 0.34
-  const rect = { x: top.x + (top.w - d) / 2, y: top.y + (top.h - d) / 2, w: d, h: d }
-  build.cuts.push(...segsOf(circle(rect.x + d / 2, rect.y + d / 2, d / 2, 28)))
-  build.knockouts.push({ ...rect, kind: 'neck', shape: 'ellipse' })
-  build.legend.push('Lỗ cổ chai trên nắp. Không in trong lỗ.')
+  const front = build.panels.find((item) => item.slot === 'front')
+  const side = build.panels.find((item) => item.slot === 'right')
+  if (!top || !front || !side) return
+  const y0 = front.y + front.h
+  const gap = 1.2
+  const xL = front.x + gap
+  const xR = front.x + front.w - gap
+  build.cuts = build.cuts.filter((seg) => {
+    const horizontal = Math.abs(seg[1] - y0) < 0.2 && Math.abs(seg[3] - y0) < 0.2
+    const onFront =
+      Math.min(seg[0], seg[2]) >= front.x - 0.3 && Math.max(seg[0], seg[2]) <= front.x + front.w + 0.3
+    return !(horizontal && onFront)
+  })
+  pushLine(build.cuts, front.x, y0, xL, y0)
+  pushLine(build.cuts, xR, y0, front.x + front.w, y0)
+  const neckHeight =
+    requestedMm > 0 ? Math.min(front.h * 0.42, Math.max(14, requestedMm * 1.6)) : front.h * 0.28
+  const foot = Math.max(12, r3(front.h - neckHeight))
+  const platD = Math.max(requestedMm + 8, side.w - 2)
+  const yPlat = y0 + foot
+  const yReturn = yPlat + platD
+  const yEnd = yReturn + foot
+  build.cuts.push(
+    ...segsOf([
+      { x: xL, y: y0 },
+      { x: xL, y: yEnd },
+      { x: xR, y: yEnd },
+      { x: xR, y: y0 },
+    ])
+  )
+  pushLine(build.folds, xL, y0, xR, y0)
+  pushLine(build.folds, xL, yPlat, xR, yPlat)
+  pushLine(build.folds, xL, yReturn, xR, yReturn)
+  if (requestedMm > 0) {
+    const hole = Math.min(requestedMm, platD - 4, xR - xL - 4)
+    const cx = (xL + xR) / 2
+    const cy = yPlat + platD / 2
+    build.cuts.push(...segsOf(circle(cx, cy, hole / 2, 28)))
+    build.knockouts.push({
+      x: cx - hole / 2,
+      y: cy - hole / 2,
+      w: hole,
+      h: hole,
+      kind: 'neck',
+      shape: 'ellipse',
+    })
+    const lidHole = Math.min(hole, top.h * 0.42, top.w - 8)
+    const lidCx = top.x + top.w / 2
+    const lidCy = top.y + lidHole / 2 + 3
+    build.cuts.push(...segsOf(circle(lidCx, lidCy, lidHole / 2, 28)))
+    build.knockouts.push({
+      x: lidCx - lidHole / 2,
+      y: lidCy - lidHole / 2,
+      w: lidHole,
+      h: lidHole,
+      kind: 'neck',
+      shape: 'ellipse',
+    })
+    build.legend.push(
+      `Tấm đỡ gấp chữ П liền đáy trước, chân ${r3(foot)} mm = H − chiều cao cổ. Lỗ Ø ${r3(hole)} mm trên tấm đỡ và sát mép lưỡi nắp.`
+    )
+    return
+  }
+  build.legend.push(
+    `Chưa nhập Ø nắp chai nên chưa khoét lỗ. Tấm đỡ gấp chữ П liền đáy trước, chân ${r3(foot)} mm.`
+  )
 }
 
-function withExtras(structure: BoxDielineStructure, build: Build): Build {
+function withExtras(structure: BoxDielineStructure, build: Build, resolved: Resolved): Build {
   if (structure === 'window') addWindow(build)
   if (structure === 'handle') addHandle(build)
-  if (structure === 'bottle') addNeck(build)
+  if (structure === 'bottle') addNeck(build, resolved.params.neckDiameterMm)
   return build
 }
 
@@ -1300,7 +1561,7 @@ export function buildDielineLayout(
   else if (structure === 'crash_lock') build = buildTuckFamily(structure, d, resolved, 'crash', 'tuck')
   else if (structure === 'snap_lock') build = buildTuckFamily(structure, d, resolved, 'snap', 'tuck')
   else if (structure === 'window' || structure === 'handle' || structure === 'bottle' || structure === 'reverse_tuck') {
-    build = withExtras(structure, buildTuckFamily(structure, d, resolved, 'reverse', 'tuck'))
+    build = withExtras(structure, buildTuckFamily(structure, d, resolved, 'reverse', 'tuck'), resolved)
   } else if (structure === 'telescope') build = buildTelescope(structure, d, resolved)
   else if (structure === 'magnetic') build = buildMagnetic(structure, d, resolved)
   else if (structure === 'sleeve_tray') build = buildSleeveTray(structure, d, resolved)

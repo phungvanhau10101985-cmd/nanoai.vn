@@ -8,6 +8,7 @@ import {
   ADMIN_CURRICULUM_TEACHER_STATS_LIMIT,
   fetchAdminCurriculumTeacherStats,
 } from '@/lib/db/admin-curriculum-teacher-stats-pg'
+import { curriculumBuyerSourceView } from '@/lib/curriculum/curriculum-buyer-source'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import { ApiStatsDateFilter } from '../api-stats/api-stats-date-filter'
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = buildMetadata({
   title: 'Thống kê giáo viên',
-  description: 'Số người mở giáo trình, tạo giáo trình, và giáo viên đã mua gói.',
+  description: 'Số người mở giáo trình, tạo giáo trình, giáo viên đã mua gói, và nguồn khách.',
   path: '/admin/curriculum-teacher-stats',
   noIndex: true,
 })
@@ -64,6 +65,23 @@ export default async function AdminCurriculumTeacherStatsPage({
     }).format(date)
   }
 
+  const sourceLabel = (source: string, detail: string) => {
+    const view = curriculumBuyerSourceView(source, detail)
+    const title =
+      view.kind === 'facebook'
+        ? 'Facebook'
+        : view.kind === 'tiktok'
+          ? 'TikTok'
+          : view.kind === 'google_ads'
+            ? 'Google Ads'
+            : view.kind === 'direct'
+              ? tr('Trực tiếp', 'Direct', '直接访问', '直接', '직접')
+              : view.kind === 'other'
+                ? view.text || tr('Khác', 'Other', '其他', 'その他', '기타')
+                : tr('Chưa ghi', 'Not recorded', '未记录', '未記録', '기록 없음')
+    return { title, extra: view.extra, muted: view.kind === 'unknown' }
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -86,6 +104,15 @@ export default async function AdminCurriculumTeacherStatsPage({
             '打开人数按每份课程保留的最近打开时间计算。创建人数按该账号保存的课程计算。套餐购买按每次教师月费扣款计算。',
             '開いた人数は、各教材に残している最新の開いた時刻です。作成は保存した教材数です。プラン購入は教師の月額課金の回数です。',
             '열기 수는 교육과정마다 남겨 둔 최근 열람 시각입니다. 만들기는 그 계정이 저장한 교육과정 수입니다. 요금제 구매는 교사 월 요금이 빠진 횟수입니다.',
+          )}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {tr(
+            'Cột Nguồn là kênh lúc người mua thêm giỏ (tạo hoặc mở giáo trình): Facebook (gồm Instagram), TikTok, Google Ads, hoặc trang đưa khách tới (Google, Zalo…). Trực tiếp là không thấy quảng cáo hay trang giới thiệu. Tài khoản thêm giỏ trước khi ghi kênh hiện Chưa ghi. Một người có nhiều kênh thì giữ kênh quảng cáo, rồi tới kênh sớm nhất.',
+            'The Source column is the channel when the buyer added to cart (created or opened a curriculum): Facebook (including Instagram), TikTok, Google Ads, or the site that sent them (Google, Zalo…). Direct means no ad and no referring site. Accounts that added to cart before this was saved show Not recorded. If one person has several channels, the ad channel is kept, then the earliest one.',
+            '「来源」列是购买者加入购物车时的渠道（创建或打开课程）：Facebook（含 Instagram）、TikTok、Google Ads，或带来客户的网站（Google、Zalo…）。直接访问表示没有广告也没有来源网站。开始记录之前加入购物车的账号显示未记录。一个人有多个渠道时保留广告渠道，其次保留最早的渠道。',
+            '「流入元」列は購入者がカートに入れたときの経路です（教材の作成または開く）。Facebook（Instagram を含む）、TikTok、Google Ads、または送客元（Google、Zalo…）。直接は広告も参照元もない場合です。記録を始める前のカート追加は未記録です。複数の経路がある人は広告の経路を残し、次に最も早い経路を残します。',
+            '출처 열은 구매자가 장바구니에 담은 경로입니다(교육과정 만들기 또는 열기). Facebook(Instagram 포함), TikTok, Google Ads, 또는 들여보낸 사이트(Google, Zalo…). 직접은 광고와 참조 사이트가 없다는 뜻입니다. 기록을 시작하기 전에 담은 계정은 기록 없음입니다. 한 사람에게 경로가 여러 개면 광고 경로를 남기고, 그다음 가장 이른 경로를 남깁니다.',
           )}
         </p>
       </div>
@@ -199,6 +226,7 @@ export default async function AdminCurriculumTeacherStatsPage({
                   <TableRow>
                     <TableHead>{tr('Tài khoản', 'Account', '账号', 'アカウント', '계정')}</TableHead>
                     <TableHead>{tr('Phân loại', 'Kind', '分类', '区分', '구분')}</TableHead>
+                    <TableHead>{tr('Nguồn', 'Source', '来源', '流入元', '출처')}</TableHead>
                     <TableHead className="text-right">
                       {tr('Tạo giáo trình', 'Created', '创建课程', '作成', '만들기')}
                     </TableHead>
@@ -214,7 +242,7 @@ export default async function AdminCurriculumTeacherStatsPage({
                 <TableBody>
                   {result.rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                         {tr(
                           'Chưa có tài khoản mở, tạo giáo trình hoặc mua gói trong khoảng này.',
                           'No accounts opened or created a curriculum, or bought a teacher plan, in this range.',
@@ -227,6 +255,7 @@ export default async function AdminCurriculumTeacherStatsPage({
                   ) : (
                     result.rows.map((row) => {
                       const isTeacher = row.purchaseCount > 0
+                      const source = sourceLabel(row.buyerSource, row.buyerSourceDetail)
                       return (
                         <TableRow key={row.userId}>
                           <TableCell className="min-w-[180px] align-top">
@@ -241,6 +270,14 @@ export default async function AdminCurriculumTeacherStatsPage({
                                 ? tr('Giáo viên', 'Teacher', '教师', '教師', '교사')
                                 : tr('Thêm giỏ', 'Add to cart', '加入购物车', 'カート追加', '장바구니')}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="min-w-[9.5rem] align-top">
+                            <div title={source.extra || source.title}>
+                              <div className={source.muted ? 'text-sm text-muted-foreground' : 'text-sm'}>{source.title}</div>
+                              {source.extra ? (
+                                <div className="mt-0.5 text-xs text-muted-foreground">{source.extra}</div>
+                              ) : null}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right align-top tabular-nums">{row.createdCount}</TableCell>
                           <TableCell className="text-right align-top tabular-nums">{row.openedCount}</TableCell>

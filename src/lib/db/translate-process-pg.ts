@@ -349,7 +349,7 @@ export async function insertTranslateJobPendingPg(params: {
   historyId: string
   sourceLang: string
   targetLang: string
-  imageQuality: '2K' | '4K'
+  imageQuality: string
   cost: number
 }): Promise<{ id: string } | null> {
   if (!isPgConfigured()) return null
@@ -590,7 +590,7 @@ export async function requeueTranslateJobsPg(params: {
   jobIds: string[]
   sourceLang: string
   targetLang: string
-  imageQuality: '2K' | '4K'
+  imageQuality: string
   cost: number
 }): Promise<number | null> {
   if (!isPgConfigured()) return null

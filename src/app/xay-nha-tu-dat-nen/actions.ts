@@ -257,7 +257,7 @@ export async function step1Build3D(formData: FormData) {
   if (!bunnyReady.ok) return { error: bunnyReady.error }
 
   const imageModel =
-    priced.engine === 'gpt'
+    priced.engine !== 'gemini'
       ? null
       : genAI.getGenerativeModel({
           model: GEMINI_3_PRO_IMAGE.model,
@@ -278,6 +278,7 @@ export async function step1Build3D(formData: FormData) {
     imgRes = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
+      imageQuality: priced.geminiQuality,
       aspectRatio: '16:9',
       parts,
       gemini: () => imageModel!.generateContent(parts, { safetySettings: getSafetySettings() }),
@@ -286,6 +287,7 @@ export async function step1Build3D(formData: FormData) {
     imgRes = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
+      imageQuality: priced.geminiQuality,
       aspectRatio: '16:9',
       parts: [fullPrompt],
       gemini: () => imageModel!.generateContent(fullPrompt, { safetySettings: getSafetySettings() }),
@@ -415,7 +417,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   if (!bunnyReady.ok) return { error: bunnyReady.error }
 
   const imageModel =
-    priced.engine === 'gpt'
+    priced.engine !== 'gemini'
       ? null
       : genAI.getGenerativeModel({
           model: GEMINI_3_PRO_IMAGE.model,
@@ -429,6 +431,7 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   const resultImg = await runImageContent({
     engine: priced.engine,
     gptQuality: priced.gptQuality,
+    imageQuality: priced.geminiQuality,
     aspectRatio: '16:9',
     parts: floorParts,
     gemini: () => imageModel!.generateContent(floorParts, { safetySettings: getSafetySettings() }),
@@ -531,7 +534,7 @@ export async function stepStructural(
   if (!bunnyReady.ok) return { error: bunnyReady.error }
 
   const imageModel =
-    priced.engine === 'gpt'
+    priced.engine !== 'gemini'
       ? null
       : new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey).getGenerativeModel({
           model: GEMINI_3_PRO_IMAGE.model,
@@ -544,6 +547,7 @@ export async function stepStructural(
   const resultImg = await runImageContent({
     engine: priced.engine,
     gptQuality: priced.gptQuality,
+    imageQuality: priced.geminiQuality,
     aspectRatio: '16:9',
     parts: structuralParts,
     gemini: () => imageModel!.generateContent(structuralParts, { safetySettings: getSafetySettings() }),

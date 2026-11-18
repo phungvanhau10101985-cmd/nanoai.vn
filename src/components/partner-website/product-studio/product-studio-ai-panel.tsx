@@ -239,7 +239,7 @@ export function ProductStudioAiPanel({
   const [aspectRatio, setAspectRatio] = useState('1:1')
   const [imageModel, setImageModel] = useState<ProductStudioImageModel>('pro')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
-  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [geminiQuality, setGeminiQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [uiLocale, setUiLocale] = useState('vi')
 
@@ -266,6 +266,7 @@ export function ProductStudioAiPanel({
   const activeGeminiQuality = gemini4kAllowed ? geminiQuality : '2K'
   const slotCredit = (kind: ProductStudioSlotKind) =>
     imageEngineCredit({
+      imageQuality: activeGeminiQuality,
       engine: imageEngine,
       gptQuality,
       geminiCost: geminiQualityCredit(productStudioSlotImageCredit(kind, imageModel), activeGeminiQuality),
@@ -427,7 +428,9 @@ export function ProductStudioAiPanel({
     setShotStyle(data.job.payload.shotStyle || 'studio')
     setAspectRatio(data.job.payload.aspectRatio || '1:1')
     setImageModel(data.job.payload.imageModel === 'flash' || data.job.payload.imageModel === 'flash3' ? data.job.payload.imageModel : 'pro')
-    setImageEngine(data.job.payload.imageEngine === 'gpt' ? 'gpt' : 'gemini')
+    setImageEngine(
+      data.job.payload.imageEngine === 'flux' ? 'flux' : data.job.payload.imageEngine === 'gpt' ? 'gpt' : 'gemini',
+    )
     setGptQuality(
       data.job.payload.gptQuality === 'low' || data.job.payload.gptQuality === 'high'
         ? data.job.payload.gptQuality

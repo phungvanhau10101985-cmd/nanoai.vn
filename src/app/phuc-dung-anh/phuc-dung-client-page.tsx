@@ -61,7 +61,7 @@ export default function PhucDungClientPage() {
   const [personInfo, setPersonInfo] = useState<{ gender: string; age: string; extra: string }[]>(() =>
     Array(5).fill(null).map(() => ({ gender: '', age: '', extra: '' }))
   )
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageQuality, setImageQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [imageUrl, setImageUrl] = useState('')
@@ -72,9 +72,10 @@ export default function PhucDungClientPage() {
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cost = imageEngineCredit({
+      imageQuality: imageQuality,
     engine: imageEngine,
     gptQuality,
-    geminiCost: imageQuality === '2K' ? 4 : 8,
+    geminiCost: imageQuality === '4K' ? 8 : 4,
   })
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en

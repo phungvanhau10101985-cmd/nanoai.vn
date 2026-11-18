@@ -80,11 +80,17 @@ export type Dictionary = {
     defaultDescription: string
     toolHub: string
     login: string
+    tryFree: string
+    pricing: string
+    homeSearchPlaceholder: string
+    homeSearchEmpty: string
   }
   menu: {
     openMenu: string
     /** Nút danh mục ghim trên thanh đáy mobile. */
     catalogButton: string
+    /** Nút cuối bảng Danh mục, tách khỏi danh sách cuộn. */
+    openHomeGrid: string
     /** Đầu lưới danh mục: vừa mở, rồi tính năng hay xem. */
     featureGridLead: string
     /** Phần còn lại của lưới danh mục. */
@@ -280,6 +286,8 @@ export type Dictionary = {
     studyHelpPresetLesson: string
     featureGroupStudioInline: string
     featurePickerHint: string
+    featureChipPrev: string
+    featureChipNext: string
     featureFeedbackOpen: string
     featureFeedbackTitle: string
     featureFeedbackHint: string
@@ -4012,8 +4020,74 @@ export type Dictionary = {
     faq4a: string
     faq5q: string
     faq5a: string
+    guideTitle: string
+    guideBody: string
+    guideVideoTitle: string
+    guideOpen: string
     finalTitle: string
     finalBody: string
+  }
+  curriculumMobileLead: {
+    badge: string
+    eyebrow: string
+    title: string
+    promise: string
+    videoTitle: string
+    noteStrong: string
+    noteRest: string
+    formTitle: string
+    formLead: string
+    nameLabel: string
+    namePlaceholder: string
+    contactLabel: string
+    contactPlaceholder: string
+    contactHint: string
+    subjectLabel: string
+    subjectPlaceholder: string
+    submit: string
+    submitting: string
+    success: string
+    errorInvalid: string
+    errorRate: string
+    errorSave: string
+    featuresTitle: string
+    summaryTitle: string
+    summaryBody: string
+    summaryAlt: string
+    labTitle: string
+    labBody: string
+    labAlt: string
+    chartTitle: string
+    chartBody: string
+    chartAlt: string
+    embedTitle: string
+    embedBody: string
+    embedAlt: string
+    stepsTitle: string
+    step1Title: string
+    step1Body: string
+    step2Title: string
+    step2Body: string
+    step3Title: string
+    step3Body: string
+    quotaTitle: string
+    quotaFree: string
+    quotaDetail: string
+    quotaCredit: string
+    faqTitle: string
+    faqPhoneQ: string
+    faqPhoneA: string
+    faqSlideQ: string
+    faqSlideA: string
+    faqBookQ: string
+    faqBookA: string
+    faqStudentQ: string
+    faqStudentA: string
+    faqSubjectQ: string
+    faqSubjectA: string
+    footer: string
+    zaloLabel: string
+    stickyCta: string
   }
   weddingCardAiLanding: {
     eyebrow: string
@@ -4848,10 +4922,15 @@ export const VI_DICTIONARY: Dictionary = {
     defaultDescription: 'Trải nghiệm phòng thử đồ ảo với AI. Thử đồ 1-5 người, phục dựng ảnh, làm nét ảnh, ghép ảnh. Nhanh chóng, chính xác.',
     toolHub: 'Công cụ AI',
     login: 'Đăng nhập',
+    tryFree: 'Dùng thử miễn phí',
+    pricing: 'Bảng giá',
+    homeSearchPlaceholder: 'Tìm công cụ…',
+    homeSearchEmpty: 'Không có công cụ khớp.',
   },
   menu: {
     openMenu: 'Mở menu',
     catalogButton: 'Danh mục',
+    openHomeGrid: 'Mở trang chủ',
     featureGridLead: 'Vừa mở và hay xem',
     featureGridRest: 'Tính năng khác',
     mainMenu: 'Menu chính',
@@ -5013,15 +5092,15 @@ export const VI_DICTIONARY: Dictionary = {
     studioGenerateFace: 'Tạo ảnh mặt hộp',
     studioFacePolishAi: 'Tối ưu AI · 0,1 credit',
     studioFacePolishHint:
-      'Viết lại câu mô tả để bạn sửa. Chưa tạo ảnh. Khi chữ in đúng, bấm Tạo ảnh mặt hộp.',
-    studioFacePolishEmpty: 'Gõ sơ ý mặt in trước khi tối ưu.',
+      'Viết lại câu trong ô chat để bạn sửa trước khi tạo ảnh. Mỗi lần 0,1 credit. Chưa tạo ảnh.',
+    studioFacePolishEmpty: 'Gõ sơ ý trước khi tối ưu.',
     studioFacePolishSkip: 'Lệnh bỏ trống hoặc giống mặt khác không cần tối ưu. Dùng nút Bỏ trống hoặc Giống mặt.',
     studioFacePolishDone: 'Đã tối ưu câu mô tả',
-    studioFacePolishDoneDesc: 'Sửa chữ in nếu cần, rồi bấm tạo ảnh.',
+    studioFacePolishDoneDesc: 'Sửa thêm nếu cần, rồi bấm tạo ảnh.',
     studioFacePolishFailed: 'Không tối ưu được câu mô tả. Thử lại sau.',
     studioFacePolishNoKey: 'Chưa cấu hình DEEPSEEK_API_KEY trên server.',
     studioFacePolishNeedCredit: 'Không đủ credit. Mỗi lần tối ưu câu tốn 0,1 credit.',
-    studioFacePolishWrongStep: 'Chỉ tối ưu câu khi đang thiết kế một mặt in.',
+    studioFacePolishWrongStep: 'Chỉ tối ưu câu khi đang ở bước tạo ảnh.',
     studioFacePolishDroppedCopy: 'AI bỏ mất chữ in trong ngoặc. Credit đã hoàn. Thử lại.',
     studioFacePolishTooLong: 'Câu mô tả quá dài (tối đa 4000 ký tự).',
     studioGenerateMusic: 'Tạo nhạc cho bước này',
@@ -5043,6 +5122,8 @@ export const VI_DICTIONARY: Dictionary = {
     studyHelpPresetLesson: 'Bài học có sẵn',
     featureGroupStudioInline: 'Thiết kế trong chat',
     featurePickerHint: 'Chọn tính năng — hệ thống mở đúng flow theo lập trình',
+    featureChipPrev: 'Tính năng phía trước',
+    featureChipNext: 'Tính năng tiếp theo',
     featureFeedbackOpen: 'Góp ý tính năng còn thiếu',
     featureFeedbackTitle: 'Góp ý tính năng còn thiếu',
     featureFeedbackHint: 'Viết việc bạn cần mà NanoAI chưa có. Đội ngũ nhận trên chuông thông báo.',
@@ -5147,7 +5228,7 @@ export const VI_DICTIONARY: Dictionary = {
     studioCropZoom: 'Thu phóng',
     studioCropTargetSize: 'Mặt hộp (mục tiêu): {size}',
     studioCropResultSize: 'Vùng in sau cắt: {size}',
-    studioCropDragHint: 'Kéo khung đỏ để di chuyển — kéo góc để phóng to/thu nhỏ. Vùng trống có thể lấp bằng màu viền ảnh (nút bên dưới).',
+    studioCropDragHint: 'Kéo khung đỏ để di chuyển — kéo góc để phóng to/thu nhỏ.',
     studioCropRatioLocked: 'Tỷ lệ khung cắt luôn khớp mặt in: {size}',
     studioCropFillEdgeColor: 'Lấp màu nền',
     studioCropFillEdgeColorOff: 'Vùng trống trắng',
@@ -7691,7 +7772,7 @@ export const VI_DICTIONARY: Dictionary = {
     create_id_photo: 'Tạo ảnh thẻ',
     design_logo: 'Thiết kế logo',
     story_with_images: 'Kể chuyện bằng ảnh',
-    create_sticker: 'Tạo nhãn gián',
+    create_sticker: 'Tạo nhãn dán',
     create_product_label: 'Tạo nhãn giới thiệu sản phẩm',
     create_barcode: 'Tạo mã vạch & QR Code',
     design_package: 'Thiết kế bao bì (hộp, túi)',
@@ -8747,7 +8828,7 @@ export const VI_DICTIONARY: Dictionary = {
       'Hai giao diện tách riêng. Giáo viên giữ ghi chú và nút sửa. Học sinh chỉ thấy bài chiếu. Đổi slide, vẽ đồ thị, mở thí nghiệm PhET hoặc video YouTube thì hai màn đi cùng một chỗ.',
     teacherLine: 'Chiếu lên tivi chỉ màn học sinh. Màn giáo viên ở lại máy tính.',
     cta: 'Đăng nhập để tạo',
-    ctaNote: 'Ba bài giáo trình mới mỗi ngày không trừ credit. Bài thứ tư, hoặc khi tạo lại, mới trừ.',
+    ctaNote: '{freeBodies} bài giáo trình mới mỗi ngày không trừ credit. Bài thứ {chargedFrom}, hoặc khi tạo lại, mới trừ.',
     flowSubject: 'Môn, lớp, bộ sách',
     flowSource: 'Chủ đề hoặc ảnh trang sách',
     flowCurriculum: 'Giáo trình theo tiết',
@@ -8798,7 +8879,7 @@ export const VI_DICTIONARY: Dictionary = {
     step3Body: 'Chọn tiết, mở slide. Bản học sinh là màn trình chiếu.',
     step4Title: 'Gắn phiếu và câu hỏi',
     step4Body: 'Phiếu từ bài vừa soạn. Câu trắc nghiệm tạo trên slide.',
-    priceTitle: 'Ba bài mỗi ngày, chưa trừ credit',
+    priceTitle: '{freeBodies} bài mỗi ngày, chưa trừ credit',
     priceLead: 'Đăng nhập là tạo. {freeBodies} bài giáo trình mới trong ngày không trừ credit.',
     priceFreeName: 'Mỗi ngày',
     priceFreeDetail: '{freeBodies} bài · 0 credit',
@@ -8821,9 +8902,81 @@ export const VI_DICTIONARY: Dictionary = {
     faq4q: 'Môn và lớp nào?',
     faq4a: 'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Lớp 1 đến 12, và các bậc sau phổ thông.',
     faq5q: 'Khi nào trừ credit?',
-    faq5a: 'Ba bài mới mỗi ngày không trừ. Bài thứ tư, tạo từ ảnh khi vượt mức hoặc ghi đè, và lần tạo lại slide hoặc infographic thì trừ.',
+    faq5a: '{freeBodies} bài mới mỗi ngày không trừ. Bài thứ {chargedFrom}, tạo từ ảnh khi vượt mức hoặc ghi đè, và lần tạo lại slide hoặc infographic thì trừ.',
+    guideTitle: 'Xem cách dùng',
+    guideBody: 'Video ngắn: chọn môn, đưa nội dung, rồi chiếu slide theo tiết.',
+    guideVideoTitle: 'Video hướng dẫn tạo giáo trình',
+    guideOpen: 'Mở trên YouTube',
     finalTitle: 'Soạn một lần, lên lớp được ngay',
     finalBody: 'Đăng nhập. Chọn môn, lớp, rồi gõ chủ đề hoặc chụp một trang sách.',
+  },
+  curriculumMobileLead: {
+    badge: 'Dùng trên máy tính',
+    eyebrow: 'Giáo trình AI',
+    title: 'Giảm tới {percent} thời gian soạn bài',
+    promise:
+      'Một bài thành giáo trình, slide theo tiết và phiếu. Gắn ảnh tóm tắt, thí nghiệm PhET, đồ thị 2D/3D, YouTube, GeoGebra hoặc Desmos ngay trên bài giảng.',
+    videoTitle: 'Video demo Giáo trình AI, khoảng 20 giây',
+    noteStrong: 'Dùng trên máy tính (laptop/PC).',
+    noteRest:
+      'Trên điện thoại, bạn xem demo rồi để lại thông tin. Chúng tôi gửi link để bạn mở và soạn bài trên máy tính.',
+    formTitle: 'Nhận link mở trên máy tính',
+    formLead: 'Điền thông tin bên dưới. Không cần soạn bài trên điện thoại.',
+    nameLabel: 'Họ tên',
+    namePlaceholder: 'Nguyễn Văn A',
+    contactLabel: 'Số điện thoại Zalo hoặc email',
+    contactPlaceholder: '0912… hoặc email@…',
+    contactHint: 'Dùng Zalo hoặc email để nhận link mở trên máy tính.',
+    subjectLabel: 'Môn / cấp đang dạy',
+    subjectPlaceholder: 'Ví dụ: Toán lớp 8, Hóa lớp 11',
+    submit: 'Gửi link mở trên máy tính',
+    submitting: 'Đang gửi…',
+    success: 'Cảm ơn bạn. Hãy kiểm tra Zalo hoặc email để nhận link mở Giáo trình AI trên máy tính.',
+    errorInvalid: 'Vui lòng điền đủ họ tên, số Zalo hoặc email hợp lệ, và môn đang dạy.',
+    errorRate: 'Bạn vừa gửi rồi. Hãy đợi một lát rồi thử lại.',
+    errorSave: 'Chưa lưu được. Hãy thử lại, hoặc gửi email tới support@nanoai.vn.',
+    featuresTitle: 'Tính năng hỗ trợ giảng dạy',
+    summaryTitle: 'Ảnh tóm tắt bài giảng',
+    summaryBody: 'AI tạo infographic cho tiết đang dạy hoặc cho cả bài. Ảnh nằm trên slide, học sinh xem cùng ảnh.',
+    summaryAlt: 'Giáo trình với ảnh tóm tắt công thức tọa độ vectơ và nút tạo infographic cho tiết hoặc cả bài',
+    labTitle: 'Thí nghiệm PhET ngay trên slide',
+    labBody: 'Dán link mô phỏng PhET vào ô visual. Thí nghiệm chạy trên slide, học sinh thao tác cùng thí nghiệm giáo viên đang mở.',
+    labAlt: 'Giáo trình với thí nghiệm PhET Quang hình học gắn trên bài',
+    chartTitle: 'Đồ thị 2D và 3D',
+    chartBody: 'Dán công thức, vẽ đồ thị hai chiều hoặc ba chiều ngay trong slide. Nhiều đồ thị trên một hình, không phải rời bài.',
+    chartAlt: 'Giáo trình với đồ thị hàm số hiện trong bài',
+    embedTitle: 'YouTube, GeoGebra, Desmos',
+    embedBody:
+      'Dán link YouTube, GeoGebra hoặc Desmos vào ô visual. Video và công cụ nằm trên slide, học sinh xem đúng nội dung giáo viên đang mở.',
+    embedAlt: 'Giáo trình với video YouTube nhúng trong bài',
+    stepsTitle: 'Ba bước để bắt đầu',
+    step1Title: 'Để lại Zalo hoặc email',
+    step1Body: 'Điền form trên điện thoại. Chúng tôi gửi link mở Giáo trình trên máy tính.',
+    step2Title: 'Mở link trên laptop hoặc PC',
+    step2Body: 'Tính năng soạn và dạy dùng trên máy tính, không soạn trên điện thoại.',
+    step3Title: 'Chọn môn, lớp rồi soạn bài',
+    step3Body: 'Gõ chủ đề hoặc chụp một trang sách. Có giáo trình, slide theo tiết và phiếu trong cùng một bài.',
+    quotaTitle: 'Mức dùng miễn phí',
+    quotaFree: '{freeBodies} bài miễn phí/ngày',
+    quotaDetail: ', không trừ credit khi tạo bài mới trong hạn mức này.',
+    quotaCredit: '1 credit = {creditVnd}₫. Mở bản đã lưu, không gọi AI, thì không trừ credit.',
+    faqTitle: 'Câu hỏi thường gặp',
+    faqPhoneQ: 'Có dùng được trên điện thoại không?',
+    faqPhoneA:
+      'Trang này xem được trên điện thoại. Việc soạn giáo trình, chiếu slide và dùng PhET, đồ thị, YouTube được thiết kế để dùng trên máy tính (laptop/PC). Hãy nhận link rồi mở lại trên máy tính.',
+    faqSlideQ: 'Có phải tự cắt slide không?',
+    faqSlideA: 'Không. Giáo trình sinh kèm slide theo tiết. Giáo viên chọn tiết rồi chiếu.',
+    faqBookQ: 'Có bám sách giáo khoa không?',
+    faqBookA: 'Có. Chọn Kết nối tri thức, Cánh diều, Chân trời sáng tạo, hoặc sách khác. Có thể chụp trang sách.',
+    faqStudentQ: 'Học sinh thấy gì?',
+    faqStudentA:
+      'Giao diện riêng, chỉ bài chiếu. Đúng slide, đồ thị, thí nghiệm PhET và video YouTube. Nút sửa và ghi chú ở lại màn giáo viên.',
+    faqSubjectQ: 'Môn và lớp nào?',
+    faqSubjectA:
+      'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Lớp 1 đến 12, và các bậc sau phổ thông.',
+    footer: 'NanoAI · Hỗ trợ: support@nanoai.vn · 08:30–17:30 (Thứ 2–Thứ 7)',
+    zaloLabel: 'Chat Zalo',
+    stickyCta: 'Gửi link mở trên máy tính',
   },
   weddingCardAiLanding: {
     eyebrow: 'Thiệp cưới điện tử',

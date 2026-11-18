@@ -15,7 +15,15 @@ function buildLoginHref(): string {
 /**
  * Không dùng `useSearchParams` / `usePathname` / Suspense — tránh Next chèn `<input>` và lỗi hydrate.
  */
-export function LoginNavButton({ label, className }: { label: string; className?: string }) {
+export function LoginNavButton({
+  label,
+  className,
+  variant = 'secondary',
+}: {
+  label: string
+  className?: string
+  variant?: 'secondary' | 'default'
+}) {
   const [href, setHref] = useState('/auth/login')
 
   useEffect(() => {
@@ -26,7 +34,7 @@ export function LoginNavButton({ label, className }: { label: string; className?
 
   return (
     <Link href={href}>
-      <Button variant="secondary" size="sm" className={className}>
+      <Button variant={variant} size="sm" className={className}>
         {label}
       </Button>
     </Link>

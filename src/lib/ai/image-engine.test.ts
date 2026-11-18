@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  boxDesignImageTier,
   geminiQualityCredit,
   gptImageSizeForAspect,
   imageChargeFromForm,
@@ -34,6 +35,56 @@ describe('imageEngineCredit', () => {
     assert.equal(geminiQualityCredit(1.5, '4K'), 3)
     assert.equal(geminiQualityCredit(4, '4k'), 8)
     assert.equal(geminiQualityCredit(1.1, '4K'), 2.2)
+  })
+
+  it('lifts box design off NanoAI 2L and keeps Gemini at 2K or 4K', () => {
+    assert.deepEqual(boxDesignImageTier({ gptQuality: 'low', imageQuality: '1K' }), {
+      gptQuality: 'medium',
+      imageQuality: '2K',
+    })
+    assert.deepEqual(boxDesignImageTier({ gptQuality: 'high', imageQuality: '4K' }), {
+      gptQuality: 'high',
+      imageQuality: '4K',
+    })
+    assert.deepEqual(boxDesignImageTier({ gptQuality: 'medium', imageQuality: '1.5K' }), {
+      gptQuality: 'medium',
+      imageQuality: '1.5K',
+    })
+  })
+
+  it('charges FLUX at NanoAI F1.5K, F2K and F4K and never keeps 1K', () => {
+    assert.equal(imageEngineCredit({ engine: 'flux', imageQuality: '1.5K', geminiCost: 8 }), 1)
+    assert.equal(imageEngineCredit({ engine: 'flux', imageQuality: '1,5K', geminiCost: 8 }), 1)
+    assert.equal(imageEngineCredit({ engine: 'flux', imageQuality: '2K', geminiCost: 8 }), 1.5)
+    assert.equal(imageEngineCredit({ engine: 'flux', imageQuality: '4K', geminiCost: 1.5 }), 6)
+    assert.equal(imageEngineCredit({ engine: 'flux', imageQuality: '1K', geminiCost: 8 }), 1.5)
+    assert.equal(imageEngineCredit({ engine: 'flux', geminiCost: 8, outputCount: 2 }), 3)
+    const flux = imageChargeFromForm(
+      {
+        get: (name) => {
+          if (name === 'imageEngine') return 'flux'
+          if (name === 'imageQuality') return '4K'
+          return null
+        },
+      },
+      1.5,
+    )
+    assert.equal(flux.engine, 'flux')
+    assert.equal(flux.fluxQuality, '4K')
+    assert.equal(flux.cost, 6)
+    const fluxSmall = imageChargeFromForm(
+      {
+        get: (name) => {
+          if (name === 'imageEngine') return 'flux'
+          if (name === 'imageQuality') return '1.5K'
+          return null
+        },
+      },
+      8,
+    )
+    assert.equal(fluxSmall.fluxQuality, '1.5K')
+    assert.equal(fluxSmall.geminiQuality, '1.5K')
+    assert.equal(fluxSmall.cost, 1)
   })
 
   it('rejects an unknown GPT quality instead of upgrading it', () => {

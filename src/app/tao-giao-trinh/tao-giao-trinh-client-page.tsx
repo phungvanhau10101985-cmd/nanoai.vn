@@ -30,6 +30,7 @@ import { attachLessonToClass, listClassesForTeaching } from '@/app/lop/class-les
 import { TeachClassDialog } from '@/components/lop/teach-class-dialog'
 import type { TeachClassOption } from '@/lib/db/class-taught-lessons-pg'
 import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
+import { appendCurriculumBuyerSource, rememberCurriculumBuyerSource } from '@/lib/curriculum/curriculum-buyer-source'
 import { useWorksheetQuestionProposals, WorksheetQuestionCompare } from './components/worksheet-question-proposals'
 import {
   ensureCurriculumLessonSlidesPreparedAction,
@@ -1405,7 +1406,7 @@ export default function TaoGiaoTrinhClientPage({
       if (Array.isArray(lessonOutline) && lessonOutline.length > 0) {
         saveFd.append('lessonOutlineJson', JSON.stringify({ lessons: lessonOutline }))
       }
-      const saveRes = await saveCurriculum(saveFd)
+      const saveRes = await saveCurriculum(appendCurriculumBuyerSource(saveFd))
       if (saveRes?.success && saveRes.curriculumId) {
         setCurriculumId(saveRes.curriculumId)
         setStep('RESULT')
@@ -1497,7 +1498,7 @@ export default function TaoGiaoTrinhClientPage({
       formData.append('lessonDurationMinutes', curriculumCountField(lessonDurationMinutes))
       formData.append('goals', goals.trim())
       formData.append('bookIsbn', '')
-      const result = await createCurriculum(formData)
+      const result = await createCurriculum(appendCurriculumBuyerSource(formData))
       if (result.error) {
         setStep('INPUT')
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive', duration: 5000 })
@@ -2593,7 +2594,7 @@ export default function TaoGiaoTrinhClientPage({
       formData.append('lessonDurationMinutes', curriculumCountField(lessonDurationMinutes))
       formData.append('goals', goals)
       formData.append('bookIsbn', textbookSetId === 'khac' ? bookIsbn.trim() : '')
-      const result = await saveCurriculum(formData)
+      const result = await saveCurriculum(appendCurriculumBuyerSource(formData))
       if (result.error) {
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
       } else if (result.success && result.curriculumId) {
@@ -2670,7 +2671,7 @@ export default function TaoGiaoTrinhClientPage({
               formData.append('lessonDurationMinutes', curriculumCountField(s.lessonDurationMinutes))
               formData.append('goals', s.goals)
               formData.append('bookIsbn', s.textbookSetId === 'khac' ? s.bookIsbn.trim() : '')
-              const result = await saveCurriculum(formData)
+              const result = await saveCurriculum(appendCurriculumBuyerSource(formData))
               if (result.success && result.curriculumId) {
                 setCurriculumId(result.curriculumId)
                 if (!s.curriculumId) setCurriculumEditMode(true)
@@ -2769,7 +2770,7 @@ export default function TaoGiaoTrinhClientPage({
     formData.append('goals', s.goals)
     formData.append('bookIsbn', s.textbookSetId === 'khac' ? s.bookIsbn.trim() : '')
 
-    const result = await saveCurriculum(formData)
+    const result = await saveCurriculum(appendCurriculumBuyerSource(formData))
     if (result.error) {
       setAutoSaveStatus('idle')
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive' })
@@ -2888,7 +2889,7 @@ export default function TaoGiaoTrinhClientPage({
       formData.append('lessonDurationMinutes', curriculumCountField(lessonDurationMinutes))
       formData.append('goals', goals)
       formData.append('bookIsbn', textbookSetId === 'khac' ? bookIsbn.trim() : '')
-      saveCurriculum(formData).then((result) => {
+      saveCurriculum(appendCurriculumBuyerSource(formData)).then((result) => {
         if (result.success && result.curriculumId) {
           setCurriculumId(result.curriculumId)
           setAutoSaveStatus('saved')
@@ -3157,7 +3158,7 @@ export default function TaoGiaoTrinhClientPage({
       setInfographicOriginal(hasOriginal ? originalMeta.curriculumInfographic : undefined)
       setInfographicPersonal(hasPersonal ? personalMeta.curriculumInfographic : undefined)
       markExamTeacher()
-      void recordCurriculumOpen(id)
+      void recordCurriculumOpen(id, rememberCurriculumBuyerSource())
       toast({ title: tr('Đã tải giáo trình', 'Curriculum loaded', '已加载课程', 'カリキュラムを読み込み', '교육과정 로드됨'), duration: 2000 })
       if (!options?.skipScroll) {
         setTimeout(() => {

@@ -2,9 +2,11 @@ import {
   GPT_IMAGE_MODEL,
   gptImageSizeForAspect,
   ImageEngineError,
+  parseFluxImageQuality,
   type GptImageQuality,
   type ImageEngine,
 } from '@/lib/ai/image-engine'
+import { generateFluxImage, type FluxImageBytes } from '@/lib/ai/flux-image'
 import { billGptImageUsage, type GptImageLoggedUsage, type OpenAiImageUsage } from '@/lib/pricing/gpt-image-usage'
 
 export type GptImageInput = {
@@ -191,7 +193,13 @@ export async function generateGptImage(opts: {
 
 export type GeminiShaped = {
   response: {
-    usageMetadata: GptImageLoggedUsage
+    usageMetadata: {
+      promptTokenCount: number
+      candidatesTokenCount: number
+      totalTokenCount: number
+      logModel?: string
+      logImageSize?: string | null
+    }
     candidates: Array<{ content: { parts: Array<{ inlineData: { data: string; mimeType: string } }> } }>
   }
 }
@@ -219,7 +227,10 @@ function splitGeminiParts(parts: unknown[]): { prompt: string; images: GptImageI
   return { prompt: texts.join('\n\n'), images }
 }
 
-function geminiShapeFromBuffer(buffer: Buffer, usage: GptImageLoggedUsage): GeminiShaped {
+function geminiShapeFromBuffer(
+  buffer: Buffer,
+  usage: GeminiShaped['response']['usageMetadata'],
+): GeminiShaped {
   return {
     response: {
       usageMetadata: usage,
@@ -234,16 +245,32 @@ function geminiShapeFromBuffer(buffer: Buffer, usage: GptImageLoggedUsage): Gemi
   }
 }
 
-/** GPT trả cùng dạng `generateContent` để action cũ đọc `inlineData`. Gemini gọi callback nguyên. */
+/** GPT và FLUX trả cùng dạng `generateContent` để action cũ đọc `inlineData`. Gemini gọi callback nguyên. */
 export async function runImageContent<T>(opts: {
   engine: ImageEngine
   gptQuality: GptImageQuality | null
   aspectRatio?: string | null
   /** Size GPT `WIDTHxHEIGHT`. Có thì không gộp tỷ lệ đứng về 1024×1536. */
   gptSize?: string | null
+  /** NanoAI F1.5K / F2K / F4K. Thiếu thì F2K. */
+  imageQuality?: string | null
+  /** Pixel đúng tỷ lệ mặt hộp. Có thì FLUX bỏ resolution. */
+  fluxSize?: { width: number; height: number } | null
   parts: unknown[]
   gemini: () => Promise<T>
 }): Promise<T> {
+  if (opts.engine === 'flux') {
+    const { prompt, images } = splitGeminiParts(opts.parts)
+    if (!prompt.trim()) throw new ImageEngineError('Thiếu mô tả ảnh.')
+    const generated = await generateFluxImage({
+      prompt,
+      quality: parseFluxImageQuality(opts.imageQuality),
+      aspectRatio: opts.aspectRatio,
+      size: opts.fluxSize,
+      images: images as FluxImageBytes[],
+    })
+    return geminiShapeFromBuffer(generated.buffer, generated.usage) as T
+  }
   if (opts.engine !== 'gpt') return opts.gemini()
   if (!opts.gptQuality) throw new ImageEngineError('Chọn NanoAI 2L, NanoAI 2M hoặc NanoAI 2H.')
   const { prompt, images } = splitGeminiParts(opts.parts)
@@ -258,15 +285,27 @@ export async function runImageContent<T>(opts: {
   return geminiShapeFromBuffer(generated.buffer, generated.usage) as T
 }
 
-/** GPT gọi OpenAI. Gemini chạy `gemini` và không đụng prompt hay model cũ. */
+/** GPT gọi OpenAI. FLUX gọi Black Forest Labs. Gemini chạy `gemini`. */
 export async function produceImageBytes(opts: {
   engine: ImageEngine
   gptQuality: GptImageQuality | null
   prompt: string
   aspectRatio?: string | null
+  imageQuality?: string | null
+  fluxSize?: { width: number; height: number } | null
   images?: GptImageInput[]
   gemini: () => Promise<Buffer>
 }): Promise<Buffer> {
+  if (opts.engine === 'flux') {
+    const generated = await generateFluxImage({
+      prompt: opts.prompt,
+      quality: parseFluxImageQuality(opts.imageQuality),
+      aspectRatio: opts.aspectRatio,
+      size: opts.fluxSize,
+      images: opts.images,
+    })
+    return generated.buffer
+  }
   if (opts.engine !== 'gpt') return opts.gemini()
   if (!opts.gptQuality) throw new ImageEngineError('Chọn NanoAI 2L, NanoAI 2M hoặc NanoAI 2H.')
   const generated = await generateGptImage({

@@ -123,7 +123,7 @@ export default function ThietKeNoiNgoaiThatClientPage() {
   const [selectedMainColor, setSelectedMainColor] = useState('')
   const [selectedSecondaryColor, setSelectedSecondaryColor] = useState('')
   const [addItemsPrompt, setAddItemsPrompt] = useState('')
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageQuality, setImageQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [imageUrl, setImageUrl] = useState('')
@@ -165,9 +165,10 @@ export default function ThietKeNoiNgoaiThatClientPage() {
   }
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
   const unitCost = imageEngineCredit({
+      imageQuality: imageQuality,
     engine: imageEngine,
     gptQuality,
-    geminiCost: APPLY_COSTS[imageQuality],
+    geminiCost: APPLY_COSTS[imageQuality === '4K' ? '4K' : '2K'],
   })
 
   const appendInteriorMainToFormData = useCallback(

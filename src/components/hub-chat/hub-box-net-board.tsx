@@ -43,6 +43,7 @@ const COPY: Record<
     cols: string
     rows: string
     jar: string
+    neck: string
     pick: string
     empty: string
     coord: string
@@ -63,6 +64,7 @@ const COPY: Record<
     cols: 'Số cột lót',
     rows: 'Số hàng lót',
     jar: 'Đường kính hũ (mm, 0 = tự tính)',
+    neck: 'Đường kính nắp chai (mm, 0 = tạm)',
     pick: 'Đổi ảnh cho tấm đang chọn',
     empty: 'Trống',
     coord: 'Tọa độ',
@@ -88,6 +90,7 @@ const COPY: Record<
     cols: 'Insert columns',
     rows: 'Insert rows',
     jar: 'Jar diameter (mm, 0 = auto)',
+    neck: 'Cap diameter (mm, 0 = provisional)',
     pick: 'Swap artwork on the selected panel',
     empty: 'Blank',
     coord: 'Coordinates',
@@ -113,6 +116,7 @@ const COPY: Record<
     cols: '内衬列数',
     rows: '内衬行数',
     jar: '瓶径（mm，0 = 自动）',
+    neck: '瓶盖直径（mm，0 = 暂定）',
     pick: '更换所选面板的图',
     empty: '空白',
     coord: '坐标',
@@ -138,6 +142,7 @@ const COPY: Record<
     cols: '中仕切り列',
     rows: '中仕切り行',
     jar: '瓶の直径（mm、0 = 自動）',
+    neck: 'キャップ径（mm、0 = 仮）',
     pick: '選択中のパネルの画像を入れ替え',
     empty: '空白',
     coord: '座標',
@@ -163,6 +168,7 @@ const COPY: Record<
     cols: '속지 열',
     rows: '속지 행',
     jar: '병 지름 (mm, 0 = 자동)',
+    neck: '마개 지름 (mm, 0 = 임시)',
     pick: '선택한 면의 이미지 바꾸기',
     empty: '비움',
     coord: '좌표',
@@ -219,6 +225,7 @@ export function HubBoxNetBoard({
   const [cols, setCols] = useState(String(production?.insertCols ?? 2))
   const [rows, setRows] = useState(String(production?.insertRows ?? 3))
   const [jar, setJar] = useState(String(production?.jarDiameterMm ?? 0))
+  const [neck, setNeck] = useState(String(production?.neckDiameterMm ?? 0))
   const [draftMap, setDraftMap] = useState<BoxNetFaceMap>(faceMap ?? {})
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
 
@@ -241,8 +248,9 @@ export function HubBoxNetBoard({
       insertCols: Number(cols),
       insertRows: Number(rows),
       jarDiameterMm: Number(jar.replace(',', '.')),
+      neckDiameterMm: Number(neck.replace(',', '.')),
     }
-  }, [cols, dimensionsMm.height, glue, jar, notch, production, rows, stock])
+  }, [cols, dimensionsMm.height, glue, jar, neck, notch, production, rows, stock])
 
   const layout = useMemo(
     () =>
@@ -344,7 +352,7 @@ export function HubBoxNetBoard({
                     y={panel.y}
                     width={panel.w}
                     height={panel.h}
-                    preserveAspectRatio="xMidYMid slice"
+                    preserveAspectRatio="xMidYMid meet"
                     clipPath={`url(#${clipId})`}
                     transform={rotation ? `rotate(${rotation} ${cx} ${cy})` : undefined}
                   />
@@ -566,6 +574,12 @@ export function HubBoxNetBoard({
             <Input className="h-8 bg-white text-sm" value={jar} disabled={busy} onChange={(event) => setJar(event.target.value)} />
           </label>
         </div>
+      ) : null}
+      {draftStructure === 'bottle' ? (
+        <label className="mt-2 block space-y-1">
+          <span className="text-xs text-muted-foreground">{t.neck}</span>
+          <Input className="h-8 bg-white text-sm" value={neck} disabled={busy} onChange={(event) => setNeck(event.target.value)} />
+        </label>
       ) : null}
       <Button
         type="button"

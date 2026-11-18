@@ -33,15 +33,113 @@ function rangesOverlap(a: number, aSpan: number, b: number, bSpan: number): bool
   return a < b + bSpan - 0.4 && b < a + aSpan - 0.4
 }
 
-async function coverFit(buffer: Buffer, widthPx: number, heightPx: number, rotation: number): Promise<Buffer> {
+function neutralGray(r: number, g: number, b: number, light = true): boolean {
+  const lum = (r + g + b) / 3
+  const chroma = Math.max(r, g, b) - Math.min(r, g, b)
+  if (chroma >= 16) return false
+  return light ? lum > 168 && lum < 214 : lum > 40 && lum < 214
+}
+
+async function stripTopGrayBar(png: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  const width = info.width
+  const height = info.height
+  if (!width || !height) return png
+  const rowGray = (y: number) => {
+    let gray = 0
+    for (let x = 0; x < width; x += 1) {
+      const i = (y * width + x) * 3
+      if (neutralGray(data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0)) gray += 1
+    }
+    return gray / width
+  }
+  let rows = 0
+  while (rows < height && rowGray(rows) > 0.9) rows += 1
+  const fraction = rows / height
+  if (rows < 3 || fraction < 0.06 || fraction > 0.34) return png
+  if (rows + 2 < height && rowGray(rows + 2) > 0.9) return png
+  for (let y = 0; y < rows; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const i = (y * width + x) * 3
+      data[i] = 255
+      data[i + 1] = 255
+      data[i + 2] = 255
+    }
+  }
+  return sharp(data, { raw: { width, height, channels: 3 } }).png().toBuffer()
+}
+
+async function whitenNeutralEdge(png: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(png).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  const width = info.width
+  const height = info.height
+  if (width < 4 || height < 4) return png
+  const paint = (x: number, y: number) => {
+    const i = (y * width + x) * 3
+    if (!neutralGray(data[i] ?? 0, data[i + 1] ?? 0, data[i + 2] ?? 0, false)) return
+    data[i] = 255
+    data[i + 1] = 255
+    data[i + 2] = 255
+  }
+  for (let y = 0; y < height; y += 1) {
+    paint(0, y)
+    paint(width - 1, y)
+  }
+  for (let x = 0; x < width; x += 1) {
+    paint(x, 0)
+    paint(x, height - 1)
+  }
+  return sharp(data, { raw: { width, height, channels: 3 } }).png().toBuffer()
+}
+
+async function coverFit(
+  buffer: Buffer,
+  widthPx: number,
+  heightPx: number,
+  rotation: number,
+  fit: 'contain' | 'cover' = 'contain'
+): Promise<Buffer> {
   const pipeline = sharp(buffer, { limitInputPixels: false }).rotate()
   if (rotation) pipeline.rotate(rotation)
   return pipeline
     .resize(Math.max(1, widthPx), Math.max(1, heightPx), {
-      fit: 'cover',
+      fit,
       position: 'centre',
       background: { r: 255, g: 255, b: 255 },
     })
+    .png()
+    .toBuffer()
+}
+
+async function fitWindowBands(
+  buffer: Buffer,
+  widthPx: number,
+  heightPx: number,
+  topPx: number,
+  bottomPx: number
+): Promise<Buffer> {
+  const meta = await sharp(buffer).metadata()
+  const srcW = meta.width ?? widthPx
+  const srcH = meta.height ?? heightPx
+  const midPx = Math.max(1, heightPx - topPx - bottomPx)
+  const topSrc = Math.max(1, Math.round(srcH * 0.32))
+  const botSrc = Math.max(1, Math.round(srcH * 0.28))
+  const midTop = Math.min(srcH - 2, Math.round(srcH * 0.3))
+  const midH = Math.max(1, srcH - midTop - Math.round(srcH * 0.22))
+  const band = async (top: number, height: number, outH: number) =>
+    sharp(buffer)
+      .extract({ left: 0, top, width: srcW, height: Math.max(1, Math.min(height, srcH - top)) })
+      .resize(widthPx, Math.max(1, outH), { fit: 'cover', position: 'centre' })
+      .png()
+      .toBuffer()
+  const layers: sharp.OverlayOptions[] = []
+  if (topPx > 1) layers.push({ input: await band(0, topSrc, topPx), left: 0, top: 0 })
+  layers.push({ input: await band(midTop, midH, midPx), left: 0, top: topPx })
+  if (bottomPx > 1) layers.push({ input: await band(srcH - botSrc, botSrc, bottomPx), left: 0, top: topPx + midPx })
+  return sharp({
+    create: { width: widthPx, height: heightPx, channels: 3, background: { r: 255, g: 255, b: 255 } },
+  })
+    .composite(layers)
     .png()
     .toBuffer()
 }
@@ -102,21 +200,24 @@ function padForPanel(
       }
       return Math.abs(rect.y + rect.h - panel.y) < 1.2 && rangesOverlap(rect.x, rect.w, panel.x, panel.w)
     })
-  if (touches('left')) pad.left = 0
-  if (touches('right')) pad.right = 0
-  if (touches('top')) pad.top = 0
-  if (touches('bottom')) pad.bottom = 0
-  for (const flap of layout.flapExtensions ?? []) {
-    if (flap.slot !== panel.slot) continue
-    const above = panel.y - flap.y
-    const below = flap.y + flap.h - (panel.y + panel.h)
-    const left = panel.x - flap.x
-    const right = flap.x + flap.w - (panel.x + panel.w)
-    if (above > 0.2 && pad.top > 0) pad.top = Math.max(pad.top, above + bleedMm)
-    if (below > 0.2 && pad.bottom > 0) pad.bottom = Math.max(pad.bottom, below + bleedMm)
-    if (left > 0.2 && pad.left > 0) pad.left = Math.max(pad.left, left + bleedMm)
-    if (right > 0.2 && pad.right > 0) pad.right = Math.max(pad.right, right + bleedMm)
-  }
+  const touchesPanel = (side: 'left' | 'right' | 'top' | 'bottom') =>
+    layout.panels.some((other) => {
+      if (other === panel) return false
+      if (side === 'right') {
+        return Math.abs(other.x - (panel.x + panel.w)) < 1.2 && rangesOverlap(other.y, other.h, panel.y, panel.h)
+      }
+      if (side === 'left') {
+        return Math.abs(other.x + other.w - panel.x) < 1.2 && rangesOverlap(other.y, other.h, panel.y, panel.h)
+      }
+      if (side === 'bottom') {
+        return Math.abs(other.y - (panel.y + panel.h)) < 1.2 && rangesOverlap(other.x, other.w, panel.x, panel.w)
+      }
+      return Math.abs(other.y + other.h - panel.y) < 1.2 && rangesOverlap(other.x, other.w, panel.x, panel.w)
+    })
+  if (touches('left') || touchesPanel('left')) pad.left = 0
+  if (touches('right') || touchesPanel('right')) pad.right = 0
+  if (touches('top') || touchesPanel('top')) pad.top = 0
+  if (touches('bottom') || touchesPanel('bottom')) pad.bottom = 0
   return pad
 }
 
@@ -227,8 +328,28 @@ export async function composeDielineRaster(input: {
   for (const panel of layout.panels) {
     const wPx = Math.max(1, mmPx(panel.w, dpi))
     const hPx = Math.max(1, mmPx(panel.h, dpi))
-    const source = slots[panel.slot] ?? (await whitePng(wPx, hPx))
-    const exact = await coverFit(source, wPx, hPx, panel.rotation ?? 0)
+    const raw = await stripTopGrayBar(slots[panel.slot] ?? (await whitePng(wPx, hPx)))
+    const hole = (layout.knockouts ?? []).find(
+      (item) =>
+        item.kind === 'window' &&
+        item.x < panel.x + panel.w - 1 &&
+        item.x + item.w > panel.x + 1 &&
+        item.y < panel.y + panel.h - 1 &&
+        item.y + item.h > panel.y + 1
+    )
+    const turned = sharp(raw).rotate()
+    if (panel.rotation) turned.rotate(panel.rotation)
+    const turnedPng = await turned.png().toBuffer()
+    const fitted = hole
+      ? await fitWindowBands(
+          turnedPng,
+          wPx,
+          hPx,
+          Math.max(0, mmPx(hole.y - panel.y, dpi)),
+          Math.max(0, mmPx(panel.y + panel.h - (hole.y + hole.h), dpi))
+        )
+      : await coverFit(raw, wPx, hPx, panel.rotation ?? 0, panel.fit ?? 'contain')
+    const exact = await whitenNeutralEdge(fitted)
     const pad = padForPanel(panel, layout, bleedMm)
     const extended = await sharp(exact)
       .extend({

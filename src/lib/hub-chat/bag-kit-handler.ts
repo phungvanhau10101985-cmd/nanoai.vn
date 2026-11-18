@@ -1,3 +1,4 @@
+import { requestedStudioImageSize } from '@/lib/ai/image-engine'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { HubStudioMessagePayload, HubStudioProcessStep, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import {
@@ -350,7 +351,7 @@ export async function runBagMockupGeneration(input: {
         aspectRatio: '1:1',
         imageEngine: input.imageEngine,
         gptQuality: input.gptQuality,
-        imageSize: String(input.imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
+        imageSize: requestedStudioImageSize(input.imageQuality),
       }),
     ])
 

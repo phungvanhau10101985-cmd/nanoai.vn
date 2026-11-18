@@ -106,7 +106,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     },
     magnetic: {
       label: 'Hộp nắp nam châm',
-      description: 'Nắp gập dính liền, có vùng trống để dán nam châm.',
+      description: 'Hộp cứng: lõi carton và giấy bọc, vùng trống để dán nam châm.',
     },
     sleeve_tray: {
       label: 'Hộp kéo',
@@ -142,7 +142,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     },
     bottle: {
       label: 'Hộp đựng chai',
-      description: 'Nắp gài ngược, lỗ cổ chai trên nắp.',
+      description: 'Nắp gài. Tấm đỡ cổ gấp chữ П liền thân. Có đường kính cổ thì mới khoét lỗ.',
     },
     insert: {
       label: 'Lót chia ô',
@@ -176,7 +176,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     },
     magnetic: {
       label: 'Magnetic lid',
-      description: 'Hinged lid with an unprinted patch for the magnet.',
+      description: 'Rigid box: chipboard core, wrap, and an unprinted magnet patch.',
     },
     sleeve_tray: {
       label: 'Sleeve and tray',
@@ -212,7 +212,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     },
     bottle: {
       label: 'Bottle box',
-      description: 'Reverse tuck with a neck opening in the top.',
+      description: 'Reverse tuck with a U-shaped neck support on the body. A hole is cut only after the neck diameter is entered.',
     },
     insert: {
       label: 'Cell insert',
@@ -229,7 +229,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     crash_lock: { label: '自动锁底', description: '撞底 / 自动锁底，适合较重的内容物。' },
     snap_lock: { label: '1-2-3 锁底', description: '三步折底后扣合。' },
     telescope: { label: '天地盖', description: '盖和底分开，适合燕窝礼盒。' },
-    magnetic: { label: '磁吸翻盖', description: '连体翻盖，留白处贴磁铁。' },
+    magnetic: { label: '磁吸翻盖', description: '硬盒：纸板芯、包纸，留白处贴磁铁。' },
     sleeve_tray: { label: '抽屉盒', description: '外套筒加内抽盒。' },
     handle: { label: '手提盒', description: '反向插舌加提手孔。' },
     window: { label: '开窗盒', description: '反向插舌，正面开窗贴透明膜。' },
@@ -238,7 +238,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     octagon: { label: '八角盒', description: '八边管。L 为对边距。' },
     pillow: { label: '枕头盒', description: '单片，两端圆弧，一条长粘口。' },
     tube: { label: '圆管盒', description: '管身加两片圆盖。' },
-    bottle: { label: '酒瓶盒', description: '反向插舌，顶面开瓶颈孔。' },
+    bottle: { label: '酒瓶盒', description: '反向插舌。瓶颈托板与盒身连成 П 形。填了瓶颈直径才开孔。' },
     insert: { label: '分格内衬', description: '交叉隔板，用来固定瓶子。' },
     cross_fold: { label: '十字手工盒', description: '十字排版，多个粘口，适合小批量。' },
   },
@@ -248,7 +248,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     crash_lock: { label: 'クラッシュ底', description: '自動ロック底。重い中身向けです。' },
     snap_lock: { label: '1-2-3 スナップ底', description: '3工程で折って底を留めます。' },
     telescope: { label: '身蓋箱', description: '蓋と身が別。ギフトやツバメの巣の箱向け。' },
-    magnetic: { label: 'マグネット蓋', description: '一体の観音蓋。磁石を貼る余白付き。' },
+    magnetic: { label: 'マグネット蓋', description: '厚紙の芯と包み紙。磁石を貼る余白付き。' },
     sleeve_tray: { label: '引き出し箱', description: 'スリーブと中皿。' },
     handle: { label: '手提げ箱', description: 'リバースタックに持ち手穴。' },
     window: { label: '窓付き箱', description: '正面に窓。透明フィルムを貼ります。' },
@@ -257,7 +257,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     octagon: { label: '八角箱', description: '八角筒。L は対面の幅です。' },
     pillow: { label: 'ピロー箱', description: '両端が曲線の一枚もの。' },
     tube: { label: '円筒箱', description: '胴と丸い蓋2枚。' },
-    bottle: { label: 'ボトル箱', description: '天面にボトル首の穴。' },
+    bottle: { label: 'ボトル箱', description: 'コの字の首受けが身に付きます。首径を入れたときだけ穴を抜きます。' },
     insert: { label: '仕切り', description: '瓶を固定する交差仕切り。' },
     cross_fold: { label: '十字・手折り', description: '十字配置で糊しろが複数。小ロット向け。' },
   },
@@ -267,7 +267,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     crash_lock: { label: '자동 잠금 바닥', description: '크래시 락. 무거운 내용물에 맞습니다.' },
     snap_lock: { label: '1-2-3 스냅 락', description: '세 번 접어 바닥을 잠급니다.' },
     telescope: { label: '뚜껑·몸 분리', description: '뚜껑과 바닥이 따로입니다. 선물·연와 상자에 맞습니다.' },
-    magnetic: { label: '자석 뚜껑', description: '연결된 뚜껑. 자석을 붙일 여백이 있습니다.' },
+    magnetic: { label: '자석 뚜껑', description: '하드박스: 심지와 싸개지, 자석을 붙일 여백.' },
     sleeve_tray: { label: '서랍 상자', description: '슬리브와 슬라이드 트레이.' },
     handle: { label: '손잡이 상자', description: '리버스 턱에 손잡이 구멍.' },
     window: { label: '창 상자', description: '앞면에 창. 투명 필름을 붙입니다.' },
@@ -276,7 +276,7 @@ const COPY: Record<WebLocale, Record<BoxDielineStructure, { label: string; descr
     octagon: { label: '팔각 상자', description: '8각 튜브. L은 맞변 거리입니다.' },
     pillow: { label: '필로우 상자', description: '양쪽이 곡선인 한 장짜리.' },
     tube: { label: '원통 상자', description: '몸통과 둥근 뚜껑 두 장.' },
-    bottle: { label: '보틀 상자', description: '윗면에 병 목 구멍.' },
+    bottle: { label: '보틀 상자', description: '몸과 이어진 ㄷ자 목 받침대. 목 지름을 넣어야 구멍을 뺍니다.' },
     insert: { label: '칸막이', description: '병을 고정하는 교차 칸막이.' },
     cross_fold: { label: '십자 수접기', description: '십자 배치와 여러 접착날개. 소량용.' },
   },

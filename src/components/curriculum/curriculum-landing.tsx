@@ -7,6 +7,10 @@ import { CURRICULUM_DAILY_FREE_BODIES } from '@/lib/curriculum-ai-charge-policy'
 
 type Copy = Dictionary['curriculumLanding']
 
+const GUIDE_VIDEO_ID = 'WG-HdmNBm74'
+const GUIDE_VIDEO_WATCH = `https://www.youtube.com/watch?v=${GUIDE_VIDEO_ID}`
+const GUIDE_VIDEO_EMBED = `https://www.youtube.com/embed/${GUIDE_VIDEO_ID}?rel=0`
+
 function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? '')
 }
@@ -28,6 +32,7 @@ export function CurriculumLanding(props: { copy: Copy; loginHref: string }) {
   const { copy, loginHref } = props
   const values = {
     freeBodies: String(CURRICULUM_DAILY_FREE_BODIES),
+    chargedFrom: String(CURRICULUM_DAILY_FREE_BODIES + 1),
     image: formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage),
     slide: formatCurriculumCredits(CURRICULUM_UI_CREDITS.lessonSlideGenerate),
     infographic: formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideInfographic2K),
@@ -74,7 +79,7 @@ export function CurriculumLanding(props: { copy: Copy; loginHref: string }) {
           <p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">{copy.promise}</p>
           <p className="mt-3 max-w-xl text-sm font-medium leading-6 text-foreground">{copy.teacherLine}</p>
           <Cta id="curriculum-landing-hero-cta" href={props.loginHref} label={copy.cta} className="mt-6 w-full sm:w-auto" />
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">{copy.ctaNote}</p>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">{text(copy.ctaNote)}</p>
         </div>
         <ol className="rounded-3xl border border-border bg-card p-5 shadow-lg sm:p-6">
           {flow.map((label, index) => (
@@ -89,6 +94,34 @@ export function CurriculumLanding(props: { copy: Copy; loginHref: string }) {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section className="mt-14">
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">{copy.guideTitle}</h2>
+        <p className="mt-2 max-w-3xl text-base leading-7 text-muted-foreground">{copy.guideBody}</p>
+        <div className="mt-5 overflow-hidden rounded-3xl border border-border bg-card shadow-lg">
+          <div className="relative aspect-video w-full">
+            <iframe
+              src={GUIDE_VIDEO_EMBED}
+              title={copy.guideVideoTitle}
+              className="absolute inset-0 h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          </div>
+        </div>
+        <p className="mt-3">
+          <a
+            href={GUIDE_VIDEO_WATCH}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {copy.guideOpen}
+          </a>
+        </p>
       </section>
 
       <section className="mt-14">
@@ -190,7 +223,7 @@ export function CurriculumLanding(props: { copy: Copy; loginHref: string }) {
       </section>
 
       <section className="mt-14">
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">{copy.priceTitle}</h2>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">{text(copy.priceTitle)}</h2>
         <p className="mt-2 text-base leading-7 text-muted-foreground">{text(copy.priceLead)}</p>
         <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {prices.map(([name, detail, highlighted]) => (
@@ -217,7 +250,7 @@ export function CurriculumLanding(props: { copy: Copy; loginHref: string }) {
           {faqs.map(([question, answer]) => (
             <details key={question} className="rounded-2xl border border-border bg-card px-4 py-3">
               <summary className="cursor-pointer font-medium text-foreground">{question}</summary>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{answer}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{text(answer)}</p>
             </details>
           ))}
         </div>

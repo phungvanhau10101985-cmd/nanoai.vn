@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import { ImagePlus, Loader2, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { HubImagePromptPolishButton } from '@/components/hub-chat/hub-image-prompt-polish-button'
 import { Input } from '@/components/ui/input'
 import type { WebLocale } from '@/lib/i18n/config'
 
@@ -87,6 +88,9 @@ export function HubLandingLogoControls({
   onRemoveLogo,
   onGenerateLogo,
   modelPicker,
+  optimizeLabel,
+  optimizeTitle,
+  onOptimizeBrief,
 }: {
   locale: WebLocale
   logoUrl?: string | null
@@ -97,6 +101,9 @@ export function HubLandingLogoControls({
   onRemoveLogo?: () => void | Promise<void>
   onGenerateLogo?: (brief: string, stripBackground: boolean) => void | Promise<void>
   modelPicker?: ReactNode
+  optimizeLabel?: string
+  optimizeTitle?: string
+  onOptimizeBrief?: () => void
 }) {
   const t = COPY[locale]
   const fileRef = useRef<HTMLInputElement>(null)
@@ -166,6 +173,15 @@ export function HubLandingLogoControls({
             {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="mr-1 h-3.5 w-3.5" />}
             {t.logoUploadBtn}
           </Button>
+          {optimizeLabel && onOptimizeBrief ? (
+            <HubImagePromptPolishButton
+              label={optimizeLabel}
+              title={optimizeTitle}
+              busy={busy}
+              disabled={logoBrief.trim().length < 2}
+              onClick={onOptimizeBrief}
+            />
+          ) : null}
           {modelPicker}
           <Button
             type="button"

@@ -48,7 +48,7 @@ export default function HoanDoiKhuonMatClientPage() {
   const [faceImageLeft, setFaceImageLeft] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [faceImageRight, setFaceImageRight] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [targetImage, setTargetImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageQuality, setImageQuality] = useState<'1.5K' | '2K' | '4K'>('2K')
   const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [note, setNote] = useState('')
@@ -59,9 +59,10 @@ export default function HoanDoiKhuonMatClientPage() {
   const faceLeftInputRef = useRef<HTMLInputElement>(null)
   const faceRightInputRef = useRef<HTMLInputElement>(null)
   const cost = imageEngineCredit({
+      imageQuality: imageQuality,
     engine: imageEngine,
     gptQuality,
-    geminiCost: imageQuality === '2K' ? 1 : 2,
+    geminiCost: imageQuality === '4K' ? 2 : 1,
   })
   const targetInputRef = useRef<HTMLInputElement>(null)
   const isSubmittingRef = useRef(false)

@@ -12,7 +12,9 @@ import {
 } from './lib/curriculum-original-body'
 import { applyCurriculumMathMarks, curriculumMarkdownForStudents } from './lib/curriculum-math-check'
 import { repairThenMarkLessonMarkdown } from './lib/curriculum-math-repair'
+import { headers } from 'next/headers'
 import { getUserForCreditAction } from '@/lib/auth'
+import { recordedCurriculumBuyerSource } from '@/lib/curriculum/curriculum-buyer-source'
 import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
@@ -145,6 +147,16 @@ import {
   estimateCurriculumAiPrecheckAmount,
   readCurriculumDailyBodyQuota,
 } from '@/lib/curriculum-ai-charge-policy'
+
+async function buyerSourceForForm(raw: unknown) {
+  let referer = ''
+  try {
+    referer = (await headers()).get('referer') || ''
+  } catch {
+    referer = ''
+  }
+  return recordedCurriculumBuyerSource(raw, referer)
+}
 
 function normalizeLooseChar(ch: string): string {
   if (/\s/u.test(ch)) return ' '
@@ -878,6 +890,7 @@ Chỉ trả JSON hợp lệ:
       }
     }
 
+    const buyerSource = await buyerSourceForForm(formData.get('buyerSource'))
     const ins = await insertWorksheetCurriculumPg({
       userId: user?.id ?? null,
       topic: topicFinal,
@@ -893,6 +906,8 @@ Chỉ trả JSON hợp lệ:
       goals: goals.trim() || null,
       contentMarkdown: storedMarkdown,
       lessonTopics: lessonTopics.length >= 1 ? lessonTopics : null,
+      createdSource: buyerSource.source,
+      createdSourceDetail: buyerSource.detail,
     })
     if ('error' in ins) {
       console.warn('[createCurriculum] Insert failed:', ins.error)
@@ -1019,6 +1034,7 @@ export async function saveCurriculum(formData: FormData) {
 
   let newCurriculumId: string | null = null
 
+  const buyerSource = await buyerSourceForForm(formData.get('buyerSource'))
   const ins = await insertWorksheetCurriculumPg({
     userId: user?.id ?? null,
     topic: topicFinal,
@@ -1034,6 +1050,8 @@ export async function saveCurriculum(formData: FormData) {
     goals: goals || null,
     contentMarkdown: applyBodyPolicy(curriculumMarkdown),
     lessonTopics,
+    createdSource: buyerSource.source,
+    createdSourceDetail: buyerSource.detail,
   })
   if ('error' in ins) return { error: `Lưu thất bại: ${ins.error}` }
   newCurriculumId = ins.id ?? null
@@ -1373,7 +1391,7 @@ export async function listCurricula(opts?: { subjectId?: string; gradeLevelId?: 
 }
 
 /** Ghi nhận giáo viên đã mở giáo trình – dùng khi load/xem giáo trình trong tao-giao-trinh */
-export async function recordCurriculumOpen(curriculumId: string) {
+export async function recordCurriculumOpen(curriculumId: string, buyerSource?: unknown) {
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
@@ -1384,7 +1402,8 @@ export async function recordCurriculumOpen(curriculumId: string) {
   }
 
   const openedAt = new Date().toISOString()
-  const r = await upsertUserOpenedCurriculumPg(user.id, curriculumId, openedAt)
+  const source = await buyerSourceForForm(buyerSource)
+  const r = await upsertUserOpenedCurriculumPg(user.id, curriculumId, openedAt, source)
   if (r.error) return { error: r.error }
   return { success: true }
 }

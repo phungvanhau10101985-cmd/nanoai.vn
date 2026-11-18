@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { requestedStudioImageSize } from '@/lib/ai/image-engine'
 import { runStudioImagePipeline } from '@/lib/hub-agent/studio-image-pipeline'
 import { resolveProductStudioGeminiImage } from '@/lib/partner-website/product-studio/product-studio-image-model'
 import {
@@ -330,10 +331,10 @@ export async function generateProductStudioSlotOnJob(
         modelChoice === 'flash' || modelChoice === 'flash3' || modelChoice === 'pro'
           ? modelChoice
           : payload.imageModel,
-      imageEngine: String(imageEngine ?? '').trim().toLowerCase() === 'gpt' ? 'gpt' : undefined,
+      imageEngine: (['gpt', 'flux'] as const).find((engine) => engine === String(imageEngine ?? '').trim().toLowerCase()),
       gptQuality:
         gptQuality === 'low' || gptQuality === 'medium' || gptQuality === 'high' ? gptQuality : payload.gptQuality,
-      imageQuality: String(imageQuality ?? '').trim().toUpperCase() === '4K' ? '4K' : undefined,
+      imageQuality: requestedStudioImageSize(imageQuality),
     }
   }
 
@@ -353,9 +354,11 @@ export async function generateProductStudioSlotOnJob(
 
   const imageChoice = resolveProductStudioGeminiImage(kind, modelChoice)
   const imageSize =
-    imageChoice.imageSize === '2K' && String(imageQuality ?? '').trim().toUpperCase() === '4K'
-      ? '4K'
-      : imageChoice.imageSize
+    String(imageEngine ?? '').trim().toLowerCase() === 'flux'
+      ? requestedStudioImageSize(imageQuality)
+      : imageChoice.imageSize === '2K' && String(imageQuality ?? '').trim().toUpperCase() === '4K'
+        ? '4K'
+        : imageChoice.imageSize
   const gen = await runStudioImagePipeline({
     userId: job.createdBy,
     kind: 'product_photo',

@@ -1,5 +1,6 @@
 # Cấu hình ngrok cho webhook SePay
-# Chạy: ngrok http 3000 --config ngrok.yml
+# restart-server chạy:
+# ngrok http 3000 --url https://amia-canelike-exhibitively.ngrok-free.dev
 version: "2"
 tunnels:
   default:

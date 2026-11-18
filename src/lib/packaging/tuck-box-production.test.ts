@@ -11,7 +11,7 @@ test('production defaults use ivory 350 and a 12–20 mm glue tab', () => {
   assert.deepEqual(defaultTuckBoxProductionParams(50), {
     bleedMm: 3,
     glueTabMm: 15,
-    paperThicknessMm: 0.5,
+    paperThicknessMm: 0.42,
     compensationGapMm: 1,
     paperStock: 'ivory_350',
     fingerNotch: true,
@@ -20,6 +20,7 @@ test('production defaults use ivory 350 and a 12–20 mm glue tab', () => {
     insertCols: 2,
     insertRows: 3,
     jarDiameterMm: 0,
+    neckDiameterMm: 0,
   })
   assert.deepEqual(validateTuckBoxProductionParams(defaultTuckBoxProductionParams(50)), {})
 })
@@ -31,7 +32,7 @@ test('invalid saved production values fall back independently', () => {
   )
   assert.equal(normalized.bleedMm, 3)
   assert.equal(normalized.glueTabMm, 20)
-  assert.equal(normalized.paperThicknessMm, 0.5)
+  assert.equal(normalized.paperThicknessMm, 0.42)
   assert.equal(normalized.compensationGapMm, 1)
   assert.equal(normalized.paperStock, 'custom')
 })

@@ -298,7 +298,7 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (unitCharge.engine !== 'gpt') {
+  if (unitCharge.engine === 'gemini') {
     const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
     model = genAI.getGenerativeModel({
       model: GEMINI_3_PRO_IMAGE.model,
@@ -345,6 +345,7 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
         runImageContent({
           engine: unitCharge.engine,
           gptQuality: unitCharge.gptQuality,
+          imageQuality: unitCharge.geminiQuality,
           parts: contentParts,
           gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),
         }),
@@ -513,7 +514,7 @@ export async function processInteriorImage(formData: FormData) {
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
   let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
+  if (charge.engine === 'gemini') {
     const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
     model = genAI.getGenerativeModel({
       model: GEMINI_3_PRO_IMAGE.model,
@@ -538,6 +539,7 @@ export async function processInteriorImage(formData: FormData) {
     const result = await runImageContent({
       engine: charge.engine,
       gptQuality: charge.gptQuality,
+      imageQuality: charge.geminiQuality,
       parts: processParts,
       gemini: () => model!.generateContent(processParts as never, { safetySettings } as never),
     })

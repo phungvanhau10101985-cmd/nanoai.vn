@@ -24,6 +24,7 @@ import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
+import { parseImagePromptPolishTarget } from '@/lib/hub-chat/image-prompt-polish-shared'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import { handleHubStudio, type HubStudioAction } from '@/lib/hub-chat/hub-studio-handler'
 import { parseLogoStripBackgroundFlag } from '@/lib/remove-background-png'
@@ -262,6 +263,7 @@ export async function POST(request: NextRequest) {
       menuVenueName?: string
       landingSectionCopy?: string
       landingLogoBrief?: string
+      polishTarget?: string
       stripBackground?: boolean | string | number | null
       imageEngine?: string | null
       gptQuality?: string | null
@@ -277,6 +279,7 @@ export async function POST(request: NextRequest) {
       boxDielineStructure?: string
       boxNetFaceMap?: Record<string, string>
       boxDimensionsMm?: { length?: number; width?: number; height?: number }
+      boxSizeSnap?: 'larger' | 'smaller'
       bagDimensionsMm?: { width?: number; height?: number; gusset?: number }
       boxProduction?: {
         bleedMm?: number
@@ -290,6 +293,7 @@ export async function POST(request: NextRequest) {
         insertCols?: number
         insertRows?: number
         jarDiameterMm?: number
+        neckDiameterMm?: number
       }
       barcodeEntries?: Array<{
         type?: string
@@ -353,6 +357,7 @@ export async function POST(request: NextRequest) {
         body?.landingSectionCopy !== undefined ? String(body.landingSectionCopy) : undefined
       const landingLogoBrief =
         body?.landingLogoBrief !== undefined ? String(body.landingLogoBrief) : undefined
+      const polishTarget = parseImagePromptPolishTarget(body?.polishTarget)
       const stripBackground =
         body?.stripBackground === undefined
           ? undefined
@@ -437,6 +442,7 @@ export async function POST(request: NextRequest) {
         menuVenueName,
         landingSectionCopy,
         landingLogoBrief,
+        polishTarget,
         stripBackground,
         imageEngine: body?.imageEngine,
         gptQuality: body?.gptQuality,
@@ -451,6 +457,7 @@ export async function POST(request: NextRequest) {
         boxDielineStructure,
         boxNetFaceMap: body?.boxNetFaceMap,
         boxDimensionsMm: body?.boxDimensionsMm,
+        boxSizeSnap: body?.boxSizeSnap === 'smaller' ? 'smaller' : body?.boxSizeSnap === 'larger' ? 'larger' : undefined,
         bagDimensionsMm: body?.bagDimensionsMm,
         boxProduction: body?.boxProduction,
         barcodeEntries: body?.barcodeEntries
