@@ -17,6 +17,8 @@ type PhoneRemoteRow = {
   /** Tăng mỗi lần một màn đang hiện đổi slide. Bản ghi cũ hơn bị bỏ. */
   indexGen: number
   revision: number
+  /** Chỉ tăng khi bảng trắng đổi. Bản slide không kéo lại nút chạy đã tắt. */
+  whiteboardGen: number
   commands: Array<{ n: number; msg: PhoneRemoteCommand }>
   nextN: number
   expiresAt: number
@@ -88,7 +90,21 @@ export function collapsePhoneCommands(list: PhoneRemoteCommand[]): PhoneRemoteCo
       type === 'worksheet-answer-reveal' &&
       sameType &&
       (prev?.control === true) === (clean.control === true)
-    if (sameType && (collapseMove || collapseTyping)) {
+    const collapseTimer = type === 'teacher-timer-sync' && sameType
+    const collapseSim = type === 'whiteboard-sim' && sameType
+    const collapseDrawSync = type === 'infographic-draw-sync' && sameType
+    const prevPoints = Array.isArray(prev?.points) ? prev.points as unknown[] : []
+    const nextPoints = Array.isArray(clean.points) ? clean.points as unknown[] : []
+    const collapseDrawPoints = type === 'infographic-draw-points'
+      && sameType
+      && prev?.strokeId === clean.strokeId
+      && prev?.slideIndex === clean.slideIndex
+      && prevPoints.length + nextPoints.length <= 300
+    if (collapseDrawPoints && prev) {
+      out[out.length - 1] = { ...clean, points: [...prevPoints, ...nextPoints] }
+      continue
+    }
+    if (sameType && (collapseMove || collapseTyping || collapseTimer || collapseDrawSync || collapseSim)) {
       out[out.length - 1] = clean
       continue
     }
@@ -158,6 +174,7 @@ export async function createPhoneRemoteSession(input: {
     index: Math.max(0, Math.floor(input.index) || 0),
     indexGen: 1,
     revision: 1,
+    whiteboardGen: 0,
     commands: [],
     nextN: 1,
     expiresAt: Date.now() + STORE_TTL_SEC * 1000,
@@ -192,18 +209,42 @@ export async function updatePhoneRemoteFromDesktop(input: {
   seenGen?: number
   snapshot?: Record<string, unknown>
   seenRevision?: number
+  /** Thế hệ bảng trắng đã thấy. Bản slide làm tăng revision không được chặn lần tắt chạy. */
+  seenWhiteboardGen?: number
+  /** Chỉ bảng trắng. Không ghi đè slide. Bản slide cũng không ghi đè bảng đã có. */
+  whiteboard?: Record<string, unknown>
   phoneReady?: boolean
-}): Promise<{ index: number; indexGen: number; revision: number } | null> {
+}): Promise<{ index: number; indexGen: number; revision: number; whiteboardGen: number; whiteboardApplied: boolean } | null> {
   return runLocked(input.id, async () => {
     const row = await load(input.id)
     if (!row || row.userId !== input.userId) return null
     if (typeof row.indexGen !== 'number') row.indexGen = 0
+    if (typeof row.whiteboardGen !== 'number') row.whiteboardGen = 0
     let changed = false
+    let whiteboardApplied = false
     if (input.snapshot && typeof input.seenRevision === 'number' && input.seenRevision === row.revision) {
-      const text = JSON.stringify(input.snapshot)
+      const prevWb = row.snapshot && typeof row.snapshot.whiteboard === 'object' && row.snapshot.whiteboard
+        ? row.snapshot.whiteboard as Record<string, unknown>
+        : null
+      const nextSnap = prevWb ? { ...input.snapshot, whiteboard: prevWb } : input.snapshot
+      const text = JSON.stringify(nextSnap)
       if (text.length > MAX_SNAPSHOT_CHARS) return null
-      row.snapshot = input.snapshot
+      row.snapshot = nextSnap
       row.revision += 1
+      changed = true
+    }
+    const boardMatches = typeof input.seenWhiteboardGen === 'number'
+      ? input.seenWhiteboardGen === row.whiteboardGen
+      : typeof input.seenRevision === 'number' && input.seenRevision === row.revision
+    if (input.whiteboard && boardMatches) {
+      const prev = row.snapshot && typeof row.snapshot === 'object' ? row.snapshot : {}
+      const nextSnap = { ...prev, whiteboard: input.whiteboard }
+      const text = JSON.stringify(nextSnap)
+      if (text.length > MAX_SNAPSHOT_CHARS) return null
+      row.snapshot = nextSnap
+      row.revision += 1
+      row.whiteboardGen += 1
+      whiteboardApplied = true
       changed = true
     }
     if (typeof input.index === 'number' && Number.isFinite(input.index) && input.seenGen === row.indexGen) {
@@ -216,7 +257,7 @@ export async function updatePhoneRemoteFromDesktop(input: {
       changed = true
     }
     if (changed) await persist(input.id, row)
-    return { index: row.index, indexGen: row.indexGen, revision: row.revision }
+    return { index: row.index, indexGen: row.indexGen, revision: row.revision, whiteboardGen: row.whiteboardGen, whiteboardApplied }
   })
 }
 
@@ -231,6 +272,13 @@ export async function pushPhoneRemoteCommands(input: {
     const row = await load(input.id)
     if (!row || row.userId !== input.userId) return 0
     for (const msg of batch) {
+      const last = row.commands[row.commands.length - 1]
+      if (last && last.msg.type === 'whiteboard-sim' && msg.type === 'whiteboard-sim') {
+        last.msg = msg
+        last.n = row.nextN
+        row.nextN += 1
+        continue
+      }
       row.commands.push({ n: row.nextN, msg })
       row.nextN += 1
       if (msg.type === 'slide-go' && typeof msg.index === 'number' && Number.isFinite(msg.index)) {

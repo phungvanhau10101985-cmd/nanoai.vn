@@ -1,4 +1,5 @@
-import { execSync, spawn } from 'node:child_process'
+import { execSync } from 'node:child_process'
+import { networkInterfaces } from 'node:os'
 import { copyFileSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,9 +21,9 @@ function readDevPort() {
 
 const devPort = readDevPort()
 
-// 1. Close every listen port owned by this project (duplicate Next/ngrok included).
-// Does not kill 188-com-vn on 8001/3001 or ngrok forwarding those ports.
-console.log(`[restart-server] Closing project ports, then restarting ${devPort} and ngrok (188-com-vn safe)...`)
+// 1. Close every listen port owned by this project (duplicate Next included).
+// Does not kill 188-com-vn on 8001/3001. Does not start ngrok.
+console.log(`[restart-server] Closing project ports, then restarting ${devPort} on Wi-Fi (188-com-vn safe)...`)
 try {
   execSync(
     `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${stopPs1}" -DevPort ${devPort} -ProjectRoot "${root}"`,
@@ -59,22 +60,23 @@ try {
   }
 } catch {}
 
-function startNgrokWindow(port) {
-  if (process.platform !== 'win32') {
-    console.log('[restart-server] Skip ngrok window (Windows only)')
-    return
+function printLanUrl(port) {
+  const addresses = []
+  for (const list of Object.values(networkInterfaces())) {
+    for (const net of list ?? []) {
+      const family = String(net.family)
+      if (net.internal || (family !== 'IPv4' && family !== '4')) continue
+      if (net.address.startsWith('192.168.')) addresses.unshift(net.address)
+      else addresses.push(net.address)
+    }
   }
-  const starter = resolve(__dirname, 'start-project-ngrok.cmd')
-  const child = spawn('cmd.exe', ['/c', starter, String(port)], {
-    cwd: root,
-    detached: true,
-    stdio: 'ignore',
-    windowsHide: true,
-  })
-  child.unref()
-  console.log(`[restart-server] Started ngrok https://amia-canelike-exhibitively.ngrok-free.dev -> :${port}`)
+  const ip = addresses.find((item) => item.startsWith('192.168.'))
+  console.log(`[restart-server] This PC:    http://localhost:${port}`)
+  if (ip) console.log(`[restart-server] Phone Wi-Fi: http://${ip}:${port}`)
+  else console.log('[restart-server] No 192.168 Wi-Fi address. Phone on the same network cannot open the dev server.')
+  console.log('[restart-server] QR uses the Wi-Fi address. ngrok is not started.')
 }
 
-// 4. Start the project port and ngrok
-startNgrokWindow(devPort)
+// 4. Start the project port on the LAN. npm run dev listens on 0.0.0.0.
+printLanUrl(devPort)
 execSync('npm run dev', { stdio: 'inherit', cwd: root })

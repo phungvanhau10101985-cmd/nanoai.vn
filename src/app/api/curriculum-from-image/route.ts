@@ -19,7 +19,7 @@ import {
   buildCurriculumBodyFingerprintKey,
   estimateCurriculumAiPrecheckAmount,
 } from '@/lib/curriculum-ai-charge-policy'
-import { formatCurriculumLessonNoDisplay, parseCurriculumLessonNumber } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
+import { CURRICULUM_LESSON_MINUTES, formatCurriculumLessonNoDisplay, parseCurriculumLessonNumber } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
 import { curriculumOriginalLessonRules, normalizeKnowledgePoints } from '@/app/tao-giao-trinh/lib/curriculum-original-body'
 import { repairThenMarkLessonMarkdown } from '@/app/tao-giao-trinh/lib/curriculum-math-repair'
 
@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
     const lessonNumber =
       parseCurriculumLessonNumber(formLessonRaw != null ? String(formLessonRaw) : '') ?? 1
     const numLessons = Math.min(10, Math.max(1, parseInt(String(formData.get('numLessons') || '3'), 10)))
-    const lessonDurationMinutes = Math.min(120, Math.max(15, parseInt(String(formData.get('lessonDurationMinutes') || '45'), 10)))
+    const lessonDurationMinutes = CURRICULUM_LESSON_MINUTES
     const overwriteCurriculumId = String(formData.get('overwriteCurriculumId') || '').trim()
     const textbookVolume = String(formData.get('textbookVolume') || '').trim() || null
     const bookIsbn = String(formData.get('bookIsbn') || '').trim().toLowerCase() || null

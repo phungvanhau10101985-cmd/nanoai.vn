@@ -3,8 +3,8 @@
   Stop dev processes for this repo only (does not affect 188-com-vn 8001/3001).
 
   Closes every LISTEN port owned by this project's dev server, worker, esbuild,
-  or ngrok, including a second Next that moved off PORT, then the caller
-  starts the project port and ngrok again.
+  or a leftover Thu-do ngrok window, including a second Next that moved off PORT.
+  The caller starts the project port again and does not start ngrok.
 
   Usage:
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-server-stop-dev.ps1

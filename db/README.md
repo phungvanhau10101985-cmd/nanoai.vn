@@ -46,7 +46,7 @@ Thứ tự khuyến nghị trên server:
 
 `restart-server.bat` (Windows local) đã gọi `db:migrate:push` trước khi bật dev — giữ đúng hướng đó.
 
-**Cô lập với 188-com-vn:** `restart-server` / `scripts/restart-server-stop-dev.ps1` chỉ dừng LISTEN cổng Thu-do (mặc định **3000**) và ngrok forward đúng cổng đó. Không kill cổng **8001/3001**, không `taskkill ngrok*`, không đụng file `dev-clear-start.*` trong repo `188-com-vn`.
+**Cô lập với 188-com-vn:** `restart-server` / `scripts/restart-server-stop-dev.ps1` chỉ dừng LISTEN cổng Thu-do (mặc định **3000**). Khởi động local không mở ngrok; điện thoại cùng Wi‑Fi dùng IP máy tính. Nếu còn cửa sổ ngrok cũ của Thu-do thì script dừng cửa sổ đó, không mở lại. Không kill cổng **8001/3001**, không `taskkill ngrok*`, không đụng file `dev-clear-start.*` trong repo `188-com-vn`.
 
 ### 3. Môi trường mới hoàn toàn (Postgres rỗng)
 

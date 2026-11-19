@@ -9,6 +9,7 @@ import {
   stampCurriculumOriginalBody,
 } from '@/app/tao-giao-trinh/lib/curriculum-original-body'
 import { repairThenMarkLessonMarkdown } from '@/app/tao-giao-trinh/lib/curriculum-math-repair'
+import { CURRICULUM_LESSON_MINUTES } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
 
 const SUBJECT_NAMES: Record<string, string> = {
   toan: 'Toán học',
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
     const gradeLevelId = String(formData.get('gradeLevelId') || 'lop-6').trim()
     const topic = (formData.get('topic') as string)?.trim() || ''
     const numLessons = Math.min(10, Math.max(1, parseInt(String(formData.get('numLessons') || '3'), 10)))
-    const lessonDurationMinutes = Math.min(120, Math.max(15, parseInt(String(formData.get('lessonDurationMinutes') || '45'), 10)))
+    const lessonDurationMinutes = CURRICULUM_LESSON_MINUTES
     const goals = (formData.get('goals') as string)?.trim() || ''
 
     if (!pastedContent || pastedContent.length < 100) {

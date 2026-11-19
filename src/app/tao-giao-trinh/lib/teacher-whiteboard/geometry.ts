@@ -92,15 +92,6 @@ export function snapToGrid(p: WhiteboardPoint, grid: number): WhiteboardPoint {
   return { x: Math.round(p.x / g) * g, y: Math.round(p.y / g) * g }
 }
 
-export function orthoLock(origin: WhiteboardPoint, p: WhiteboardPoint): WhiteboardPoint {
-  const dx = p.x - origin.x
-  const dy = p.y - origin.y
-  const ang = Math.atan2(dy, dx)
-  const snapped = Math.round(ang / (Math.PI / 4)) * (Math.PI / 4)
-  const len = Math.hypot(dx, dy)
-  return { x: origin.x + Math.cos(snapped) * len, y: origin.y + Math.sin(snapped) * len }
-}
-
 export function rotateAround(p: WhiteboardPoint, origin: WhiteboardPoint, rad: number): WhiteboardPoint {
   const c = Math.cos(rad)
   const s = Math.sin(rad)
@@ -118,7 +109,24 @@ export function scaleAround(p: WhiteboardPoint, origin: WhiteboardPoint, sx: num
 }
 
 export function clampWhiteboardScale(scale: number): number {
-  return Math.max(0.25, Math.min(4, scale))
+  return Math.max(0.5, Math.min(4, scale))
+}
+
+/** Nấc nút phóng to / thu nhỏ: đúng bội số 10%. 65 thành 70 hoặc 60. 100 thành 110 hoặc 90. */
+export function whiteboardZoomStepPercent(percent: number, direction: 1 | -1): number {
+  const pct = Math.round(percent)
+  const next = pct % 10 === 0
+    ? pct + direction * 10
+    : direction > 0
+      ? Math.ceil(pct / 10) * 10
+      : Math.floor(pct / 10) * 10
+  return Math.max(50, Math.min(400, next))
+}
+
+/** Cỡ chấm, chữ, mũi tên. Bảng chính giữ pixel thiết kế. Bản đồ nhỏ thu theo tỷ lệ camera. */
+export function whiteboardChromeScale(scale: number): number {
+  const next = scale || 1
+  return next < 1 ? next : 1
 }
 
 export function screenToWorld(
@@ -166,6 +174,29 @@ export function cameraForPinchGesture(
     y: world.y - (nowScreen.y - h / 2) / scale,
     scale,
   }
+}
+
+/** Giao của hai đoạn. Trùng đầu mút của cả hai đoạn thì bỏ, vì đó là đỉnh đã có dấu. */
+export function segmentIntersection(
+  a: WhiteboardPoint,
+  b: WhiteboardPoint,
+  c: WhiteboardPoint,
+  d: WhiteboardPoint,
+): WhiteboardPoint | null {
+  const rx = b.x - a.x
+  const ry = b.y - a.y
+  const qx = d.x - c.x
+  const qy = d.y - c.y
+  const den = rx * qy - ry * qx
+  if (Math.abs(den) < 1e-8) return null
+  const t = ((c.x - a.x) * qy - (c.y - a.y) * qx) / den
+  const u = ((c.x - a.x) * ry - (c.y - a.y) * rx) / den
+  if (t < -1e-4 || t > 1 + 1e-4 || u < -1e-4 || u > 1 + 1e-4) return null
+  const hit = { x: a.x + t * rx, y: a.y + t * ry }
+  const endA = Math.min(dist(hit, a), dist(hit, b)) < 1.5
+  const endB = Math.min(dist(hit, c), dist(hit, d)) < 1.5
+  if (endA && endB) return null
+  return hit
 }
 
 export function worldToScreen(

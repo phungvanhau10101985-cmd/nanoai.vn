@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { flattenExtremumParts, labelIntersections, labelPlotExtrema } from './extrema-label'
-import { extremaMarkerColor, findPlotExtrema, formatAxisNumber, parsePlotInput, samplePlot } from './plot'
+import { extremaMarkerColor, findPlotExtrema, formatAxisNumber, infinitySignLabel, parsePlotInput, plotRuns, samplePlot, sharedFrameLayout, visibleAxisSpan } from './plot'
 
 test('gõ y=x^2 ra parabol', () => {
   const parsed = parsePlotInput('y=x^2')
@@ -91,6 +91,26 @@ test('giao điểm bậc ba ghi dạng chính xác như cực trị', () => {
   assert.doesNotMatch(text, /0\.\d{3}/)
 })
 
+test('cùng hệ trục nới khung để đủ hai giao của parabol và đường thẳng', () => {
+  const curve = parsePlotInput('y=x^2')
+  const line = parsePlotInput('y=x+5')
+  assert.ok(curve && line)
+  const layout = sharedFrameLayout(
+    [
+      { axis: 'y', expr: 'x^2', unit: 40 },
+      { axis: 'y', expr: 'x+5', unit: 40 },
+    ],
+    1,
+    420,
+    360,
+  )
+  const hits = labelIntersections(curve, line, -layout.span, layout.span)
+  assert.equal(hits.length, 2)
+  assert.ok(hits.every((hit) => Math.abs(hit.x) <= layout.span && Math.abs(hit.y) <= layout.span))
+  const ys = hits.map((hit) => hit.y).sort((a, b) => a - b)
+  assert.ok(ys[0] < 4 && ys[1] > 7)
+})
+
 test('hai hàm cùng trục hiện tọa độ giao điểm', () => {
   const cubic = parsePlotInput('y=x^3')
   const quad = parsePlotInput('y=x^2+3x-2')
@@ -108,6 +128,55 @@ test('y=x^2 ghi cực tiểu tại (0; 0)', () => {
   const labels = labelPlotExtrema(parsed!, -3, 3, 'vi')
   assert.equal(labels.length, 1)
   assert.equal(flattenExtremumParts(labels[0].parts), '(x₁; y₁) = (0; 0) (điểm cực tiểu)')
+})
+
+test('đường thẳng dừng trong khung và hai đầu vô cùng', () => {
+  const parsed = parsePlotInput('y=2*x')
+  const runs = plotRuns(parsed!, 8, 180)
+  assert.equal(runs.length, 1)
+  assert.equal(runs[0].infiniteStart, true)
+  assert.equal(runs[0].infiniteEnd, true)
+  for (const p of runs[0].points) {
+    assert.ok(Math.abs(p.x) <= 8.001)
+    assert.ok(Math.abs(p.y) <= 8.001)
+  }
+  const ys = runs[0].points.map((p) => p.y)
+  assert.ok(Math.min(...ys) <= -7.5)
+  assert.ok(Math.max(...ys) >= 7.5)
+})
+
+test('sqrt chỉ vô cùng ở đầu đi ra khỏi khung', () => {
+  const parsed = parsePlotInput('y=sqrt(x)')
+  const runs = plotRuns(parsed!, 8, 200)
+  assert.ok(runs.length >= 1)
+  assert.equal(runs[0].infiniteStart, false)
+  assert.equal(runs[0].infiniteEnd, true)
+  assert.ok(runs[0].points[0].x < 0.3)
+  assert.ok(runs[0].points.every((p) => p.y <= 8.001 && p.x <= 8.001))
+})
+
+test('1/x không nối xuyên qua tiệm cận', () => {
+  const parsed = parsePlotInput('y=1/x')
+  const runs = plotRuns(parsed!, 8, 360)
+  assert.ok(runs.length >= 2)
+  for (const run of runs) {
+    for (const p of run.points) {
+      assert.ok(Math.abs(p.x) <= 8.001)
+      assert.ok(Math.abs(p.y) <= 8.001)
+    }
+  }
+})
+
+test('vô cùng có dấu theo hướng nét', () => {
+  assert.equal(infinitySignLabel(4, 1), '+∞')
+  assert.equal(infinitySignLabel(-4, 1), '−∞')
+  assert.equal(infinitySignLabel(1, 5), '+∞')
+  assert.equal(infinitySignLabel(1, -5), '−∞')
+})
+
+test('khung trục co lại khi ô đơn vị lớn', () => {
+  assert.equal(visibleAxisSpan(40, 900, 700), 8)
+  assert.ok(visibleAxisSpan(80, 400, 360) < 8)
 })
 
 test('màu cực trị khác nét vẽ', () => {

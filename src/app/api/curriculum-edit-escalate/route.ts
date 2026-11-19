@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { insertCurriculumEditReviewPg } from '@/lib/db/curriculum-edit-reviews-pg'
-import { parseCurriculumLessonNumber } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
+import { CURRICULUM_LESSON_MINUTES, parseCurriculumLessonNumber } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
 
 export async function POST(req: Request) {
   try {
@@ -30,7 +30,6 @@ export async function POST(req: Request) {
       lessonNumber,
       lessonTypeId,
       numLessons,
-      lessonDurationMinutes,
       goals,
       contentMarkdown,
       aiErrors,
@@ -51,7 +50,7 @@ export async function POST(req: Request) {
       lessonNumber: parseCurriculumLessonNumber(lessonNumber) ?? null,
       lessonTypeId: lessonTypeId || 'hinh-thanh-kien-thuc',
       numLessons: Math.min(10, Math.max(1, parseInt(String(numLessons), 10) || 3)),
-      lessonDurationMinutes: Math.min(120, Math.max(15, parseInt(String(lessonDurationMinutes), 10) || 45)),
+      lessonDurationMinutes: CURRICULUM_LESSON_MINUTES,
       goals: goals || null,
       contentMarkdown,
       aiErrors: Array.isArray(aiErrors) ? aiErrors : [],

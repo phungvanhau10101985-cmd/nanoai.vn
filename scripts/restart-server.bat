@@ -15,7 +15,7 @@ echo   An toan voi 188-com-vn (8001/3001)
 echo ========================================
 echo.
 
-echo [1/4] Dong moi cong dang chay trung cua du an, roi bat lai port %DEV_PORT% va ngrok...
+echo [1/4] Dong moi cong dang chay trung cua du an, roi bat lai port %DEV_PORT%...
 REM ProjectRoot defaults to parent of this scripts\ folder (repo root).
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0restart-server-stop-dev.ps1" -DevPort %DEV_PORT%
 if "%ERRORLEVEL%"=="0" (
@@ -38,19 +38,12 @@ echo [3/4] Xoa cache Next.js...
 if exist ".next-dev" rmdir /s /q ".next-dev" >nul 2>&1
 if exist ".next" rmdir /s /q ".next" >nul 2>&1
 
-echo [4/4] Khoi dong dev server + ngrok...
+echo [4/4] Khoi dong dev server tren Wi-Fi ^(khong mo ngrok^)...
 echo.
-echo   Server: http://localhost:%DEV_PORT%
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0print-lan-dev-url.ps1" -Port %DEV_PORT%
 echo   Che do: Dev (auto-bypass login)
 echo.
 echo ========================================
 echo.
-
-call "%~dp0start-project-ngrok.cmd" %DEV_PORT%
-if errorlevel 1 (
-    echo [CANH BAO] ngrok khong khoi dong duoc. Dev local: http://localhost:%DEV_PORT%
-) else (
-    echo ngrok dang khoi dong: https://amia-canelike-exhibitively.ngrok-free.dev
-)
 
 npm run dev

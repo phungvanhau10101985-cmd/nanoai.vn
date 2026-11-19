@@ -30,6 +30,7 @@ export async function POST(req: Request) {
   const id = typeof record.id === 'string' ? record.id.trim() : ''
   const index = typeof record.index === 'number' ? record.index : undefined
   const snapshot = asRecord(record.snapshot) ?? undefined
+  const whiteboard = asRecord(record.whiteboard) ?? undefined
   const phoneReady = record.phoneReady === true
 
   if (id) {
@@ -40,6 +41,8 @@ export async function POST(req: Request) {
       seenGen: typeof record.seenGen === 'number' ? record.seenGen : undefined,
       snapshot,
       seenRevision: typeof record.seenRevision === 'number' ? record.seenRevision : undefined,
+      seenWhiteboardGen: typeof record.seenWhiteboardGen === 'number' ? record.seenWhiteboardGen : undefined,
+      whiteboard,
       phoneReady,
     })
     if (!state) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
@@ -73,6 +76,7 @@ export async function GET(req: Request) {
     index: row.index,
     indexGen: row.indexGen ?? 0,
     revision: row.revision,
+    whiteboardGen: row.whiteboardGen ?? 0,
     phoneReady: row.phoneReady === true,
     ...(live ? {} : { snapshot: row.snapshot }),
   })

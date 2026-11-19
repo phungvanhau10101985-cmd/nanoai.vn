@@ -1,8 +1,19 @@
-import { isLocalDevHost, LOCAL_PHONE_NGROK_ORIGIN } from '@/lib/curriculum/phone-remote-public-origin'
+import { isLocalDevHost, isPrivateLanHost, LOCAL_PHONE_NGROK_ORIGIN } from '@/lib/curriculum/phone-remote-public-origin'
 
 type PhoneCommand = Record<string, unknown>
 
-/** Máy giáo viên đang mở local thì QR phải là link ngrok để điện thoại mở được. */
+function phoneCanOpenOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+    if (!isLocalDevHost(url.hostname)) return true
+    return isPrivateLanHost(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+/** Máy giáo viên mở local thì QR là IP Wi‑Fi. Điện thoại cùng mạng vào http://IP:3000. */
 export async function phoneRemoteLoginOrigin(): Promise<string> {
   if (typeof window === 'undefined') return LOCAL_PHONE_NGROK_ORIGIN
   if (!isLocalDevHost(window.location.hostname)) return window.location.origin
@@ -13,9 +24,9 @@ export async function phoneRemoteLoginOrigin(): Promise<string> {
     })
     const data = await res.json().catch(() => null)
     const origin = typeof data?.origin === 'string' ? data.origin.replace(/\/$/, '') : ''
-    if (res.ok && /^https?:\/\//.test(origin) && !isLocalDevHost(new URL(origin).hostname)) return origin
+    if (res.ok && phoneCanOpenOrigin(origin)) return origin
   } catch {
-    /* ngrok inspector không trả lời thì dùng domain cố định */
+    /* không đọc được IP mạng thì dùng domain ngrok cố định */
   }
   return LOCAL_PHONE_NGROK_ORIGIN
 }
@@ -50,19 +61,32 @@ export function createPhoneCommandQueue(sessionId: string) {
         type === 'worksheet-answer-reveal' &&
         prev?.type === type &&
         (prev.control === true) === (msg.control === true)
-      if (prev && prev.type === type && (collapseMove || collapseTyping)) {
+      const collapseTimer = type === 'teacher-timer-sync' && prev?.type === type
+      const collapseSim = type === 'whiteboard-sim' && prev?.type === type
+      const collapseDrawSync = type === 'infographic-draw-sync' && prev?.type === type
+      const prevPoints = Array.isArray(prev?.points) ? prev.points : []
+      const nextPoints = Array.isArray(msg.points) ? msg.points : []
+      const collapseDrawPoints = type === 'infographic-draw-points'
+        && prev?.type === type
+        && prev.strokeId === msg.strokeId
+        && prev.slideIndex === msg.slideIndex
+        && prevPoints.length + nextPoints.length <= 300
+      if (prev && collapseDrawPoints) {
+        queue[queue.length - 1] = { ...msg, points: [...prevPoints, ...nextPoints] }
+      } else if (prev && prev.type === type && (collapseMove || collapseTyping || collapseTimer || collapseDrawSync || collapseSim)) {
         queue[queue.length - 1] = msg
       } else {
         queue.push(msg)
       }
-      const urgent = type === 'mouse-click' || type === 'control-press' || type === 'slide-go' || type === 'student-curriculum-right-mode' || type.endsWith('-open') || type.endsWith('-close') || (type === 'worksheet-answer-reveal' && msg.control === true)
+      const urgent = type === 'mouse-click' || type === 'control-press' || type === 'slide-go' || type === 'student-curriculum-right-mode' || type === 'student-curriculum-left-pane' || type === 'set-auto-play' || type === 'set-auto-play-interval' || type.startsWith('teacher-timer-') || (type.startsWith('whiteboard-') && type !== 'whiteboard-sim') || type.endsWith('-open') || type.endsWith('-close') || type === 'infographic-draw-undo' || type === 'infographic-draw-clear' || (type === 'worksheet-answer-reveal' && msg.control === true)
       if (urgent) {
         if (timer != null) window.clearTimeout(timer)
         timer = window.setTimeout(flush, 0)
         return
       }
       if (timer != null) return
-      timer = window.setTimeout(flush, 90)
+      const delay = type === 'mouse-pos' || type === 'chain-pane-scroll' || type === 'whiteboard-sim' ? 32 : 90
+      timer = window.setTimeout(flush, delay)
     },
     stop() {
       if (timer != null) window.clearTimeout(timer)

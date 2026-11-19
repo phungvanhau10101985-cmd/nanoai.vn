@@ -1,7 +1,14 @@
-import { dist, pointToSegment, rotateAround, scaleAround, translatePoint } from './geometry'
+import { clampWhiteboardScale, dist, pointToSegment, rotateAround, scaleAround, translatePoint } from './geometry'
+import { parseWhiteboardLineType } from './line-type'
+import { solidCornerIndices } from './solid'
+import { figureClock, figureHandleAt, figureItem } from './figures'
+import { isWhiteboardImageSrc } from './image'
 import type {
   WhiteboardCamera,
+  WhiteboardDim,
+  WhiteboardDimKind,
   WhiteboardDraft,
+  WhiteboardFigure,
   WhiteboardGraph,
   WhiteboardObject,
   WhiteboardPoint,
@@ -10,11 +17,23 @@ import type {
   WhiteboardStroke,
   WhiteboardWireMessage,
 } from './types'
-import { DEFAULT_WHITEBOARD_CAMERA, WHITEBOARD_MAX_OBJECTS, WHITEBOARD_MAX_POINTS } from './types'
+import { DEFAULT_WHITEBOARD_CAMERA, SOLID_KINDS, WHITEBOARD_DIM_KINDS, WHITEBOARD_MAX_OBJECTS, WHITEBOARD_MAX_POINTS } from './types'
 
 function num(value: unknown, fallback = 0): number {
   const n = Number(value)
   return Number.isFinite(n) ? n : fallback
+}
+
+function sanitizeTune(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return []
+  const out: number[] = []
+  for (const item of raw) {
+    const n = Number(item)
+    if (!Number.isFinite(n)) continue
+    out.push(Math.max(-100000, Math.min(100000, n)))
+    if (out.length >= 6) break
+  }
+  return out
 }
 
 function point(raw: unknown): WhiteboardPoint | null {
@@ -43,6 +62,11 @@ function colorOf(raw: unknown): string {
   return /^#[0-9a-fA-F]{6}$/.test(s) ? s : '#111827'
 }
 
+function fillOf(raw: unknown): string | undefined {
+  const s = typeof raw === 'string' ? raw.trim() : ''
+  return /^#[0-9a-fA-F]{6}$/.test(s) ? s : undefined
+}
+
 export function sanitizeWhiteboardObject(raw: unknown): WhiteboardObject | null {
   if (!raw || typeof raw !== 'object') return null
   const o = raw as Record<string, unknown>
@@ -50,10 +74,22 @@ export function sanitizeWhiteboardObject(raw: unknown): WhiteboardObject | null 
   if (!id) return null
   const color = colorOf(o.color)
   const size = Math.max(1, Math.min(16, num(o.size, 3)))
+  const lineType = parseWhiteboardLineType(o.lineType)
+  const patterned = lineType && lineType !== 'continuous' ? lineType : undefined
   if (o.kind === 'stroke') {
     const pts = points(o.points)
     if (pts.length < 1) return null
-    return { kind: 'stroke', id, tool: o.tool === 'eraser' ? 'eraser' : 'pen', color, size, points: pts }
+    const fill = o.tool === 'eraser' ? undefined : fillOf(o.fill)
+    return {
+      kind: 'stroke',
+      id,
+      tool: o.tool === 'eraser' ? 'eraser' : 'pen',
+      color,
+      size,
+      ...(o.tool === 'eraser' || !patterned ? {} : { lineType: patterned }),
+      ...(fill ? { fill } : {}),
+      points: pts,
+    }
   }
   if (o.kind === 'shape') {
     const shape = o.shape
@@ -64,15 +100,20 @@ export function sanitizeWhiteboardObject(raw: unknown): WhiteboardObject | null 
       shape !== 'ellipse' &&
       shape !== 'rect' &&
       shape !== 'triangle' &&
-      shape !== 'polygon'
+      shape !== 'polygon' &&
+      shape !== 'solid'
     ) return null
+    const fillable = shape === 'circle' || shape === 'ellipse' || shape === 'rect' || shape === 'triangle' || shape === 'polygon'
+    const fill = fillable ? fillOf(o.fill) : undefined
     const next: WhiteboardShape = {
       kind: 'shape',
       id,
       shape,
       color,
       size,
-      points: points(o.points, 24),
+      ...(shape === 'solid' || !patterned ? {} : { lineType: patterned }),
+      ...(fill ? { fill } : {}),
+      points: points(o.points, shape === 'solid' ? 200 : o.fillOnly === true ? 120 : 24),
     }
     if (typeof o.cx === 'number') next.cx = num(o.cx)
     if (typeof o.cy === 'number') next.cy = num(o.cy)
@@ -89,6 +130,64 @@ export function sanitizeWhiteboardObject(raw: unknown): WhiteboardObject | null 
         next.triangle = { kind, ab: clip(mark.ab), bc: clip(mark.bc), ca: clip(mark.ca) }
       }
     }
+    const quad = o.quad
+    if ((shape === 'polygon' || shape === 'rect') && quad && typeof quad === 'object') {
+      const mark = quad as Record<string, unknown>
+      const kind = mark.kind
+      const clip = (value: unknown) => typeof value === 'string' ? value.trim().slice(0, 24) : ''
+      if (kind === 'square' || kind === 'rectangle' || kind === 'parallelogram' || kind === 'rhombus' || kind === 'trapezoid') {
+        next.quad = {
+          kind,
+          ab: clip(mark.ab),
+          bc: clip(mark.bc),
+          cd: clip(mark.cd),
+          da: clip(mark.da),
+          angle: clip(mark.angle) || '90',
+        }
+      }
+    }
+    if (Array.isArray(o.quadNames) && o.quadNames.length >= 4) {
+      const names = o.quadNames.slice(0, 4).map((item) => typeof item === 'string' ? item.trim().slice(0, 4) : '')
+      if (names.every((item) => item)) next.quadNames = names as [string, string, string, string]
+    }
+    if (Array.isArray(o.vertexNames) && o.vertexNames.length >= 3) {
+      const names = o.vertexNames.slice(0, 3).map((item) => typeof item === 'string' ? item.trim().slice(0, 4) : '')
+      if (names.every((item) => item)) next.vertexNames = names as [string, string, string]
+    }
+    if (o.regionOnly === true && shape === 'triangle') next.regionOnly = true
+    if (o.fillOnly === true && shape === 'polygon' && fill && next.points.length >= 3) next.fillOnly = true
+    if (shape === 'solid') {
+      const kind = o.solid
+      if (typeof kind !== 'string' || !(SOLID_KINDS as readonly string[]).includes(kind)) return null
+      const raw = Array.isArray(o.solidEdges) ? o.solidEdges : []
+      const edges: number[] = []
+      for (let i = 0; i + 1 < raw.length && edges.length < 400; i += 2) {
+        const a = raw[i]
+        const b = raw[i + 1]
+        if (typeof a !== 'number' || typeof b !== 'number') continue
+        const ia = Math.floor(a)
+        const ib = Math.floor(b)
+        if (ia < 0 || ib < 0 || ia >= next.points.length || ib >= next.points.length) continue
+        edges.push(ia, ib)
+      }
+      if (edges.length < 2) return null
+      const pairs = edges.length / 2
+      const hidden = typeof o.solidHidden === 'number' ? Math.max(0, Math.min(pairs, Math.floor(o.solidHidden))) : 0
+      next.solid = kind as WhiteboardShape['solid']
+      next.solidEdges = edges
+      next.solidHidden = hidden
+      if (Array.isArray(o.solidCorners)) {
+        const corners: number[] = []
+        for (const item of o.solidCorners) {
+          if (typeof item !== 'number') continue
+          const index = Math.floor(item)
+          if (index < 0 || index >= next.points.length || corners.includes(index)) continue
+          corners.push(index)
+          if (corners.length >= 32) break
+        }
+        if (corners.length > 0) next.solidCorners = corners
+      }
+    }
     const line = o.triangleLine
     if (line && typeof line === 'object') {
       const mark = line as Record<string, unknown>
@@ -100,10 +199,73 @@ export function sanitizeWhiteboardObject(raw: unknown): WhiteboardObject | null 
         (vertex === 0 || vertex === 1 || vertex === 2) &&
         (role === 'altitude' || role === 'bisector' || role === 'median' || role === 'perp-bisector' || role === 'midsegment')
       ) {
-        next.triangleLine = { role, vertex, triangleId }
+        const footName = typeof mark.footName === 'string' ? mark.footName.trim().slice(0, 4) : ''
+        next.triangleLine = { role, vertex, triangleId, ...(footName ? { footName } : {}) }
       }
     }
     return next
+  }
+  if (o.kind === 'dim') {
+    const dim = WHITEBOARD_DIM_KINDS.includes(o.dim as WhiteboardDimKind) ? o.dim as WhiteboardDimKind : null
+    const pts = points(o.points, 4)
+    if (!dim || pts.length < 2) return null
+    return { kind: 'dim', id, color, size, dim, points: pts }
+  }
+  if (o.kind === 'text') {
+    const text = typeof o.text === 'string' ? o.text.replace(/\r\n/g, '\n').slice(0, 2000) : ''
+    if (!text.trim()) return null
+    return {
+      kind: 'text',
+      id,
+      color,
+      size: Math.max(12, Math.min(96, num(o.size, 28))),
+      text,
+      x: num(o.x),
+      y: num(o.y),
+      width: Math.max(48, Math.min(1600, num(o.width, 320))),
+    }
+  }
+  if (o.kind === 'figure') {
+    const figure = typeof o.figure === 'string' ? o.figure : ''
+    const item = figureItem(figure)
+    if (!item) return null
+    const raw = o.params && typeof o.params === 'object' ? o.params as Record<string, unknown> : {}
+    const asked = typeof raw.variant === 'string' ? raw.variant.slice(0, 40) : ''
+    const variant = item.variants?.some((entry) => entry.id === asked) ? asked : (item.variants?.[0]?.id ?? '')
+    const liquid = typeof raw.liquid === 'string' && /^#[0-9a-fA-F]{6}$/.test(raw.liquid) ? raw.liquid : '#7dd3fc'
+    return {
+      kind: 'figure',
+      id,
+      color,
+      figure,
+      x: num(o.x),
+      y: num(o.y),
+      w: Math.max(80, Math.min(900, num(o.w, item.w))),
+      h: Math.max(60, Math.min(700, num(o.h, item.h))),
+      params: {
+        variant,
+        liquid,
+        level: Math.max(0, Math.min(100, num(raw.level, 62))),
+        label: typeof raw.label === 'string' ? raw.label.slice(0, 24) : '',
+        equation: typeof raw.equation === 'string' ? raw.equation.slice(0, 120) : '',
+        tune: sanitizeTune(raw.tune),
+        run: raw.run === true,
+        clock: num(raw.clock, 0),
+        shift: num(raw.shift, 0),
+      },
+    }
+  }
+  if (o.kind === 'image') {
+    if (!isWhiteboardImageSrc(o.src)) return null
+    return {
+      kind: 'image',
+      id,
+      src: o.src,
+      x: num(o.x),
+      y: num(o.y),
+      w: Math.max(48, Math.min(1200, num(o.w, 280))),
+      h: Math.max(36, Math.min(900, num(o.h, 200))),
+    }
   }
   if (o.kind === 'graph') {
     const expr = typeof o.expr === 'string' ? o.expr.trim().slice(0, 180) : ''
@@ -128,7 +290,7 @@ export function sanitizeWhiteboardObject(raw: unknown): WhiteboardObject | null 
 export function sanitizeWhiteboardCamera(raw: unknown): WhiteboardCamera {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_WHITEBOARD_CAMERA }
   const c = raw as Record<string, unknown>
-  const scale = Math.max(0.25, Math.min(4, num(c.scale, 1)))
+  const scale = clampWhiteboardScale(num(c.scale, 1))
   return { x: num(c.x), y: num(c.y), scale }
 }
 
@@ -143,6 +305,10 @@ export function sanitizeWhiteboardDraft(raw: unknown): WhiteboardDraft | null {
     tool: o.tool === 'eraser' ? 'eraser' : 'pen',
     color: colorOf(o.color),
     size: Math.max(1, Math.min(16, num(o.size, 3))),
+    ...(o.tool === 'eraser' ? {} : (() => {
+      const lineType = parseWhiteboardLineType(o.lineType)
+      return lineType && lineType !== 'continuous' ? { lineType } : {}
+    })()),
     points: pts,
   }
 }
@@ -167,7 +333,6 @@ export function emptyWhiteboardState(): WhiteboardState {
     camera: { ...DEFAULT_WHITEBOARD_CAMERA },
     draft: null,
     grid: true,
-    ortho: false,
   }
 }
 
@@ -183,7 +348,24 @@ export function upsertWhiteboardObject(objects: WhiteboardObject[], object: Whit
 }
 
 export function objectPoints(obj: WhiteboardObject): WhiteboardPoint[] {
-  if (obj.kind === 'stroke') return obj.points
+  if (obj.kind === 'stroke' || obj.kind === 'dim') return obj.points
+  if (obj.kind === 'text') {
+    const box = textWorldBox(obj)
+    return [
+      { x: box.minX, y: box.minY },
+      { x: box.maxX, y: box.minY },
+      { x: box.maxX, y: box.maxY },
+      { x: box.minX, y: box.maxY },
+    ]
+  }
+  if (obj.kind === 'figure' || obj.kind === 'image') {
+    return [
+      { x: obj.x, y: obj.y },
+      { x: obj.x + obj.w, y: obj.y },
+      { x: obj.x + obj.w, y: obj.y + obj.h },
+      { x: obj.x, y: obj.y + obj.h },
+    ]
+  }
   if (obj.kind === 'graph') {
     const u = obj.unit
     return [
@@ -226,11 +408,51 @@ function boxOfPoints(pts: WhiteboardPoint[], pad = 0): WorldBox | null {
   return { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad }
 }
 
+/** Vùng bản đồ con: gộp khung đang xem và mọi nét, có lề. */
+export function whiteboardOverviewBounds(
+  objects: WhiteboardObject[],
+  cam: WhiteboardCamera,
+  viewW: number,
+  viewH: number,
+): WorldBox {
+  const scale = cam.scale || 1
+  const halfW = Math.max(1, viewW) / (2 * scale)
+  const halfH = Math.max(1, viewH) / (2 * scale)
+  let minX = cam.x - halfW
+  let maxX = cam.x + halfW
+  let minY = cam.y - halfH
+  let maxY = cam.y + halfH
+  for (const obj of objects) {
+    const box = objectWorldBounds(obj)
+    if (!box) continue
+    minX = Math.min(minX, box.minX)
+    minY = Math.min(minY, box.minY)
+    maxX = Math.max(maxX, box.maxX)
+    maxY = Math.max(maxY, box.maxY)
+  }
+  const padX = Math.max(48, (maxX - minX) * 0.06)
+  const padY = Math.max(48, (maxY - minY) * 0.06)
+  return { minX: minX - padX, minY: minY - padY, maxX: maxX + padX, maxY: maxY + padY }
+}
+
+/** Camera của bản đồ con. Tỷ lệ có thể nhỏ hơn 1 để thấy cả bảng. */
+export function overviewCamera(bounds: WorldBox, mapW: number, mapH: number): WhiteboardCamera {
+  const worldW = Math.max(1, bounds.maxX - bounds.minX)
+  const worldH = Math.max(1, bounds.maxY - bounds.minY)
+  return {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+    scale: Math.min(mapW / worldW, mapH / worldH),
+  }
+}
+
 export function objectWorldBounds(obj: WhiteboardObject): WorldBox | null {
   if (obj.kind === 'graph') {
     const u = obj.unit * 8
     return { minX: obj.origin.x - u, minY: obj.origin.y - u, maxX: obj.origin.x + u, maxY: obj.origin.y + u }
   }
+  if (obj.kind === 'text') return textWorldBox(obj)
+  if (obj.kind === 'figure' || obj.kind === 'image') return { minX: obj.x, minY: obj.y, maxX: obj.x + obj.w, maxY: obj.y + obj.h }
   if (obj.kind === 'shape' && obj.shape === 'circle' && obj.cx != null && obj.cy != null && obj.r != null) {
     return { minX: obj.cx - obj.r, minY: obj.cy - obj.r, maxX: obj.cx + obj.r, maxY: obj.cy + obj.r }
   }
@@ -243,6 +465,76 @@ export function objectWorldBounds(obj: WhiteboardObject): WorldBox | null {
 
 function boxesOverlap(a: WorldBox, b: WorldBox): boolean {
   return !(a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY)
+}
+
+const INSERT_GAP = 16
+
+function insertHits(x: number, y: number, w: number, h: number, boxes: WorldBox[]): boolean {
+  const mine: WorldBox = { minX: x - INSERT_GAP, minY: y - INSERT_GAP, maxX: x + w + INSERT_GAP, maxY: y + h + INSERT_GAP }
+  return boxes.some((other) => boxesOverlap(mine, other))
+}
+
+/** Ô trống gần tâm nhìn nhất. Không trả về chỗ đè vật thể. */
+function nearestClearSlot(
+  boxes: WorldBox[],
+  cam: WhiteboardCamera,
+  w: number,
+  h: number,
+  left: number,
+  top: number,
+  right: number,
+  bottom: number,
+): { x: number; y: number } | null {
+  const maxX = Math.max(left, right - w)
+  const maxY = Math.max(top, bottom - h)
+  const step = 32
+  let best: { x: number; y: number; d: number } | null = null
+  const consider = (x: number, y: number) => {
+    if (insertHits(x, y, w, h, boxes)) return
+    const d = Math.hypot(x + w / 2 - cam.x, y + h / 2 - cam.y)
+    if (!best || d < best.d) best = { x, y, d }
+  }
+  consider(cam.x - w / 2, cam.y - h / 2)
+  for (let y = top; y <= maxY + 0.5; y += step) {
+    for (let x = left; x <= maxX + 0.5; x += step) consider(x, y)
+  }
+  consider(maxX, maxY)
+  return best
+}
+
+/** Chỗ đặt ảnh hoặc sơ đồ: ô trống trong khung nhìn, hết chỗ thì ra ngoài khung. Không đè vật đang có. */
+export function placeWhiteboardImage(
+  objects: WhiteboardObject[],
+  cam: WhiteboardCamera,
+  w: number,
+  h: number,
+  viewW = 800,
+  viewH = 600,
+): { x: number; y: number } {
+  const scale = cam.scale || 1
+  const left = cam.x - viewW / (2 * scale)
+  const top = cam.y - viewH / (2 * scale)
+  const right = cam.x + viewW / (2 * scale)
+  const bottom = cam.y + viewH / (2 * scale)
+  const boxes: WorldBox[] = []
+  for (const obj of objects) {
+    const box = objectWorldBounds(obj)
+    if (box) boxes.push(box)
+  }
+  const inView = nearestClearSlot(boxes, cam, w, h, left, top, right, bottom)
+  if (inView && inView.x >= left - 1 && inView.x + w <= right + 1 && inView.y >= top - 1 && inView.y + h <= bottom + 1) return inView
+  const span = Math.max(w, h) + INSERT_GAP
+  for (let pad = 1; pad <= 6; pad += 1) {
+    const grow = pad * span
+    const found = nearestClearSlot(boxes, cam, w, h, left - grow, top - grow, right + grow, bottom + grow)
+    if (found) return found
+  }
+  let edge = right
+  for (const box of boxes) edge = Math.max(edge, box.maxX)
+  let x = edge + INSERT_GAP
+  let y = cam.y - h / 2
+  for (let i = 0; i < 48 && insertHits(x, y, w, h, boxes); i += 1) y += h + INSERT_GAP
+  return { x, y }
 }
 
 function boxInside(inner: WorldBox, outer: WorldBox): boolean {
@@ -265,15 +557,22 @@ export function pickObjectsInMarquee(
   if (fence.maxX - fence.minX < 1 && fence.maxY - fence.minY < 1) return []
   const ids: string[] = []
   for (const obj of objects) {
+    if (obj.kind === 'shape' && obj.regionOnly) continue
     const box = objectWorldBounds(obj)
     if (!box) continue
-    if (crossing ? boxesOverlap(box, fence) : boxInside(box, fence)) ids.push(obj.id)
+    const contained = boxInside(box, fence)
+    if (obj.kind === 'figure' || obj.kind === 'image') {
+      if (contained) ids.push(obj.id)
+      continue
+    }
+    if (crossing ? boxesOverlap(box, fence) : contained) ids.push(obj.id)
   }
   return ids
 }
 
 export function objectCenter(obj: WhiteboardObject): WhiteboardPoint {
   if (obj.kind === 'graph') return obj.origin
+  if (obj.kind === 'text') return { x: obj.x + obj.width / 2, y: obj.y }
   if (obj.kind === 'shape' && (obj.shape === 'circle' || obj.shape === 'ellipse') && obj.cx != null && obj.cy != null) {
     return { x: obj.cx, y: obj.cy }
   }
@@ -289,7 +588,9 @@ export function objectCenter(obj: WhiteboardObject): WhiteboardPoint {
 }
 
 export function translateObject(obj: WhiteboardObject, dx: number, dy: number): WhiteboardObject {
-  if (obj.kind === 'stroke') return { ...obj, points: obj.points.map((p) => translatePoint(p, dx, dy)) }
+  if (obj.kind === 'text') return { ...obj, x: obj.x + dx, y: obj.y + dy }
+  if (obj.kind === 'figure' || obj.kind === 'image') return { ...obj, x: obj.x + dx, y: obj.y + dy }
+  if (obj.kind === 'stroke' || obj.kind === 'dim') return { ...obj, points: obj.points.map((p) => translatePoint(p, dx, dy)) }
   if (obj.kind === 'graph') return { ...obj, origin: translatePoint(obj.origin, dx, dy) }
   return {
     ...obj,
@@ -301,7 +602,21 @@ export function translateObject(obj: WhiteboardObject, dx: number, dy: number): 
 
 export function scaleObject(obj: WhiteboardObject, origin: WhiteboardPoint, factor: number): WhiteboardObject {
   const s = Math.max(0.15, Math.min(8, factor))
-  if (obj.kind === 'stroke') return { ...obj, points: obj.points.map((p) => scaleAround(p, origin, s, s)) }
+  if (obj.kind === 'text') {
+    const p = scaleAround({ x: obj.x, y: obj.y }, origin, s, s)
+    return { ...obj, x: p.x, y: p.y, size: Math.max(12, Math.min(96, obj.size * s)), width: Math.max(48, obj.width * s) }
+  }
+  if (obj.kind === 'figure') {
+    const p = scaleAround({ x: obj.x, y: obj.y }, origin, s, s)
+    const far = scaleAround({ x: obj.x + obj.w, y: obj.y + obj.h }, origin, s, s)
+    return { ...obj, x: p.x, y: p.y, w: Math.max(80, far.x - p.x), h: Math.max(60, far.y - p.y) }
+  }
+  if (obj.kind === 'image') {
+    const p = scaleAround({ x: obj.x, y: obj.y }, origin, s, s)
+    const far = scaleAround({ x: obj.x + obj.w, y: obj.y + obj.h }, origin, s, s)
+    return { ...obj, x: p.x, y: p.y, w: Math.max(48, far.x - p.x), h: Math.max(36, far.y - p.y) }
+  }
+  if (obj.kind === 'stroke' || obj.kind === 'dim') return { ...obj, points: obj.points.map((p) => scaleAround(p, origin, s, s)) }
   if (obj.kind === 'graph') return { ...obj, origin: scaleAround(obj.origin, origin, s, s), unit: Math.max(8, obj.unit * s) }
   return {
     ...obj,
@@ -315,8 +630,12 @@ export function scaleObject(obj: WhiteboardObject, origin: WhiteboardPoint, fact
 }
 
 export function rotateObject(obj: WhiteboardObject, origin: WhiteboardPoint, rad: number): WhiteboardObject {
+  if (obj.kind === 'text' || obj.kind === 'figure' || obj.kind === 'image') {
+    const p = rotateAround({ x: obj.x, y: obj.y }, origin, rad)
+    return { ...obj, x: p.x, y: p.y }
+  }
   if (obj.kind === 'graph') return obj
-  if (obj.kind === 'stroke') return { ...obj, points: obj.points.map((p) => rotateAround(p, origin, rad)) }
+  if (obj.kind === 'stroke' || obj.kind === 'dim') return { ...obj, points: obj.points.map((p) => rotateAround(p, origin, rad)) }
   return {
     ...obj,
     points: obj.points.map((p) => rotateAround(p, origin, rad)),
@@ -362,7 +681,22 @@ function hitShape(obj: WhiteboardShape, p: WhiteboardPoint, thresh: number): boo
       Math.abs(p.y - maxY) <= thresh
     return inside && onEdge
   }
+  if (obj.shape === 'solid' && obj.solidEdges && obj.solidEdges.length >= 2) {
+    const edges = obj.solidEdges
+    for (let i = 0; i + 1 < edges.length; i += 2) {
+      const a = obj.points[edges[i]]
+      const b = obj.points[edges[i + 1]]
+      if (a && b && pointToSegment(p, a, b) <= thresh) return true
+    }
+    return false
+  }
   const pts = obj.points
+  if (obj.shape === 'arrow' && pts.length >= 4) {
+    const tip = pts[1]
+    return pointToSegment(p, pts[0], tip) <= thresh
+      || pointToSegment(p, tip, pts[2]) <= thresh
+      || pointToSegment(p, tip, pts[3]) <= thresh
+  }
   for (let i = 1; i < pts.length; i += 1) {
     if (pointToSegment(p, pts[i - 1], pts[i]) <= thresh) return true
   }
@@ -379,15 +713,71 @@ function hitGraph(obj: WhiteboardGraph, p: WhiteboardPoint, thresh: number): boo
   return dist(p, obj.origin) <= thresh + 10
 }
 
+function hitDim(obj: WhiteboardDim, p: WhiteboardPoint, thresh: number): boolean {
+  const reach = thresh + 10
+  for (let i = 1; i < obj.points.length; i += 1) {
+    if (pointToSegment(p, obj.points[i - 1], obj.points[i]) <= reach) return true
+  }
+  return obj.points.some((pt) => dist(pt, p) <= reach)
+}
+
 export function hitTestObject(obj: WhiteboardObject, p: WhiteboardPoint, thresh: number): boolean {
+  if (obj.kind === 'shape' && (obj.regionOnly || obj.fillOnly)) return false
+  if (obj.kind === 'text') {
+    const box = textWorldBox(obj)
+    return p.x >= box.minX - thresh && p.x <= box.maxX + thresh && p.y >= box.minY - thresh && p.y <= box.maxY + thresh
+  }
+  if (obj.kind === 'figure' || obj.kind === 'image') {
+    return p.x >= obj.x - thresh && p.x <= obj.x + obj.w + thresh && p.y >= obj.y - thresh && p.y <= obj.y + obj.h + thresh
+  }
   if (obj.kind === 'stroke') return hitStroke(obj, p, thresh)
   if (obj.kind === 'graph') return hitGraph(obj, p, thresh)
+  if (obj.kind === 'dim') return hitDim(obj, p, thresh)
   return hitShape(obj, p, thresh)
 }
 
+export function hitTestDraft(draft: { points?: WhiteboardPoint[] } | null, p: WhiteboardPoint, thresh: number): boolean {
+  const points = draft?.points
+  if (!points || points.length === 0) return false
+  for (let i = 1; i < points.length; i += 1) {
+    if (pointToSegment(p, points[i - 1], points[i]) <= thresh) return true
+  }
+  return points.some((pt) => dist(pt, p) <= thresh)
+}
+
 export function hitTestTop(objects: WhiteboardObject[], p: WhiteboardPoint, thresh: number): WhiteboardObject | null {
+  let image: WhiteboardObject | null = null
   for (let i = objects.length - 1; i >= 0; i -= 1) {
-    if (hitTestObject(objects[i], p, thresh)) return objects[i]
+    const obj = objects[i]
+    if (obj.kind === 'image') {
+      if (!image && hitTestObject(obj, p, thresh)) image = obj
+      continue
+    }
+    if (hitTestObject(obj, p, thresh)) return obj
+  }
+  return image
+}
+
+/** Nút chạy và núm kéo trên sơ đồ, kể cả khi sơ đồ chưa chọn và có nét đè lên. */
+export function topFigureHandle(
+  objects: WhiteboardObject[],
+  p: WhiteboardPoint,
+  thresh: number,
+  sim: number,
+): { object: WhiteboardFigure; handle: string } | null {
+  for (let i = objects.length - 1; i >= 0; i -= 1) {
+    const obj = objects[i]
+    if (obj.kind !== 'figure') continue
+    const handle = figureHandleAt(
+      obj.figure,
+      obj.params,
+      obj.w,
+      obj.h,
+      { x: p.x - obj.x, y: p.y - obj.y },
+      thresh,
+      figureClock(obj.params, sim),
+    )
+    if (handle) return { object: obj, handle }
   }
   return null
 }
@@ -395,6 +785,8 @@ export function hitTestTop(objects: WhiteboardObject[], p: WhiteboardPoint, thre
 export function snapPointsOf(objects: WhiteboardObject[]): WhiteboardPoint[] {
   const out: WhiteboardPoint[] = []
   for (const obj of objects) {
+    if (obj.kind === 'shape' && obj.fillOnly) continue
+    if (obj.kind === 'text' || obj.kind === 'figure' || obj.kind === 'image') continue
     if (obj.kind === 'graph') {
       out.push(obj.origin)
       continue
@@ -405,6 +797,14 @@ export function snapPointsOf(objects: WhiteboardObject[]): WhiteboardPoint[] {
       out.push({ x: obj.cx - obj.r, y: obj.cy })
       out.push({ x: obj.cx, y: obj.cy + obj.r })
       out.push({ x: obj.cx, y: obj.cy - obj.r })
+      continue
+    }
+    if (obj.kind === 'shape' && obj.shape === 'solid') {
+      const ids = solidCornerIndices(obj.points, obj.solidEdges ?? [], obj.solidCorners)
+      for (const index of ids) {
+        const point = obj.points[index]
+        if (point) out.push(point)
+      }
       continue
     }
     out.push(...objectPoints(obj))

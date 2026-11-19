@@ -1,4 +1,5 @@
 import { dist } from './geometry'
+import { roundWhiteboardSize } from './line-measure'
 import type { TriangleKind, TriangleMark, WhiteboardPoint } from './types'
 
 export type TriangleSides = { ab: string; bc: string; ca: string }
@@ -29,6 +30,27 @@ export function guessTriangleKind(ab: number, bc: number, ca: number): TriangleK
   return 'scalene'
 }
 
+/** Ba cạnh làm tròn số nguyên. Nếu vi phạm bất đẳng thức thì rút cạnh dài nhất. */
+export function roundSideLengths(sides: TriangleSides): TriangleSides {
+  const parsed = (['ab', 'bc', 'ca'] as const).map((key) => {
+    const n = parseSideLength(sides[key])
+    return n == null ? null : roundWhiteboardSize(n)
+  })
+  if (parsed.some((n) => n == null)) return sides
+  let [ab, bc, ca] = parsed as [number, number, number]
+  for (let i = 0; i < 4; i += 1) {
+    if (ab + bc > ca && ab + ca > bc && bc + ca > ab) break
+    const list = [ab, bc, ca]
+    let maxI = 0
+    if (list[1] > list[maxI]) maxI = 1
+    if (list[2] > list[maxI]) maxI = 2
+    if (list[maxI] > 1) list[maxI] -= 1
+    else list[(maxI + 1) % 3] += 1
+    ;[ab, bc, ca] = list as [number, number, number]
+  }
+  return { ab: String(ab), bc: String(bc), ca: String(ca) }
+}
+
 export function sidesFromSketch(corners: WhiteboardPoint[]): TriangleSides {
   const [a, b, c] = corners
   return {
@@ -36,6 +58,28 @@ export function sidesFromSketch(corners: WhiteboardPoint[]): TriangleSides {
     bc: formatSideLength(dist(b, c)),
     ca: formatSideLength(dist(c, a)),
   }
+}
+
+/** Cạnh này do hai cạnh kia quyết định, người dùng không sửa. */
+export function triangleSideLocked(kind: TriangleKind, key: keyof TriangleSides): boolean {
+  if ((kind === 'right' || kind === 'right-isosceles') && key === 'ab') return true
+  if (kind === 'isosceles' && key === 'ca') return true
+  return false
+}
+
+function wholeSide(raw: string): string {
+  const n = parseSideLength(raw)
+  return n == null ? raw : String(Math.max(1, Math.round(n)))
+}
+
+/** Làm tròn cạnh người dùng nhập, rồi tính cạnh phụ thuộc. Cạnh tính ra không bị làm tròn số nguyên. */
+export function settleTriangleSides(kind: TriangleKind, sides: TriangleSides, edited: keyof TriangleSides): TriangleSides {
+  const cells: TriangleSides = {
+    ab: wholeSide(sides.ab),
+    bc: wholeSide(sides.bc),
+    ca: wholeSide(sides.ca),
+  }
+  return fillTriangleSides(kind, cells, edited)
 }
 
 /** Giữ đủ ba cạnh. Loại nào có cạnh phụ thuộc thì điền luôn cho đủ. */
@@ -119,11 +163,8 @@ export function placeTriangle(mark: TriangleMark, sketch: WhiteboardPoint[]): Wh
   const ideal = [idealA, idealB, idealC]
   const from = centroidOf(ideal)
   const to = centroidOf(sketch)
-  const sketchSize = Math.max(dist(sketchA, sketchB), dist(sketchB, sketchC), dist(sketchC, sketchA))
-  const idealSize = Math.max(ab, bc, ca)
-  const scale = idealSize > 1e-6 && sketchSize > 1 ? sketchSize / idealSize : 1
   return ideal.map((p) => ({
-    x: to.x + (p.x - from.x) * scale,
-    y: to.y + (p.y - from.y) * scale,
+    x: to.x + (p.x - from.x),
+    y: to.y + (p.y - from.y),
   }))
 }

@@ -99,7 +99,7 @@ const nextConfig = {
     /** Dev: tách khỏi `.next` khi IDE/antivirus khóa thư mục build (EPERM rename trên Windows). */
     distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
     eslint: { ignoreDuringBuilds: skipEslintOnBuild },
-    allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io'],
+    allowedDevOrigins: ['*.ngrok-free.dev', '*.ngrok.io', '192.168.*', '10.*', '172.*'],
     /** Sourcemap không build cho client (giảm dung lượng tải); chỉ build server-side khi bật flag. */
     productionBrowserSourceMaps: false,
     experimental: {

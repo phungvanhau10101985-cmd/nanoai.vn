@@ -7,7 +7,7 @@ if exist "%LOCALAPPDATA%\Programs\nodejs\npm.cmd" (
 )
 
 REM Next.js dev mac dinh 3000. Neu ban dat PORT trong .env.local khac — sua DEV_PORT cho trung.
-REM Dong moi cong LISTEN cua chinh du an nay (ke ca Next/ngrok bi trung sang cong khac), roi bat lai dung cong du an + ngrok.
+REM Dong moi cong LISTEN cua chinh du an nay, roi bat lai dung cong du an. Khong mo ngrok.
 REM 188-com-vn local: backend 8001 + frontend 3001 — KHONG bi script nay kill (xem scripts/restart-server-stop-dev.ps1).
 set "DEV_PORT=3000"
 if exist ".env.local" (
@@ -21,13 +21,13 @@ echo   RESET - Thu-do-online (khong anh huong 188-com-vn)
 echo ========================================
 echo.
 
-echo [1/7] Dong moi cong dang chay trung cua du an ^(roi se bat lai port %DEV_PORT% + ngrok. 188 giu 8001/3001^)...
+echo [1/7] Dong moi cong dang chay trung cua du an ^(roi bat lai port %DEV_PORT%. 188 giu 8001/3001^)...
 REM Do not pass -ProjectRoot "%~dp0" — trailing \ before " breaks PowerShell quoting.
 REM Script defaults ProjectRoot to parent of scripts\ (this repo root).
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\restart-server-stop-dev.ps1" -DevPort %DEV_PORT%
 set "STOP_RC=%ERRORLEVEL%"
 if "%STOP_RC%"=="0" (
-    echo       Da dong cac cong trung cua du an. Se khoi dong lai port %DEV_PORT% va ngrok.
+    echo       Da dong cac cong trung cua du an. Se khoi dong lai port %DEV_PORT%.
 ) else if "%STOP_RC%"=="3" (
     echo       [CANH BAO] Port %DEV_PORT% van dang bi chiem. Van tiep tuc khoi dong.
 ) else (
@@ -94,16 +94,12 @@ echo       Worker dang khoi dong...
 timeout /t 5 /nobreak >nul
 echo.
 
-echo [7/7] Khoi dong ngrok ^(https://amia-canelike-exhibitively.ngrok-free.dev -^> port %DEV_PORT%^)...
-call "%~dp0scripts\start-project-ngrok.cmd" %DEV_PORT%
-if errorlevel 1 (
-    echo       [CANH BAO] ngrok khong khoi dong duoc. Dev local: http://localhost:%DEV_PORT%
-) else (
-    echo       ngrok Thu-do dang khoi dong. 188 ngrok 3001 khong bi dong.
-)
+echo [7/7] Dia chi Wi-Fi cho dien thoai ^(khong mo ngrok^)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\print-lan-dev-url.ps1" -Port %DEV_PORT%
 echo.
 echo ========================================
-echo   Xong. Thu-do: Next.js, Worker, ngrok :%DEV_PORT%
+echo   Xong. Thu-do: Next.js va Worker tren cong %DEV_PORT%.
+echo   Dien thoai cung Wi-Fi quet ma QR. Khong dung ngrok.
 echo   188-com-vn (8001/3001) — khong bi anh huong boi script nay.
 echo ========================================
 pause

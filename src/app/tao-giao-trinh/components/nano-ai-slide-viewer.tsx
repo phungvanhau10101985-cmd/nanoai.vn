@@ -48,7 +48,7 @@ import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, moveWindow
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { detectAppleSlideDevice, useAppleSlideShell } from '../lib/apple-slide-shell'
 import { TeacherWhiteboardCanvas, applyRemoteWhiteboard, emptyWhiteboardState } from './teacher-whiteboard-canvas'
-import { isWhiteboardWireType, type WhiteboardState } from '../lib/teacher-whiteboard'
+import { clientPointForWhiteboardPointer, isWhiteboardWireType, type WhiteboardState } from '../lib/teacher-whiteboard'
 
 /** Phần tử đang fullscreen (Fullscreen API, kể cả webkit). */
 function readFullscreenElement(): Element | null {
@@ -1509,6 +1509,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [presenterLeftTab, setPresenterLeftTab] = useState<'visual' | 'infographic'>('visual')
   const [studentCurriculumLeftPaneTab, setStudentCurriculumLeftPaneTab] = useState<'visual' | 'infographic' | 'whiteboard'>('visual')
   const [whiteboardState, setWhiteboardState] = useState<WhiteboardState>(() => emptyWhiteboardState())
+  const followedFigureSimRef = useRef<number | null>(null)
+  const whiteboardCameraRef = useRef(whiteboardState.camera)
+  whiteboardCameraRef.current = whiteboardState.camera
   const isStudentCurriculumSlide = !isTeacherView && !worksheetPresentation
   const [infographicFullscreenOpen, setInfographicFullscreenOpen] = useState(false)
   const shouldRenderInlineInfographicCanvas = !visualFullscreenOpen && !infographicFullscreenOpen
@@ -2967,6 +2970,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           closeInfographicFullscreenRef.current({ fromMessage: true })
         }
       }
+      else if (t === 'whiteboard-sim' && typeof e.data?.sim === 'number' && Number.isFinite(e.data.sim)) {
+        if (!isTeacherView && !worksheetPresentation) followedFigureSimRef.current = e.data.sim
+      }
       else if (isWhiteboardWireType(t)) {
         if (!isTeacherView && !worksheetPresentation) {
           setWhiteboardState((prev) => applyRemoteWhiteboard(prev, e.data as Record<string, unknown>))
@@ -3127,6 +3133,26 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const sinceLocalOpen = Date.now() - lastLocalInfographicOpenRef.current
         if (sinceLocalOpen < 800) return
         closeInfographicFullscreenRef.current({ fromMessage: true })
+      }
+      else if ((t === 'mouse-pos' || t === 'mouse-click') && e.data?.whiteboard === true) {
+        if (e.data.hide === true) {
+          virtualMouseRef.current?.hide()
+          return
+        }
+        const boardPoint = clientPointForWhiteboardPointer(
+          {
+            boardChrome: e.data.boardChrome === true,
+            relX: typeof e.data.relX === 'number' ? e.data.relX : undefined,
+            relY: typeof e.data.relY === 'number' ? e.data.relY : undefined,
+            worldX: typeof e.data.worldX === 'number' ? e.data.worldX : undefined,
+            worldY: typeof e.data.worldY === 'number' ? e.data.worldY : undefined,
+          },
+          whiteboardCameraRef.current,
+        )
+        if (!boardPoint) return
+        virtualMouseRef.current?.moveTo(boardPoint.x, boardPoint.y, t === 'mouse-click' ? { snap: true } : undefined)
+        if (t === 'mouse-click') virtualMouseRef.current?.pulseClick(boardPoint.x, boardPoint.y)
+        return
       }
       else if (t === 'mouse-pos') {
         const mouseScope: 'quiz' | 'slide-content' | 'visual' | 'global' =
@@ -3782,6 +3808,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       }
     }
     const handleMove = bindLatestPointerFrame((e: PointerEvent) => {
+      if ((e.target as HTMLElement | null)?.closest?.('[data-teacher-whiteboard]')) return
       postOne(e.clientX, e.clientY)
     })
     const onClick = (e: MouseEvent) => {
@@ -4929,9 +4956,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               })()
             ) : cell.imageUrl ? (
               curriculumInfographic && visualImageIsCurriculumInfographic(cell.imageUrl, curriculumInfographic) ? (
+                <div className="flex min-h-0 w-full min-w-0 flex-1 basis-0 flex-col">
                 <div
                   data-infographic-draw-pane-stage
-                  className="relative flex min-h-0 w-full min-w-0 flex-1 basis-0 touch-none items-center justify-center"
+                  className="relative flex min-h-0 w-full flex-1 touch-none items-end justify-center"
                   onPointerDown={(e) => startInfographicDrawing(e)}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in visual fullscreen */}
@@ -4941,7 +4969,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     alt=""
                     draggable={false}
                     onDragStart={(ev) => ev.preventDefault()}
-                    className="max-h-full max-w-full select-none object-contain"
+                    className="max-h-full max-w-full select-none object-contain object-bottom"
                     referrerPolicy="no-referrer"
                   />
                   <canvas
@@ -4949,8 +4977,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     className="pointer-events-none absolute"
                     aria-hidden
                   />
+                </div>
                   <div
-                    className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 rounded-lg border border-white/25 bg-black/70 p-1.5 text-white shadow-xl"
+                    className="z-30 flex w-full shrink-0 flex-wrap items-center justify-center gap-1.5 border-t border-white/20 bg-black/80 px-2 py-1.5 text-white"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -5125,11 +5154,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             }}
           >
             <div
+              className="flex min-h-0 w-full flex-1 flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div
               ref={infographicFullscreenStageRef}
               data-infographic-draw-pane-stage
-              className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center"
+              className="relative flex min-h-0 w-full flex-1 touch-none items-end justify-center"
               onPointerDown={(e) => startInfographicDrawing(e)}
-              onClick={(e) => e.stopPropagation()}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- remote curriculum infographic */}
               <img
@@ -5138,7 +5170,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 alt=""
                 draggable={false}
                 onDragStart={(ev) => ev.preventDefault()}
-                className="max-h-full max-w-full select-none object-contain"
+                className="max-h-full max-w-full select-none object-contain object-bottom"
                 referrerPolicy="no-referrer"
               />
               <canvas
@@ -5147,8 +5179,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 className="absolute pointer-events-none"
                 aria-hidden
               />
+            </div>
               <div
-                className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 rounded-lg border border-white/25 bg-black/70 p-1.5 text-white shadow-xl"
+                className="z-30 flex w-full shrink-0 flex-wrap items-center justify-center gap-1.5 border-t border-white/20 bg-black/80 px-2 py-1.5 text-white"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -5310,8 +5343,32 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             <div className="absolute inset-0 z-30">
               <TeacherWhiteboardCanvas
                 readOnly
+                simHost={false}
+                followedSimRef={followedFigureSimRef}
                 state={whiteboardState}
                 onStateChange={setWhiteboardState}
+                onLivePointer={(point) => {
+                  const host = window.opener
+                  if (!host) return
+                  try {
+                    if (!point) {
+                      host.postMessage({ type: 'mouse-pos', whiteboard: true, hide: true, fromStudent: true }, window.location.origin)
+                      return
+                    }
+                    host.postMessage({
+                      type: point.click ? 'mouse-click' : 'mouse-pos',
+                      whiteboard: true,
+                      fromStudent: true,
+                      boardChrome: point.boardChrome === true,
+                      relX: point.relX,
+                      relY: point.relY,
+                      worldX: point.worldX,
+                      worldY: point.worldY,
+                    }, window.location.origin)
+                  } catch {
+                    /* cửa giáo viên đã đóng */
+                  }
+                }}
                 tr={tr}
               />
             </div>
@@ -5498,13 +5555,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             )}
           >
             {showInfographicInMainPane ? (
-              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden rounded-lg border border-white/10 bg-black/25 p-2 text-left">
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden rounded-lg border border-white/10 bg-black/25 p-2 text-left">
                 {curriculumInfographic ? (
                   <>
                     <div
                       ref={infographicPaneStageRef}
                       data-infographic-draw-pane-stage
-                      className={cn('relative flex min-h-0 flex-1 items-center justify-center touch-none')}
+                      className={cn('relative flex min-h-0 flex-1 items-end justify-center touch-none')}
                       onPointerDown={(e) => startInfographicDrawing(e)}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element -- remote curriculum infographic */}
@@ -5515,7 +5572,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         alt=""
                         draggable={false}
                         onDragStart={(ev) => ev.preventDefault()}
-                        className="max-h-full min-h-0 w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                        className="max-h-full min-h-0 w-full select-none border border-white/10 bg-black/20 object-contain object-bottom"
                         referrerPolicy="no-referrer"
                       />
                       {shouldRenderInlineInfographicCanvas && (
@@ -5530,7 +5587,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     {((isTeacherView && presenterLeftTab === 'infographic') || (isStudentCurriculumSlide && studentCurriculumLeftPaneTab === 'infographic')) && (
                       <div
                         data-infographic-toolbar="student-pane"
-                        className="z-20 flex max-w-full flex-wrap items-center justify-center gap-1 self-center rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg"
+                        className="z-20 flex w-full flex-wrap items-center justify-center gap-1 border-t border-white/20 bg-black/80 px-2 py-1 text-white"
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -5641,9 +5698,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     })()
                   ) : visualCells[0]?.imageUrl ? (
                     visualImageIsCurriculumInfographic(visualCells[0].imageUrl, curriculumInfographic) ? (
+                      <div className="flex min-h-0 w-full flex-1 flex-col">
                       <div
                         data-infographic-draw-pane-stage
-                        className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center p-1"
+                        className="relative flex min-h-0 w-full flex-1 touch-none items-end justify-center"
                         onPointerDown={(e) => startInfographicDrawing(e)}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in Visual pane */}
@@ -5654,15 +5712,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           alt=""
                           draggable={false}
                           onDragStart={(ev) => ev.preventDefault()}
-                          className="max-h-full max-w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                          className="max-h-full max-w-full select-none border border-white/10 bg-black/20 object-contain object-bottom"
                           referrerPolicy="no-referrer"
                         />
                         {shouldRenderInlineInfographicCanvas && (
                           <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
                         )}
+                      </div>
                         <div
                           data-infographic-toolbar="student-pane"
-                          className="absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm"
+                          className="z-20 flex w-full shrink-0 flex-wrap items-center justify-center gap-1 border-t border-white/20 bg-black/80 px-2 py-1 text-white"
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -5737,9 +5796,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         })()
                       ) : cell.imageUrl ? (
                         visualImageIsCurriculumInfographic(cell.imageUrl, curriculumInfographic) ? (
+                          <div className="flex min-h-0 w-full flex-1 flex-col">
                           <div
                             data-infographic-draw-pane-stage
-                            className="relative flex min-h-0 w-full flex-1 touch-none items-center justify-center p-0.5"
+                            className="relative flex min-h-0 w-full flex-1 touch-none items-end justify-center"
                             onPointerDown={(e) => startInfographicDrawing(e)}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in Visual pane */}
@@ -5750,15 +5810,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                               alt=""
                               draggable={false}
                               onDragStart={(ev) => ev.preventDefault()}
-                              className="max-h-full max-w-full select-none rounded-md border border-white/10 bg-black/20 object-contain"
+                              className="max-h-full max-w-full select-none border border-white/10 bg-black/20 object-contain object-bottom"
                               referrerPolicy="no-referrer"
                             />
                             {shouldRenderInlineInfographicCanvas && (
                               <canvas data-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
                             )}
+                          </div>
                             <div
                               data-infographic-toolbar="student-pane"
-                              className="absolute bottom-2 left-1/2 z-20 flex w-[min(96%,680px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-xl border border-white/25 bg-black/70 px-2 py-1 text-white shadow-lg backdrop-blur-sm"
+                              className="z-20 flex w-full shrink-0 flex-wrap items-center justify-center gap-1 border-t border-white/20 bg-black/80 px-2 py-1 text-white"
                               onPointerDown={(e) => e.stopPropagation()}
                               onClick={(e) => e.stopPropagation()}
                             >

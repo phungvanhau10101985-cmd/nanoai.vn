@@ -5,6 +5,9 @@
 
 import { SUBJECTS, GRADE_LEVELS, TEXTBOOK_SETS, LESSON_TYPES } from './curriculum-subjects'
 
+/** Mỗi tiết luôn 45 phút. Form không còn cho chọn thời lượng. */
+export const CURRICULUM_LESSON_MINUTES = 45
+
 const VALID_SUBJECT_IDS = new Set(SUBJECTS.map((s) => s.id)) as ReadonlySet<string>
 const VALID_GRADE_IDS = new Set(GRADE_LEVELS.map((g) => g.id)) as ReadonlySet<string>
 const VALID_TEXTBOOK_IDS = new Set(TEXTBOOK_SETS.map((t) => t.id)) as ReadonlySet<string>
@@ -79,10 +82,7 @@ export function normalizeCurriculumInput(raw: RawCurriculumInput): NormalizedCur
   const lessonNumber = parseCurriculumLessonNumber(raw.lessonNumber)
 
   const numLessons = Math.min(10, Math.max(1, parseInt(String(raw.numLessons ?? 3), 10) || 3))
-  const lessonDurationMinutes = Math.min(
-    120,
-    Math.max(15, parseInt(String(raw.lessonDurationMinutes ?? 45), 10) || 45)
-  )
+  const lessonDurationMinutes = CURRICULUM_LESSON_MINUTES
 
   return {
     subjectId: subjectIdNorm,

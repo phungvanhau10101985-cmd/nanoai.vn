@@ -4,6 +4,7 @@ import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/l
 import {
   LOCAL_PHONE_NGROK_ORIGIN,
   phoneRemoteBrowserOrigin,
+  readLanDevOrigin,
   readRunningNgrokOrigin,
 } from '@/lib/curriculum/phone-remote-public-origin'
 import { redeemPhoneRemoteLogin } from '@/lib/curriculum/phone-remote-store'
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
       forwardedHost: req.headers.get('x-forwarded-host'),
       host: req.headers.get('host'),
       forwardedProto: req.headers.get('x-forwarded-proto'),
-    }) || (await readRunningNgrokOrigin()) || LOCAL_PHONE_NGROK_ORIGIN
+    }) || readLanDevOrigin(Number(url.port || 3000)) || (await readRunningNgrokOrigin()) || LOCAL_PHONE_NGROK_ORIGIN
   const next = new URL(`/giao-trinh/giao-vien?phone=${encodeURIComponent(redeemed.id)}`, browserOrigin)
   const res = NextResponse.redirect(next)
   const opts = getEmailSessionCookieOptions()

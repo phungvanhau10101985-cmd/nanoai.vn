@@ -3,6 +3,8 @@ import { describe, it } from 'node:test'
 import {
   isLocalDevHost,
   isPhoneRemoteShareMobile,
+  lanDevOriginFromIp,
+  pickLanIpv4,
   phoneRemoteBrowserOrigin,
   phoneRemoteFacebookShareUrl,
   phoneRemoteMessengerAppShareUrl,
@@ -49,6 +51,16 @@ describe('phone remote public origin', () => {
       'https://amia-canelike-exhibitively.ngrok-free.dev'
     )
     assert.equal(phoneRemoteBrowserOrigin({ host: 'localhost:3000', forwardedProto: 'http' }), null)
+    assert.equal(
+      phoneRemoteBrowserOrigin({ host: '192.168.1.20:3000', forwardedProto: 'http' }),
+      'http://192.168.1.20:3000'
+    )
+  })
+
+  it('picks the Wi-Fi address for the phone QR', () => {
+    assert.equal(pickLanIpv4(['127.0.0.1', '10.8.0.2', '192.168.1.8']), '192.168.1.8')
+    assert.equal(lanDevOriginFromIp('192.168.1.8', 3000), 'http://192.168.1.8:3000')
+    assert.equal(lanDevOriginFromIp('127.0.0.1', 3000), null)
   })
 
   it('builds Zalo and Messenger share links from the phone login url', () => {
@@ -106,6 +118,42 @@ describe('phone remote login key', () => {
     assert.equal((out[1]?.worksheetAnswerReveal as Record<string, number>)['0-0'], 4)
   })
 
+  it('keeps a figure stop after a run of sim ticks', () => {
+    const out = collapsePhoneCommands([
+      { type: 'whiteboard-sim', sim: 1 },
+      { type: 'whiteboard-sim', sim: 2 },
+      { type: 'whiteboard-upsert', object: { id: 'lab', params: { run: false } } },
+    ])
+    assert.equal(out.length, 2)
+    assert.equal(out[0]?.type, 'whiteboard-sim')
+    assert.equal(out[0]?.sim, 2)
+    assert.equal(out[1]?.type, 'whiteboard-upsert')
+  })
+
+  it('stores one sim tick and still delivers a later stop', async () => {
+    const userId = '22222222-2222-4222-8222-222222222222'
+    const created = await createPhoneRemoteSession({
+      userId,
+      email: 'teacher@example.com',
+      snapshot: { topic: 'Lab' },
+      index: 0,
+    })
+    assert.equal('error' in created, false)
+    if ('error' in created) return
+    await pushPhoneRemoteCommands({ id: created.id, userId, commands: [{ type: 'whiteboard-sim', sim: 1 }] })
+    await pushPhoneRemoteCommands({ id: created.id, userId, commands: [{ type: 'whiteboard-sim', sim: 4 }] })
+    await pushPhoneRemoteCommands({
+      id: created.id,
+      userId,
+      commands: [{ type: 'whiteboard-upsert', object: { id: 'lab', params: { run: false } } }],
+    })
+    const pulled = await pullPhoneRemoteCommands({ id: created.id, userId, after: 0 })
+    assert.equal(pulled?.length, 2)
+    assert.equal(pulled?.[0]?.msg.type, 'whiteboard-sim')
+    assert.equal(pulled?.[0]?.msg.sim, 4)
+    assert.equal(pulled?.[1]?.msg.type, 'whiteboard-upsert')
+  })
+
   it('stores a login and replays a slide command to the same account', async () => {
     const userId = '11111111-1111-4111-8111-111111111111'
     const created = await createPhoneRemoteSession({
@@ -158,5 +206,41 @@ describe('phone remote login key', () => {
       seenGen: stale?.indexGen,
     })
     assert.equal(moved?.index, 6)
+    const withBoard = await updatePhoneRemoteFromDesktop({
+      id: created.id,
+      userId,
+      whiteboard: { objects: [{ id: 'lab' }], camera: { x: 0, y: 0, scale: 1 }, grid: true },
+      seenRevision: moved?.revision,
+    })
+    assert.equal(withBoard?.whiteboardApplied, true)
+    const slideOnly = await updatePhoneRemoteFromDesktop({
+      id: created.id,
+      userId,
+      snapshot: { topic: 'Vector', slides: [{ title: 'Slide 2' }], whiteboard: { objects: [] } },
+      seenRevision: withBoard?.revision,
+    })
+    assert.equal(slideOnly?.whiteboardApplied, false)
+    const afterSlide = await readPhoneRemoteForUser(created.id, userId)
+    const keptBoard = afterSlide?.snapshot.whiteboard as { objects?: { id?: string }[] }
+    assert.equal(keptBoard?.objects?.[0]?.id, 'lab')
+    const paused = await updatePhoneRemoteFromDesktop({
+      id: created.id,
+      userId,
+      whiteboard: { objects: [{ id: 'lab', run: false }] },
+      seenWhiteboardGen: withBoard?.whiteboardGen,
+    })
+    assert.equal(paused?.whiteboardApplied, true)
+    const pausedRow = await readPhoneRemoteForUser(created.id, userId)
+    const pausedBoard = pausedRow?.snapshot.whiteboard as { objects?: { run?: boolean }[] }
+    assert.equal(pausedBoard?.objects?.[0]?.run, false)
+    const staleBoard = await updatePhoneRemoteFromDesktop({
+      id: created.id,
+      userId,
+      whiteboard: { objects: [{ id: 'gone' }] },
+      seenRevision: (afterSlide?.revision ?? 1) - 1,
+    })
+    assert.equal(staleBoard?.whiteboardApplied, false)
+    const still = await readPhoneRemoteForUser(created.id, userId)
+    assert.equal((still?.snapshot.whiteboard as { objects?: { id?: string }[] })?.objects?.[0]?.id, 'lab')
   })
 })
