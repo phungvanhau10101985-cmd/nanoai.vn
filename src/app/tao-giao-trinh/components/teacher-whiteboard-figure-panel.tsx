@@ -270,6 +270,7 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
           <button
             type="button"
             className="block w-full rounded px-3 py-1 text-left text-[13px] text-slate-800 hover:bg-sky-50 max-md:py-2"
+            onClick={() => setShowPlot(true)}
           >
             {tr('Vẽ đồ thị', 'Plot a graph', '绘制图像', 'グラフを描く', '그래프 그리기')}
           </button>
@@ -279,6 +280,7 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
             key={item.id}
             type="button"
             className="block w-full rounded px-3 py-1 text-left text-[13px] text-slate-800 hover:bg-sky-50 max-md:py-2"
+            onClick={() => onPick(item.id)}
           >
             {say(tr, item.label)}
           </button>

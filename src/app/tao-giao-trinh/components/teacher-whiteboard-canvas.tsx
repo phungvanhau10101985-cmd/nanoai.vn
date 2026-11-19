@@ -2446,18 +2446,21 @@ export function TeacherWhiteboardCanvas({
       {label}
     </button>
   )
-  const askHeadTools = (
-    <span className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1">
-      {askChip('select', tr('Chọn', 'Select', '选择', '選択', '선택'), <MousePointer2 className="h-3.5 w-3.5" aria-hidden />)}
-      {askChip('pen', tr('Vẽ', 'Draw', '画笔', '描画', '그리기'), <PenLine className="h-3.5 w-3.5" aria-hidden />)}
-      {askChip('eraser', tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기'), <Eraser className="h-3.5 w-3.5" aria-hidden />)}
-    </span>
-  )
-  const askFootTools = (
-    <span className="flex flex-wrap items-center gap-1">
-      {askChip('text', tr('Chữ', 'Text', '文字', '文字', '글자'), <Type className="h-3.5 w-3.5" aria-hidden />)}
-      {askChip('fill', tr('Tô', 'Fill', '填充', '塗り', '칠'), <PaintBucket className="h-3.5 w-3.5" aria-hidden />)}
-    </span>
+  const askDialogHead = (title: ReactNode) => (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 flex-1 text-sm font-semibold leading-snug">{title}</p>
+        <button type="button" className="shrink-0 rounded p-0.5 text-slate-500 hover:bg-slate-100" aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')} title={tr('Đóng và hủy nét', 'Close and discard the stroke', '关闭并取消笔迹', '閉じて線を消す', '닫고 획 지우기')} onClick={discardOpenAsk}><X className="h-4 w-4" aria-hidden /></button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1">
+        {askChip('select', tr('Chọn', 'Select', '选择', '選択', '선택'), <MousePointer2 className="h-3.5 w-3.5" aria-hidden />)}
+        {askChip('pen', tr('Vẽ', 'Draw', '画笔', '描画', '그리기'), <PenLine className="h-3.5 w-3.5" aria-hidden />)}
+        {askChip('eraser', tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기'), <Eraser className="h-3.5 w-3.5" aria-hidden />)}
+        <button type="button" className="inline-flex items-center gap-1 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] text-slate-700" title={tr('Hủy nét và chuyển Pan', 'Discard the stroke and pan', '取消笔迹并平移', '線を消してパン', '획을 지우고 이동')} onClick={panFromAsk}><Hand className="h-3.5 w-3.5" aria-hidden />{tr('Pan', 'Pan', '平移', 'パン', '이동')}</button>
+        {askChip('text', tr('Chữ', 'Text', '文字', '文字', '글자'), <Type className="h-3.5 w-3.5" aria-hidden />)}
+        {askChip('fill', tr('Tô', 'Fill', '填充', '塗り', '칠'), <PaintBucket className="h-3.5 w-3.5" aria-hidden />)}
+      </div>
+    </>
   )
   keysRef.current = {
     undo,
@@ -3883,16 +3886,7 @@ export function TeacherWhiteboardCanvas({
         {triangleAsk ? (
           <div className="pointer-events-none absolute inset-0 z-40">
             <div className={askCard} data-wb-entry onFocusCapture={holdEntryFocus} style={askFloatStyle(380)} role="dialog" onPointerDown={(e) => e.stopPropagation()}>
-                  <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold">
-                    {tr('Đây là tam giác gì?', 'What kind of triangle?', '这是哪种三角形？', 'どの三角形？', '어떤 삼각형?')}
-                  </p>
-                  {askHeadTools}
-                  <span className="flex shrink-0 items-center gap-1">
-                    <button type="button" className="inline-flex items-center gap-1 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] text-slate-700" title={tr('Hủy nét và chuyển Pan', 'Discard the stroke and pan', '取消笔迹并平移', '線を消してパン', '획을 지우고 이동')} onClick={panFromAsk}><Hand className="h-3.5 w-3.5" aria-hidden />{tr('Pan', 'Pan', '平移', 'パン', '이동')}</button>
-                    <button type="button" className="rounded p-0.5 text-slate-500 hover:bg-slate-100" aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')} title={tr('Đóng và hủy nét', 'Close and discard the stroke', '关闭并取消笔迹', '閉じて線を消す', '닫고 획 지우기')} onClick={discardOpenAsk}><X className="h-4 w-4" aria-hidden /></button>
-                  </span>
-                  </div>
+                  {askDialogHead(tr('Đây là tam giác gì?', 'What kind of triangle?', '这是哪种三角形？', 'どの三角形？', '어떤 삼각형?'))}
                   <div className="mt-2 flex flex-wrap gap-1">
                     {(['equilateral', 'isosceles', 'right', 'right-isosceles', 'scalene'] as TriangleKind[]).map((kind) => (
                       <button
@@ -3935,8 +3929,7 @@ export function TeacherWhiteboardCanvas({
                     })}
                   </div>
                   {triError ? <p className="mt-1 text-[11px] font-medium text-red-600">{triError}</p> : null}
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    {askFootTools}
+                  <div className="mt-2 flex items-center justify-end gap-2">
                     <div className="flex gap-2">
                     <button
                       type="button"
@@ -4018,16 +4011,7 @@ export function TeacherWhiteboardCanvas({
         {quadAsk ? (
           <div className="pointer-events-none absolute inset-0 z-40">
             <div className={askCard} data-wb-entry onFocusCapture={holdEntryFocus} style={askFloatStyle(440)} role="dialog" onPointerDown={(e) => e.stopPropagation()}>
-              <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-semibold">
-                {tr('Đây là tứ giác gì?', 'What kind of quadrilateral?', '这是哪种四边形？', 'どの四角形？', '어떤 사각형?')}
-              </p>
-              {askHeadTools}
-              <span className="flex shrink-0 items-center gap-1">
-                    <button type="button" className="inline-flex items-center gap-1 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] text-slate-700" title={tr('Hủy nét và chuyển Pan', 'Discard the stroke and pan', '取消笔迹并平移', '線を消してパン', '획을 지우고 이동')} onClick={panFromAsk}><Hand className="h-3.5 w-3.5" aria-hidden />{tr('Pan', 'Pan', '平移', 'パン', '이동')}</button>
-                    <button type="button" className="rounded p-0.5 text-slate-500 hover:bg-slate-100" aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')} title={tr('Đóng và hủy nét', 'Close and discard the stroke', '关闭并取消笔迹', '閉じて線を消す', '닫고 획 지우기')} onClick={discardOpenAsk}><X className="h-4 w-4" aria-hidden /></button>
-                  </span>
-              </div>
+              {askDialogHead(tr('Đây là tứ giác gì?', 'What kind of quadrilateral?', '这是哪种四边形？', 'どの四角形？', '어떤 사각형?'))}
               <div className="mt-2 flex flex-wrap gap-1">
                 {(['square', 'rectangle', 'parallelogram', 'rhombus', 'trapezoid'] as QuadKind[]).map((kind) => (
                   <button
@@ -4119,8 +4103,7 @@ export function TeacherWhiteboardCanvas({
                 </p>
               )}
               {quadError ? <p className="mt-1 text-[11px] font-medium text-red-600">{quadError}</p> : null}
-              <div className="mt-2 flex items-center justify-between gap-2">
-                {askFootTools}
+              <div className="mt-2 flex items-center justify-end gap-2">
                 <div className="flex gap-2">
                 <button
                   type="button"
@@ -4149,14 +4132,7 @@ export function TeacherWhiteboardCanvas({
                 confirmStraight()
               }}
             >
-              <div className="flex items-start justify-between gap-2">
-              <p className="shrink-0 text-sm font-semibold">{tr('Đường thẳng', 'Straight line', '直线', '直線', '직선')}</p>
-              {askHeadTools}
-              <span className="flex shrink-0 items-center gap-1">
-                    <button type="button" className="inline-flex items-center gap-1 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] text-slate-700" title={tr('Hủy nét và chuyển Pan', 'Discard the stroke and pan', '取消笔迹并平移', '線を消してパン', '획을 지우고 이동')} onClick={panFromAsk}><Hand className="h-3.5 w-3.5" aria-hidden />{tr('Pan', 'Pan', '平移', 'パン', '이동')}</button>
-                    <button type="button" className="rounded p-0.5 text-slate-500 hover:bg-slate-100" aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')} title={tr('Đóng và hủy nét', 'Close and discard the stroke', '关闭并取消笔迹', '閉じて線を消す', '닫고 획 지우기')} onClick={discardOpenAsk}><X className="h-4 w-4" aria-hidden /></button>
-                  </span>
-              </div>
+              {askDialogHead(tr('Đường thẳng', 'Straight line', '直线', '直線', '직선'))}
               <p className="mt-1 text-[12px] text-slate-600">
                 {tr(
                   `Dài ${straightLengthLabel} · góc hợp với phương ngang ${straightAngleLabel}°`,
@@ -4204,8 +4180,7 @@ export function TeacherWhiteboardCanvas({
                 </label>
               </div>
               {straightError ? <p className="mt-1 text-[11px] font-medium text-red-600">{straightError}</p> : null}
-              <div className="mt-2 flex items-center justify-between gap-2">
-                {askFootTools}
+              <div className="mt-2 flex items-center justify-end gap-2">
                 <div className="flex gap-2">
                 <button type="button" className="text-[11px] text-slate-500" onClick={keepStraightSketch}>
                   {tr('Giữ nét', 'Keep sketch', '保留草图', '下絵のまま', '스케치 유지')}
@@ -4230,14 +4205,7 @@ export function TeacherWhiteboardCanvas({
                 confirmCircle()
               }}
             >
-              <div className="flex items-start justify-between gap-2">
-              <p className="shrink-0 text-sm font-semibold">{tr('Vẽ hình tròn hay elip?', 'Draw a circle or an ellipse?', '画圆还是椭圆？', '円と楕円のどちら？', '원과 타원 중 무엇?')}</p>
-              {askHeadTools}
-              <span className="flex shrink-0 items-center gap-1">
-                    <button type="button" className="inline-flex items-center gap-1 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] text-slate-700" title={tr('Hủy nét và chuyển Pan', 'Discard the stroke and pan', '取消笔迹并平移', '線を消してパン', '획을 지우고 이동')} onClick={panFromAsk}><Hand className="h-3.5 w-3.5" aria-hidden />{tr('Pan', 'Pan', '平移', 'パン', '이동')}</button>
-                    <button type="button" className="rounded p-0.5 text-slate-500 hover:bg-slate-100" aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')} title={tr('Đóng và hủy nét', 'Close and discard the stroke', '关闭并取消笔迹', '閉じて線を消す', '닫고 획 지우기')} onClick={discardOpenAsk}><X className="h-4 w-4" aria-hidden /></button>
-                  </span>
-              </div>
+              {askDialogHead(tr('Vẽ hình tròn hay elip?', 'Draw a circle or an ellipse?', '画圆还是椭圆？', '円と楕円のどちら？', '원과 타원 중 무엇?'))}
               <div className="mt-2 flex flex-wrap gap-1">
                 {(['circle', 'ellipse'] as const).map((kind) => (
                   <button
@@ -4315,8 +4283,7 @@ export function TeacherWhiteboardCanvas({
                 </div>
               )}
               {circleError ? <p className="mt-1 text-[11px] font-medium text-red-600">{circleError}</p> : null}
-              <div className="mt-2 flex items-center justify-between gap-2">
-                {askFootTools}
+              <div className="mt-2 flex items-center justify-end gap-2">
                 <div className="flex gap-2">
                 <button type="button" className="text-[11px] text-slate-500" onClick={keepCircleSketch}>
                   {tr('Giữ nét', 'Keep sketch', '保留草图', '下絵のまま', '스케치 유지')}
@@ -4334,26 +4301,17 @@ export function TeacherWhiteboardCanvas({
         {lineAsk ? (
           <div className="pointer-events-none absolute inset-0 z-40">
             <div className={askCard} data-wb-entry onFocusCapture={holdEntryFocus} style={askFloatStyle(400)} role="dialog" onPointerDown={(e) => e.stopPropagation()}>
-                  <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold">
-                    {tr(
-                      `Đường từ đỉnh ${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)} là đường gì?`,
-                      `Which triangle line from ${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)}?`,
-                      `从顶点 ${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)} 画哪条线？`,
-                      `頂点 ${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)} からどの線？`,
-                      `${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)}에서 어떤 선?`,
-                    )}
-                  </p>
-                  {askHeadTools}
-                  <span className="flex shrink-0 items-center gap-1">
-                    <button type="button" className="inline-flex items-center gap-1 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] text-slate-700" title={tr('Hủy nét và chuyển Pan', 'Discard the stroke and pan', '取消笔迹并平移', '線を消してパン', '획을 지우고 이동')} onClick={panFromAsk}><Hand className="h-3.5 w-3.5" aria-hidden />{tr('Pan', 'Pan', '平移', 'パン', '이동')}</button>
-                    <button type="button" className="rounded p-0.5 text-slate-500 hover:bg-slate-100" aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')} title={tr('Đóng và hủy nét', 'Close and discard the stroke', '关闭并取消笔迹', '閉じて線を消す', '닫고 획 지우기')} onClick={discardOpenAsk}><X className="h-4 w-4" aria-hidden /></button>
-                  </span>
-                  </div>
+                  {askDialogHead(tr(
+                    `Đường từ đỉnh ${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)} là đường gì?`,
+                    `Which triangle line from ${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)}?`,
+                    `从顶点 ${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)} 画哪条线？`,
+                    `頂点 ${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)} からどの線？`,
+                    `${lineAsk.vertexNames[lineAsk.vertex] || triangleVertexName(lineAsk.vertex)}에서 어떤 선?`,
+                  ))}
                   <div className="mt-2 grid grid-cols-1 gap-1">
                     <button
                       type="button"
-                      className="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1.5 text-left text-[12px] font-medium hover:bg-slate-100"
+                      className="rounded-lg border border-slate-200 px-2 py-1.5 text-left text-[12px] hover:bg-slate-50"
                       onClick={keepArbitraryLine}
                     >
                       {tr('Đường bất kỳ', 'Arbitrary line', '任意直线', '任意の直線', '임의 직선')}
@@ -4369,7 +4327,6 @@ export function TeacherWhiteboardCanvas({
                       </button>
                     ))}
                   </div>
-                  <div className="mt-2 flex">{askFootTools}</div>
             </div>
           </div>
         ) : null}
