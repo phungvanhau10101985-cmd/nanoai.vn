@@ -3117,7 +3117,11 @@ export function TeacherWhiteboardCanvas({
   }, [color])
 
   const btn = (on: boolean) => cn('shrink-0 touch-manipulation rounded px-2 py-1 text-[11px] max-md:px-2.5 max-md:py-2 max-md:text-[12px]', on ? 'bg-white/30' : 'hover:bg-white/15')
-  const iconBtn = (on: boolean) => cn('inline-flex h-7 w-7 shrink-0 touch-manipulation items-center justify-center rounded max-md:h-11 max-md:w-11', on ? 'bg-white/30' : 'hover:bg-white/15')
+  const iconBtn = (on: boolean) => cn('inline-flex h-7 w-7 shrink-0 flex-col touch-manipulation items-center justify-center gap-0 rounded leading-none max-md:h-11 max-md:w-11', on ? 'bg-white/30' : 'hover:bg-white/15')
+  const cap = (label: string) => (
+    <span className="pointer-events-none block w-full truncate text-center text-[8px] font-medium leading-[11px] tracking-tight opacity-90 max-md:text-[9px] max-md:leading-3">{label}</span>
+  )
+  const glyph = (node: ReactNode) => <span className="flex h-4 shrink-0 items-center justify-center">{node}</span>
   const dock = 'mx-auto flex w-max max-w-full flex-nowrap items-center justify-center gap-0.5 overflow-visible rounded-xl border border-white/25 bg-black/70 px-1.5 py-1 text-white shadow-lg backdrop-blur-sm max-md:w-full max-md:justify-start max-md:gap-1 max-md:overflow-x-auto max-md:overscroll-x-contain max-md:px-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden'
   const cornerCls = 'absolute z-30 h-8 w-8 touch-none rounded-sm border-2 border-sky-400/90 bg-white/85 shadow'
   const placeMenu = (node: ReactNode) => {
@@ -3461,7 +3465,7 @@ export function TeacherWhiteboardCanvas({
                 </p>
               ) : null}
               <div className={dock}>
-                <button type="button" className={iconBtn(tool === 'pen' && !dimTool)} title={`${tr('Vẽ', 'Draw', '画笔', '描画', '그리기')} (B)`} aria-label={tr('Vẽ', 'Draw', '画笔', '描画', '그리기')} onClick={() => { clearDim(); disarmSolid(); setTool('pen') }}><PenLine className="h-4 w-4" aria-hidden /></button>
+                <button type="button" className={iconBtn(tool === 'pen' && !dimTool)} title={`${tr('Vẽ', 'Draw', '画笔', '描画', '그리기')} (B)`} aria-label={tr('Vẽ', 'Draw', '画笔', '描画', '그리기')} onClick={() => { clearDim(); disarmSolid(); setTool('pen') }}>{glyph(<PenLine className="h-4 w-4" aria-hidden />)}{cap(tr('Vẽ', 'Draw', '画笔', '描画', '그리기'))}</button>
                 <button
                   type="button"
                   className={iconBtn(false)}
@@ -3476,9 +3480,10 @@ export function TeacherWhiteboardCanvas({
                     else clearAll()
                   }}
                 >
-                  <Trash2 className="h-4 w-4" aria-hidden />
+                  {glyph(<Trash2 className="h-4 w-4" aria-hidden />)}
+                  {cap(tr('Xóa', 'Del', '删除', '削除', '삭제'))}
                 </button>
-                <button type="button" className={iconBtn(tool === 'select' && !dimTool && solidKind == null)} title={`${tr('Chọn', 'Select', '选择', '選択', '선택')} (V)`} aria-label={tr('Chọn', 'Select', '选择', '選択', '선택')} onClick={() => { clearDim(); disarmSolid(); setTool('select') }}><MousePointer2 className="h-4 w-4" aria-hidden /></button>
+                <button type="button" className={iconBtn(tool === 'select' && !dimTool && solidKind == null)} title={`${tr('Chọn', 'Select', '选择', '選択', '선택')} (V)`} aria-label={tr('Chọn', 'Select', '选择', '選択', '선택')} onClick={() => { clearDim(); disarmSolid(); setTool('select') }}>{glyph(<MousePointer2 className="h-4 w-4" aria-hidden />)}{cap(tr('Chọn', 'Select', '选择', '選択', '선택'))}</button>
                 <button
                   type="button"
                   className={iconBtn(tool === 'pan')}
@@ -3486,9 +3491,10 @@ export function TeacherWhiteboardCanvas({
                   title={`${tr('Pan', 'Pan', '平移', 'パン', '이동')} (H)`}
                   aria-label={tr('Pan', 'Pan', '平移', 'パン', '이동')}
                 >
-                  <Hand className="h-3.5 w-3.5" aria-hidden />
+                  {glyph(<Hand className="h-3.5 w-3.5" aria-hidden />)}
+                  {cap(tr('Kéo', 'Pan', '平移', 'パン', '이동'))}
                 </button>
-                <button type="button" className={iconBtn(tool === 'eraser')} title={`${tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')} (E)`} aria-label={tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')} onClick={() => { clearDim(); disarmSolid(); setTool('eraser') }}><Eraser className="h-4 w-4" aria-hidden /></button>
+                <button type="button" className={iconBtn(tool === 'eraser')} title={`${tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')} (E)`} aria-label={tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')} onClick={() => { clearDim(); disarmSolid(); setTool('eraser') }}>{glyph(<Eraser className="h-4 w-4" aria-hidden />)}{cap(tr('Tẩy', 'Erase', '橡皮', '消去', '지우기'))}</button>
                 <button
                   type="button"
                   className={iconBtn(tool === 'fill')}
@@ -3496,7 +3502,8 @@ export function TeacherWhiteboardCanvas({
                   aria-label={tr('Tô', 'Fill', '填充', '塗り', '칠')}
                   onClick={() => { clearDim(); disarmSolid(); setTool('fill') }}
                 >
-                  <PaintBucket className="h-4 w-4" aria-hidden />
+                  {glyph(<PaintBucket className="h-4 w-4" aria-hidden />)}
+                  {cap(tr('Tô', 'Fill', '填充', '塗り', '칠'))}
                 </button>
                 <button
                   type="button"
@@ -3505,7 +3512,8 @@ export function TeacherWhiteboardCanvas({
                   aria-label={tr('Chữ', 'Text', '文字', '文字', '글자')}
                   onClick={() => { clearDim(); disarmSolid(); setTool('text') }}
                 >
-                  <Type className="h-4 w-4" aria-hidden />
+                  {glyph(<Type className="h-4 w-4" aria-hidden />)}
+                  {cap(tr('Chữ', 'Text', '文字', '文字', '글자'))}
                 </button>
                 <div className="relative">
                   <button
@@ -3524,7 +3532,8 @@ export function TeacherWhiteboardCanvas({
                       setSolidMenu((open) => !open)
                     }}
                   >
-                    <Cuboid className="h-4 w-4" aria-hidden />
+                    {glyph(<Cuboid className="h-4 w-4" aria-hidden />)}
+                    {cap(tr('Khối', 'Solid', '立体', '立体', '입체'))}
                   </button>
                   {solidMenu ? placeMenu(
                     <div className={menuBox('absolute bottom-full left-1/2 z-40 mb-1 w-[300px] -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-1.5 text-slate-900 shadow-xl')}>
@@ -3563,7 +3572,7 @@ export function TeacherWhiteboardCanvas({
                     type="button"
                     className={iconBtn(figureMenu || figurePick != null)}
                     aria-expanded={figureMenu}
-                    aria-label={tr('Sơ đồ', 'Diagram', '图示', '図', '도식')}
+                    aria-label={tr('Chèn', 'Insert', '插入', '挿入', '삽입')}
                     title={tr('Chèn công thức, sơ đồ và ảnh', 'Insert a formula, diagram, or image', '插入公式、图或图片', '公式・図・画像を挿入', '공식, 도식, 이미지 넣기')}
                     onClick={() => {
                       setLineMenu(false)
@@ -3575,7 +3584,8 @@ export function TeacherWhiteboardCanvas({
                       setFigureMenu((open) => !open)
                     }}
                   >
-                    <Shapes className="h-4 w-4" aria-hidden />
+                    {glyph(<Shapes className="h-4 w-4" aria-hidden />)}
+                    {cap(tr('Chèn', 'Add', '插入', '挿入', '삽입'))}
                   </button>
                   {figureMenu && !figurePick ? placeMenu(<FigureMenu sheet={visibleFrame.narrow} tr={tr} onInsertImage={() => {
                     setFigureMenu(false)
@@ -3593,7 +3603,7 @@ export function TeacherWhiteboardCanvas({
                         addGraph()
                       }}
                     >
-                      <div className="grid grid-cols-2 items-stretch gap-2">
+                      <div className="grid grid-cols-2 items-stretch gap-2 max-md:grid-cols-1">
                         <div className="min-w-0 space-y-1.5">
                       <p className="text-[11px] font-semibold text-slate-500">
                         {tr('Vẽ đồ thị', 'Plot a graph', '绘制图像', 'グラフを描く', '그래프 그리기')}
@@ -3693,7 +3703,8 @@ export function TeacherWhiteboardCanvas({
                       setRulerMenu((open) => !open)
                     }}
                   >
-                    <Ruler className="h-4 w-4" aria-hidden />
+                    {glyph(<Ruler className="h-4 w-4" aria-hidden />)}
+                    {cap(tr('Thước', 'Ruler', '尺子', '定規', '자'))}
                   </button>
                   {rulerMenu ? placeMenu(
                     <div className={menuBox('absolute bottom-full left-1/2 z-40 mb-1 w-52 -translate-x-1/2 rounded-xl border border-slate-200 bg-white p-1 text-slate-900 shadow-xl')}>
@@ -3732,8 +3743,8 @@ export function TeacherWhiteboardCanvas({
                       setDimMenu((open) => !open)
                     }}
                   >
-                    <RulerDimensionLine className="h-4 w-4" aria-hidden />
-                    <ChevronDown className="h-3 w-3" aria-hidden />
+                    {glyph(<><RulerDimensionLine className="h-4 w-4" aria-hidden /><ChevronDown className="h-3 w-3" aria-hidden /></>)}
+                    {cap(tr('Đo', 'Dim', '标注', '寸法', '치수'))}
                   </button>
                   {dimMenu ? placeMenu(
                     <div className={menuBox('absolute bottom-full left-1/2 z-40 mb-1 max-h-[70vh] w-52 -translate-x-1/2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 text-slate-900 shadow-xl')}>
@@ -3758,7 +3769,7 @@ export function TeacherWhiteboardCanvas({
                 <div className="relative">
                   <button
                     type="button"
-                    className={cn(btn(lineMenu), 'inline-flex h-7 items-center px-1')}
+                    className={cn(btn(lineMenu), 'inline-flex h-7 flex-col items-center justify-center gap-0 px-1 py-0 leading-none max-md:h-11 max-md:py-0')}
                     title={tr('Kiểu nét', 'Linetype', '线型', '線種', '선 종류')}
                     aria-expanded={lineMenu}
                     aria-label={tr('Kiểu nét', 'Linetype', '线型', '線種', '선 종류')}
@@ -3770,7 +3781,8 @@ export function TeacherWhiteboardCanvas({
                       setLineMenu((open) => !open)
                     }}
                   >
-                    <LineTypeMark id={lineType} ink="#ffffff" weight={LINE_WEIGHTS.find((item) => item.size === brush)?.sw ?? 1.15} />
+                    {glyph(<LineTypeMark id={lineType} ink="#ffffff" weight={LINE_WEIGHTS.find((item) => item.size === brush)?.sw ?? 1.15} />)}
+                    {cap(tr('Nét', 'Line', '线型', '線', '선'))}
                   </button>
                   {lineMenu ? placeMenu(
                     <div className={menuBox('absolute bottom-full left-1/2 z-40 mb-1 max-h-[70vh] w-56 -translate-x-1/2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 text-slate-900 shadow-xl')}>
@@ -3827,7 +3839,8 @@ export function TeacherWhiteboardCanvas({
                       setColorMenu((open) => !open)
                     }}
                   >
-                    <span className="h-3.5 w-3.5 rounded-sm border border-white/80" style={{ backgroundColor: color }} />
+                    {glyph(<span className="h-3.5 w-3.5 rounded-sm border border-white/80" style={{ backgroundColor: color }} />)}
+                    {cap(tr('Màu', 'Color', '颜色', '色', '색'))}
                   </button>
                   {colorMenu ? placeMenu(
                     <div className={menuBox('absolute bottom-full left-1/2 z-40 mb-1 flex -translate-x-1/2 gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl max-md:flex-wrap')}>
@@ -3847,7 +3860,7 @@ export function TeacherWhiteboardCanvas({
                     </div>
                   ) : null}
                 </div>
-                <button type="button" className={iconBtn(false)} title={`${tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')} (Ctrl+Z)`} aria-label={tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')} onClick={undo}><Undo2 className="h-4 w-4" aria-hidden /></button>
+                <button type="button" className={iconBtn(false)} title={`${tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')} (Ctrl+Z)`} aria-label={tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')} onClick={undo}>{glyph(<Undo2 className="h-4 w-4" aria-hidden />)}{cap(tr('Lùi', 'Undo', '撤销', '戻す', '취소'))}</button>
                 <button
                   type="button"
                   className={iconBtn(false)}
@@ -3855,9 +3868,10 @@ export function TeacherWhiteboardCanvas({
                   title={`${tr('Thu nhỏ', 'Zoom out', '缩小', '縮小', '축소')} (-)`}
                   aria-label={tr('Thu nhỏ', 'Zoom out', '缩小', '縮小', '축소')}
                 >
-                  <ZoomOut className="h-3.5 w-3.5" aria-hidden />
+                  {glyph(<ZoomOut className="h-3.5 w-3.5" aria-hidden />)}
+                  {cap(tr('Thu', 'Out', '缩小', '縮小', '축소'))}
                 </button>
-                <button type="button" className={btn(Math.abs(state.camera.scale - 1) < 0.02)} title="0" onClick={() => flushCamera({ ...DEFAULT_WHITEBOARD_CAMERA })}>{zoomPct}</button>
+                <button type="button" className={cn(btn(Math.abs(state.camera.scale - 1) < 0.02), 'inline-flex h-7 w-auto flex-col items-center justify-center px-1.5 py-0 leading-none max-md:h-11 max-md:px-2 max-md:py-0')} title="0" onClick={() => flushCamera({ ...DEFAULT_WHITEBOARD_CAMERA })}>{glyph(<span className="text-[11px] font-medium leading-none tabular-nums max-md:text-[12px]">{zoomPct}</span>)}<span className="block h-[11px] max-md:h-3" aria-hidden /></button>
                 <button
                   type="button"
                   className={iconBtn(false)}
@@ -3865,7 +3879,8 @@ export function TeacherWhiteboardCanvas({
                   title={`${tr('Phóng to', 'Zoom in', '放大', '拡大', '확대')} (+)`}
                   aria-label={tr('Phóng to', 'Zoom in', '放大', '拡大', '확대')}
                 >
-                  <ZoomIn className="h-3.5 w-3.5" aria-hidden />
+                  {glyph(<ZoomIn className="h-3.5 w-3.5" aria-hidden />)}
+                  {cap(tr('Phóng', 'In', '放大', '拡大', '확대'))}
                 </button>
                 <button
                   type="button"
@@ -3874,10 +3889,11 @@ export function TeacherWhiteboardCanvas({
                   aria-label={tr('Lưới', 'Grid', '网格', '格子', '격자')}
                   onClick={toggleGrid}
                 >
-                  <Grid3x3 className="h-4 w-4" aria-hidden />
+                  {glyph(<Grid3x3 className="h-4 w-4" aria-hidden />)}
+                  {cap(tr('Lưới', 'Grid', '网格', '格子', '격자'))}
                 </button>
                 {selectedIds.length > 0 ? (
-                  <button type="button" className={iconBtn(false)} title="Delete" aria-label={tr('Xóa hình', 'Delete', '删除', '削除', '삭제')} onClick={removeSelected}><X className="h-4 w-4" aria-hidden /></button>
+                  <button type="button" className={iconBtn(false)} title="Delete" aria-label={tr('Xóa hình', 'Delete', '删除', '削除', '삭제')} onClick={removeSelected}>{glyph(<X className="h-4 w-4" aria-hidden />)}{cap(tr('Bỏ', 'Del', '删除', '削除', '삭제'))}</button>
                 ) : null}
               </div>
             </div>

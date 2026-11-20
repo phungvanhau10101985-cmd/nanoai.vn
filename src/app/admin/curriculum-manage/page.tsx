@@ -67,6 +67,14 @@ function gradeLabel(id: string): string {
   return gradeLevelLabel(id, 'vi') || '—'
 }
 
+/** Một dòng tóm tắt. Chữ đầy đủ nằm ở title để hàng không bị đẩy cao. */
+function brief(value: string | null | undefined, max: number): { shown: string; full: string } {
+  const full = String(value ?? '').replace(/\s+/g, ' ').trim()
+  if (!full) return { shown: '—', full: '' }
+  if (full.length <= max) return { shown: full, full }
+  return { shown: `${full.slice(0, max - 1)}…`, full }
+}
+
 export default async function AdminCurriculumManagePage({
   searchParams = {},
 }: {
@@ -258,7 +266,7 @@ export default async function AdminCurriculumManagePage({
                   '교육과정 표를 가로로 스크롤',
                 )}
               >
-              <Table containerClassName="w-max min-w-full overflow-visible" className="w-max min-w-full">
+              <Table containerClassName="w-max min-w-full overflow-visible" className="w-max min-w-full [&_td]:whitespace-nowrap [&_td]:align-middle [&_th]:whitespace-nowrap">
                 <TableHeader>
                   <TableRow>
                     <TableHead>{tr('Tạo lúc', 'Created', '创建时间', '作成', '만든 시각')}</TableHead>
@@ -299,44 +307,60 @@ export default async function AdminCurriculumManagePage({
                     result.rows.map((row) => {
                       const source = sourceLabel(row.createdSource, row.createdSourceDetail)
                       const detail = costDetail(row.cost)
+                      const topic = brief(row.topic, 42)
+                      const subject = brief(labelOf(SUBJECT_LABEL, row.subjectId), 18)
+                      const textbook = brief(labelOf(TEXTBOOK_LABEL, row.textbookSetId), 18)
+                      const isbn = brief(row.textbookIsbn, 18)
+                      const goals = brief(row.goals, 36)
+                      const creator = brief(row.fullName || row.email, 24)
+                      const creatorMail = brief(row.email && row.fullName ? row.email : '', 28)
+                      const sourceText = brief(source.extra ? `${source.title} · ${source.extra}` : source.title, 28)
+                      const costLine = brief(detail, 42)
                       return (
                         <TableRow key={row.id}>
-                          <TableCell className="whitespace-nowrap align-top tabular-nums">{formatDateTime(row.createdAt)}</TableCell>
-                          <TableCell className="min-w-[14rem] align-top">
-                            <div className="font-medium">{row.topic || '—'}</div>
-                            <div className="text-xs text-muted-foreground">{row.id}</div>
+                          <TableCell className="tabular-nums">{formatDateTime(row.createdAt)}</TableCell>
+                          <TableCell>
+                            <div className="max-w-[16rem] truncate font-medium" title={topic.full || undefined}>{topic.shown}</div>
+                            <div className="max-w-[16rem] truncate text-xs text-muted-foreground" title={row.id}>{row.id}</div>
                           </TableCell>
-                          <TableCell className="whitespace-nowrap align-top">{labelOf(SUBJECT_LABEL, row.subjectId)}</TableCell>
-                          <TableCell className="whitespace-nowrap align-top">{gradeLabel(row.gradeLevelId)}</TableCell>
-                          <TableCell className="min-w-[8rem] align-top">{labelOf(TEXTBOOK_LABEL, row.textbookSetId)}</TableCell>
-                          <TableCell className="align-top">{row.textbookVolume || '—'}</TableCell>
-                          <TableCell className="align-top tabular-nums">
+                          <TableCell>
+                            <div className="max-w-[8rem] truncate" title={subject.full || undefined}>{subject.shown}</div>
+                          </TableCell>
+                          <TableCell>{gradeLabel(row.gradeLevelId)}</TableCell>
+                          <TableCell>
+                            <div className="max-w-[8rem] truncate" title={textbook.full || undefined}>{textbook.shown}</div>
+                          </TableCell>
+                          <TableCell>{row.textbookVolume || '—'}</TableCell>
+                          <TableCell className="tabular-nums">
                             {row.lessonNumber == null ? '—' : row.lessonNumber}
                           </TableCell>
-                          <TableCell className="whitespace-nowrap align-top">{labelOf(LESSON_TYPE_LABEL, row.lessonTypeId)}</TableCell>
-                          <TableCell className="text-right align-top tabular-nums">{row.numLessons}</TableCell>
-                          <TableCell className="text-right align-top tabular-nums">{row.lessonDurationMinutes}</TableCell>
-                          <TableCell className="whitespace-nowrap align-top">{row.textbookIsbn || '—'}</TableCell>
-                          <TableCell className="max-w-[16rem] align-top text-sm text-muted-foreground">
-                            {row.goals || '—'}
+                          <TableCell>{labelOf(LESSON_TYPE_LABEL, row.lessonTypeId)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{row.numLessons}</TableCell>
+                          <TableCell className="text-right tabular-nums">{row.lessonDurationMinutes}</TableCell>
+                          <TableCell>
+                            <div className="max-w-[9rem] truncate" title={isbn.full || undefined}>{isbn.shown}</div>
                           </TableCell>
-                          <TableCell className="min-w-[12rem] align-top">
-                            <div className="font-medium">{row.fullName || row.email || '—'}</div>
-                            {row.email && row.fullName ? (
-                              <div className="text-xs text-muted-foreground">{row.email}</div>
+                          <TableCell>
+                            <div className="max-w-[14rem] truncate text-sm text-muted-foreground" title={goals.full || undefined}>{goals.shown}</div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="max-w-[12rem] truncate font-medium" title={creator.full || undefined}>{creator.shown}</div>
+                            {creatorMail.full ? (
+                              <div className="max-w-[12rem] truncate text-xs text-muted-foreground" title={creatorMail.full}>{creatorMail.shown}</div>
                             ) : null}
                           </TableCell>
-                          <TableCell className="min-w-[8rem] align-top">
-                            <div className={source.muted ? 'text-sm text-muted-foreground' : 'text-sm'}>{source.title}</div>
-                            {source.extra ? <div className="mt-0.5 text-xs text-muted-foreground">{source.extra}</div> : null}
+                          <TableCell>
+                            <div className={`max-w-[10rem] truncate text-sm ${source.muted ? 'text-muted-foreground' : ''}`} title={sourceText.full || undefined}>{sourceText.shown}</div>
                           </TableCell>
-                          <TableCell className="text-right align-top tabular-nums">{row.lessonSavedCount}</TableCell>
-                          <TableCell className="text-right align-top tabular-nums">{row.questionCount}</TableCell>
-                          <TableCell className="text-right align-top tabular-nums">{row.slideSetCount}</TableCell>
-                          <TableCell className="text-right align-top tabular-nums">{row.cost.calls}</TableCell>
-                          <TableCell className="min-w-[12rem] align-top text-right">
+                          <TableCell className="text-right tabular-nums">{row.lessonSavedCount}</TableCell>
+                          <TableCell className="text-right tabular-nums">{row.questionCount}</TableCell>
+                          <TableCell className="text-right tabular-nums">{row.slideSetCount}</TableCell>
+                          <TableCell className="text-right tabular-nums">{row.cost.calls}</TableCell>
+                          <TableCell className="text-right">
                             <div className="font-semibold tabular-nums text-amber-700">{formatVnd(row.cost.totalVnd)}</div>
-                            {detail ? <div className="mt-0.5 text-xs text-muted-foreground">{detail}</div> : null}
+                            {costLine.full ? (
+                              <div className="max-w-[14rem] truncate text-xs text-muted-foreground" title={costLine.full}>{costLine.shown}</div>
+                            ) : null}
                           </TableCell>
                         </TableRow>
                       )

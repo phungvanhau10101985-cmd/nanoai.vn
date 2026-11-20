@@ -10,6 +10,8 @@ export type FigureVariant = {
   id: string
   label: FigureLabel
   sample?: string
+  /** false: vẫn vẽ được nếu bảng đã có, nhưng không hiện trong menu vì trùng mục khác. */
+  menu?: boolean
 }
 
 export type FigureField = 'variant' | 'liquid' | 'level' | 'label' | 'equation'
@@ -49,7 +51,7 @@ export const FIGURE_SUBJECTS: { id: FigureSubject; label: FigureLabel; color: st
 const L = (vi: string, en: string, zh: string, ja: string, ko: string): FigureLabel => [vi, en, zh, ja, ko]
 
 export const FIGURE_ITEMS: FigureItem[] = [
-  { id: 'math-formula', subject: 'math', w: 460, h: 168, fields: ['variant'], label: L('Công thức toán', 'Math formulas', '数学公式', '数学の公式', '수학 공식'), variants: [
+  { id: 'math-formula', subject: 'math', w: 460, h: 168, fields: ['variant'], label: L('Công thức', 'Formulas', '公式', '公式', '공식'), variants: [
     { id: 'pythagoras', label: L('Pythagore', 'Pythagoras', '勾股定理', '三平方の定理', '피타고라스') },
     { id: 'square-sum', label: L('Bình phương tổng', 'Square of a sum', '和平方', '和の二乗', '합의 제곱') },
     { id: 'square-diff', label: L('Bình phương hiệu', 'Square of a difference', '差平方', '差の二乗', '차의 제곱') },
@@ -86,8 +88,8 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'line', label: L('Hàm bậc nhất', 'Linear', '一次函数', '一次関数', '일차함수') },
     { id: 'sine', label: L('Hàm sin', 'Sine', '正弦', 'サイン', '사인') },
   ] },
-  { id: 'math-trig', subject: 'math', w: 460, h: 400, fields: [], label: L('Đường tròn lượng giác', 'Unit circle', '单位圆', '単位円', '단위원') },
-  { id: 'spatial', subject: 'math', w: 420, h: 320, fields: ['variant', 'equation'], label: L('Đồ thị không gian', '3D graph', '空间图像', '空間グラフ', '공간 그래프'), variants: [
+  { id: 'math-trig', subject: 'math', w: 460, h: 400, fields: [], label: L('Lượng giác', 'Unit circle', '单位圆', '単位円', '단위원') },
+  { id: 'spatial', subject: 'math', w: 420, h: 320, fields: ['variant', 'equation'], label: L('Không gian', '3D graph', '空间图', '空間', '공간'), variants: [
     { id: 'paraboloid', label: L('z = x² + y²', 'z = x² + y²', 'z = x² + y²', 'z = x² + y²', 'z = x² + y²'), sample: 'x^2+y^2' },
     { id: 'saddle', label: L('z = x² − y²', 'z = x² − y²', 'z = x² − y²', 'z = x² − y²', 'z = x² − y²'), sample: 'x^2-y^2' },
     { id: 'ripple', label: L('z = sin x cos y', 'z = sin x cos y', 'z = sin x cos y', 'z = sin x cos y', 'z = sin x cos y'), sample: 'sin(x)*cos(y)' },
@@ -100,46 +102,46 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'series', label: L('Mắc nối tiếp', 'Series', '串联', '直列', '직렬') },
     { id: 'parallel', label: L('Mắc song song', 'Parallel', '并联', '並列', '병렬') },
   ] },
-  { id: 'force', subject: 'physics', w: 320, h: 220, fields: ['variant'], label: L('Sơ đồ lực', 'Force diagram', '力图', '力の図', '힘의 도식'), variants: [
+  { id: 'force', subject: 'physics', w: 320, h: 220, fields: ['variant'], label: L('Lực', 'Forces', '力', '力', '힘'), variants: [
     { id: 'block', label: L('Vật trên mặt ngang', 'Block on a surface', '水平面上的物体', '水平面上の物体', '수평면 위 물체') },
     { id: 'incline', label: L('Mặt nghiêng', 'Incline', '斜面', '斜面', '빗면') },
   ] },
-  { id: 'ray', subject: 'physics', w: 360, h: 220, fields: ['variant'], label: L('Sơ đồ tia sáng (thấu kính, khúc xạ)', 'Ray diagram (lens)', '光路图（透镜）', '光の進路（レンズ）', '광선 도식 (렌즈)'), variants: [
+  { id: 'ray', subject: 'physics', w: 360, h: 220, fields: ['variant'], label: L('Thấu kính', 'Lenses', '透镜', 'レンズ', '렌즈'), variants: [
     { id: 'convex', label: L('Thấu kính hội tụ', 'Convex lens', '凸透镜', '凸レンズ', '볼록 렌즈') },
     { id: 'concave', label: L('Thấu kính phân kỳ', 'Concave lens', '凹透镜', '凹レンズ', '오목 렌즈') },
   ] },
-  { id: 'phys-graph', subject: 'physics', w: 360, h: 220, fields: ['variant'], label: L('Đồ thị vật lí', 'Physics graph', '物理图像', '物理グラフ', '물리 그래프'), variants: [
+  { id: 'phys-graph', subject: 'physics', w: 360, h: 220, fields: ['variant'], label: L('Đồ thị v, x, a', 'v, x, a graphs', 'v、x、a 图', 'v・x・a', 'v, x, a'), variants: [
     { id: 'vt', label: L('v – t', 'v – t', 'v – t', 'v – t', 'v – t') },
     { id: 'xt', label: L('x – t', 'x – t', 'x – t', 'x – t', 'x – t') },
     { id: 'at', label: L('a – t', 'a – t', 'a – t', 'a – t', 'a – t') },
   ] },
-  { id: 'wave', subject: 'physics', w: 380, h: 210, fields: ['variant'], label: L('Dao động và sóng', 'Oscillation and waves', '振动与波', '振動と波', '진동과 파동'), variants: [
+  { id: 'wave', subject: 'physics', w: 380, h: 210, fields: ['variant'], label: L('Dao động, sóng', 'Waves', '振动与波', '振動・波', '진동·파동'), variants: [
     { id: 'wave', label: L('Sóng ngang', 'Transverse wave', '横波', '横波', '횡파') },
-    { id: 'spring', label: L('Con lắc lò xo', 'Spring oscillator', '弹簧振子', 'ばね振り子', '용수철 진자') },
-    { id: 'osc', label: L('Đồ thị li độ x – t', 'Displacement graph', '位移图像', '変位のグラフ', '변위 그래프') },
+    { id: 'spring', menu: false, label: L('Con lắc lò xo', 'Spring oscillator', '弹簧振子', 'ばね振り子', '용수철 진자') },
+    { id: 'osc', label: L('Li độ x – t', 'Displacement', '位移', '変位', '변위') },
   ] },
-  { id: 'field', subject: 'physics', w: 340, h: 220, fields: ['variant'], label: L('Đường sức điện, từ', 'Field lines', '电场、磁场线', '電気力線・磁力線', '전기장·자기장선'), variants: [
+  { id: 'field', subject: 'physics', w: 340, h: 220, fields: ['variant'], label: L('Điện, từ', 'Fields', '电场磁场', '電場・磁場', '전기·자기'), variants: [
     { id: 'electric', label: L('Điện tích', 'Charges', '电荷', '電荷', '전하') },
     { id: 'magnet', label: L('Nam châm', 'Magnet', '磁铁', '磁石', '자석') },
     { id: 'wire', label: L('Lực từ lên dòng điện', 'Force on a current', '电流所受磁力', '電流が受ける力', '전류가 받는 자기력') },
   ] },
-  { id: 'law-graph', subject: 'physics', w: 320, h: 210, fields: ['variant'], label: L('Đồ thị định luật: phóng xạ, chất khí, chuyển động', 'Law graphs', '定律图像', '法則のグラフ', '법칙 그래프'), variants: [
+  { id: 'law-graph', subject: 'physics', w: 320, h: 210, fields: ['variant'], label: L('Phóng xạ, khí', 'Decay and gas', '衰变与气体', '崩壊と気体', '붕괴·기체'), variants: [
     { id: 'decay', label: L('Phóng xạ', 'Radioactive decay', '放射性衰变', '放射性崩壊', '방사성 붕괴') },
     { id: 'gas', label: L('Chất khí p – V', 'Gas p – V', '气体 p – V', '気体 p – V', '기체 p – V') },
     { id: 'motion', label: L('Chuyển động s – t', 'Motion s – t', '运动 s – t', '運動 s – t', '운동 s – t') },
   ] },
-  { id: 'refraction', subject: 'physics', w: 320, h: 220, fields: ['variant'], label: L('Khúc xạ qua mặt phân cách, lăng kính', 'Refraction and prism', '折射与棱镜', '屈折とプリズム', '굴절과 프리즘'), variants: [
+  { id: 'refraction', subject: 'physics', w: 320, h: 220, fields: ['variant'], label: L('Khúc xạ', 'Refraction', '折射', '屈折', '굴절'), variants: [
     { id: 'interface', label: L('Mặt phân cách', 'Interface', '界面', '境界面', '경계면') },
     { id: 'prism', label: L('Lăng kính', 'Prism', '棱镜', 'プリズム', '프리즘') },
   ] },
-  { id: 'experiment-phys', subject: 'physics', w: 360, h: 240, fields: ['variant'], label: L('Thí nghiệm vật lí', 'Physics experiments', '物理实验', '物理実験', '물리 실험'), variants: [
+  { id: 'experiment-phys', subject: 'physics', w: 360, h: 240, fields: ['variant'], label: L('Thí nghiệm', 'Experiments', '实验', '実験', '실험'), variants: [
     { id: 'projectile', label: L('Ném xiên', 'Projectile', '斜抛', '斜方投射', '포물선 운동') },
     { id: 'pendulum', label: L('Con lắc đơn', 'Simple pendulum', '单摆', '単振り子', '단진자') },
     { id: 'spring', label: L('Con lắc lò xo', 'Spring oscillator', '弹簧振子', 'ばね振り子', '용수철 진자') },
     { id: 'fall', label: L('Rơi tự do', 'Free fall', '自由落体', '自由落下', '자유낙하') },
   ] },
-  { id: 'constants', subject: 'physics', w: 300, h: 180, fields: [], label: L('Hằng số vật lí', 'Physical constants', '物理常数', '物理定数', '물리 상수') },
-  { id: 'formula-physics', subject: 'physics', w: 460, h: 168, fields: ['variant'], label: L('Công thức Vật lí', 'Physics formulas', '物理公式', '物理の公式', '물리 공식'), variants: [
+  { id: 'constants', subject: 'physics', w: 300, h: 180, fields: [], label: L('Hằng số', 'Constants', '常数', '定数', '상수') },
+  { id: 'formula-physics', subject: 'physics', w: 460, h: 168, fields: ['variant'], label: L('Công thức', 'Formulas', '公式', '公式', '공식'), variants: [
     { id: 'velocity', label: L('Vận tốc', 'Velocity', '速度', '速度', '속도') },
     { id: 'accel', label: L('Gia tốc', 'Acceleration', '加速度', '加速度', '가속도') },
     { id: 'motion', label: L('Chuyển động biến đổi đều', 'Uniform acceleration', '匀变速运动', '等加速度運動', '등가속도 운동') },
@@ -169,7 +171,7 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'energy', label: L('E = mc²', 'E = mc²', 'E = mc²', 'E = mc²', 'E = mc²') },
     { id: 'efficiency', label: L('Hiệu suất', 'Efficiency', '效率', '効率', '효율') },
   ] },
-  { id: 'equation', subject: 'chemistry', w: 360, h: 140, fields: ['variant', 'equation'], label: L('Phương trình hoá học (tự cân bằng)', 'Chemical equation (auto-balance)', '化学方程式（自动配平）', '化学反応式（自動で係数）', '화학 반응식 (자동 계수)'), variants: [
+  { id: 'equation', subject: 'chemistry', w: 360, h: 140, fields: ['variant', 'equation'], label: L('Phương trình', 'Equation', '方程式', '反応式', '반응식'), variants: [
     { id: 'water', label: L('Tạo nước', 'Water', '生成水', '水の生成', '물 생성'), sample: 'H2 + O2 -> H2O' },
     { id: 'burn', label: L('Đốt metan', 'Methane', '甲烷燃烧', 'メタンの燃焼', '메테인 연소'), sample: 'CH4 + O2 -> CO2 + H2O' },
     { id: 'rust', label: L('Sắt và oxi', 'Iron and oxygen', '铁与氧气', '鉄と酸素', '철과 산소'), sample: 'Fe + O2 -> Fe2O3' },
@@ -181,13 +183,13 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'alumina', label: L('Nhôm và oxi', 'Aluminium and oxygen', '铝与氧气', 'アルミニウムと酸素', '알루미늄과 산소'), sample: 'Al + O2 -> Al2O3' },
     { id: 'displace', label: L('Thế đồng', 'Copper displacement', '置换铜', '銅の置換', '구리 치환'), sample: 'CuSO4 + Zn -> ZnSO4 + Cu' },
   ] },
-  { id: 'structure', subject: 'chemistry', w: 280, h: 180, fields: ['variant'], label: L('Công thức cấu tạo', 'Structural formula', '结构式', '構造式', '구조식'), variants: [
+  { id: 'structure', subject: 'chemistry', w: 280, h: 180, fields: ['variant'], label: L('Cấu tạo', 'Structure', '结构式', '構造式', '구조식'), variants: [
     { id: 'water', label: L('Nước', 'Water', '水', '水', '물') },
     { id: 'methane', label: L('Metan', 'Methane', '甲烷', 'メタン', '메테인') },
     { id: 'co2', label: L('Cacbon đioxit', 'Carbon dioxide', '二氧化碳', '二酸化炭素', '이산화탄소') },
     { id: 'ethanol', label: L('Etanol', 'Ethanol', '乙醇', 'エタノール', '에탄올') },
   ] },
-  { id: 'glass', subject: 'chemistry', w: 260, h: 280, fields: ['variant', 'liquid', 'level', 'label'], label: L('Dụng cụ thí nghiệm', 'Lab glassware', '实验器具', '実験器具', '실험 기구'), variants: [
+  { id: 'glass', subject: 'chemistry', w: 260, h: 280, fields: ['variant', 'liquid', 'level', 'label'], label: L('Dụng cụ', 'Glassware', '器具', '器具', '기구'), variants: [
     { id: 'tube', label: L('Ống nghiệm', 'Test tube', '试管', '試験管', '시험관') },
     { id: 'beaker', label: L('Cốc thuỷ tinh', 'Beaker', '烧杯', 'ビーカー', '비커') },
     { id: 'erlenmeyer', label: L('Bình tam giác', 'Erlenmeyer flask', '锥形瓶', '三角フラスコ', '삼각 플라스크') },
@@ -199,24 +201,24 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'burette', label: L('Buret trên giá', 'Burette on a stand', '铁架上的滴定管', 'スタンドのビュレット', '스탠드 위 뷰렛') },
     { id: 'tube-stand', label: L('Ống nghiệm kẹp trên giá', 'Test tube on a stand', '铁架上的试管', 'スタンドの試験管', '스탠드에 집게로 고정한 시험관') },
   ] },
-  { id: 'chem-scheme', subject: 'chemistry', w: 320, h: 210, fields: ['variant'], label: L('Sơ đồ hoá học (năng lượng, pH, dãy hoạt động)', 'Chemistry schemes', '化学图（能量、pH、活动性）', '化学図（エネルギー、pH、イオン化列）', '화학 도식 (에너지, pH, 활동도)'), variants: [
+  { id: 'chem-scheme', subject: 'chemistry', w: 320, h: 210, fields: ['variant'], label: L('Năng lượng, pH', 'Energy and pH', '能量与 pH', 'エネルギーと pH', '에너지·pH'), variants: [
     { id: 'energy', label: L('Năng lượng phản ứng', 'Energy profile', '能量图', 'エネルギー図', '에너지 도표') },
     { id: 'ph', label: L('Thang pH', 'pH scale', 'pH 标度', 'pH の尺度', 'pH 척도') },
     { id: 'activity', label: L('Dãy hoạt động', 'Activity series', '活动性顺序', 'イオン化列', '활동도 서열') },
   ] },
-  { id: 'atom', subject: 'chemistry', w: 300, h: 210, fields: ['variant'], label: L('Nguyên tử và liên kết', 'Atom and bonds', '原子与化学键', '原子と結合', '원자와 결합'), variants: [
+  { id: 'atom', subject: 'chemistry', w: 300, h: 210, fields: ['variant'], label: L('Nguyên tử', 'Atom', '原子', '原子', '원자'), variants: [
     { id: 'atom', label: L('Nguyên tử', 'Atom', '原子', '原子', '원자') },
     { id: 'covalent', label: L('Liên kết cộng hoá trị', 'Covalent bond', '共价键', '共有結合', '공유 결합') },
     { id: 'ionic', label: L('Liên kết ion', 'Ionic bond', '离子键', 'イオン結合', '이온 결합') },
   ] },
   { id: 'periodic', subject: 'chemistry', w: 1180, h: 760, fields: ['label'], label: L('Bảng tuần hoàn', 'Periodic table', '元素周期表', '周期表', '주기율표') },
-  { id: 'titration', subject: 'chemistry', w: 240, h: 280, fields: ['liquid', 'level', 'label'], label: L('Thí nghiệm ảo: chuẩn độ axit – bazơ', 'Acid–base titration', '酸碱滴定', '酸塩基滴定', '산염기 적정') },
-  { id: 'chem-experiment', subject: 'chemistry', w: 380, h: 260, fields: ['variant'], label: L('Thí nghiệm hoá học', 'Chemistry experiments', '化学实验', '化学実験', '화학 실험'), variants: [
+  { id: 'titration', subject: 'chemistry', w: 240, h: 280, fields: ['liquid', 'level', 'label'], label: L('Chuẩn độ', 'Titration', '滴定', '滴定', '적정') },
+  { id: 'chem-experiment', subject: 'chemistry', w: 380, h: 260, fields: ['variant'], label: L('Thí nghiệm', 'Experiments', '实验', '実験', '실험'), variants: [
     { id: 'electro', label: L('Điện phân nước', 'Electrolysis of water', '电解水', '水の電気分解', '물의 전기 분해') },
     { id: 'collect', label: L('Thu khí', 'Gas collection', '收集气体', '気体の捕集', '기체 포집') },
     { id: 'heat', label: L('Đun nóng', 'Heating', '加热', '加熱', '가열') },
   ] },
-  { id: 'formula-chem', subject: 'chemistry', w: 480, h: 168, fields: ['variant'], label: L('Công thức Hoá học', 'Chemistry formulas', '化学公式', '化学の公式', '화학 공식'), variants: [
+  { id: 'formula-chem', subject: 'chemistry', w: 480, h: 168, fields: ['variant'], label: L('Công thức', 'Formulas', '公式', '公式', '공식'), variants: [
     { id: 'mole', label: L('Lượng chất', 'Amount of substance', '物质的量', '物質量', '물질량') },
     { id: 'count', label: L('Số hạt', 'Particle count', '粒子数', '粒子数', '입자 수') },
     { id: 'volume', label: L('Thể tích khí', 'Gas volume', '气体体积', '気体の体積', '기체 부피') },
@@ -238,34 +240,34 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'gas', label: L('Phương trình trạng thái', 'Ideal gas', '理想气体', '理想気体', '이상 기체') },
     { id: 'electro', label: L('Điện phân', 'Electrolysis', '电解', '電気分解', '전기 분해') },
     { id: 'alpha', label: L('Độ điện li', 'Degree of dissociation', '电离度', '電離度', '이온화도') },
-    { id: 'titrate', label: L('Chuẩn độ', 'Titration', '滴定', '滴定', '적정') },
+    { id: 'titrate', menu: false, label: L('Chuẩn độ', 'Titration', '滴定', '滴定', '적정') },
   ] },
-  { id: 'bio-graph', subject: 'biology', w: 320, h: 210, fields: ['variant'], label: L('Đồ thị, biểu đồ sinh học', 'Biology graph', '生物图表', '生物のグラフ', '생물 그래프'), variants: [
+  { id: 'bio-graph', subject: 'biology', w: 320, h: 210, fields: ['variant'], label: L('Đồ thị', 'Graphs', '图表', 'グラフ', '그래프'), variants: [
     { id: 'logistic', label: L('Tăng trưởng logistic', 'Logistic growth', '逻辑增长', 'ロジスティック成長', '로지스틱 성장') },
     { id: 'exponential', label: L('Tăng trưởng mũ', 'Exponential growth', '指数增长', '指数成長', '지수 성장') },
   ] },
-  { id: 'ecology', subject: 'biology', w: 320, h: 230, fields: ['variant'], label: L('Lưới thức ăn, tháp sinh thái', 'Food web and pyramid', '食物网、生态金字塔', '食物網・生態ピラミッド', '먹이 그물·생태 피라미드'), variants: [
+  { id: 'ecology', subject: 'biology', w: 320, h: 230, fields: ['variant'], label: L('Sinh thái', 'Ecology', '生态', '生態', '생태'), variants: [
     { id: 'web', label: L('Lưới thức ăn', 'Food web', '食物网', '食物網', '먹이 그물') },
     { id: 'pyramid', label: L('Tháp sinh thái', 'Ecological pyramid', '生态金字塔', '生態ピラミッド', '생태 피라미드') },
   ] },
-  { id: 'genetic', subject: 'biology', w: 340, h: 180, fields: ['variant'], label: L('ADN, ARN, dịch mã', 'DNA, RNA, translation', 'DNA、RNA、翻译', 'DNA・RNA・翻訳', 'DNA, RNA, 번역'), variants: [
+  { id: 'genetic', subject: 'biology', w: 340, h: 180, fields: ['variant'], label: L('ADN, ARN', 'DNA and RNA', 'DNA、RNA', 'DNA・RNA', 'DNA, RNA'), variants: [
     { id: 'dna', label: L('ADN', 'DNA', 'DNA', 'DNA', 'DNA') },
     { id: 'codon', label: L('Dịch mã', 'Translation', '翻译', '翻訳', '번역') },
   ] },
-  { id: 'division', subject: 'biology', w: 380, h: 180, fields: ['variant'], label: L('Nguyên phân, giảm phân', 'Mitosis and meiosis', '有丝分裂、减数分裂', '体細胞分裂・減数分裂', '체세포 분열·감수 분열'), variants: [
+  { id: 'division', subject: 'biology', w: 380, h: 180, fields: ['variant'], label: L('Phân bào', 'Cell division', '细胞分裂', '細胞分裂', '세포 분열'), variants: [
     { id: 'mitosis', label: L('Nguyên phân', 'Mitosis', '有丝分裂', '体細胞分裂', '체세포 분열') },
     { id: 'meiosis', label: L('Giảm phân', 'Meiosis', '减数分裂', '減数分裂', '감수 분열') },
   ] },
-  { id: 'cell', subject: 'biology', w: 320, h: 230, fields: ['variant'], label: L('Hình vẽ sinh học (tế bào, bào quan)', 'Cell and organelles', '细胞与细胞器', '細胞と細胞小器官', '세포와 세포 소기관'), variants: [
+  { id: 'cell', subject: 'biology', w: 320, h: 230, fields: ['variant'], label: L('Tế bào', 'Cell', '细胞', '細胞', '세포'), variants: [
     { id: 'animal', label: L('Tế bào động vật', 'Animal cell', '动物细胞', '動物細胞', '동물 세포') },
     { id: 'plant', label: L('Tế bào thực vật', 'Plant cell', '植物细胞', '植物細胞', '식물 세포') },
   ] },
-  { id: 'pedigree', subject: 'biology', w: 280, h: 210, fields: [], label: L('Sơ đồ phả hệ', 'Pedigree', '系谱图', '家系図', '가계도') },
-  { id: 'punnett', subject: 'biology', w: 240, h: 220, fields: ['variant'], label: L('Sơ đồ lai (bảng Punnett)', 'Punnett square', '庞氏表', 'パネット方形', '퍼넷 사각형'), variants: [
+  { id: 'pedigree', subject: 'biology', w: 280, h: 210, fields: [], label: L('Phả hệ', 'Pedigree', '系谱', '家系', '가계도') },
+  { id: 'punnett', subject: 'biology', w: 240, h: 220, fields: ['variant'], label: L('Punnett', 'Punnett', '庞氏表', 'パネット', '퍼넷'), variants: [
     { id: 'mono', label: L('Một cặp alen Aa × Aa', 'Aa × Aa', 'Aa × Aa', 'Aa × Aa', 'Aa × Aa') },
     { id: 'test', label: L('Lai phân tích Aa × aa', 'Aa × aa', 'Aa × aa', 'Aa × aa', 'Aa × aa') },
   ] },
-  { id: 'formula-bio', subject: 'biology', w: 320, h: 140, fields: ['variant'], label: L('Công thức Sinh học', 'Biology formulas', '生物公式', '生物の公式', '생물 공식'), variants: [
+  { id: 'formula-bio', subject: 'biology', w: 320, h: 140, fields: ['variant'], label: L('Công thức', 'Formulas', '公式', '公式', '공식'), variants: [
     { id: 'hardy', label: L('Hardy–Weinberg', 'Hardy–Weinberg', '哈迪-温伯格', 'ハーディ・ワインベルク', '하디-바인베르크') },
     { id: 'growth', label: L('Tăng trưởng', 'Growth', '增长', '成長', '성장') },
   ] },
@@ -278,7 +280,7 @@ export function figureItem(id: string): FigureItem | null {
 }
 
 export function freshFigureParams(item: FigureItem): FigureParams {
-  const variant = item.variants?.[0]
+  const variant = item.variants?.find((entry) => entry.menu !== false) ?? item.variants?.[0]
   return {
     variant: variant?.id ?? '',
     liquid: '#7dd3fc',

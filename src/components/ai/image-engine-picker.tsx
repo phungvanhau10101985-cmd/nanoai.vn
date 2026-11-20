@@ -68,6 +68,7 @@ export function ImageEnginePicker({
   engines = ['gemini', 'gpt', 'flux'],
   qualityPurpose,
   triggerClassName,
+  showCredit = true,
 }: {
   locale: string
   engine: ImageEngine
@@ -87,6 +88,8 @@ export function ImageEnginePicker({
   qualityPurpose?: Partial<Record<GptImageQuality | 'gemini2k' | 'gemini4k' | 'flux15k' | 'flux2k' | 'flux4k', string>>
   /** Lớp thêm cho nút đang chọn — thanh Hub dùng bản thấp hơn. */
   triggerClassName?: string
+  /** Chat mới / chưa tới bước tạo ảnh thì ẩn số credit trên nút và trong menu. */
+  showCredit?: boolean
 }) {
   const webLocale: WebLocale = locale === 'en' || locale === 'zh' || locale === 'ja' || locale === 'ko' ? locale : 'vi'
   const t = getDictionary(webLocale).imageGenerationClient
@@ -178,7 +181,8 @@ export function ImageEnginePicker({
         : shownGeminiQuality === '4K' && geminiCost4k != null
           ? geminiCost4k
           : geminiCost2k)
-  const triggerLabel = `${selectedName} (${formatCredit(selectedCredit, webLocale)})`
+  const creditLabel = formatCredit(selectedCredit, webLocale)
+  const triggerLabel = showCredit ? `${selectedName} (${creditLabel})` : selectedName
   const hasPurpose = tiers.some((tier) => Boolean(tier.purpose))
 
   function chooseTier(tier: PickerTier) {
@@ -227,7 +231,7 @@ export function ImageEnginePicker({
               <QualityChoice
                 key={tier.key}
                 active={selected?.key === tier.key}
-                label={`${tier.name} (${formatCredit(tier.credit, webLocale)})`}
+                label={showCredit ? `${tier.name} (${formatCredit(tier.credit, webLocale)})` : tier.name}
                 purpose={tier.purpose}
                 onClick={() => chooseTier(tier)}
               />

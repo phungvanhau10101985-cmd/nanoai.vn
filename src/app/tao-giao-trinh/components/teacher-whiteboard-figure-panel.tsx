@@ -21,6 +21,72 @@ function say(tr: Tr, label: FigureLabel) {
   return tr(label[0], label[1], label[2], label[3], label[4])
 }
 
+const MENU_GROUPS: Record<FigureSubject, { title: FigureLabel; ids: string[] }[]> = {
+  math: [
+    { title: ['Đồ thị', 'Graphs', '图像', 'グラフ', '그래프'], ids: ['spatial', 'math-trig'] },
+    { title: ['Công thức', 'Formulas', '公式', '公式', '공식'], ids: ['math-formula'] },
+  ],
+  physics: [
+    { title: ['Hình', 'Figures', '图', '図', '그림'], ids: ['force', 'circuit', 'ray', 'refraction', 'field'] },
+    { title: ['Đồ thị', 'Graphs', '图像', 'グラフ', '그래프'], ids: ['phys-graph', 'wave', 'law-graph'] },
+    { title: ['Bài', 'Lesson', '课', '授業', '수업'], ids: ['experiment-phys', 'formula-physics', 'constants'] },
+  ],
+  chemistry: [
+    { title: ['Chất', 'Matter', '物质', '物質', '물질'], ids: ['equation', 'structure', 'atom'] },
+    { title: ['Thí nghiệm', 'Lab', '实验', '実験', '실험'], ids: ['glass', 'titration', 'chem-experiment'] },
+    { title: ['Tra cứu', 'Reference', '查阅', '資料', '자료'], ids: ['chem-scheme', 'periodic', 'formula-chem'] },
+  ],
+  biology: [
+    { title: ['Tế bào', 'Cells', '细胞', '細胞', '세포'], ids: ['cell', 'division', 'genetic'] },
+    { title: ['Di truyền', 'Genetics', '遗传', '遺伝', '유전'], ids: ['pedigree', 'punnett'] },
+    { title: ['Quần thể', 'Populations', '种群', '個体群', '개체군'], ids: ['ecology', 'bio-graph', 'formula-bio'] },
+  ],
+}
+
+const FORMULA_GROUPS: Record<string, { title: FigureLabel; ids: string[] }[]> = {
+  'math-formula': [
+    { title: ['Đại số', 'Algebra', '代数', '代数', '대수'], ids: ['pythagoras', 'square-sum', 'square-diff', 'diff-squares', 'cube-sum', 'linear', 'quadratic', 'vieta'] },
+    { title: ['Lượng giác', 'Trigonometry', '三角', '三角', '삼각'], ids: ['identity', 'sin-sum', 'tan'] },
+    { title: ['Đo', 'Measure', '度量', '計量', '측정'], ids: ['area', 'tri-area', 'tri-sin', 'trapezoid', 'rect', 'sphere', 'cylinder', 'cone', 'distance', 'slope', 'circle-eq'] },
+    { title: ['Dãy, giải tích', 'Sequences, calculus', '数列与微积分', '数列・解析', '수열·미적분'], ids: ['arith', 'geom', 'sum-arith', 'log', 'deriv', 'integral'] },
+    { title: ['Xác suất', 'Probability', '概率', '確率', '확률'], ids: ['choose', 'prob'] },
+  ],
+  'formula-physics': [
+    { title: ['Chuyển động', 'Motion', '运动', '運動', '운동'], ids: ['velocity', 'accel', 'motion'] },
+    { title: ['Lực, năng lượng', 'Force and energy', '力与能量', '力・エネルギー', '힘·에너지'], ids: ['newton', 'weight', 'momentum', 'work', 'power', 'kinetic', 'potential', 'friction'] },
+    { title: ['Điện', 'Electricity', '电', '電気', '전기'], ids: ['ohm', 'series', 'parallel', 'current', 'joule', 'coulomb'] },
+    { title: ['Nhiệt, sóng, quang', 'Heat, waves, light', '热、波、光', '熱・波・光', '열·파동·빛'], ids: ['heat', 'wave', 'frequency', 'period', 'lens', 'snell', 'density', 'pressure', 'gas', 'energy', 'efficiency'] },
+  ],
+  'formula-chem': [
+    { title: ['Lượng chất', 'Amount', '物质的量', '物質量', '물질량'], ids: ['mole', 'count', 'volume', 'conc', 'percent', 'convert', 'dilute', 'density', 'yield', 'element'] },
+    { title: ['Axit, bazơ', 'Acids and bases', '酸碱', '酸と塩基', '산·염기'], ids: ['ph', 'poh', 'ph-sum', 'kw', 'ka', 'buffer', 'alpha'] },
+    { title: ['Phản ứng', 'Reactions', '反应', '反応', '반응'], ids: ['rate', 'kc', 'gas', 'electro', 'titrate'] },
+  ],
+}
+
+function visibleVariants(item: FigureItem, current: string) {
+  return (item.variants ?? []).filter((entry) => entry.menu !== false || entry.id === current)
+}
+
+function variantGroups(item: FigureItem, current: string) {
+  const choices = visibleVariants(item, current)
+  const plan = FORMULA_GROUPS[item.id]
+  if (!plan) return [{ title: null as FigureLabel | null, variants: choices }]
+  const used = new Set<string>()
+  const groups = plan.flatMap((group) => {
+    const variants = group.ids.flatMap((id) => {
+      const found = choices.find((entry) => entry.id === id)
+      if (!found) return []
+      used.add(id)
+      return [found]
+    })
+    return variants.length ? [{ title: group.title, variants }] : []
+  })
+  const rest = choices.filter((entry) => !used.has(entry.id))
+  if (rest.length) groups.push({ title: ['Khác', 'Other', '其他', 'その他', '기타'], variants: rest })
+  return groups.length ? groups : [{ title: null, variants: choices }]
+}
+
 export function FigurePreview({ item, params }: { item: FigureItem; params: FigureParams }) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
@@ -212,7 +278,18 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
   }, [nudge, subject, showPlot, sheet])
-  const items = FIGURE_ITEMS.filter((item) => item.subject === subject && item.menu !== false)
+  const pool = FIGURE_ITEMS.filter((item) => item.subject === subject && item.menu !== false)
+  const listed = new Set(MENU_GROUPS[subject].flatMap((group) => group.ids))
+  const groups = MENU_GROUPS[subject].flatMap((group) => {
+    const items = group.ids.flatMap((id) => {
+      const found = pool.find((item) => item.id === id)
+      return found ? [found] : []
+    })
+    return items.length ? [{ title: group.title, items }] : []
+  })
+  const rest = pool.filter((item) => !listed.has(item.id))
+  if (rest.length) groups.push({ title: ['Khác', 'Other', '其他', 'その他', '기타'], items: rest })
+  const tap = sheet ? 'min-h-10 px-2 py-2 text-[13px]' : 'min-h-8 px-2 py-1.5 text-[12px]'
   return (
     <div
       ref={boxRef}
@@ -228,34 +305,33 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
       )}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <div className="grid shrink-0 grid-cols-5 gap-1 border-b border-slate-100 px-1 py-1">
+      <div className="shrink-0 border-b border-slate-100 px-2 py-2">
+        <div className="grid grid-cols-4 gap-1">
+          {FIGURE_SUBJECTS.map((entry) => {
+            const on = entry.id === subject
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                className={cn('min-w-0 rounded-md font-semibold leading-tight', tap, on ? 'text-white' : 'bg-slate-50 text-slate-700 hover:bg-slate-100')}
+                style={on ? { backgroundColor: entry.color } : undefined}
+                onClick={() => {
+                  setSubject(entry.id)
+                  setShowPlot(false)
+                }}
+              >
+                {say(tr, entry.label)}
+              </button>
+            )
+          })}
+        </div>
         <button
           type="button"
-          className="min-w-0 rounded border border-slate-200 px-0.5 py-1 text-[11px] font-semibold leading-tight text-slate-700 hover:bg-sky-50 max-md:py-1.5 max-md:text-[12px]"
+          className={cn('mt-1 w-full rounded-md border border-slate-200 text-left font-semibold text-slate-800 hover:bg-sky-50', tap)}
           onClick={onInsertImage}
         >
-          {tr('Chèn ảnh', 'Image', '图片', '画像', '이미지')}
+          {tr('Chèn ảnh', 'Insert image', '插入图片', '画像を挿入', '이미지 넣기')}
         </button>
-        {FIGURE_SUBJECTS.map((entry) => {
-          const on = entry.id === subject
-          return (
-            <button
-              key={entry.id}
-              type="button"
-              className={cn(
-                'min-w-0 rounded border px-0.5 py-1 text-[11px] font-semibold leading-tight max-md:py-1.5 max-md:text-[12px]',
-                on ? 'border-transparent text-white' : 'border-slate-200 text-slate-700 hover:bg-slate-50',
-              )}
-              style={on ? { backgroundColor: entry.color } : undefined}
-              onClick={() => {
-                setSubject(entry.id)
-                setShowPlot(false)
-              }}
-            >
-              {say(tr, entry.label)}
-            </button>
-          )
-        })}
       </div>
       {subject === 'math' && showPlot && mathPlot ? (
         <div className="shrink-0 p-2">
@@ -265,25 +341,32 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
           {mathPlot}
         </div>
       ) : (
-      <div className="min-h-0 flex-1 overflow-auto py-1">
+      <div className="min-h-0 flex-1 overflow-auto px-2 pb-2">
         {subject === 'math' && mathPlot ? (
           <button
             type="button"
-            className="block w-full rounded px-3 py-1 text-left text-[13px] text-slate-800 hover:bg-sky-50 max-md:py-2"
+            className={cn('mt-2 w-full rounded-md bg-sky-600 text-left font-semibold text-white hover:bg-sky-500', tap)}
             onClick={() => setShowPlot(true)}
           >
             {tr('Vẽ đồ thị', 'Plot a graph', '绘制图像', 'グラフを描く', '그래프 그리기')}
           </button>
         ) : null}
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className="block w-full rounded px-3 py-1 text-left text-[13px] text-slate-800 hover:bg-sky-50 max-md:py-2"
-            onClick={() => onPick(item.id)}
-          >
-            {say(tr, item.label)}
-          </button>
+        {groups.map((group) => (
+          <div key={group.title[0]}>
+            <p className="px-0.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{say(tr, group.title)}</p>
+            <div className="grid grid-cols-2 gap-1">
+              {group.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={cn('rounded-md border border-slate-200 text-left leading-tight text-slate-800 hover:border-sky-300 hover:bg-sky-50', tap)}
+                  onClick={() => onPick(item.id)}
+                >
+                  {say(tr, item.label)}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
       )}
@@ -358,9 +441,17 @@ export function FigureEditor({
                   })
                 }}
               >
-                {item.variants.map((variant) => (
-                  <option key={variant.id} value={variant.id}>{say(tr, variant.label)}</option>
-                ))}
+                {variantGroups(item, params.variant).map((group) => {
+                  const options = group.variants.map((variant) => (
+                    <option key={variant.id} value={variant.id}>{say(tr, variant.label)}</option>
+                  ))
+                  if (!group.title) return options
+                  return (
+                    <optgroup key={group.title[0]} label={say(tr, group.title)}>
+                      {options}
+                    </optgroup>
+                  )
+                })}
               </select>
             </label>
           ) : null}

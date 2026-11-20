@@ -477,7 +477,7 @@ function updateLatestStudioImageUrl(
 }
 
 const HUB_DESKTOP_CHIP_CLASS =
-  'shrink-0 rounded-full border px-2.5 py-1 text-xs transition-colors disabled:opacity-50 md:inline-flex md:h-7 md:items-center md:px-2 md:py-0 md:leading-none'
+  'inline-flex h-5 shrink-0 items-center rounded-full border border-violet-200/80 bg-transparent px-2 text-[11px] font-normal leading-none text-violet-700/85 transition-colors hover:border-violet-300 hover:bg-violet-50/70 hover:text-violet-800 disabled:opacity-50 dark:border-violet-800/70 dark:text-violet-200 dark:hover:bg-violet-950/40'
 
 function HubDesktopChipRail({
   children,
@@ -521,24 +521,24 @@ function HubDesktopChipRail({
 
   const showArrows = edges.left || edges.right
   const arrowClass =
-    'flex h-7 w-6 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 disabled:pointer-events-none disabled:opacity-25 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:pointer-events-none disabled:opacity-25 dark:hover:bg-slate-800 dark:hover:text-slate-100'
 
   return (
     <div className="hidden min-w-0 items-center gap-0.5 md:order-1 md:flex">
       {showArrows ? (
         <button type="button" className={arrowClass} aria-label={prevLabel} disabled={!edges.left} onClick={() => scrollByDir(-1)}>
-          <ChevronLeft className="h-4 w-4" aria-hidden />
+          <ChevronLeft className="h-3 w-3" aria-hidden />
         </button>
       ) : null}
       <div
         ref={scrollerRef}
-        className="flex h-8 min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex h-5 min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {children}
       </div>
       {showArrows ? (
         <button type="button" className={arrowClass} aria-label={nextLabel} disabled={!edges.right} onClick={() => scrollByDir(1)}>
-          <ChevronRight className="h-4 w-4" aria-hidden />
+          <ChevronRight className="h-3 w-3" aria-hidden />
         </button>
       ) : null}
     </div>
@@ -599,7 +599,7 @@ export function HomeHubChatBar() {
   imageEngineRef.current = imageEngine
   gptQualityRef.current = gptQuality
   geminiQualityRef.current = geminiQuality
-  const renderImageModelPicker = (triggerClassName?: string) => (
+  const renderImageModelPicker = (triggerClassName?: string, options?: { showCredit?: boolean }) => (
     <ImageEnginePicker
       locale={uiLocale}
       engine={imageEngine}
@@ -611,6 +611,7 @@ export function HomeHubChatBar() {
       geminiCost2k={UI_MOCKUP_CREDIT}
       geminiCost4k={UI_MOCKUP_CREDIT * 2}
       triggerClassName={triggerClassName}
+      showCredit={options?.showCredit ?? true}
     />
   )
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
@@ -4716,7 +4717,6 @@ export function HomeHubChatBar() {
                   }}
                 />
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 md:gap-1.5">
-                  {renderImageModelPicker('md:h-8 md:max-w-[11.5rem] md:rounded-full md:px-2 md:text-[11px]')}
                   <Button
                     type="button"
                     className="h-10 w-10 shrink-0 rounded-full bg-indigo-600 px-0 hover:bg-indigo-700 max-md:h-9 max-md:w-9 md:h-11 md:w-11"
@@ -4811,7 +4811,7 @@ export function HomeHubChatBar() {
                     type="button"
                     disabled={busy}
                     onClick={() => openCatalogFeature(entry.key, 'new_thread')}
-                    className={`${HUB_DESKTOP_CHIP_CLASS} border-emerald-200 bg-emerald-50 text-emerald-900 hover:border-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100`}
+                    className={`${HUB_DESKTOP_CHIP_CLASS} border-emerald-200/80 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50/70 hover:text-emerald-800 dark:text-emerald-200`}
                   >
                     {entry.label}
                   </button>
@@ -4830,7 +4830,7 @@ export function HomeHubChatBar() {
                     type="button"
                     disabled={busy}
                     onClick={() => openCatalogFeature(entry.key, 'current')}
-                    className={`${HUB_DESKTOP_CHIP_CLASS} border-violet-200 bg-violet-50 text-violet-800 hover:border-violet-400 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200`}
+                    className={HUB_DESKTOP_CHIP_CLASS}
                   >
                     {entry.label}
                   </button>
@@ -4850,7 +4850,7 @@ export function HomeHubChatBar() {
                   setMessage(item.message)
                   focusStudioChat()
                 }}
-                className={`${HUB_DESKTOP_CHIP_CLASS} border-violet-200 bg-violet-50 text-violet-800 hover:border-violet-400 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200`}
+                className={HUB_DESKTOP_CHIP_CLASS}
               >
                 {item.label}
               </button>
