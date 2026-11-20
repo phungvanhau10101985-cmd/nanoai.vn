@@ -33,7 +33,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import QRCode from 'qrcode'
-import { GRADE_LEVELS, GRADE_LEVEL_GROUPS } from '../tao-giao-trinh/lib/curriculum-subjects'
+import { isStoredGradeLevelId } from '../tao-giao-trinh/lib/curriculum-subjects'
+import { GradeLevelOptions } from '../tao-giao-trinh/lib/grade-level-options'
 import ClassSubjectField from '../lop/class-subject-field'
 import { isClassSubjectId, subjectIdFromFreeLabel } from '@/lib/lop/class-subject'
 import { listCurriculaForExam, listExamTeacherReview } from '../tao-giao-trinh/actions'
@@ -129,7 +130,6 @@ function writeExamFormDefaults(payload: ExamFormDefaultsV1, primaryKey: string, 
   }
 }
 
-const GRADE_LEVEL_ID_SET: Set<string> = new Set(GRADE_LEVELS.map((g) => g.id))
 const EXAM_TYPE_ID_SET = new Set<string>(EXAM_TYPE_ORDER)
 
 /** Tổng điểm (TN + TL) bắt buộc = 100 khi tạo phiên thi */
@@ -550,8 +550,8 @@ export default function TaoBaiThiClientPage({
     if (typeof d.subjectId === 'string' && d.subjectId && d.subjectId !== 'khac' && d.subjectId.length <= 40) {
       setSubjectId(d.subjectId)
     }
-    if (d.gradeLevelId && GRADE_LEVEL_ID_SET.has(d.gradeLevelId)) {
-      setGradeLevelId(d.gradeLevelId as (typeof GRADE_LEVELS)[number]['id'])
+    if (d.gradeLevelId && isStoredGradeLevelId(d.gradeLevelId)) {
+      setGradeLevelId(d.gradeLevelId)
     }
     if (typeof d.title === 'string') setTitle(d.title)
     if (typeof d.schoolSearch === 'string') setSchoolSearch(d.schoolSearch)
@@ -1147,8 +1147,8 @@ export default function TaoBaiThiClientPage({
     } else if (schoolName) {
       setSchoolSearch(schoolName)
     }
-    if (row.gradeLevelId && GRADE_LEVEL_ID_SET.has(row.gradeLevelId)) {
-      setGradeLevelId(row.gradeLevelId as (typeof GRADE_LEVELS)[number]['id'])
+    if (row.gradeLevelId && isStoredGradeLevelId(row.gradeLevelId)) {
+      setGradeLevelId(row.gradeLevelId)
     }
     const subjectFromClass = preset.subjectId
     if (subjectFromClass && subjectFromClass !== 'khac' && subjectFromClass.length <= 40) {
@@ -1717,14 +1717,7 @@ export default function TaoBaiThiClientPage({
                     onChange={(e) => setGradeLevelId(e.target.value)}
                     className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
                   >
-                    {GRADE_LEVEL_GROUPS.map((grp) => (
-                      <optgroup key={grp.labelVi} label={uiLocale === 'en' ? grp.labelEn : grp.labelVi}>
-                        {grp.ids.map((id) => {
-                          const g = GRADE_LEVELS.find((x) => x.id === id)
-                          return g ? <option key={g.id} value={g.id}>{uiLocale === 'en' ? g.labelEn : g.labelVi}</option> : null
-                        })}
-                      </optgroup>
-                    ))}
+                    <GradeLevelOptions locale={uiLocale} currentId={gradeLevelId} />
                   </select>
                 </div>
               </div>

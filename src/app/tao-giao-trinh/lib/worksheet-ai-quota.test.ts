@@ -14,6 +14,16 @@ test('một lượt cắt ngang suất miễn phí của giáo trình', () => {
   assert.deepEqual(quote, { free: 1, paid: 2, credits: 1 })
 })
 
+test('giáo trình theo chủ đề không có suất miễn phí', () => {
+  const quote = quoteWorksheetQuestionBatch({
+    requested: 5,
+    curriculumCreated: 0,
+    hasCurriculum: true,
+    allowFree: false,
+  })
+  assert.deepEqual(quote, { free: 0, paid: 5, credits: 2.5 })
+})
+
 test('chưa gắn giáo trình thì không có suất miễn phí', () => {
   const quote = quoteWorksheetQuestionBatch({ requested: 2, curriculumCreated: 0, hasCurriculum: false })
   assert.deepEqual(quote, { free: 0, paid: 2, credits: 1 })

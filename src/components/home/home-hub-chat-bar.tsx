@@ -3217,7 +3217,7 @@ export function HomeHubChatBar() {
   const chatInputPlaceholder = useMemo(() => {
     const stepKey = getActiveStepKey(studioSession)
     if (!studioSession?.presetId || !stepKey) {
-      return hc.studioPlaceholder
+      return hc.composerIdlePlaceholder
     }
     const stepAskExample =
       getStepAskExample(uiLocale, studioSession.presetId, stepKey) ??
@@ -3229,7 +3229,7 @@ export function HomeHubChatBar() {
       uiLocale,
       stepAskExample || hc.studioPlaceholder
     )
-  }, [studioSession, uiLocale, hc.studioPlaceholder])
+  }, [studioSession, uiLocale, hc.studioPlaceholder, hc.composerIdlePlaceholder])
 
   const openWorkflow = (href: string, prefillPrompt: string, planCtx?: { planId: string; stepIndex: number }) => {
     if (planCtx && activePlan) {
@@ -4668,14 +4668,18 @@ export function HomeHubChatBar() {
           <div className="max-md:contents md:pointer-events-none md:fixed md:inset-x-0 md:bottom-0 md:z-40 md:pb-3 md:pt-3">
           <div className="max-md:contents mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
           <div className="max-md:contents lg:pl-64 xl:pl-72">
-          <div data-home-dock="" className="max-md:contents md:pointer-events-auto md:mx-auto md:flex md:w-full md:min-w-0 md:max-w-[840px] md:flex-col md:gap-1 md:rounded-2xl md:border md:border-slate-200 md:bg-white md:px-2.5 md:py-1.5 md:shadow-[0_4px_18px_rgba(15,23,42,0.10)] dark:md:border-slate-700 dark:md:bg-slate-950">
+          <div data-home-dock="" className="max-md:contents md:pointer-events-auto md:mx-auto md:flex md:w-full md:min-w-0 md:max-w-[840px] md:flex-col md:gap-1.5 md:rounded-2xl md:border md:border-slate-300 md:bg-white md:px-3 md:py-2.5 md:shadow-[0_10px_32px_rgba(15,23,42,0.16)] dark:md:border-slate-600 dark:md:bg-slate-950">
           <div data-home-composer="" className="max-md:fixed max-md:inset-x-0 max-md:bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] max-md:z-[45] max-md:!mt-auto max-md:shrink-0 max-md:border-t max-md:border-border max-md:bg-background max-md:px-2 max-md:pb-2 max-md:pt-2 max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.12)] dark:max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.45)] md:order-2 md:bg-transparent md:p-0 md:shadow-none">
           {!hideStepInputComposer ? (
             <div className="flex flex-col gap-2 max-md:rounded-xl max-md:border-2 max-md:border-border max-md:bg-background max-md:p-1.5">
               {studioSession?.presetId && getActiveStepKey(studioSession) && studioInputPlaceholder ? (
                 <p className="text-xs font-medium text-foreground">{studioInputPlaceholder}</p>
+              ) : !message.trim() && !isActiveStudioFlow(studioSession) ? (
+                <p className="hidden text-sm font-semibold leading-5 text-slate-800 dark:text-slate-100 md:block">
+                  {hc.composerIdleHint}
+                </p>
               ) : null}
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end md:items-center md:gap-1.5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end md:items-center md:gap-2">
                 <Textarea
                   ref={studioTextareaRef}
                   value={message}
@@ -4684,7 +4688,7 @@ export function HomeHubChatBar() {
                   aria-label={chatInputPlaceholder || hc.send}
                   rows={1}
                   disabled={busy}
-                  className="min-h-9 w-full min-w-0 flex-1 resize-none rounded-full border-0 bg-[#F0F2F5] px-3 py-2 text-[15px] leading-5 shadow-none ring-0 ring-offset-0 placeholder:text-[#65676B] focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-white/10 md:min-h-9 md:resize-none md:rounded-none md:border-0 md:bg-transparent md:px-1.5 md:py-1.5 md:text-sm md:leading-5 md:shadow-none md:ring-0 md:focus-visible:ring-0"
+                  className="min-h-10 w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-[15px] leading-6 text-slate-900 shadow-none ring-0 ring-offset-0 placeholder:font-medium placeholder:text-slate-700 focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:ring-offset-0 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-300 dark:focus-visible:border-indigo-400 dark:focus-visible:ring-indigo-900 md:min-h-12 md:border-slate-400 md:bg-slate-100 md:px-4 md:py-2.5 md:text-base md:placeholder:text-slate-800 md:shadow-[inset_0_1px_2px_rgba(15,23,42,0.06)] md:focus-visible:border-indigo-500 md:focus-visible:bg-white md:focus-visible:ring-2 md:focus-visible:ring-indigo-300 dark:md:border-slate-500 dark:md:bg-slate-800 dark:md:text-slate-50 dark:md:placeholder:text-slate-200 dark:md:focus-visible:border-indigo-400 dark:md:focus-visible:bg-slate-950 dark:md:focus-visible:ring-indigo-800"
                   onPaste={(event) => {
                     if (busy || !showStudioUpload || !clipboardHasImagePayload(event.clipboardData)) return
                     event.preventDefault()
@@ -4715,7 +4719,7 @@ export function HomeHubChatBar() {
                   {renderImageModelPicker('md:h-8 md:max-w-[11.5rem] md:rounded-full md:px-2 md:text-[11px]')}
                   <Button
                     type="button"
-                    className="h-10 w-10 shrink-0 rounded-full bg-indigo-600 px-0 hover:bg-indigo-700 max-md:h-9 max-md:w-9 md:h-8 md:w-8"
+                    className="h-10 w-10 shrink-0 rounded-full bg-indigo-600 px-0 hover:bg-indigo-700 max-md:h-9 max-md:w-9 md:h-11 md:w-11"
                     disabled={
                       busy ||
                       (showGenerateCurrentStep
@@ -4856,11 +4860,8 @@ export function HomeHubChatBar() {
 
           <div className="hidden min-w-0 flex-col gap-1.5 md:order-3 md:flex">
             {featureFeedbackForm}
-            <div className="flex min-w-0 items-center gap-2 border-t border-slate-100 pt-1 dark:border-slate-800">
-              {featureFeedbackOpen ? null : featureFeedbackButton}
-              <p className="min-w-0 flex-1 truncate text-[11px] font-medium leading-4 text-indigo-700 dark:text-indigo-300" title={hc.creditNote}>
-                {hc.creditNote}
-              </p>
+            <div className="flex min-w-0 items-center justify-between gap-2 border-t border-slate-100 pt-1 dark:border-slate-800">
+              {featureFeedbackOpen ? <span /> : featureFeedbackButton}
               <p className="shrink-0 text-[11px] leading-4 text-muted-foreground">
                 {hc.modelLabel}: <span className="font-medium text-slate-700 dark:text-slate-200">{modelLabel}</span>
               </p>

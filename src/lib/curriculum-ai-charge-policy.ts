@@ -22,6 +22,7 @@ export type CurriculumAiChargeReason =
   | 'waived_daily_quota'
   | 'charged_regenerate'
   | 'charged_daily_quota_exceeded'
+  | 'charged_topic_miss'
   | 'insufficient_credits'
   | 'charge_failed'
 
@@ -249,6 +250,66 @@ export async function applyCurriculumAiCharge(
       decision.reason === 'daily_quota_exceeded' ? 'charged_daily_quota_exceeded' : 'charged_regenerate',
     newBalance: spend.newBalance,
     dailyQuota: refreshed,
+  }
+}
+
+/** Trừ đúng giá niêm yết. Không dùng 2 bài miễn phí trong ngày. */
+export async function chargeCurriculumFullPrice(input: {
+  userId: string
+  amount: number
+  chargeType: string
+  eventKey: string
+  metadata?: Record<string, unknown>
+}): Promise<ApplyCurriculumAiChargeResult> {
+  const dailyQuota = await readCurriculumDailyBodyQuota(input.userId)
+  if (isCurriculumAiCreditsDisabled()) {
+    return {
+      ok: true,
+      creditsCharged: false,
+      amount: 0,
+      chargeReason: 'disabled',
+      dailyQuota,
+    }
+  }
+
+  const balance = await readUserCreditBalance(input.userId)
+  if (balance < input.amount) {
+    return {
+      ok: false,
+      code: 'INSUFFICIENT_CREDITS',
+      error: 'insufficient_credits',
+      balance,
+      required: input.amount,
+      dailyQuota,
+    }
+  }
+
+  const spend = await spendCurriculumAiCredits({
+    userId: input.userId,
+    amount: input.amount,
+    chargeType: input.chargeType,
+    eventKey: input.eventKey,
+    metadata: {
+      ...(input.metadata ?? {}),
+      chargeReason: 'topic_cache_miss',
+    },
+  })
+  if (!spend.ok) {
+    return {
+      ok: false,
+      code: 'CHARGE_FAILED',
+      error: spend.error || 'charge_failed',
+      dailyQuota,
+    }
+  }
+
+  return {
+    ok: true,
+    creditsCharged: true,
+    amount: input.amount,
+    chargeReason: 'charged_topic_miss',
+    newBalance: spend.newBalance,
+    dailyQuota,
   }
 }
 

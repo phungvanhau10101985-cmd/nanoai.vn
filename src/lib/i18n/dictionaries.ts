@@ -176,6 +176,10 @@ export type Dictionary = {
     modeStudio: string
     studioSubtitle: string
     studioPlaceholder: string
+    /** Trang chủ, ô trống: nói rõ gõ hoặc bấm tính năng phía trên. */
+    composerIdleHint: string
+    /** Ví dụ ngắn trong ô gõ khi chưa vào flow. */
+    composerIdlePlaceholder: string
     studioProcessTitle: string
     studioProcessForwardOnlyHint: string
     studioNavigateStepHint: string
@@ -5007,6 +5011,8 @@ export const VI_DICTIONARY: Dictionary = {
     modeStudio: 'Thiết kế liền mạch',
     studioSubtitle: 'Thiết kế ngay trong chat — app, banner, brand kit, ảnh SP, thiệp, nhạc quảng cáo. AI hỏi từng bước, bạn duyệt và tiếp tục.',
     studioPlaceholder: 'Hôm nay bạn muốn làm gì?',
+    composerIdleHint: 'Gõ việc bạn muốn làm, hoặc bấm một tính năng phía trên.',
+    composerIdlePlaceholder: 'Ví dụ: thiết kế logo, làm banner sale…',
     studioProcessTitle: 'Quy trình thiết kế',
     studioProcessForwardOnlyHint: 'Quy trình chỉ đi tiến — hoàn thành từng bước theo thứ tự.',
     studioNavigateStepHint: 'Bấm bước đã xong để quay lại sửa — các bước sau vẫn giữ nguyên.',
@@ -8900,7 +8906,7 @@ export const VI_DICTIONARY: Dictionary = {
     faq3a:
       'Giao diện riêng, chỉ bài chiếu. Đúng slide, đồ thị, thí nghiệm PhET và video YouTube. Nút sửa và ghi chú ở lại màn giáo viên.',
     faq4q: 'Môn và lớp nào?',
-    faq4a: 'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Lớp 1 đến 12, và các bậc sau phổ thông.',
+    faq4a: 'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Nhà trẻ, mẫu giáo, lớp 1 đến 12, học nghề, trung cấp, cao đẳng, đại học, cao học và tiến sĩ.',
     faq5q: 'Khi nào trừ credit?',
     faq5a: '{freeBodies} bài mới mỗi ngày không trừ. Bài thứ {chargedFrom}, tạo từ ảnh khi vượt mức hoặc ghi đè, và lần tạo lại slide hoặc infographic thì trừ.',
     guideTitle: 'Xem cách dùng',
@@ -8973,7 +8979,7 @@ export const VI_DICTIONARY: Dictionary = {
       'Giao diện riêng, chỉ bài chiếu. Đúng slide, đồ thị, thí nghiệm PhET và video YouTube. Nút sửa và ghi chú ở lại màn giáo viên.',
     faqSubjectQ: 'Môn và lớp nào?',
     faqSubjectA:
-      'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Lớp 1 đến 12, và các bậc sau phổ thông.',
+      'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Nhà trẻ, mẫu giáo, lớp 1 đến 12, học nghề, trung cấp, cao đẳng, đại học, cao học và tiến sĩ.',
     footer: 'NanoAI · Hỗ trợ: support@nanoai.vn · 08:30–17:30 (Thứ 2–Thứ 7)',
     zaloLabel: 'Chat Zalo',
     stickyCta: 'Gửi link mở trên máy tính',

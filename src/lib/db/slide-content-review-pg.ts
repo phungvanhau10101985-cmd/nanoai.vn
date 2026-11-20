@@ -229,7 +229,12 @@ export async function fetchSlideReviewStatsPg(params: {
          ) as ok`,
         [params.curriculumId, params.lessonNo, params.userId]
       )
-      if (acked[0]?.ok) return stats.map((stat) => ({ ...stat, confirmedByMe: true }))
+      if (acked[0]?.ok) {
+        return stats.map((stat) => ({
+          ...stat,
+          confirmedByMe: stat.warn && stat.proposalText ? false : true,
+        }))
+      }
     } catch (e) {
       console.error('[slide-content-review-pg] fetchSlideReviewStatsPg ack', e)
     }
@@ -400,6 +405,35 @@ export async function recordSlideReviewPg(params: {
   } catch (e) {
     console.error('[slide-content-review-pg] recordSlideReviewPg', e)
     return null
+  }
+}
+
+/** Còn bản sửa chưa chốt: mỗi lần mở tiết phải chọn bản gốc hoặc bản sửa. */
+export async function lessonHasOpenSlideEditPg(params: {
+  curriculumId: string
+  lessonNo: number
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const rows = await pgQuery<ReviewRow>(
+      `select slide_index, content_hash, user_id::text as user_id, action, body, created_at
+       from public.worksheet_slide_content_reviews
+       where curriculum_id = $1::uuid and lesson_no = $2
+       order by created_at asc, id asc`,
+      [params.curriculumId, params.lessonNo]
+    )
+    const indexes = new Set(rows.map((row) => row.slide_index))
+    for (const slideIndex of indexes) {
+      const mine = rows.filter((row) => row.slide_index === slideIndex)
+      const lastEdit = mine.filter((row) => row.action === 'edit').at(-1)
+      if (!lastEdit?.body) continue
+      const counts = consecutiveReviewCounts(votesAfterEdit(mine, lastEdit))
+      if (!counts.closed) return true
+    }
+    return false
+  } catch (e) {
+    console.error('[slide-content-review-pg] lessonHasOpenSlideEditPg', e)
+    return false
   }
 }
 

@@ -3,13 +3,12 @@
  * Đảm bảo khóa tra cứu khớp với dữ liệu trong DB.
  */
 
-import { SUBJECTS, GRADE_LEVELS, TEXTBOOK_SETS, LESSON_TYPES } from './curriculum-subjects'
+import { SUBJECTS, isStoredGradeLevelId, TEXTBOOK_SETS, LESSON_TYPES } from './curriculum-subjects'
 
 /** Mỗi tiết luôn 45 phút. Form không còn cho chọn thời lượng. */
 export const CURRICULUM_LESSON_MINUTES = 45
 
 const VALID_SUBJECT_IDS = new Set(SUBJECTS.map((s) => s.id)) as ReadonlySet<string>
-const VALID_GRADE_IDS = new Set(GRADE_LEVELS.map((g) => g.id)) as ReadonlySet<string>
 const VALID_TEXTBOOK_IDS = new Set(TEXTBOOK_SETS.map((t) => t.id)) as ReadonlySet<string>
 const VALID_LESSON_TYPE_IDS = new Set(LESSON_TYPES.map((l) => l.id)) as ReadonlySet<string>
 
@@ -71,7 +70,7 @@ export function normalizeCurriculumInput(raw: RawCurriculumInput): NormalizedCur
     VALID_SUBJECT_IDS.has(subjectId) || /^[a-z0-9-]{2,40}$/.test(subjectId)
       ? subjectId
       : 'toan'
-  const gradeLevelIdNorm = VALID_GRADE_IDS.has(gradeLevelId) ? gradeLevelId : 'lop-6'
+  const gradeLevelIdNorm = isStoredGradeLevelId(gradeLevelId) ? gradeLevelId : 'lop-6'
   const textbookSetIdNorm = VALID_TEXTBOOK_IDS.has(textbookSetId) ? textbookSetId : 'ket-noi-tri-thuc'
   const lessonTypeIdNorm = VALID_LESSON_TYPE_IDS.has(lessonTypeId) ? lessonTypeId : 'hinh-thanh-kien-thuc'
 

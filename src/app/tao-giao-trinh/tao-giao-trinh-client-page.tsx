@@ -21,7 +21,8 @@ import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-
 import { CurriculumExerciseListDialog } from './components/curriculum-exercise-list-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
 import type { SlideInfographic } from './lib/slide-infographic'
-import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
+import { SUBJECTS, isStoredGradeLevelId, TEXTBOOK_SETS } from './lib/curriculum-subjects'
+import { GradeLevelOptions } from './lib/grade-level-options'
 import ClassSubjectField from '../lop/class-subject-field'
 import { CURRICULUM_LESSON_MINUTES, parseCurriculumLessonNumber, formatCurriculumLessonNoDisplay } from './lib/curriculum-input-normalize'
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
@@ -634,6 +635,7 @@ export default function TaoGiaoTrinhClientPage({
       requested,
       curriculumCreated,
       hasCurriculum: Boolean(curriculumId),
+      allowFree: !(createMode === 'topic' || textbookSetId === 'khac'),
     })
     if (quote.paid <= 0) return freeWord
     if (quote.free <= 0) return `${formatCurriculumCredits(quote.credits)} ${creditsWord}`
@@ -757,9 +759,13 @@ export default function TaoGiaoTrinhClientPage({
   }
 
   const [dailyAiQuota, setDailyAiQuota] = useState<CurriculumDailyQuota | null>(null)
-  /** Bài mới còn suất miễn phí thì nút không ghi credit. Hết suất mới hiện. Theo chủ đề không trừ. Nút ghi đè luôn hiện credit. */
-  const createLessonCreditSuffix =
-    createMode !== 'topic' && dailyAiQuota != null && dailyAiQuota.remaining <= 0
+  /** Ba bộ SGK dùng 2 bài miễn phí/ngày. Chủ đề và sách khác NXB luôn hiện 1 credit khi chưa khớp cache. */
+  const chargesLikeTopic = createMode === 'topic' || (createMode === 'textbook' && textbookSetId === 'khac')
+  const createLessonCreditSuffix = chargesLikeTopic
+    ? curriculumExists === true
+      ? ''
+      : creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)
+    : dailyAiQuota != null && dailyAiQuota.remaining <= 0
       ? creditLabel(CURRICULUM_UI_CREDITS.createOrFromImage)
       : ''
 
@@ -1224,7 +1230,7 @@ export default function TaoGiaoTrinhClientPage({
     return () => {
       cancelled = true
     }
-  }, [createMode, topic, subjectId, gradeLevelId, textbookSetId, textbookVolume, bookIsbn, lessonNumber, numLessons, lessonTypeId])
+  }, [createMode, topic, subjectId, gradeLevelId, textbookSetId, textbookVolume, bookIsbn, lessonNumber, numLessons, lessonDurationMinutes, lessonTypeId])
 
   const handleSubmitFromImage = async (opts?: { forceOverwrite?: boolean }) => {
     const forceOverwrite = !!opts?.forceOverwrite
@@ -1490,7 +1496,17 @@ export default function TaoGiaoTrinhClientPage({
       formData.append('goals', goals.trim())
       formData.append('bookIsbn', '')
       const result = await createCurriculum(appendCurriculumBuyerSource(formData))
-      if (result.error) {
+      if (!result.success && result.code === 'INSUFFICIENT_CREDITS') {
+        setStep('INPUT')
+        toast({
+          title: tr('Không đủ credits', 'Not enough credits', '积分不足', 'クレジット不足', '크레딧 부족'),
+          description: insufficientCreditDescription(result),
+          variant: 'destructive',
+          duration: 5000,
+        })
+        return
+      }
+      if (result.error && !result.success) {
         setStep('INPUT')
         toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: result.error, variant: 'destructive', duration: 5000 })
         return
@@ -1500,7 +1516,43 @@ export default function TaoGiaoTrinhClientPage({
         setCurriculumId(result.curriculumId ?? null)
         setCurriculumSlides(null)
         setStep('RESULT')
-        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: tr('Giáo trình đã được tạo.', 'Curriculum created.', '课程已创建并保存。', 'カリキュラムを作成しました。', '교육과정 생성됨.'), duration: 3000 })
+        if (result.creditsCharged && typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('credits-updated'))
+        }
+        const createdDescription = result.matched
+          ? tr(
+              'Đã mở giáo trình có sẵn. Không trừ credit.',
+              'Opened the saved curriculum. No credit charged.',
+              '已打开已有课程。未扣积分。',
+              '保存済みの教材を開きました。クレジットは引きません。',
+              '저장된 교육과정을 열었습니다. 크레딧은 차감되지 않습니다.',
+            )
+          : result.creditsCharged
+            ? tr(
+                `Giáo trình đã được tạo. Đã trừ ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} credit.`,
+                `Curriculum created. Charged ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} credit.`,
+                `课程已创建。已扣 ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} 积分。`,
+                `教材を作成しました。${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} クレジットを引きました。`,
+                `교육과정을 만들었습니다. ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} 크레딧을 차감했습니다.`,
+              )
+            : tr('Giáo trình đã được tạo.', 'Curriculum created.', '课程已创建并保存。', 'カリキュラムを作成しました。', '교육과정 생성됨.')
+        toast({ title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'), description: createdDescription, duration: 3000 })
+        if (result.chargeError) {
+          toast({
+            title: tr('Chưa trừ được credit', 'Credit was not charged', '未能扣积分', 'クレジットを引けませんでした', '크레딧을 차감하지 못했습니다'),
+            description: result.code === 'INSUFFICIENT_CREDITS'
+              ? insufficientCreditDescription(result)
+              : tr(
+                  'Giáo trình đã lưu. Hãy kiểm tra số dư credit.',
+                  'The curriculum was saved. Please check your credit balance.',
+                  '课程已保存。请查看积分余额。',
+                  '教材は保存済みです。クレジット残高を確認してください。',
+                  '교육과정은 저장되었습니다. 크레딧 잔액을 확인해 주세요.',
+                ),
+            variant: 'destructive',
+            duration: 5000,
+          })
+        }
       }
       return
     }
@@ -1933,6 +1985,7 @@ export default function TaoGiaoTrinhClientPage({
                   topic: displayTopic,
                   currentIndex: 0,
                   curriculumId: curriculumId ?? null,
+                  topicMode: createMode === 'topic' || textbookSetId === 'khac',
                   subjectId,
                   slideMode: mode === 'personal' ? 'personal' : mode === 'shared' ? 'shared' : mode === 'original' ? 'original' : null,
                   personalViewSubMode: 'current',
@@ -1953,7 +2006,7 @@ export default function TaoGiaoTrinhClientPage({
         setTimeout(send, 700)
       }
     },
-    [curriculumMarkdown, displayTopic, curriculumId, subjectId, hasOriginalOrSharedVersion, infographicShared, infographicOriginal, infographicPersonal, toast, tr]
+    [curriculumMarkdown, displayTopic, curriculumId, subjectId, hasOriginalOrSharedVersion, infographicShared, infographicOriginal, infographicPersonal, toast, tr, createMode, textbookSetId]
   )
 
   const beginTeachOpen = useCallback((open: () => void) => {
@@ -2240,6 +2293,7 @@ export default function TaoGiaoTrinhClientPage({
             topic: displayTopic,
             currentIndex: 0,
             curriculumId: curriculumId ?? null,
+            topicMode: createMode === 'topic' || textbookSetId === 'khac',
             subjectId,
             slideMode: slideVersionChoice ?? null,
             personalViewSubMode: 'current',
@@ -2257,7 +2311,7 @@ export default function TaoGiaoTrinhClientPage({
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [curriculumMarkdown, displayTopic, curriculumId, subjectId, aiSlides, curriculumSlides, slideVersionChoice, hasOriginalOrSharedVersion, refreshPersonalSlides, infographicShared, infographicOriginal, infographicPersonal])
+  }, [curriculumMarkdown, displayTopic, curriculumId, subjectId, aiSlides, curriculumSlides, slideVersionChoice, hasOriginalOrSharedVersion, refreshPersonalSlides, infographicShared, infographicOriginal, infographicPersonal, createMode, textbookSetId])
 
   const handleOpenSlides = async () => {
     if (!curriculumMarkdown.trim()) return
@@ -2791,13 +2845,6 @@ export default function TaoGiaoTrinhClientPage({
       const canEdit = curriculumEditMode || !curriculumId
       if (!canEdit || newVal.length < 15) return
 
-      setRegionCheckLoading(true)
-      const prevSnapshot = prev
-      regionCheckTimeoutRef.current = setTimeout(() => {
-        regionCheckTimeoutRef.current = null
-        runRegionCheck(prevSnapshot, curriculumTextareaRef.current?.value ?? newVal, curriculumTextareaRef.current?.selectionStart ?? cursorPos)
-      }, 350)
-
       if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current)
       if (newVal.length >= 30 && step === 'RESULT') {
         autoSaveTimeoutRef.current = setTimeout(() => {
@@ -2912,69 +2959,23 @@ export default function TaoGiaoTrinhClientPage({
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Nhập nội dung sẽ sửa thành.', 'Enter the replacement content.', '请输入替换内容。', '置換後の内容を入力してください。', '대체할 내용을 입력하세요.'), variant: 'destructive' })
       return
     }
-    setEditCompareLoading(true)
-    setEditCompareResult(null)
-    setEditCompareErrors([])
-    const idx = editMatchIndexRef.current >= 0 ? editMatchIndexRef.current : curriculumMarkdown.indexOf(orig)
-    const CONTEXT_CHARS = 250
-    const start = Math.max(0, idx - CONTEXT_CHARS)
-    const originalRegion = curriculumMarkdown.slice(start, idx + orig.length)
-    const editedRegion = curriculumMarkdown.slice(start, idx) + edited
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 120000)
-    try {
-      const res = await fetch('/api/curriculum-edit-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ curriculumId, originalRegion, editedRegion }),
-        signal: controller.signal,
-      })
-      clearTimeout(timeoutId)
-      const data = await res.json().catch(() => ({}))
-      const rc = data.regionCompare
-      const reasonSaved = typeof data.reasonSaved === 'string' ? data.reasonSaved : null
-      const reasonNotSaved = typeof data.reasonNotSaved === 'string' ? data.reasonNotSaved : null
-      if (rc) {
-        setEditCompareResult({
-          correctVersion: rc.correctVersion || 'edited',
-          originalReason: rc.originalReason || null,
-          editedReason: rc.editedReason || null,
-          explanation: rc.explanation || '',
-          bothAgree: !!data.bothAgree,
-          reasonSaved,
-          reasonNotSaved,
-          model1Version: data.model1Version,
-          model2Version: data.model2Version,
-        })
-        setEditCompareErrors(Array.isArray(data.errors) ? data.errors : [])
-        if (data.ok && rc.correctVersion === 'edited') {
-          handleApplyEditFromSheet(orig, edited)
-          setEditOriginalText('')
-          setEditEditedText('')
-          setEditMatchStatus('idle')
-          setEditMatchCount(0)
-          toast({
-            title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
-            description: reasonSaved || rc.explanation || tr('Lý do đã lưu: 2 AI (Gemini Pro + Gemini Flash) đồng ý bản sửa đúng.', 'Reason saved: 2 AIs agree the edit is correct.', '已保存原因：2个AI同意修改正确。', '保存理由：2つのAIが編集が正しいと同意。', '저장 이유: 2개 AI가 편집이 맞다고 동의.'),
-            duration: 3000,
-          })
-        } else if (data.bothAgree && rc.correctVersion === 'original') {
-          toast({
-            title: tr('Chưa lưu – Giữ bản gốc', 'Not saved – Keep original', '未保存–保留原文', '保存せず–元のまま', '저장 안 함–원본 유지'),
-            description: (reasonNotSaved || rc.explanation || tr('Lý do chưa lưu được: 2 AI đồng ý bản gốc đúng.', 'Reason not saved: 2 AIs agree the original is correct.', '未保存原因：2个AI同意原文正确。', '保存しない理由：2つのAIが元が正しいと同意。', '저장 안 함 이유: 2개 AI가 원본이 맞다고 동의.')) + ' ' + tr('Sửa lại và thử tiếp.', 'Edit and try again.', '请修改后重试。', '編集して再試行してください。', '수정 후 다시 시도하세요.'),
-            variant: 'destructive',
-            duration: 5000,
-          })
-        }
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        toast({ title: tr('Hết thời gian', 'Timeout', '超时', 'タイムアウト', '타임아웃'), description: tr('AI phản hồi chậm. Thử lại.', 'AI response slow. Try again.', 'AI响应慢。请重试。', 'AI応答が遅い。再試行。', 'AI 응답 지연. 다시 시도.'), variant: 'destructive' })
-      }
-    } finally {
-      clearTimeout(timeoutId)
-      setEditCompareLoading(false)
-    }
+    handleApplyEditFromSheet(orig, edited)
+    setEditOriginalText('')
+    setEditEditedText('')
+    setEditMatchStatus('idle')
+    setEditMatchCount(0)
+    toast({
+      title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
+      description: tr(
+        'Đã lưu bản sửa của bạn. Bạn dùng ngay bản này. Không gọi AI, không trừ credit. Người sau xem cả bản gốc và bản sửa. 7 lần đúng liên tiếp thì thay bản gốc. 7 lần sai liên tiếp thì giữ bản gốc và bỏ bản sửa.',
+        'Your edit is saved and you use it now. No AI call and no credit charge. Later people can read both versions. 7 correct votes in a row replace the original. 7 wrong votes in a row keep the original and drop the edit.',
+        '已保存你的修改，你现在就用这一版。不调用 AI，不扣积分。之后的人同时看到原文和修改。连续 7 次判对则用修改替换原文。连续 7 次判错则保留原文并丢弃修改。',
+        '修正を保存し、今すぐその版を使います。AIは呼ばず、クレジットも引きません。後の人は元と修正の両方を見ます。連続7回正しいと元を修正に置き換え、連続7回誤りなら元を残して修正を捨てます。',
+        '수정본을 저장했고 지금 그 버전을 씁니다. AI를 호출하지 않고 크레딧도 차감하지 않습니다. 이후 사람은 원본과 수정본을 함께 봅니다. 연속 7번 맞으면 원본을 수정본으로 바꾸고, 연속 7번 틀리면 원본을 유지하고 수정본을 버립니다.',
+      ),
+      duration: 4000,
+    })
+    setEditCompareLoading(false)
   }, [editOriginalText, editEditedText, editMatchStatus, curriculumMarkdown, curriculumId, handleApplyEditFromSheet, tr, toast])
 
   const handleSaveWorksheetBlockEdit = useCallback(async () => {
@@ -3179,7 +3180,7 @@ export default function TaoGiaoTrinhClientPage({
         if (subjectFromClass && subjectFromClass !== 'khac' && subjectFromClass.length <= 80) {
           setSubjectId(subjectFromClass)
         }
-        if (gradeFromClass && GRADE_LEVELS.some((g) => g.id === gradeFromClass)) {
+        if (gradeFromClass && isStoredGradeLevelId(gradeFromClass)) {
           setGradeLevelId(gradeFromClass)
         }
         return
@@ -4075,14 +4076,7 @@ export default function TaoGiaoTrinhClientPage({
                         className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs min-w-[120px]"
                       >
                         <option value="">{tr('Tất cả', 'All', '全部', 'すべて', '전체')}</option>
-                        {GRADE_LEVEL_GROUPS.map((grp) => (
-                          <optgroup key={grp.labelVi} label={uiLocale === 'en' ? grp.labelEn : grp.labelVi}>
-                            {grp.ids.map((id) => {
-                              const g = GRADE_LEVELS.find((x) => x.id === id)
-                              return g ? <option key={g.id} value={g.id}>{uiLocale === 'en' ? g.labelEn : g.labelVi}</option> : null
-                            })}
-                          </optgroup>
-                        ))}
+                        <GradeLevelOptions locale={uiLocale} />
                       </select>
                     </div>
                   </div>
@@ -4205,7 +4199,18 @@ export default function TaoGiaoTrinhClientPage({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {dailyAiQuota ? (
+              {chargesLikeTopic ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                  {tr(
+                    `Chủ đề và sách khác nhà xuất bản trừ ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} credit khi không khớp bài đã lưu. Khớp thì mở bài đó, không trừ. Slide lần đầu, ảnh infographic và mỗi câu hỏi cũng trừ ngay.`,
+                    `Topic lessons and other-publisher books charge ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} credit when no saved lesson matches. A match opens that lesson with no charge. The first slides, infographics, and every question are charged immediately.`,
+                    `按主题和其他出版社教材在没有匹配课程时扣 ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} 积分。匹配则打开且不扣分。首次幻灯片、信息图和每道题也会立即扣分。`,
+                    `主題と他社の教科書は、保存済みと一致しないとき ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} クレジットです。一致すれば開くだけで引きません。初回スライド、情報図、各問題も最初から引きます。`,
+                    `주제와 다른 출판사 교과서는 저장된 교육과정과 맞지 않으면 ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} 크레딧입니다. 맞으면 열고 차감하지 않습니다. 첫 슬라이드, 인포그래픽, 각 문항도 바로 차감합니다.`,
+                  )}
+                </p>
+              ) : null}
+              {dailyAiQuota && !chargesLikeTopic ? (
                 <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
                   {tr(
                     `Hôm nay còn ${dailyAiQuota.remaining}/${dailyAiQuota.limit} bài mới miễn phí AI (lần đầu slide/infographic trong bài cũng miễn phí; tạo lại hoặc từ bài thứ ${dailyAiQuota.limit + 1} trừ credit).`,
@@ -4307,14 +4312,7 @@ export default function TaoGiaoTrinhClientPage({
                     className={cn('w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm', createFieldErrorClass('grade'))}
                   >
                     <option value="">{tr('Chọn cấp độ', 'Select grade', '选择年级', '学年を選択', '학년 선택')}</option>
-                    {GRADE_LEVEL_GROUPS.map((grp) => (
-                      <optgroup key={grp.labelVi} label={uiLocale === 'en' ? grp.labelEn : grp.labelVi}>
-                        {grp.ids.map((id) => {
-                          const g = GRADE_LEVELS.find((x) => x.id === id)
-                          return g ? <option key={g.id} value={g.id}>{uiLocale === 'en' ? g.labelEn : g.labelVi}</option> : null
-                        })}
-                      </optgroup>
-                    ))}
+                    <GradeLevelOptions locale={uiLocale} currentId={gradeLevelId} />
                   </select>
                 </div>
               </div>
@@ -4550,7 +4548,13 @@ export default function TaoGiaoTrinhClientPage({
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {tr('Bạn có thể mở giáo trình gần giống để dùng ngay, hoặc vẫn bấm "Tạo giáo trình" để tạo mới.', 'You can open a similar curriculum now, or still click "Create curriculum" to create a new one.', '您可以先打开相近课程，或继续点击“创建课程”新建。', '近いカリキュラムを開くか、そのまま「作成」を押して新規作成できます。', '유사 교육과정을 열거나, 그대로 "교육과정 생성"으로 새로 만들 수 있습니다.')}
+                    {tr(
+                      `Mở bài gần giống thì không trừ credit. Bấm "Tạo giáo trình" khi chưa khớp cache thì trừ ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} credit.`,
+                      `Opening a similar lesson does not charge. "Create curriculum" charges ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} credit when the cache does not match.`,
+                      `打开相近课程不扣分。缓存未匹配时点“创建课程”扣 ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} 积分。`,
+                      `近い教材を開いてもクレジットは引きません。キャッシュが一致しないとき「作成」は ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} クレジットです。`,
+                      `비슷한 교육과정을 열면 차감되지 않습니다. 캐시가 맞지 않을 때 "교육과정 생성"은 ${formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage)} 크레딧입니다.`,
+                    )}
                   </p>
                 </div>
               )}
@@ -5082,6 +5086,7 @@ export default function TaoGiaoTrinhClientPage({
                       requested: count,
                       curriculumCreated: created,
                       hasCurriculum: Boolean(curriculumId),
+                      allowFree: !(createMode === 'topic' || textbookSetId === 'khac'),
                     })
                     const phrase = count > 0 ? questionQuotePhrase(count, created) : ''
                     if (row.kind === 'quiz') quizCreatedCursor += count
@@ -5137,13 +5142,21 @@ export default function TaoGiaoTrinhClientPage({
                     <p className="text-xs text-violet-600/90 dark:text-violet-400/90">
                       {tr('AI tạo từng câu, kiểm tra từng câu. Chất lượng cao hơn.', 'AI creates each question, verifies each. Higher quality.', 'AI逐题创建并逐题验证。质量更高。', 'AIが1問ずつ作成・検証。品質更高。', 'AI가 문항별 생성·검증. 품질 더 높음.')}
                       {' '}
-                      {tr(
-                        'Giáo trình này được 5 câu trắc nghiệm và 5 bài tự luận miễn phí. Câu thêm 0,5 credit.',
-                        'This curriculum includes 5 free quiz questions and 5 free essays. Extra questions cost 0.5 credit.',
-                        '本课程含 5 道免费选择题和 5 道免费主观题。超出每题 0.5 积分。',
-                        'このカリキュラムはクイズ5問と記述5問が無料。追加は1問0.5クレジット。',
-                        '이 교육과정은 퀴즈 5문항과 서술형 5문항이 무료입니다. 추가 문항은 0.5크레딧입니다.'
-                      )}
+                      {chargesLikeTopic
+                        ? tr(
+                            'Bài theo chủ đề và sách khác nhà xuất bản: mỗi câu trắc nghiệm và mỗi bài tự luận đều 0,5 credit. Không có câu miễn phí.',
+                            'Topic lessons and other-publisher books: every quiz and every essay costs 0.5 credit. No free questions.',
+                            '按主题和其他出版社教材：每道选择题和每道主观题都是 0.5 积分。没有免费题。',
+                            '主題の教材と他社の教科書：クイズも記述も1問0.5クレジット。無料の問題はありません。',
+                            '주제 교육과정과 다른 출판사 교과서: 퀴즈와 서술형 모두 문항당 0.5크레딧입니다. 무료 문항은 없습니다.',
+                          )
+                        : tr(
+                            'Giáo trình này được 5 câu trắc nghiệm và 5 bài tự luận miễn phí. Câu thêm 0,5 credit.',
+                            'This curriculum includes 5 free quiz questions and 5 free essays. Extra questions cost 0.5 credit.',
+                            '本课程含 5 道免费选择题和 5 道免费主观题。超出每题 0.5 积分。',
+                            'このカリキュラムはクイズ5問と記述5問が無料。追加は1問0.5クレジット。',
+                            '이 교육과정은 퀴즈 5문항과 서술형 5문항이 무료입니다. 추가 문항은 0.5크레딧입니다.',
+                          )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {tr(
@@ -5369,7 +5382,6 @@ export default function TaoGiaoTrinhClientPage({
                       ) : (
                         <>
                           {tr('Áp dụng sửa', 'Apply edit', '应用修改', '編集を適用', '편집 적용')}
-                          {creditLabel(CURRICULUM_UI_CREDITS.curriculumEditApply)}
                         </>
                       )}
                     </Button>

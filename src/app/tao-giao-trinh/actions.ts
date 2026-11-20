@@ -1,8 +1,9 @@
 /* eslint-disable-next-line @typescript-eslint/ban-ts-comment -- toàn file: giảm nhiễu strict trên action giáo trình lớn */
 // @ts-nocheck — service-role + bảng giáo trình khiến hàng trăm chỗ inference strict; giữ một file action lớn ổn định.
 'use server'
-import { normalizeTopicForSearch, topicsMatch } from './lib/topic-normalize'
+import { normalizeTopicForSearch } from './lib/topic-normalize'
 import { normalizeCurriculumInput, parseCurriculumLessonNumber } from './lib/curriculum-input-normalize'
+import { gradeLevelLabel } from './lib/curriculum-subjects'
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
 import {
   curriculumMarkdownIsOriginalBody,
@@ -21,7 +22,6 @@ import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
-  deleteWorksheetCurriculumLessonSlidesByCurriculumIdPg,
   deleteWorksheetSlideEditHistoryOlderThanPg,
   runClearCurriculumDerivedDataPg,
   fetchUserCustomizedSlidesJsonForCurriculumPg,
@@ -61,14 +61,15 @@ import {
   updateWorksheetCurriculumSavePg,
   updateWorksheetCurriculumContentMarkdownOnlyPg,
   deleteWorksheetCurriculumByIdPg,
-  listCurriculaTopicModeCandidatesPg,
   fetchCurriculumContentTopicByIdPg,
+  findTopicCurriculumByNormalizedKeyPg,
   findCurriculumTextbookExactMatchPg,
   updateWorksheetCurriculumTopicAndContentPg,
   insertWorksheetCurriculumAdminReviewPg,
   fetchWorksheetCurriculumLessonsForMetaPg,
   fetchWorksheetCurriculumNumLessonsPg,
   fetchWorksheetCurriculumMarkdownAndNumLessonsPg,
+  curriculumBillsEachNewAiPg,
 } from '@/lib/db/tao-giao-trinh-curriculum-pg'
 import {
   insertSlideEditProposalPg,
@@ -138,6 +139,7 @@ import {
 import { CURRICULUM_UI_CREDITS } from './lib/curriculum-credit-costs'
 import {
   CURRICULUM_AI_CHARGE_TYPES,
+  isCurriculumAiCreditsDisabled,
   LESSON_SLIDE_GENERATE_CREDIT_COST,
   readUserCreditBalance,
   spendCurriculumAiCredits,
@@ -145,6 +147,7 @@ import {
 import {
   applyCurriculumAiCharge,
   buildLessonSlidesArtifactKey,
+  chargeCurriculumFullPrice,
   estimateCurriculumAiPrecheckAmount,
   readCurriculumDailyBodyQuota,
 } from '@/lib/curriculum-ai-charge-policy'
@@ -604,81 +607,6 @@ const SUBJECT_NAMES: Record<string, string> = {
   khac: 'Khác',
 }
 
-function topicTokens(input: string): string[] {
-  const normalized = normalizeTopicForSearch(input)
-  if (!normalized) return []
-  return normalized
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length >= 2)
-}
-
-function tokenJaccard(a: string[], b: string[]): number {
-  const sa = new Set(a)
-  const sb = new Set(b)
-  if (sa.size === 0 || sb.size === 0) return 0
-  let inter = 0
-  for (const t of sa) if (sb.has(t)) inter += 1
-  const union = new Set([...sa, ...sb]).size
-  return union > 0 ? inter / union : 0
-}
-
-type TopicMatchCandidate = { id: string; topic: string; score: number }
-
-async function rerankTopicCandidatesByAI(
-  rawTopic: string,
-  candidates: Array<{ id: string; topic: string }>,
-  userId?: string | null
-): Promise<Array<{ id: string; score: number }>> {
-  try {
-    if (!process.env.GOOGLE_API_KEY) return []
-    if (!rawTopic.trim() || candidates.length === 0) return []
-    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY)
-    const model = genAI.getGenerativeModel({
-      ...GEMINI_25_FLASH_NO_THINKING,
-      generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
-    })
-    const compact = candidates.map((c) => ({ id: c.id, topic: c.topic }))
-    const prompt = `Bạn là bộ chấm độ tương đồng chủ đề giáo trình.
-Nhiệm vụ: chấm điểm mức "cùng chủ đề dạy học" giữa chủ đề giáo viên nhập và danh sách giáo trình.
-Cho phép khác từ vựng/cách diễn đạt nhưng cùng ý nghĩa chuyên môn.
-
-Chủ đề nhập:
-${rawTopic}
-
-Danh sách ứng viên JSON:
-${JSON.stringify(compact)}
-
-Trả về JSON đúng schema:
-{
-  "matches": [
-    { "id": "string", "score": 0.0-1.0 }
-  ]
-}
-
-Ràng buộc:
-- score >= 0.80: gần như cùng chủ đề
-- 0.60..0.79: tương đối gần
-- <0.60: không đủ gần
-- Chỉ trả về id có trong danh sách.`
-    const result = await model.generateContent(prompt)
-    trackCurriculumGeminiResult(result, GEMINI_25_FLASH_NO_THINKING.model, CurriculumApiFeature.topicRerank, userId ?? null)
-    const text = result.response.text()?.trim() || ''
-    if (!text) return []
-    const parsed = JSON.parse(text) as { matches?: Array<{ id?: string; score?: number }> }
-    const validIds = new Set(candidates.map((c) => c.id))
-    return (parsed.matches ?? [])
-      .map((m) => ({
-        id: String(m.id || '').trim(),
-        score: Math.max(0, Math.min(1, Number(m.score || 0))),
-      }))
-      .filter((m) => validIds.has(m.id))
-      .sort((a, b) => b.score - a.score)
-  } catch {
-    return []
-  }
-}
-
 /** AI trích tối đa 5 chủ đề từ nội dung giáo trình. */
 async function extractLessonTopicsFromContent(
   content: string,
@@ -760,13 +688,48 @@ export async function createCurriculum(formData: FormData) {
   }
 
   const subjectName = SUBJECT_NAMES[subjectId] || subjectId
-  const gradeLabel = gradeLevelId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const gradeLabel = gradeLevelLabel(gradeLevelId, 'vi')
   const textbookName = TEXTBOOK_NAMES[textbookSetId] || TEXTBOOK_NAMES.khac
   const lessonTypeName = LESSON_TYPE_NAMES[lessonTypeId] || LESSON_TYPE_NAMES['hinh-thanh-kien-thuc']
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
+
+  if (isTopicMode) {
+    const cached = await findTopicModeCacheMatch({
+      rawTopic: topic,
+      subjectId,
+      gradeLevelId,
+      lessonTypeId,
+      numLessons: numTiet,
+      lessonDurationMinutes: thoiLuong,
+    })
+    if (cached.hit) {
+      return {
+        success: true,
+        curriculumMarkdown: cached.hit.curriculumMarkdown,
+        curriculumId: cached.hit.id,
+        matched: true,
+        creditsCharged: false,
+      }
+    }
+    const topicPrice = CURRICULUM_UI_CREDITS.createOrFromImage
+    if (!isCurriculumAiCreditsDisabled()) {
+      if (!isPgConfigured()) {
+        return { error: 'Máy chủ thiếu DATABASE_URL — không thể kiểm tra/trừ credit.', code: 'BILLING_CONFIG_MISSING' }
+      }
+      const balance = await readUserCreditBalance(user.id)
+      if (balance < topicPrice) {
+        return {
+          error: 'insufficient_credits',
+          code: 'INSUFFICIENT_CREDITS',
+          balance,
+          required: topicPrice,
+        }
+      }
+    }
+  }
 
   const loadLessonTitleFromDb = async () => {
     if (!lessonNum) return null
@@ -919,7 +882,37 @@ Chỉ trả JSON hợp lệ:
     }
     const curriculumId = ins.id ?? null
     if (curriculumId) await upsertCurriculumLessonRows(curriculumId, markedOutline)
-    return { success: true, curriculumMarkdown: visibleMarkdown, curriculumId }
+    if (!isTopicMode || isCurriculumAiCreditsDisabled() || !user?.id || !curriculumId) {
+      return { success: true, curriculumMarkdown: visibleMarkdown, curriculumId, matched: false, creditsCharged: false }
+    }
+    const charge = await chargeCurriculumFullPrice({
+      userId: user.id,
+      amount: CURRICULUM_UI_CREDITS.createOrFromImage,
+      chargeType: CURRICULUM_AI_CHARGE_TYPES.topicCreate,
+      eventKey: `curriculum_topic:${user.id}:${curriculumId}`,
+      metadata: { subjectId, gradeLevelId, topic: topicFinal, curriculumId },
+    })
+    if (!charge.ok) {
+      return {
+        success: true,
+        curriculumMarkdown: visibleMarkdown,
+        curriculumId,
+        matched: false,
+        creditsCharged: false,
+        chargeError: charge.error,
+        code: charge.code,
+        balance: charge.balance,
+        required: charge.required,
+      }
+    }
+    return {
+      success: true,
+      curriculumMarkdown: visibleMarkdown,
+      curriculumId,
+      matched: false,
+      creditsCharged: charge.creditsCharged,
+      newBalance: charge.newBalance,
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Tạo giáo trình thất bại: ${msg}` }
@@ -1032,7 +1025,6 @@ export async function saveCurriculum(formData: FormData) {
     })
     if (upd.error) return { error: `Cập nhật thất bại: ${upd.error}` }
     await upsertCurriculumLessonRows(curriculumId, markedOutline)
-    await deleteWorksheetCurriculumLessonSlidesByCurriculumIdPg(curriculumId)
     return {
       success: true,
       curriculumId,
@@ -1126,6 +1118,38 @@ export async function saveTextbookLessonFromImage(opts: {
   return { success: true }
 }
 
+/** Khớp đúng khóa đã chuẩn hóa. Không gọi AI. */
+async function findTopicModeCacheMatch(opts: {
+  rawTopic: string
+  subjectId: string
+  gradeLevelId: string
+  lessonTypeId: string
+  numLessons: number
+  lessonDurationMinutes: number
+}): Promise<{
+  hit: { id: string; topic: string; curriculumMarkdown: string } | null
+  similarItems: Array<{ id: string; topic: string; score: number }>
+}> {
+  const topicNormalized = normalizeTopicForSearch(opts.rawTopic)
+  if (!topicNormalized || topicNormalized.length < 2 || !isPgConfigured()) {
+    return { hit: null, similarItems: [] }
+  }
+  const row = await findTopicCurriculumByNormalizedKeyPg({
+    subjectId: opts.subjectId,
+    gradeLevelId: opts.gradeLevelId,
+    lessonTypeId: opts.lessonTypeId,
+    numLessons: opts.numLessons,
+    lessonDurationMinutes: opts.lessonDurationMinutes,
+    topicNormalized,
+  })
+  const markdown = stripCurriculumOriginalBodyMarker(row?.content_markdown)
+  if (!row || !markdown) return { hit: null, similarItems: [] }
+  return {
+    hit: { id: row.id, topic: row.topic, curriculumMarkdown: markdown },
+    similarItems: [],
+  }
+}
+
 /** Kiểm tra DB đã có giáo trình khớp (môn + lớp + bộ sách + tập + loại bài + bài số + số tiết + thời gian) chưa.
  * Chuẩn hóa đầu vào trước khi tra để khớp với DB. */
 export async function checkCurriculumExists(opts: {
@@ -1158,64 +1182,24 @@ export async function checkCurriculumExists(opts: {
 
   const isTopicMode = opts.createMode === 'topic'
   if (isTopicMode) {
-    const rawTopic = String(opts.topic || '').trim()
-    const normalizedInput = normalizeTopicForSearch(rawTopic)
-    if (!normalizedInput || normalizedInput.length < 2) return { exists: false, similarItems: [] as TopicMatchCandidate[] }
-
-    if (!isPgConfigured()) {
-      return { exists: false, similarItems: [] as TopicMatchCandidate[] }
-    }
-
-    // Layer 1: fast candidate filtering by subject/grade and lexical similarity.
-    const topicRows = await listCurriculaTopicModeCandidatesPg(n.subjectId, n.gradeLevelId, 80)
-
-    const inputTokens = topicTokens(rawTopic)
-    const lexicalCandidates: TopicMatchCandidate[] = (topicRows ?? [])
-      .map((r) => {
-        const candidateTopic = String((r as { topic?: string | null }).topic || '').trim()
-        const tks = topicTokens(candidateTopic)
-        const exactLike = topicsMatch(rawTopic, candidateTopic) ? 1 : 0
-        const jacc = tokenJaccard(inputTokens, tks)
-        const lenPenalty = Math.abs(inputTokens.length - tks.length) > 6 ? 0.1 : 0
-        const score = Math.max(0, Math.min(1, exactLike * 0.65 + jacc * 0.5 - lenPenalty))
-        return { id: (r as { id: string }).id, topic: candidateTopic, score }
-      })
-      .filter((x) => x.topic.length >= 2)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 8)
-
-    if (lexicalCandidates.length === 0) return { exists: false, similarItems: [] as TopicMatchCandidate[] }
-
-    // Layer 2: semantic rerank via AI.
-    const aiScores = await rerankTopicCandidatesByAI(
-      rawTopic,
-      lexicalCandidates.map((c) => ({ id: c.id, topic: c.topic })),
-      authResult.user.id
-    )
-    const aiMap = new Map(aiScores.map((x) => [x.id, x.score]))
-    const merged = lexicalCandidates
-      .map((c) => {
-        const ai = aiMap.get(c.id)
-        const score = ai == null ? c.score : Math.max(0, Math.min(1, c.score * 0.35 + ai * 0.65))
-        return { ...c, score }
-      })
-      .sort((a, b) => b.score - a.score)
-
-    const similarItems = merged.filter((x) => x.score >= 0.6).slice(0, 5)
-    const best = similarItems[0]
-    if (best && best.score >= 0.8) {
-      const bestRow = await fetchCurriculumContentTopicByIdPg(best.id)
+    const found = await findTopicModeCacheMatch({
+      rawTopic: String(opts.topic || ''),
+      subjectId: n.subjectId,
+      gradeLevelId: n.gradeLevelId,
+      lessonTypeId: n.lessonTypeId,
+      numLessons: n.numLessons,
+      lessonDurationMinutes: n.lessonDurationMinutes,
+    })
+    if (found.hit) {
       return {
         exists: true,
-        curriculumId: best.id,
-        curriculumMarkdown: stripCurriculumOriginalBodyMarker(
-          (bestRow as { content_markdown?: string | null } | null)?.content_markdown
-        ),
-        topic: best.topic,
-        similarItems,
+        curriculumId: found.hit.id,
+        curriculumMarkdown: found.hit.curriculumMarkdown,
+        topic: found.hit.topic,
+        similarItems: found.similarItems,
       }
     }
-    return { exists: false, similarItems }
+    return { exists: false, similarItems: found.similarItems }
   }
 
   if (!n.lessonNumber) return { exists: false }
@@ -1794,19 +1778,14 @@ async function buildTeacherReviewItems(userId: string, ids: string[]) {
     acknowledgedQuestionIdsPg(userId, ids),
   ])
   const acked = new Set(ackedIds)
-  const votedAlready = ids.filter((questionId) => {
-    if (acked.has(questionId)) return false
-    const mine = reviewRows.filter((row) => row.question_id === questionId)
-    return Boolean(pendingQuestionReview(mine, userId, questionId)?.myVote)
-  })
-  if (votedAlready.length) {
-    await acknowledgeQuestionsPg(userId, votedAlready)
-    for (const questionId of votedAlready) acked.add(questionId)
-  }
   const sharedById = new Map(sharedRows.map((row) => [row.id, row]))
   const personal = personalBodiesForUser(reviewRows, userId)
   const { questionBlockMarkdown } = await import('./lib/questions-to-markdown')
-  const items = ids.filter((questionId) => !acked.has(questionId)).map((questionId) => {
+  const items = ids.filter((questionId) => {
+    const mine = reviewRows.filter((row) => row.question_id === questionId)
+    if (pendingQuestionReview(mine, userId, questionId)) return true
+    return !acked.has(questionId)
+  }).map((questionId) => {
     const index = ids.indexOf(questionId)
     const meta = sharedById.get(questionId)
     const shared = meta?.content_json
@@ -2759,13 +2738,16 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
 
   if (lesson.lesson_markdown) {
     const slidesArtifactKey = buildLessonSlidesArtifactKey(curriculumId, mode, safeLessonNo)
-    const requiredPrecheck = await estimateCurriculumAiPrecheckAmount({
-      userId: user.id,
-      kind: 'lesson_slides',
-      artifactKey: slidesArtifactKey,
-      listPrice: LESSON_SLIDE_GENERATE_CREDIT_COST,
-      isRegenerate: false,
-    })
+    const billSlideNow = await curriculumBillsEachNewAiPg(curriculumId)
+    const requiredPrecheck = billSlideNow
+      ? LESSON_SLIDE_GENERATE_CREDIT_COST
+      : await estimateCurriculumAiPrecheckAmount({
+          userId: user.id,
+          kind: 'lesson_slides',
+          artifactKey: slidesArtifactKey,
+          listPrice: LESSON_SLIDE_GENERATE_CREDIT_COST,
+          isRegenerate: false,
+        })
     if (requiredPrecheck > 0) {
       const balance = await readUserCreditBalance(user.id)
       if (balance < requiredPrecheck) {
@@ -2808,13 +2790,10 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
         Date.now().toString(36),
         Math.random().toString(36).slice(2, 8),
       ].join(':')
-      const charge = await applyCurriculumAiCharge({
+      const slideChargeInput = {
         userId: user.id,
-        kind: 'lesson_slides',
-        artifactKey: slidesArtifactKey,
-        listPrice: LESSON_SLIDE_GENERATE_CREDIT_COST,
+        amount: LESSON_SLIDE_GENERATE_CREDIT_COST,
         chargeType: CURRICULUM_AI_CHARGE_TYPES.lessonSlideGenerate,
-        isRegenerate: false,
         eventKey,
         metadata: {
           curriculumId,
@@ -2823,7 +2802,19 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
           slideCount: generated.slides.length,
           source: generated.source,
         },
-      })
+      }
+      const charge = billSlideNow
+        ? await chargeCurriculumFullPrice(slideChargeInput)
+        : await applyCurriculumAiCharge({
+            userId: user.id,
+            kind: 'lesson_slides',
+            artifactKey: slidesArtifactKey,
+            listPrice: LESSON_SLIDE_GENERATE_CREDIT_COST,
+            chargeType: CURRICULUM_AI_CHARGE_TYPES.lessonSlideGenerate,
+            isRegenerate: false,
+            eventKey,
+            metadata: slideChargeInput.metadata,
+          })
       if (!charge.ok) {
         if (charge.code === 'INSUFFICIENT_CREDITS') {
           return {
@@ -3167,10 +3158,6 @@ export async function createSlideEditProposal(opts: {
     return { error: 'Thiếu DATABASE_URL — không thể tạo đề xuất sửa slide.' }
   }
 
-  const verify = await verifySlideEditProposalDraft(opts)
-  if (verify && 'error' in verify) return { error: verify.error }
-  if (!verify?.ok) return { error: `AI chưa đồng ý đề xuất: ${verify?.reason || 'Không có lý do.'}` }
-
   const ins = await insertSlideEditProposalPg({
     curriculumId: opts.curriculumId,
     slideIndex: opts.slideIndex,
@@ -3288,7 +3275,7 @@ export async function verifySlideEditProposalDraft(opts: {
   }
 }
 
-/** AI đồng ý thì áp dụng sửa/bổ sung ngay vào slide dùng chung. */
+/** Giáo viên sửa slide: lưu ngay cho người sửa, không gọi AI, không trừ credit. */
 export async function applySlideEditDirect(opts: {
   curriculumId: string
   slideIndex: number
@@ -3302,10 +3289,6 @@ export async function applySlideEditDirect(opts: {
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const userId = authResult.user?.id ?? null
-
-  const verify = await verifySlideEditProposalDraft(opts)
-  if (verify && 'error' in verify) return { error: verify.error }
-  if (!verify?.ok) return { error: verify?.reason || 'AI chưa đồng ý đề xuất.' }
 
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể áp dụng sửa slide.' }

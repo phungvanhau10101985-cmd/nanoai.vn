@@ -27,7 +27,7 @@ type Props = {
   onCancel: () => void
   onEdit: (before: string, after: string, slideIndex: number) => void
   onPass: (nextMarkdown: string) => void
-  /** Mở từ nút học sinh: nếu người này đã xác nhận rồi thì vào thẳng, không bắt xác nhận lại. */
+  /** Mở từ nút học sinh: slide không còn bản sửa thì vào thẳng. Slide còn cả hai bản thì phải chọn lại. */
   skipIfAlreadyConfirmed?: boolean
 }
 
@@ -95,6 +95,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState('')
   const [stats, setStats] = useState<SlideReviewStat[]>([])
+  const [pickedThisOpen, setPickedThisOpen] = useState<Set<number>>(() => new Set())
   const slideRefs = useRef<Array<HTMLElement | null>>([])
   const continuedRef = useRef(false)
   const total = items.length
@@ -139,6 +140,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
 
   useEffect(() => {
     if (!skipIfAlreadyConfirmed || continuedRef.current || stats.length === 0 || stats.length < items.length) return
+    if (stats.slice(0, items.length).some((stat) => stat.warn && stat.proposalText)) return
     if (!stats.slice(0, items.length).every((stat) => stat.confirmedByMe)) return
     continuedRef.current = true
     onPass(source)
@@ -187,6 +189,24 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
       onEdit(before, next, index)
     }
     remember(index, choice, edited, nextItems.map((row) => shownSlideText(row.text)))
+    setPickedThisOpen((prev) => new Set(prev).add(index))
+  }
+
+  const pickAuthorVersion = (index: number, choice: 'edit' | 'original') => {
+    const stat = stats[index]
+    const item = items[index]
+    if (!item || !stat?.proposalText) return
+    const next = choice === 'edit'
+      ? stat.proposalText.trim()
+      : (String(stat.sharedText || '').trim() || shownSlideText(item.text))
+    const before = shownSlideText(item.text)
+    const nextItems = items.map((row, i) => (i === index ? { ...row, text: next, status: 'pass' as const, message: 'seen' } : row))
+    setItems(nextItems)
+    if (before && next && before !== shownSlideText(next)) {
+      setSource((prev) => replaceCurriculumExercise(prev, before, next))
+      onEdit(before, next, index)
+    }
+    setPickedThisOpen((prev) => new Set(prev).add(index))
   }
 
   const scrollToNextSlide = (index: number) => {
@@ -229,6 +249,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
     if (changed) onEdit(item.text, after, index)
     const nextTexts = nextItems.map((row) => shownSlideText(row.text))
     void remember(index, changed ? 'edit' : 'confirm', shownSlideText(after), nextTexts)
+    setPickedThisOpen((prev) => new Set(prev).add(index))
   }
 
   const confirmRead = (index: number) => {
@@ -241,7 +262,11 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
   }
 
   if (total === 0) return null
-  const seenCount = items.filter((row, index) => (row.status === 'pass' && row.message === 'seen') || stats[index]?.confirmedByMe).length
+  const seenCount = items.filter((row, index) => {
+    const stat = stats[index]
+    if (stat?.warn && stat.proposalText) return pickedThisOpen.has(index)
+    return (row.status === 'pass' && row.message === 'seen') || Boolean(stat?.confirmedByMe)
+  }).length
   const ready = seenCount === total
 
   return (
@@ -254,11 +279,11 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
             </p>
             <p className="text-xs text-slate-400">
               {tr(
-                `${total} slide. Lăn lên xuống để đọc các slide liền nhau. Xong hết mới mở cửa sổ học sinh.`,
-                `${total} slides. Scroll to read the neighboring slides. The student window opens after every slide is checked.`,
-                `共 ${total} 张。上下滚动阅读相邻幻灯片。全部看完才打开学生窗口。`,
-                `${total}枚。上下にスクロールして前後のスライドを読む。全部確認してから生徒画面を開く。`,
-                `슬라이드 ${total}장. 위아래로 스크롤해 앞뒤 슬라이드를 읽습니다. 모두 확인한 뒤 학생 창이 열립니다.`
+                `${total} slide. Slide còn cả bản gốc và bản sửa thì mỗi lần mở phải chọn một bản.`,
+                `${total} slides. A slide that still has both versions must be chosen again every time you open it.`,
+                `共 ${total} 张。仍同时有原版和修改版的幻灯片，每次打开都要先选一版。`,
+                `${total}枚。元の版と修正版が残っているスライドは、開くたびにどちらかを選びます。`,
+                `슬라이드 ${total}장. 원본과 수정본이 함께 있는 슬라이드는 열 때마다 하나를 골라야 합니다.`
               )}
             </p>
           </div>
@@ -286,6 +311,8 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
               confirmedByMe: false,
             }
             const alreadyMine = seen || stat.confirmedByMe
+            const mustPickVersion = Boolean(stat.warn && stat.proposalText)
+            const pickedNow = pickedThisOpen.has(index)
             return (
               <article
                 key={`${index}-${title}`}
@@ -392,7 +419,35 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                     )}
                   </p>
                   <div className="flex flex-wrap justify-end gap-2">
-                  {alreadyMine && !editing && !(stat.warn && stat.proposalText && !stat.proposalAuthorIsMe) ? (
+                  {mustPickVersion && !editing ? (
+                    pickedNow ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="cursor-default rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-emerald-50"
+                      >
+                        {tr('Đã chọn bản dùng', 'Version chosen', '已选使用版本', '使う版を選択済', '사용할 버전 선택함')}
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => (stat.proposalAuthorIsMe ? pickAuthorVersion(index, 'edit') : chooseVersion(index, 'agree'))}
+                          className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600"
+                        >
+                          {tr('Dùng bản sửa', 'Use the edit', '使用修改版', '修正版を使う', '수정본 사용')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => (stat.proposalAuthorIsMe ? pickAuthorVersion(index, 'original') : chooseVersion(index, 'reject'))}
+                          className="rounded-md border border-slate-500 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800"
+                        >
+                          {tr('Dùng bản gốc', 'Use the original', '使用原版', '元の版を使う', '원본 사용')}
+                        </button>
+                      </>
+                    )
+                  ) : null}
+                  {alreadyMine && !editing && !mustPickVersion ? (
                     <button
                       type="button"
                       disabled
@@ -400,34 +455,6 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                     >
                       {tr('Đã xác nhận', 'Confirmed', '已确认', '確認済', '확인함')}
                     </button>
-                  ) : null}
-                  {stat.warn && stat.proposalText && !stat.proposalAuthorIsMe ? (
-                    <>
-                      <button
-                        type="button"
-                        disabled={stat.myVote === 'agree'}
-                        onClick={() => chooseVersion(index, 'agree')}
-                        className={
-                          stat.myVote === 'agree'
-                            ? 'cursor-default rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-emerald-50'
-                            : 'rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50'
-                        }
-                      >
-                        {stat.myVote === 'agree'
-                          ? tr('Đã xác nhận', 'Confirmed', '已确认', '確認済', '확인함')
-                          : tr('Đồng ý đề xuất', 'Agree', '同意提议', '提案に同意', '제안에 동의')}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={stat.myVote === 'reject'}
-                        onClick={() => chooseVersion(index, 'reject')}
-                        className="rounded-md border border-slate-500 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800 disabled:opacity-50"
-                      >
-                        {stat.myVote === 'reject'
-                          ? tr('Bạn không đồng ý', 'You disagreed', '你已反对', '反対済み', '반대함')
-                          : tr('Không đồng ý', 'Disagree', '不同意', '同意しない', '동의하지 않음')}
-                      </button>
-                    </>
                   ) : null}
                   {editing ? (
                     <button
@@ -437,7 +464,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                     >
                       {tr('Dùng bản này', 'Use this version', '使用此版本', 'この版を使う', '이 버전 사용')}
                     </button>
-                  ) : passed && !seen && !stat.confirmedByMe ? (
+                  ) : !mustPickVersion && passed && !seen && !stat.confirmedByMe ? (
                     <button
                       type="button"
                       onClick={() => confirmRead(index)}
@@ -445,7 +472,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                     >
                       {tr('Nội dung đúng', 'Content is correct', '内容正确', '内容は正しい', '내용이 맞음')}
                     </button>
-                  ) : !passed && !stat.confirmedByMe ? (
+                  ) : !mustPickVersion && !passed && !stat.confirmedByMe ? (
                     <>
                       {item.status === 'unverified' ? (
                         <button

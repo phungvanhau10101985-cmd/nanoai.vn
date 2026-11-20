@@ -197,11 +197,11 @@ export function WorksheetTeacherReviewGate({
           </p>
           <p className="mt-1 text-xs text-slate-400">
             {tr(
-              'Lần đầu phải xác nhận từng câu. Không bỏ qua. Câu mới tạo sau này cũng phải xác nhận. 7 lần đúng liên tiếp thì thay bản gốc bằng bản sửa. 7 lần sai liên tiếp thì giữ bản gốc và bỏ bản sửa.',
-              'The first time, confirm every question. Skipping is not allowed. New questions must be confirmed too. 7 correct votes in a row replace the original with the edit. 7 wrong votes in a row keep the original and drop the edit.',
-              '第一次必须逐题确认，不能跳过。以后新建的题目也要确认。连续 7 次判对则用修改版替换原版。连续 7 次判错则保留原版并丢掉修改。',
-              '最初は全問を確認します。スキップはできません。後から追加された問題も確認が必要です。正しい票が7回続くと修正版が原本になります。誤りの票が7回続くと原本を残し修正版を捨てます。',
-              '처음에는 문항마다 확인해야 합니다. 건너뛸 수 없습니다. 새로 만든 문항도 확인해야 합니다. 맞음이 7번 연속이면 수정본이 원본이 됩니다. 틀림이 7번 연속이면 원본을 유지하고 수정본을 버립니다.'
+              'Câu còn cả bản gốc và bản sửa thì mỗi lần mở phải chọn một bản. Câu mới chưa xác nhận cũng phải chọn trước khi mở slide.',
+              'A question that still has both versions must be chosen every time you open it. A new question must be confirmed before the slides open.',
+              '仍同时有原版和修改版的题目，每次打开都要先选一版。新题也要先确认再打开幻灯片。',
+              '元の版と修正版が残っている問題は、開くたびにどちらかを選びます。新しい問題も確認してからスライドを開きます。',
+              '원본과 수정본이 함께 있는 문항은 열 때마다 하나를 골라야 합니다. 새 문항도 확인한 뒤 슬라이드를 엽니다.'
             )}
           </p>
         </div>
@@ -294,8 +294,10 @@ export function WorksheetTeacherReviewGate({
                           }
                         >
                           {seen
-                            ? tr('Đã xác nhận', 'Confirmed', '已确认', '確認済', '확인함')
-                            : tr('Xác nhận đúng', 'Confirm correct', '确认正确', '正しいと確認', '맞다고 확인')}
+                            ? tr('Đã chọn bản dùng', 'Version chosen', '已选使用版本', '使う版を選択済', '사용할 버전 선택함')
+                            : item.pending
+                              ? tr('Dùng bản sửa', 'Use the edit', '使用修改版', '修正版を使う', '수정본 사용')
+                              : tr('Xác nhận đúng', 'Confirm correct', '确认正确', '正しいと確認', '맞다고 확인')}
                         </button>
                         {item.pending && !item.authorIsMe ? (
                           <button
@@ -304,7 +306,7 @@ export function WorksheetTeacherReviewGate({
                             onClick={() => void confirm(item, 'reject')}
                             className="rounded-md border border-slate-500 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800 disabled:opacity-50"
                           >
-                            {tr('Không đồng ý', 'Disagree', '不同意', '同意しない', '동의하지 않음')}
+                            {tr('Dùng bản gốc', 'Use the original', '使用原版', '元の版を使う', '원본 사용')}
                           </button>
                         ) : null}
                         <button

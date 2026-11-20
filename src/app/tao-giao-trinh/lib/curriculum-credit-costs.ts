@@ -7,10 +7,11 @@
  * - Phải gọi AI tạo mới → trừ credit theo mức dưới (server đã gắn spend: xem từng API).
  *
  * Đã gắn trừ server (có miễn phí lần đầu — xem `curriculum-ai-charge-policy`):
- * - `POST /api/curriculum-from-image`: 1 credit khi ghi đè / vượt 2 bài mới/ngày
- * - slide theo tiết: 0.5 credit khi tạo lại (lần đầu/tiết miễn phí)
- * - infographic: GPT medium 1 credit, high 2 credit khi tạo lại (lần đầu miễn phí)
- * - tạo từng câu: 5 trắc nghiệm + 5 tự luận đầu của mỗi giáo trình miễn phí. Câu thêm 0,5 credit. Không trần theo giáo viên.
+ * - `POST /api/curriculum-from-image` ba bộ SGK: 1 credit khi ghi đè / vượt 2 bài mới/ngày
+ * - tạo theo chủ đề và sách khác NXB: 1 credit khi không khớp bài đã lưu. Khớp cache thì mở, không trừ, không ăn suất miễn phí trong ngày.
+ * - slide theo tiết của ba bộ SGK: 0.5 credit khi tạo lại (lần đầu miễn phí, lần sau dùng cache). Chủ đề và sách khác NXB: lần đầu cũng 0.5 credit.
+ * - infographic theo ba bộ SGK: GPT medium 1 credit, high 2 credit khi tạo lại (lần đầu miễn phí). Chủ đề và sách khác NXB: lần đầu cũng trừ đúng giá đó.
+ * - tạo từng câu theo ba bộ SGK: 5 trắc nghiệm + 5 tự luận đầu miễn phí, câu thêm 0,5 credit. Chủ đề và sách khác NXB: mỗi câu 0,5 credit, không miễn phí.
  * - tách ảnh SGK: một lần miễn phí trên mỗi giáo trình. Tách lại: 1 credit.
  * Chưa gắn spend: curriculum-from-paste, curriculum-edit-check, worksheet-edit-check,
  * worksheet-generate-*, các job phiếu khác — v.v.
@@ -23,7 +24,7 @@ export const CURRICULUM_CREDIT_RULES = {
 } as const
 
 export const CURRICULUM_UI_CREDITS = {
-  /** createCurriculum (chủ đề) hoặc POST /api/curriculum-from-image — mỗi lần tạo bằng AI */
+  /** Theo sách: 1 credit khi ghi đè hoặc hết 2 bài miễn phí/ngày. Theo chủ đề: 1 credit khi không khớp cache. */
   createOrFromImage: 1,
   /** Tách lại phiếu từ ảnh SGK. Lần đầu trên giáo trình thì miễn phí. */
   sgkExtractJob: 1,

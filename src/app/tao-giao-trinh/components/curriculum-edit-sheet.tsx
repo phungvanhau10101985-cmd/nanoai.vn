@@ -82,6 +82,36 @@ export function CurriculumEditSheet({
     }
   }, [originalText, searchInCurriculum])
 
+  const applyEdit = useCallback(() => {
+    const orig = originalText.trim()
+    const edited = editedText.trim()
+    if (!orig || orig.length < 5) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Dữ liệu cần sửa quá ngắn.', 'Data to edit is too short.', '要编辑的数据太短。', '編集するデータが短すぎます。', '편집할 데이터가 너무 짧습니다.'), variant: 'destructive' })
+      return
+    }
+    if (matchStatus !== 'found') {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Không tìm thấy dữ liệu cần sửa trong giáo trình.', 'Data to edit not found in curriculum.', '在课程中未找到要编辑的数据。', '教材内に編集するデータが見つかりません。', '교육과정에서 편집할 데이터를 찾을 수 없습니다.'), variant: 'destructive' })
+      return
+    }
+    if (!edited) {
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Nhập nội dung sẽ sửa thành.', 'Enter the replacement content.', '请输入替换内容。', '置換後の内容を入力してください。', '대체할 내용을 입력하세요.'), variant: 'destructive' })
+      return
+    }
+    onApplyEdit(orig, edited)
+    toast({
+      title: tr('Đã áp dụng sửa', 'Edit applied', '已应用修改', '編集を適用しました', '편집 적용됨'),
+      description: tr(
+        'Bạn dùng ngay bản sửa. Không gọi AI, không trừ credit.',
+        'You use this edit now. No AI call and no credit charge.',
+        '你现在就用这个修改。不调用 AI，不扣积分。',
+        '今すぐこの修正を使います。AIは呼ばず、クレジットも引きません。',
+        '지금 이 수정본을 씁니다. AI를 호출하지 않고 크레딧도 차감하지 않습니다.',
+      ),
+      duration: 4000,
+    })
+    onOpenChange(false)
+  }, [originalText, editedText, matchStatus, onApplyEdit, onOpenChange, tr, toast])
+
   const runCompare = useCallback(async () => {
     const orig = originalText.trim()
     const edited = editedText.trim()
@@ -172,16 +202,10 @@ export function CurriculumEditSheet({
   }, [originalText, editedText, matchStatus, onApplyEdit, onOpenChange, tr, toast])
 
   useEffect(() => {
-    if (!open || !editedText.trim() || matchStatus !== 'found') return
-    if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current)
-    checkTimeoutRef.current = setTimeout(() => {
-      checkTimeoutRef.current = null
-      void runCompare()
-    }, 600)
     return () => {
       if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current)
     }
-  }, [open, editedText, matchStatus, runCompare])
+  }, [])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -296,7 +320,7 @@ export function CurriculumEditSheet({
           )}
 
           <Button
-            onClick={() => void runCompare()}
+            onClick={() => applyEdit()}
             disabled={checkLoading || matchStatus !== 'found' || !editedText.trim()}
             className="w-full"
           >

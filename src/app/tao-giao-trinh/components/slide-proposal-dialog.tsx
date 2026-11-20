@@ -16,8 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { applySlideEditDirect, verifySlideEditProposalDraft } from '../actions'
-import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '../lib/curriculum-credit-costs'
+import { applySlideEditDirect } from '../actions'
 
 interface SlideProposalDialogProps {
   open: boolean
@@ -62,10 +61,7 @@ export function SlideProposalDialog({
   const [replacementText, setReplacementText] = useState('')
   const [proposedHeader, setProposedHeader] = useState('')
   const [loading, setLoading] = useState(false)
-  const [checking, setChecking] = useState(false)
   const [error, setError] = useState('')
-  const [aiCheckStatus, setAiCheckStatus] = useState<'idle' | 'passed' | 'failed'>('idle')
-  const [aiCheckMessage, setAiCheckMessage] = useState('')
 
   useEffect(() => {
     if (open) {
@@ -73,17 +69,8 @@ export function SlideProposalDialog({
       setReplacementText('')
       setProposedHeader('')
       setError('')
-      setChecking(false)
-      setAiCheckStatus('idle')
-      setAiCheckMessage('')
     }
   }, [open, segmentType])
-
-  useEffect(() => {
-    if (!open) return
-    setAiCheckStatus('idle')
-    setAiCheckMessage('')
-  }, [open, segmentType, textToReplace, replacementText, proposedHeader])
 
   const toReplaceTrimmed = textToReplace.trim()
   const replacementTrimmed = replacementText.trim()
@@ -92,47 +79,6 @@ export function SlideProposalDialog({
     toReplaceTrimmed.length > 0 &&
     replacementTrimmed.length > 0 &&
     containsLoose(originalContent ?? '', toReplaceTrimmed)
-
-  const canCheckAI =
-    segmentType === 'edit'
-      ? editCanSubmit
-      : replacementTrimmed.length > 0
-
-  const handleCheckAI = async () => {
-    if (!canCheckAI) return
-    setChecking(true)
-    setError('')
-    setAiCheckStatus('idle')
-    setAiCheckMessage('')
-    const res = await verifySlideEditProposalDraft({
-      curriculumId,
-      slideIndex,
-      blockIndex,
-      segmentType,
-      originalText: segmentType === 'edit' ? toReplaceTrimmed : undefined,
-      originalBlockContent: originalContent ?? '',
-      proposedText: replacementTrimmed,
-      proposedHeader: segmentType === 'add' ? proposedHeader.trim() : undefined,
-      chargeCredits: true,
-    })
-    setChecking(false)
-    if (res?.error) {
-      setAiCheckStatus('failed')
-      setAiCheckMessage(res.error)
-      return
-    }
-    if (res?.ok) {
-      setAiCheckStatus('passed')
-      setAiCheckMessage(
-        res.reason || tr('AI đồng ý đề xuất. Bạn có thể gửi.', 'AI approved this proposal. You can submit now.', 'AI已同意该建议，可以提交。', 'AIが提案を承認しました。送信できます。', 'AI가 제안을 승인했습니다. 제출할 수 있습니다.')
-      )
-    } else {
-      setAiCheckStatus('failed')
-      setAiCheckMessage(
-        res?.reason || tr('AI chưa đồng ý đề xuất.', 'AI has not approved this proposal yet.', 'AI尚未同意该建议。', 'AIがこの提案をまだ承認していません。', 'AI가 아직 이 제안을 승인하지 않았습니다.')
-      )
-    }
-  }
 
   const handleSubmit = async () => {
     const header = proposedHeader.trim()
@@ -149,10 +95,6 @@ export function SlideProposalDialog({
       }
       if (!containsLoose(originalContent ?? '', toReplace)) {
         setError(tr('Đoạn cần sửa không có trong nội dung hiện tại', 'Text to replace not found in current content', '要替换的文本不在当前内容中', '置き換えるテキストが現在の内容にありません', '교체할 텍스트가 현재 내용에 없습니다'))
-        return
-      }
-      if (aiCheckStatus !== 'passed') {
-        setError(tr('Vui lòng bấm "Kiểm tra AI" và chỉ gửi khi AI đồng ý.', 'Please click "Check AI" and submit only when AI approves.', '请先点击“AI检查”，并在AI同意后再提交。', '「AIチェック」を実行し、AI同意後に送信してください。', '"AI 검사"를 먼저 실행하고 AI 승인 후 제출해 주세요.'))
         return
       }
       setLoading(true)
@@ -180,10 +122,6 @@ export function SlideProposalDialog({
     const text = replacementText.trim()
     if (!text) {
       setError(tr('Vui lòng nhập nội dung đề xuất', 'Please enter proposed content', '请输入建议内容', '提案内容を入力してください', '제안 내용을 입력하세요'))
-      return
-    }
-    if (aiCheckStatus !== 'passed') {
-      setError(tr('Vui lòng bấm "Kiểm tra AI" và chỉ gửi khi AI đồng ý.', 'Please click "Check AI" and submit only when AI approves.', '请先点击“AI检查”，并在AI同意后再提交。', '「AIチェック」を実行し、AI同意後に送信してください。', '"AI 검사"를 먼저 실행하고 AI 승인 후 제출해 주세요.'))
       return
     }
     setLoading(true)
@@ -305,28 +243,13 @@ export function SlideProposalDialog({
                 </div>
               </>
             )}
-            {aiCheckStatus === 'passed' && (
-              <p className="text-sm text-emerald-600 dark:text-emerald-400">{aiCheckMessage}</p>
-            )}
-            {aiCheckStatus === 'failed' && (
-              <p className="text-sm text-destructive">{aiCheckMessage}</p>
-            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</Button>
             <Button
-              variant="outline"
-              onClick={() => void handleCheckAI()}
-              disabled={checking || loading || !canCheckAI}
-            >
-              {checking
-                ? tr('Đang kiểm tra AI...', 'Checking AI...', 'AI检查中...', 'AI確認中...', 'AI 확인 중...')
-                : `${tr('Kiểm tra AI', 'Check AI', 'AI检查', 'AIチェック', 'AI 검사')} (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideProposalAICheck)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`}
-            </Button>
-            <Button
               onClick={handleSubmit}
-              disabled={loading || checking || aiCheckStatus !== 'passed' || (segmentType === 'edit' && !editCanSubmit) || (segmentType === 'add' && !replacementTrimmed)}
+              disabled={loading || (segmentType === 'edit' && !editCanSubmit) || (segmentType === 'add' && !replacementTrimmed)}
             >
               {loading ? tr('Đang áp dụng...', 'Applying...', '正在应用...', '適用中...', '적용 중...') : tr('Áp dụng ngay', 'Apply now', '立即应用', 'すぐ適用', '바로 적용')}
             </Button>

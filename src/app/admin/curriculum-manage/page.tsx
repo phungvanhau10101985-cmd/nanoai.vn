@@ -9,10 +9,12 @@ import {
   fetchAdminCurriculumManage,
   type AdminCurriculumManageCost,
 } from '@/lib/db/admin-curriculum-manage-pg'
+import { gradeLevelLabel } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import { ApiStatsDateFilter } from '../api-stats/api-stats-date-filter'
 import { ictDayEndIso, ictDayStartIso, ictYearStartYmd, ictYmd } from '../api-stats/ict-date'
+import { CurriculumManageTableScroll } from './curriculum-manage-table-scroll'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,8 +64,7 @@ function labelOf(map: Record<string, string>, id: string): string {
 }
 
 function gradeLabel(id: string): string {
-  const match = /^lop-(\d+)$/.exec(id.trim())
-  return match ? `Lớp ${match[1]}` : id || '—'
+  return gradeLevelLabel(id, 'vi') || '—'
 }
 
 export default async function AdminCurriculumManagePage({
@@ -247,8 +248,17 @@ export default async function AdminCurriculumManagePage({
           ) : null}
 
           <Card>
-            <CardContent className="mt-6 overflow-x-auto">
-              <Table>
+            <CardContent className="pt-3">
+              <CurriculumManageTableScroll
+                scrollLabel={tr(
+                  'Cuộn ngang bảng giáo trình',
+                  'Scroll the curriculum table sideways',
+                  '横向滚动课程表',
+                  '教材表を横にスクロール',
+                  '교육과정 표를 가로로 스크롤',
+                )}
+              >
+              <Table containerClassName="w-max min-w-full overflow-visible" className="w-max min-w-full">
                 <TableHeader>
                   <TableRow>
                     <TableHead>{tr('Tạo lúc', 'Created', '创建时间', '作成', '만든 시각')}</TableHead>
@@ -334,6 +344,7 @@ export default async function AdminCurriculumManagePage({
                   )}
                 </TableBody>
               </Table>
+              </CurriculumManageTableScroll>
             </CardContent>
           </Card>
         </>

@@ -17,9 +17,11 @@ import {
   applyCurriculumAiCharge,
   buildCurriculumBodyArtifactKey,
   buildCurriculumBodyFingerprintKey,
+  chargeCurriculumFullPrice,
   estimateCurriculumAiPrecheckAmount,
 } from '@/lib/curriculum-ai-charge-policy'
 import { CURRICULUM_LESSON_MINUTES, formatCurriculumLessonNoDisplay, parseCurriculumLessonNumber } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
+import { gradeLevelLabel } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { curriculumOriginalLessonRules, normalizeKnowledgePoints } from '@/app/tao-giao-trinh/lib/curriculum-original-body'
 import { repairThenMarkLessonMarkdown } from '@/app/tao-giao-trinh/lib/curriculum-math-repair'
 
@@ -297,13 +299,16 @@ export async function POST(req: NextRequest) {
           { status: 503 }
         )
       }
-      const requiredPrecheck = await estimateCurriculumAiPrecheckAmount({
-        userId: billingUserId!,
-        kind: 'curriculum_body',
-        artifactKey: bodyArtifactKey,
-        listPrice: fromImageCost,
-        isRegenerate: isRegenerateBody,
-      })
+      const otherPublisher = textbookSetId === 'khac'
+      const requiredPrecheck = otherPublisher
+        ? fromImageCost
+        : await estimateCurriculumAiPrecheckAmount({
+            userId: billingUserId!,
+            kind: 'curriculum_body',
+            artifactKey: bodyArtifactKey,
+            listPrice: fromImageCost,
+            isRegenerate: isRegenerateBody,
+          })
       if (requiredPrecheck > 0) {
         const bal = await readUserCreditBalance(billingUserId!)
         if (bal < requiredPrecheck) {
@@ -370,7 +375,7 @@ Ràng buộc số bài:
     const outlineLessonNumber = parseCurriculumLessonNumber(outlineParsed.lessonNumber as number | string | null)
     const writerPrompt = `Soạn giáo trình từ mạch kiến thức dưới đây. Không có trang sách trong bước này.
 Môn: ${subjectName}
-Khối lớp: ${gradeLevelId}
+Khối lớp: ${gradeLevelLabel(gradeLevelId, 'vi')}
 Bộ sách: ${textbookName}
 Số bài: ${outlineLessonNumber != null ? formatCurriculumLessonNoDisplay(outlineLessonNumber) : formatCurriculumLessonNoDisplay(lessonNumber)}
 Tên bài: ${outlineTitle || 'theo mạch kiến thức'}
@@ -448,23 +453,32 @@ Trả JSON:
     let dailyQuota: { usedToday: number; limit: number; remaining: number; usageDate: string } | undefined
     if (!chargeDisabled && isPgConfigured() && billingUserId) {
       try {
-        const charge = await applyCurriculumAiCharge({
-          userId: billingUserId,
-          kind: 'curriculum_body',
-          artifactKey: bodyArtifactKey,
-          listPrice: fromImageCost,
-          chargeType: CURRICULUM_AI_CHARGE_TYPES.fromImage,
-          isRegenerate: isRegenerateBody,
-          eventKey: `curriculum_from_image:${billingUserId}:${randomUUID()}`,
-          metadata: {
-            contentHash,
-            subjectId,
-            gradeLevelId,
-            textbookSetId,
-            lessonNumber: extractedLessonNumber,
-            overwriteCurriculumId: overwriteCurriculumId || null,
-          },
-        })
+        const chargeMetadata = {
+          contentHash,
+          subjectId,
+          gradeLevelId,
+          textbookSetId,
+          lessonNumber: extractedLessonNumber,
+          overwriteCurriculumId: overwriteCurriculumId || null,
+        }
+        const charge = textbookSetId === 'khac'
+          ? await chargeCurriculumFullPrice({
+              userId: billingUserId,
+              amount: fromImageCost,
+              chargeType: CURRICULUM_AI_CHARGE_TYPES.fromImage,
+              eventKey: `curriculum_from_image:${billingUserId}:${randomUUID()}`,
+              metadata: chargeMetadata,
+            })
+          : await applyCurriculumAiCharge({
+              userId: billingUserId,
+              kind: 'curriculum_body',
+              artifactKey: bodyArtifactKey,
+              listPrice: fromImageCost,
+              chargeType: CURRICULUM_AI_CHARGE_TYPES.fromImage,
+              isRegenerate: isRegenerateBody,
+              eventKey: `curriculum_from_image:${billingUserId}:${randomUUID()}`,
+              metadata: chargeMetadata,
+            })
         dailyQuota = charge.dailyQuota
         if (!charge.ok) {
           if (charge.code === 'INSUFFICIENT_CREDITS') {

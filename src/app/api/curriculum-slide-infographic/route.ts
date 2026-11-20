@@ -11,8 +11,11 @@ import { CURRICULUM_AI_CHARGE_TYPES } from '@/lib/curriculum-ai-credits'
 import {
   applyCurriculumAiCharge,
   buildInfographicArtifactKey,
+  chargeCurriculumFullPrice,
   estimateCurriculumAiPrecheckAmount,
 } from '@/lib/curriculum-ai-charge-policy'
+import { isPgConfigured } from '@/lib/db/pool'
+import { pgQueryOne } from '@/lib/db/pg-query'
 import { readUserCreditBalance } from '@/lib/curriculum-ai-credits'
 import { imageEngineCredit, parseGptImageQuality } from '@/lib/ai/image-engine'
 import { generateGptImage } from '@/lib/ai/gpt-image'
@@ -23,6 +26,18 @@ const MAX_SLIDE_TEXT = 28000
 const INFOGRAPHIC_TARGET_BYTES = 820 * 1024
 const INFOGRAPHIC_MAX_DIMENSION = 2048
 const toTenths = (value: number) => Math.round(value * 10)
+
+async function topicCurriculumChargesInfographic(curriculumId: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const row = await pgQueryOne<{ lesson_number: string | null; textbook_set_id: string | null }>(
+    `select lesson_number::text as lesson_number, textbook_set_id
+     from public.worksheet_curricula
+     where id = $1::uuid
+     limit 1`,
+    [curriculumId]
+  )
+  return Boolean(row) && (row?.textbook_set_id === 'khac' || row?.lesson_number == null || row?.lesson_number === '')
+}
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
 const OUTPUT_LOCALES = new Set(['vi', 'en', 'zh', 'ja', 'ko'])
@@ -175,14 +190,17 @@ export async function POST(req: NextRequest) {
     const listPrice = imageEngineCredit({ engine: 'gpt', gptQuality, geminiCost: 1 })
     const infographicArtifactKey = buildInfographicArtifactKey(curriculumId, scope, lessonNo)
     const infographicKind = scope === 'lesson' ? 'infographic_lesson' : 'infographic_curriculum'
+    const topicLesson = await topicCurriculumChargesInfographic(curriculumId)
 
-    const requiredPrecheck = await estimateCurriculumAiPrecheckAmount({
-      userId: user.id,
-      kind: infographicKind,
-      artifactKey: infographicArtifactKey,
-      listPrice,
-      isRegenerate,
-    })
+    const requiredPrecheck = topicLesson
+      ? listPrice
+      : await estimateCurriculumAiPrecheckAmount({
+          userId: user.id,
+          kind: infographicKind,
+          artifactKey: infographicArtifactKey,
+          listPrice,
+          isRegenerate,
+        })
     if (requiredPrecheck > 0) {
       let openBal = 0
       try {
@@ -337,20 +355,28 @@ ${FLASH_INSTRUCTION}`
       return NextResponse.json({ error: 'Không upload được ảnh. Thử lại sau.' }, { status: 502 })
     }
 
-    const charge = await applyCurriculumAiCharge({
-      userId: user.id,
-      kind: infographicKind,
-      artifactKey: infographicArtifactKey,
-      listPrice,
-      chargeType: CURRICULUM_AI_CHARGE_TYPES.slideInfographic,
-      isRegenerate,
-      eventKey: `curriculum_infographic:${user.id}:${randomUUID()}`,
-      metadata: {
-        curriculumId,
-        scope,
-        lessonNo: lessonNo ?? null,
-      },
-    })
+    const charge = topicLesson
+      ? await chargeCurriculumFullPrice({
+          userId: user.id,
+          amount: listPrice,
+          chargeType: CURRICULUM_AI_CHARGE_TYPES.slideInfographic,
+          eventKey: `curriculum_infographic:${user.id}:${randomUUID()}`,
+          metadata: { curriculumId, scope, lessonNo: lessonNo ?? null, topicLesson: true },
+        })
+      : await applyCurriculumAiCharge({
+          userId: user.id,
+          kind: infographicKind,
+          artifactKey: infographicArtifactKey,
+          listPrice,
+          chargeType: CURRICULUM_AI_CHARGE_TYPES.slideInfographic,
+          isRegenerate,
+          eventKey: `curriculum_infographic:${user.id}:${randomUUID()}`,
+          metadata: {
+            curriculumId,
+            scope,
+            lessonNo: lessonNo ?? null,
+          },
+        })
     if (!charge.ok) {
       return NextResponse.json(
         {

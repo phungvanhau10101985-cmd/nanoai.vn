@@ -15,7 +15,7 @@ import {
   type ClassSavedCurriculumRow,
 } from '@/lib/db/class-teacher-curricula-pg'
 import { loadClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
-import { GRADE_LEVELS, SUBJECTS } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
+import { SUBJECTS, gradeLevelLabel } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { createFromClassHref } from '@/lib/lop/create-from-class-href'
 import { classSubjectScopeFromSearch } from '../lop-class-detail-view'
 
@@ -45,10 +45,10 @@ function openHref(classId: string, subjectId: string, curriculumId: string) {
 function curriculumMeta(row: ClassSavedCurriculumRow, locale: string, lessonLabel: string) {
   const vi = locale === 'vi'
   const subject = SUBJECTS.find((s) => s.id === row.subjectId)
-  const grade = GRADE_LEVELS.find((g) => g.id === row.gradeLevelId)
+  const grade = gradeLevelLabel(row.gradeLevelId, locale)
   const parts = [
     subject ? (vi ? subject.labelVi : subject.labelEn) : row.subjectId,
-    grade ? (vi ? grade.labelVi : grade.labelEn) : row.gradeLevelId,
+    grade || row.gradeLevelId,
   ].filter(Boolean)
   if (row.lessonNumber != null && row.lessonNumber > 0) {
     parts.push(lessonLabel.replace('{n}', String(row.lessonNumber)))

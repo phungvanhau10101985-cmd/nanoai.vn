@@ -1,9 +1,29 @@
 import { randomUUID } from 'crypto'
 import { CURRICULUM_ORIGINAL_BODY_SQL } from '@/app/tao-giao-trinh/lib/curriculum-original-body'
+import { normalizeTopicForSearch } from '@/app/tao-giao-trinh/lib/topic-normalize'
 import { curriculumBuyerSourceForStorage } from '@/lib/curriculum/curriculum-buyer-source'
 import { normalizeCurriculumApiCostId } from '@/lib/track-ai-usage'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+
+/** Chủ đề và sách khác NXB không có khóa cache dùng chung. */
+export async function curriculumBillsEachNewAiPg(curriculumId: string): Promise<boolean> {
+  if (!isPgConfigured() || !curriculumId) return false
+  const row = await pgQueryOne<{ lesson_number: string | null; textbook_set_id: string | null }>(
+    `select lesson_number::text as lesson_number, textbook_set_id
+     from public.worksheet_curricula
+     where id = $1::uuid
+     limit 1`,
+    [curriculumId]
+  )
+  return Boolean(row) && (row?.textbook_set_id === 'khac' || row?.lesson_number == null || row?.lesson_number === '')
+}
+
+/** Khóa cache bài theo chủ đề. Cùng hàm lúc lưu và lúc tra. */
+export function curriculumTopicCacheKey(topic: string): string | null {
+  const key = normalizeTopicForSearch(topic)
+  return key.length >= 2 ? key : null
+}
 
 /** Khớp `mode` trong `worksheet_curriculum_lesson_slides`. */
 export type WorksheetCurriculumLessonSlideMode = 'shared' | 'original' | 'personal'
@@ -1058,21 +1078,22 @@ export async function insertWorksheetCurriculumPg(
     )
     const row = await pgQueryOne<{ id: string }>(
       `insert into public.worksheet_curricula (
-         id, user_id, topic, subject_id, grade_level_id, textbook_set_id,
+         id, user_id, topic, topic_normalized, subject_id, grade_level_id, textbook_set_id,
          textbook_volume, textbook_isbn, lesson_number, lesson_type_id,
          num_lessons, lesson_duration_minutes, goals, content_markdown, lesson_topics,
          created_source, created_source_detail
        ) values (
-         $1::uuid, $2::uuid, $3, $4, $5, $6,
-         $7, $8, $9::numeric, $10,
-         $11, $12, $13, $14, $15::text[],
-         $16, $17
+         $1::uuid, $2::uuid, $3, $4, $5, $6, $7,
+         $8, $9, $10::numeric, $11,
+         $12, $13, $14, $15, $16::text[],
+         $17, $18
        )
        returning id::text as id`,
       [
         normalizeCurriculumApiCostId(input.id) ?? randomUUID(),
         input.userId,
         input.topic,
+        curriculumTopicCacheKey(input.topic),
         input.subjectId,
         input.gradeLevelId,
         input.textbookSetId,
@@ -1116,21 +1137,23 @@ export async function updateWorksheetCurriculumSavePg(input: {
     await pgQuery(
       `update public.worksheet_curricula
        set topic = $2,
-           subject_id = $3,
-           grade_level_id = $4,
-           textbook_set_id = $5,
-           textbook_volume = $6,
-           textbook_isbn = $7,
-           lesson_number = $8::numeric,
-           lesson_type_id = $9,
-           num_lessons = $10,
-           lesson_duration_minutes = $11,
-           goals = $12,
-           content_markdown = $13
+           topic_normalized = $3,
+           subject_id = $4,
+           grade_level_id = $5,
+           textbook_set_id = $6,
+           textbook_volume = $7,
+           textbook_isbn = $8,
+           lesson_number = $9::numeric,
+           lesson_type_id = $10,
+           num_lessons = $11,
+           lesson_duration_minutes = $12,
+           goals = $13,
+           content_markdown = $14
        where id = $1::uuid`,
       [
         input.curriculumId,
         input.topic,
+        curriculumTopicCacheKey(input.topic),
         input.subjectId,
         input.gradeLevelId,
         input.textbookSetId,
@@ -1219,6 +1242,47 @@ export type TopicModeCurriculumCandidatePg = {
   id: string
   topic: string
   created_at: string
+}
+
+/** Bài theo chủ đề đã lưu: cùng môn, khối, loại bài, số tiết, thời lượng và khóa tên. */
+export async function findTopicCurriculumByNormalizedKeyPg(opts: {
+  subjectId: string
+  gradeLevelId: string
+  lessonTypeId: string
+  numLessons: number
+  lessonDurationMinutes: number
+  topicNormalized: string
+}): Promise<{ id: string; topic: string; content_markdown: string } | null> {
+  if (!isPgConfigured()) return null
+  const key = opts.topicNormalized.trim()
+  if (key.length < 2) return null
+  try {
+    return await pgQueryOne<{ id: string; topic: string; content_markdown: string }>(
+      `select id::text as id, topic, content_markdown
+       from public.worksheet_curricula
+       where subject_id = $1
+         and grade_level_id = $2
+         and lesson_type_id = $3
+         and num_lessons = $4
+         and lesson_duration_minutes = $5
+         and lesson_number is null
+         and topic_normalized = $6
+         and length(trim(content_markdown)) > 0
+       order by created_at asc
+       limit 1`,
+      [
+        opts.subjectId,
+        opts.gradeLevelId,
+        opts.lessonTypeId,
+        opts.numLessons,
+        opts.lessonDurationMinutes,
+        key,
+      ]
+    )
+  } catch (e) {
+    console.error('[tao-giao-trinh-curriculum-pg] findTopicCurriculumByNormalizedKeyPg', e)
+    return null
+  }
 }
 
 export async function listCurriculaTopicModeCandidatesPg(
@@ -1329,9 +1393,9 @@ export async function updateWorksheetCurriculumTopicAndContentPg(
   try {
     await pgQuery(
       `update public.worksheet_curricula
-       set topic = $2, content_markdown = $3
+       set topic = $2, topic_normalized = $3, content_markdown = $4
        where id = $1::uuid`,
-      [curriculumId, topic, contentMarkdown]
+      [curriculumId, topic, curriculumTopicCacheKey(topic), contentMarkdown]
     )
     return {}
   } catch (e) {
@@ -1357,17 +1421,18 @@ export async function insertWorksheetCurriculumAdminReviewPg(input: {
   try {
     await pgQuery(
       `insert into public.worksheet_curricula (
-         user_id, topic, subject_id, grade_level_id, textbook_set_id,
+         user_id, topic, topic_normalized, subject_id, grade_level_id, textbook_set_id,
          textbook_volume, lesson_number, lesson_type_id,
          num_lessons, lesson_duration_minutes, goals, content_markdown
        ) values (
-         $1::uuid, $2, $3, $4, $5,
-         $6, $7::numeric, $8,
-         $9, $10, $11, $12
+         $1::uuid, $2, $3, $4, $5, $6,
+         $7, $8::numeric, $9,
+         $10, $11, $12, $13
        )`,
       [
         input.userId,
         input.topic,
+        curriculumTopicCacheKey(input.topic),
         input.subjectId,
         input.gradeLevelId,
         input.textbookSetId,

@@ -1,4 +1,5 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import { pgQueryOne } from '@/lib/db/pg-query'
 import { addCreditsToUser } from '@/lib/db/credits-balance'
 import {
   CURRICULUM_AI_CHARGE_TYPES,
@@ -55,6 +56,19 @@ const EMPTY_SNAPSHOT: WorksheetAiQuotaSnapshot = {
 
 type CurriculumRow = { quiz_created: number; essay_created: number; sgk_extracts: number }
 type DailyRow = { quiz_waived: number; essay_waived: number; sgk_waived: number }
+
+/** Bài theo chủ đề không có số bài sách, nên không có suất câu hỏi miễn phí. */
+async function topicCurriculumChargesEveryQuestion(curriculumId: string | null): Promise<boolean> {
+  if (!curriculumId || !isPgConfigured()) return false
+  const row = await pgQueryOne<{ lesson_number: string | null; textbook_set_id: string | null }>(
+    `select lesson_number::text as lesson_number, textbook_set_id
+     from public.worksheet_curricula
+     where id = $1::uuid
+     limit 1`,
+    [curriculumId]
+  )
+  return Boolean(row) && (row?.textbook_set_id === 'khac' || row?.lesson_number == null || row?.lesson_number === '')
+}
 
 function num(value: unknown): number {
   const n = Number(value ?? 0)
@@ -180,10 +194,12 @@ export async function preflightWorksheetQuestions(input: {
     }
   }
   const snapshot = await readWorksheetAiQuotaSnapshot(input.userId, input.curriculumId)
+  const allowFree = !(await topicCurriculumChargesEveryQuestion(input.curriculumId))
   const quote = quoteWorksheetQuestionBatch({
     requested: input.count,
     curriculumCreated: input.kind === 'quiz' ? snapshot.quizCurriculumCreated : snapshot.essayCurriculumCreated,
     hasCurriculum: Boolean(input.curriculumId),
+    allowFree,
   })
   if (quote.credits <= 0) return { ok: true, quote }
   const balance = await readUserCreditBalance(input.userId)
@@ -255,10 +271,12 @@ export async function beginQuestionTurn(
   let turn: QuestionTurn = { action: 'stop', balance: 0, required: WORKSHEET_EXTRA_QUESTION_CREDIT }
   await withLockedQuota(userId, curriculumId, async (client, curriculum, _daily, usageDate) => {
     const created = kind === 'quiz' ? curriculum?.quiz_created ?? 0 : curriculum?.essay_created ?? 0
+    const allowFree = !(await topicCurriculumChargesEveryQuestion(curriculumId))
     const quote = quoteWorksheetQuestionBatch({
       requested: 1,
       curriculumCreated: created,
       hasCurriculum: Boolean(curriculumId),
+      allowFree,
     })
     if (quote.free > 0) {
       await bumpQuestionCounters(client, userId, curriculumId, kind, usageDate, 1, false)

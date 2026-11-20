@@ -1091,7 +1091,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       {
         question: 'Môn và lớp nào?',
         answer:
-          'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Lớp 1 đến 12, và các bậc sau phổ thông.',
+          'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Nhà trẻ, mẫu giáo, lớp 1 đến 12, học nghề, trung cấp, cao đẳng, đại học, cao học và tiến sĩ.',
       },
       {
         question: 'Khi nào trừ credit?',

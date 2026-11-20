@@ -3,11 +3,16 @@
  * Chỉ chạy khi bấm Lưu/Áp dụng. Cả 2 đồng ý → lưu. Trả về lý do đã lưu / chưa lưu được.
  */
 
+import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
 import { bindCurriculumApiCost } from '@/lib/track-ai-usage'
+import { getUserForCreditAction } from '@/lib/auth'
+import { CURRICULUM_UI_CREDITS } from '@/app/tao-giao-trinh/lib/curriculum-credit-costs'
+import { CURRICULUM_AI_CHARGE_TYPES, isCurriculumAiCreditsDisabled, readUserCreditBalance } from '@/lib/curriculum-ai-credits'
+import { chargeCurriculumFullPrice } from '@/lib/curriculum-ai-charge-policy'
 
 const PROMPT_FULL = `Bạn là chuyên gia kiểm tra giáo trình giáo dục Việt Nam (Công văn 5512/BGDĐT).
 Kiểm tra nội dung giáo trình Markdown dưới đây. Tìm sai sót về:
@@ -176,6 +181,35 @@ export async function POST(req: Request) {
     const content = typeof body.content === 'string' ? body.content : ''
     const originalRegion = typeof body.originalRegion === 'string' ? body.originalRegion : ''
     const editedRegion = typeof body.editedRegion === 'string' ? body.editedRegion : ''
+
+    const chargeEdit = body.charge === true
+    const editPrice = CURRICULUM_UI_CREDITS.curriculumEditApply
+    if (chargeEdit && !isCurriculumAiCreditsDisabled()) {
+      const auth = await getUserForCreditAction('Vui lòng đăng nhập để áp dụng sửa.')
+      if ('error' in auth) {
+        return NextResponse.json({ error: auth.error, code: 'UNAUTHORIZED' }, { status: 401 })
+      }
+      const balance = await readUserCreditBalance(auth.user.id)
+      if (balance < editPrice) {
+        return NextResponse.json(
+          { error: 'insufficient_credits', code: 'INSUFFICIENT_CREDITS', balance, required: editPrice },
+          { status: 402 }
+        )
+      }
+      const charge = await chargeCurriculumFullPrice({
+        userId: auth.user.id,
+        amount: editPrice,
+        chargeType: CURRICULUM_AI_CHARGE_TYPES.slideProposalVerify,
+        eventKey: `curriculum_edit:${auth.user.id}:${randomUUID()}`,
+        metadata: { curriculumId: typeof body.curriculumId === 'string' ? body.curriculumId : null, source: 'curriculum-edit-apply' },
+      })
+      if (!charge.ok) {
+        return NextResponse.json(
+          { error: charge.error, code: charge.code, balance: charge.balance, required: charge.required },
+          { status: 402 }
+        )
+      }
+    }
 
     const isRegionMode = editedRegion.length >= 10 && (originalRegion.length >= 5 || originalRegion === '')
 

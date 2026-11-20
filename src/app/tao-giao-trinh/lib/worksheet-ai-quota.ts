@@ -31,10 +31,12 @@ export function quoteWorksheetQuestionBatch(input: {
   requested: number
   curriculumCreated: number
   hasCurriculum: boolean
+  /** Giáo trình theo chủ đề: mỗi câu đều tính 0,5 credit. */
+  allowFree?: boolean
 }): QuestionBatchQuote {
   const requestedRaw = Number(input.requested)
   const requested = Number.isFinite(requestedRaw) ? Math.max(0, Math.floor(requestedRaw)) : 0
-  if (!input.hasCurriculum) {
+  if (!input.hasCurriculum || input.allowFree === false) {
     return { free: 0, paid: requested, credits: requested * WORKSHEET_EXTRA_QUESTION_CREDIT }
   }
   const free = Math.min(requested, room(WORKSHEET_FREE_PER_SCOPE, input.curriculumCreated))

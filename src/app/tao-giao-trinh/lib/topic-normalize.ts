@@ -22,14 +22,16 @@ function removeVietnameseTone(str: string): string {
     .join('')
 }
 
-/** Chuẩn hóa topic để so sánh/tìm kiếm: bỏ Bài X:, lowercase, bỏ dấu, gộp space */
+/**
+ * Khóa cache bài theo chủ đề. Gọi cùng một hàm lúc lưu và lúc tra.
+ * Bỏ nhãn đầu (Chủ đề, Bài, Chương, Tiết, kèm số và dấu), bỏ dấu, chữ thường.
+ */
 export function normalizeTopicForSearch(topic: string): string {
-  let s = topic.trim()
-  s = s.replace(/\b(Bài|Bai)\s*\d+\s*[:\.]?\s*/gi, '')
-  s = s.replace(/\b(Chương|Chuong)\s*\d+\s*[:\.]?\s*/gi, '')
-  s = s.replace(/\b(Tiết|Tiet)\s*\d+\s*[:\.]?\s*/gi, '')
+  let s = removeVietnameseTone(topic.trim()).replace(/\s+/g, ' ').trim()
+  const label = /^(?:(?:chu\s*de|bai|chuong|tiet|theme|unit|topic)\s*\d+\s*[:.\-]*\s*|(?:chu\s*de|bai|chuong|tiet|theme|unit|topic)\s*[:.\-]+\s*)+/i
+  s = s.replace(label, '')
+  s = s.replace(/[^\p{L}\p{N}\s]+/gu, ' ')
   s = s.replace(/\s+/g, ' ').trim()
-  s = removeVietnameseTone(s)
   return s
 }
 

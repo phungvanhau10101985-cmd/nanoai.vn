@@ -1,4 +1,7 @@
-/** Một phía phải đúng 7 lần liền nhau. Phiếu ngược lại thì chuỗi đó về 1. */
+/**
+ * Nguyên tắc sửa dữ liệu giáo viên: `.cursor/rules/curriculum-teacher-edit-review.mdc`.
+ * Một phía phải đúng 7 lần liền nhau. Phiếu ngược lại thì chuỗi đó về 1.
+ */
 export const REVIEW_CONSECUTIVE_PASSES = 7
 
 export type ReviewTail = { action: 'agree' | 'reject'; count: number }

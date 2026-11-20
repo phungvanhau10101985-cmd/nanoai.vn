@@ -10,6 +10,7 @@ import {
 } from '@/app/tao-giao-trinh/lib/curriculum-original-body'
 import { repairThenMarkLessonMarkdown } from '@/app/tao-giao-trinh/lib/curriculum-math-repair'
 import { CURRICULUM_LESSON_MINUTES } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
+import { gradeLevelLabel } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 
 const SUBJECT_NAMES: Record<string, string> = {
   toan: 'Toán học',
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     const trackUserId = pasteUser?.id ?? null
 
     const subjectName = SUBJECT_NAMES[subjectId] || subjectId
-    const gradeLabel = gradeLevelId.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    const gradeLabel = gradeLevelLabel(gradeLevelId, 'vi')
     const numTiet = numLessons
     const thoiLuong = lessonDurationMinutes
 

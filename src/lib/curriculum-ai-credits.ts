@@ -11,6 +11,8 @@ import { getCreditBalanceByUserId, spendCreditsIdempotent } from '@/lib/db/credi
 export const CURRICULUM_AI_CHARGE_TYPES = {
   /** POST /api/curriculum-from-image — tạo giáo trình từ ảnh (+ slide trong cùng pipeline) */
   fromImage: 'curriculum_from_image',
+  /** Tạo giáo trình theo chủ đề khi không khớp bài đã lưu. */
+  topicCreate: 'curriculum_topic_create',
   /** Server action verify đề xuất sửa/bổ sung slide (nút Kiểm tra AI). */
   slideProposalVerify: 'curriculum_slide_proposal_verify',
   /** Server action tạo slide cho một tiết khi mở tiết. */

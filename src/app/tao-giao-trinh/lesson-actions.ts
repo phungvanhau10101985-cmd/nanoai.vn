@@ -3,6 +3,7 @@
 import { getUserForCreditAction } from '@/lib/auth'
 import {
   fetchSlideReviewStatsPg,
+  lessonHasOpenSlideEditPg,
   markTeacherReviewedLessonPg,
   recordSlideReviewPg,
   teacherHasReviewedLessonPg,
@@ -97,6 +98,22 @@ export async function recordSlideReviewAction(input: {
   })
   if (!stats) return { error: 'Không lưu được lượt duyệt slide.' }
   return { stats }
+}
+
+export async function lessonHasOpenSlideEditAction(input: {
+  curriculumId: string
+  lessonNo: number
+}): Promise<{ open: boolean } | { error: string }> {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  if (!input.curriculumId || !Number.isFinite(input.lessonNo) || input.lessonNo < 1) {
+    return { error: 'Thiếu giáo trình hoặc tiết học.' }
+  }
+  const open = await lessonHasOpenSlideEditPg({
+    curriculumId: input.curriculumId,
+    lessonNo: input.lessonNo,
+  })
+  return { open }
 }
 
 export async function teacherHasReviewedLessonAction(input: {

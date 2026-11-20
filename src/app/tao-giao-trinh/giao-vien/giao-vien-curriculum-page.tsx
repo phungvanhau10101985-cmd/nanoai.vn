@@ -67,7 +67,7 @@ import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName } fr
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, moveWindowToExternalScreen, studentSlideUrlWithSync } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { QuizPopupDialog } from '../components/quiz-popup-dialog'
-import { getSlideProposalsForCurriculum, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
+import { getCurriculumById, getSlideProposalsForCurriculum, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from '../lib/worksheet-parse-questions'
 import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-block-index'
 import { toEditableBlockContent } from '../lib/worksheet-editable-block-content'
@@ -86,7 +86,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { getCurriculumSlidesByLessonCachedAction, markTeacherReviewedLessonAction, saveCurriculumLessonInfographicAction, saveReviewedLessonMarkdownAction, teacherHasReviewedLessonAction } from '../lesson-actions'
+import { getCurriculumSlidesByLessonCachedAction, lessonHasOpenSlideEditAction, markTeacherReviewedLessonAction, saveCurriculumLessonInfographicAction, saveReviewedLessonMarkdownAction, teacherHasReviewedLessonAction } from '../lesson-actions'
 import { replaceCurriculumExercise } from '@/app/tao-giao-trinh/lib/curriculum-math-check'
 import { LessonExampleReviewDialog, patchSlidesWithReviewedExercise } from './lesson-example-review-dialog'
 import { detectAppleSlideDevice, useAppleSlideShell } from '../lib/apple-slide-shell'
@@ -1013,6 +1013,20 @@ export default function CurriculumViewPage() {
   const [studentCurriculumRemoteMode, setStudentCurriculumRemoteMode] = useState<'single-slide' | 'markdown-all'>('single-slide')
   const [splitAtBlock, setSplitAtBlock] = useState<number | null>(null)
   const [curriculumId, setCurriculumId] = useState<string | null>(null)
+  const [topicLesson, setTopicLesson] = useState(false)
+  useEffect(() => {
+    if (!curriculumId) return
+    let cancelled = false
+    void getCurriculumById(curriculumId).then((res) => {
+      if (cancelled || !res || !('curriculum' in res) || !res.curriculum) return
+      const row = res.curriculum as { lesson_number?: number | string | null; textbook_set_id?: string | null }
+      const lessonNo = row.lesson_number
+      setTopicLesson(row.textbook_set_id === 'khac' || lessonNo == null || lessonNo === '')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [curriculumId])
   const [quizGenLoading, setQuizGenLoading] = useState<number | null>(null)
   const [quizDifficultyPopoverSlide, setQuizDifficultyPopoverSlide] = useState<number | null>(null)
   const [quizReportLoading, setQuizReportLoading] = useState<string | null>(null)
@@ -3116,13 +3130,13 @@ export default function CurriculumViewPage() {
     const curriculumInfographicExists = Boolean(curriculumInfographic?.imageUrl)
     toast({
       title: tr('Chuẩn bị tạo infographic cả bài', 'Preparing curriculum infographic', '准备创建全课信息图', '全体インフォグラフィック作成準備', '전체 인포그래픽 생성 준비'),
-      description: curriculumInfographicExists
+      description: curriculumInfographicExists || topicLesson
         ? tr(
-            `Tạo lại sẽ tốn ${lessonInfographicCostLabel} credit.`,
-            `Regenerating will cost ${lessonInfographicCostLabel} credits.`,
-            `重新生成将消耗 ${lessonInfographicCostLabel} 积分。`,
-            `再生成では ${lessonInfographicCostLabel} クレジットを消費します。`,
-            `다시 만들기 시 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
+            `Tạo ảnh sẽ tốn ${lessonInfographicCostLabel} credit.`,
+            `Creating the image costs ${lessonInfographicCostLabel} credits.`,
+            `生成图片将消耗 ${lessonInfographicCostLabel} 积分。`,
+            `画像の作成で ${lessonInfographicCostLabel} クレジットを消費します。`,
+            `이미지 생성에 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
           )
         : tr(
             'Lần đầu cả bài — miễn phí credit.',
@@ -3207,7 +3221,7 @@ export default function CurriculumViewPage() {
     } finally {
       setInfographicGenerating(false)
     }
-  }, [curriculumId, worksheetId, slides, fullCurriculumMarkdown, content, topic, currentIndex, curriculumInfographic, lessonInfographicCostLabel, toast, tr, sendCurriculumDataToStudent, infographicGptQuality])
+  }, [curriculumId, worksheetId, slides, fullCurriculumMarkdown, content, topic, currentIndex, curriculumInfographic, lessonInfographicCostLabel, toast, tr, sendCurriculumDataToStudent, infographicGptQuality, topicLesson])
 
   const generateLessonInfographic = useCallback(async () => {
     if (!curriculumId || worksheetId) return
@@ -3243,13 +3257,13 @@ export default function CurriculumViewPage() {
     const lessonInfographicExists = Boolean(lessonInfographic?.imageUrl)
     toast({
       title: tr('Chuẩn bị tạo infographic tiết', 'Preparing lesson infographic', '准备创建课时信息图', '授業インフォグラフィック作成準備', '차시 인포그래픽 생성 준비'),
-      description: lessonInfographicExists
+      description: lessonInfographicExists || topicLesson
         ? tr(
-            `Tạo lại sẽ tốn ${lessonInfographicCostLabel} credit.`,
-            `Regenerating will cost ${lessonInfographicCostLabel} credits.`,
-            `重新生成将消耗 ${lessonInfographicCostLabel} 积分。`,
-            `再生成では ${lessonInfographicCostLabel} クレジットを消費します。`,
-            `다시 만들기 시 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
+            `Tạo ảnh sẽ tốn ${lessonInfographicCostLabel} credit.`,
+            `Creating the image costs ${lessonInfographicCostLabel} credits.`,
+            `生成图片将消耗 ${lessonInfographicCostLabel} 积分。`,
+            `画像の作成で ${lessonInfographicCostLabel} クレジットを消費します。`,
+            `이미지 생성에 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
           )
         : tr(
             'Lần đầu trong tiết này — miễn phí credit.',
@@ -3344,14 +3358,14 @@ export default function CurriculumViewPage() {
     } finally {
       setLessonInfographicGenerating(false)
     }
-  }, [curriculumId, worksheetId, activeLessonNo, content, slides, topic, tr, toast, lessonInfographicCostLabel, slideMode, personalViewSubMode, sendCurriculumDataToStudent, currentIndex, infographicGptQuality])
+  }, [curriculumId, worksheetId, activeLessonNo, content, slides, topic, tr, toast, lessonInfographicCostLabel, slideMode, personalViewSubMode, sendCurriculumDataToStudent, currentIndex, infographicGptQuality, topicLesson])
 
   const infographicCostSuffix = useCallback(
     (hasExisting: boolean, costLabel: string) =>
-      hasExisting
+      topicLesson || hasExisting
         ? `(${costLabel} ${tr('credit', 'credits', '积分', 'クレジット', '크레딧')})`
         : tr('(lần đầu — miễn phí)', '(first time — free)', '(首次免费)', '(初回無料)', '(첫 생성 무료)'),
-    [tr]
+    [tr, topicLesson]
   )
 
   const infographicActionText = useCallback((kind: 'lesson' | 'curriculum', hasImage: boolean, cost: string) => {
@@ -5006,12 +5020,15 @@ export default function CurriculumViewPage() {
     let cancelled = false
     const lessonNo = activeLessonNo
     const slideCount = slides.length
-    void teacherHasReviewedLessonAction({ curriculumId, lessonNo, slideCount }).then((res) => {
+    void teacherHasReviewedLessonAction({ curriculumId, lessonNo, slideCount }).then(async (res) => {
       if (cancelled || !res || !('done' in res)) return
       if (res.done) {
+        const pending = await lessonHasOpenSlideEditAction({ curriculumId, lessonNo })
+        if (cancelled) return
         writeLessonReviewDone(currentUserId, curriculumId, lessonNo)
         reviewedThisSessionRef.current.add(reviewLessonKey)
         setLessonReviewDone(true)
+        if (pending && 'open' in pending && pending.open) return
         if (reviewGateRef.current) {
           reviewGateRef.current = false
           setReviewIsGate(false)
@@ -5055,15 +5072,25 @@ export default function CurriculumViewPage() {
   }, [reviewLessonKey, currentUserId, curriculumId, activeLessonNo])
 
   const openStudentView = useCallback(() => {
-    if (!worksheetId && slidesRef.current.length > 0 && !lessonAlreadyReviewed()) {
-      reviewGateRef.current = true
-      setReviewIsGate(true)
-      prepareLessonReview()
-      setExampleReviewOpen(true)
+    if (worksheetId || slidesRef.current.length === 0) {
+      openStudentViewNow()
       return
     }
-    openStudentViewNow()
-  }, [worksheetId, lessonAlreadyReviewed, prepareLessonReview, openStudentViewNow])
+    void (async () => {
+      const pending = curriculumId && activeLessonNo
+        ? await lessonHasOpenSlideEditAction({ curriculumId, lessonNo: activeLessonNo })
+        : null
+      const mustChoose = Boolean(pending && 'open' in pending && pending.open)
+      if (mustChoose || !lessonAlreadyReviewed()) {
+        reviewGateRef.current = true
+        setReviewIsGate(true)
+        prepareLessonReview()
+        setExampleReviewOpen(true)
+        return
+      }
+      openStudentViewNow()
+    })()
+  }, [worksheetId, lessonAlreadyReviewed, prepareLessonReview, openStudentViewNow, curriculumId, activeLessonNo])
 
   const startStudentProjector = useCallback(() => {
     const existing = studentViewWindowRef.current
@@ -5285,7 +5312,25 @@ export default function CurriculumViewPage() {
         body: JSON.stringify(body),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data?.markers?.length) return
+      if (!res.ok || !data?.markers?.length) {
+        if (data?.code === 'INSUFFICIENT_CREDITS') {
+          toast({
+            title: tr('Không đủ credits', 'Not enough credits', '积分不足', 'クレジット不足', '크레딧 부족'),
+            description: tr(
+              'Mỗi câu trên slide tính 0,5 credit. Câu này không có bản lưu để dùng lại.',
+              'Each slide question costs 0.5 credit. It is not reused from a saved copy.',
+              '每道幻灯片题目收取 0.5 积分。这道题不会从已存副本复用。',
+              'スライドの問題は1問0.5クレジットです。保存済みからは再利用しません。',
+              '슬라이드 문항은 문항당 0.5크레딧입니다. 저장된 복사본으로 재사용하지 않습니다.',
+            ),
+            variant: 'destructive',
+          })
+        }
+        return
+      }
+      if (data.creditsCharged && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('credits-updated'))
+      }
       const markers = (data.markers as string[]).slice(0, 1)
       if (markers.length === 0) return
       const markerText = markers.join('\n\n')
@@ -5302,7 +5347,7 @@ export default function CurriculumViewPage() {
     } finally {
       setQuizGenLoading(null)
     }
-  }, [slides, topic, curriculumId, sendCurriculumDataToStudent])
+  }, [slides, topic, curriculumId, sendCurriculumDataToStudent, toast, tr])
 
   const sendUpdateSlideBlocks = useCallback((slideIndex: number, blocks: Array<{ header?: string; content?: string }>) => {
     if (window.opener) window.opener.postMessage({ type: 'update-slide-blocks', slideIndex, blocks }, window.location.origin)
@@ -5982,6 +6027,8 @@ export default function CurriculumViewPage() {
         setTopic(e.data.topic ?? '')
         if (!phoneSessionIdRef.current && !phoneFollowerIdRef.current) setCurrentIndex(e.data.currentIndex ?? 0)
         setCurriculumId(incomingCurriculumId)
+        if (e.data.topicMode === true) setTopicLesson(true)
+        else if (e.data.topicMode === false) setTopicLesson(false)
         setActiveLessonNo(incomingLessonNo)
         const mode = e.data.slideMode === 'personal' || e.data.slideMode === 'shared' || e.data.slideMode === 'original' ? e.data.slideMode : null
         setSlideMode(mode)

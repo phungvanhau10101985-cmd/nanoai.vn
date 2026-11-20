@@ -1,8 +1,12 @@
+import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 import { bindCurriculumApiCost, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getUserOrBypass } from '@/lib/auth'
+import { CURRICULUM_UI_CREDITS } from '@/app/tao-giao-trinh/lib/curriculum-credit-costs'
+import { CURRICULUM_AI_CHARGE_TYPES, isCurriculumAiCreditsDisabled, readUserCreditBalance } from '@/lib/curriculum-ai-credits'
+import { chargeCurriculumFullPrice } from '@/lib/curriculum-ai-charge-policy'
 
 /** Model tạo / sửa quiz: Gemini 2.5 Pro. */
 const QUIZ_CREATE_MODEL = GEMINI_25_PRO
@@ -227,6 +231,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
     }
 
+    const curriculumId = typeof body?.curriculumId === 'string' ? body.curriculumId : ''
+    const quizPrice = CURRICULUM_UI_CREDITS.slideGenerateQuiz
+    const chargeSlideQuiz = Boolean(userId) && !isCurriculumAiCreditsDisabled()
+    if (chargeSlideQuiz && userId) {
+      const balance = await readUserCreditBalance(userId)
+      if (balance < quizPrice) {
+        return NextResponse.json(
+          { error: 'insufficient_credits', code: 'INSUFFICIENT_CREDITS', balance, required: quizPrice },
+          { status: 402 }
+        )
+      }
+    }
+
     const prompt = buildQuizPrompt(fullContent, lessonContext, difficulty)
     const genAI = new GoogleGenerativeAI(apiKey)
 
@@ -358,7 +375,23 @@ Trả về JSON: { "verified": true|false, "correctIndex": 0|1|2|3 }
       return `[quiz:${q.question}${DELIM}${opts}${DELIM}${idx}]`
     })
 
-    return NextResponse.json({ markers, quizzes: shuffledFinal })
+    if (chargeSlideQuiz && userId) {
+      const charge = await chargeCurriculumFullPrice({
+        userId,
+        amount: quizPrice,
+        chargeType: CURRICULUM_AI_CHARGE_TYPES.worksheetQuestion,
+        eventKey: `slide_quiz:${userId}:${randomUUID()}`,
+        metadata: { curriculumId, source: 'slide-quiz' },
+      })
+      if (!charge.ok) {
+        return NextResponse.json(
+          { error: charge.error, code: charge.code, balance: charge.balance, required: charge.required },
+          { status: 402 }
+        )
+      }
+    }
+
+    return NextResponse.json({ markers, quizzes: shuffledFinal, creditsCharged: chargeSlideQuiz })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.error('[slide-generate-quiz] Lỗi:', msg)
