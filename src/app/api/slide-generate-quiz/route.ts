@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { bindCurriculumApiCost, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getUserOrBypass } from '@/lib/auth'
 
 /** Model tạo / sửa quiz: Gemini 2.5 Pro. */
@@ -194,6 +194,7 @@ export async function POST(req: NextRequest) {
     const userId = u?.id ?? null
 
     const body = await req.json().catch(() => ({}))
+    bindCurriculumApiCost(typeof body?.curriculumId === 'string' ? body.curriculumId : null)
     const title = String(body?.title ?? '').trim()
     const content = String(body?.content ?? '').trim()
     const blocks = Array.isArray(body?.blocks) ? body.blocks as Array<{ header?: string; content?: string }> : []

@@ -59,11 +59,14 @@ test('product JSON-LD fills merchant listing shipping, returns, and visible revi
   assert.match(raw, /MerchantReturnFiniteReturnWindow/)
   assert.match(raw, /"merchantReturnDays":7/)
   assert.match(raw, /"minValue":1/)
-  assert.match(raw, /"maxValue":7/)
+  assert.match(raw, /"maxValue":12/)
+  assert.match(raw, /ReturnFeesCustomerResponsibility/)
+  assert.match(raw, /FreeReturn/)
+  assert.doesNotMatch(raw, /returnShippingFeesAmount/)
   assert.match(raw, /Lan Phạm/)
   assert.match(raw, /Vải mát/)
   assert.doesNotMatch(raw, /bỏ tên một ký tự/)
-  assert.doesNotMatch(raw, /ReturnFees|returnShippingFeesAmount/)
+  assert.doesNotMatch(raw, /returnShippingFeesAmount/)
   const offers = (data.offers || {}) as {
     hasMerchantReturnPolicy?: { url?: string; returnPolicyCategory?: string }
     shippingDetails?: { deliveryTime?: { transitTime?: { maxValue?: number } } }
@@ -73,7 +76,7 @@ test('product JSON-LD fills merchant listing shipping, returns, and visible revi
     offers.hasMerchantReturnPolicy?.returnPolicyCategory,
     'https://schema.org/MerchantReturnFiniteReturnWindow'
   )
-  assert.equal(offers.shippingDetails?.deliveryTime?.transitTime?.maxValue, 7)
+  assert.equal(offers.shippingDetails?.deliveryTime?.transitTime?.maxValue, 12)
   const reviews = data.review as Array<{ author?: { name?: string } }>
   assert.equal(reviews.length, 1)
   assert.equal(reviews[0]?.author?.name, 'Lan Phạm')

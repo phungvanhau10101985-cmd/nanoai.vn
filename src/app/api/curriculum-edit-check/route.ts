@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
+import { bindCurriculumApiCost } from '@/lib/track-ai-usage'
 
 const PROMPT_FULL = `Bạn là chuyên gia kiểm tra giáo trình giáo dục Việt Nam (Công văn 5512/BGDĐT).
 Kiểm tra nội dung giáo trình Markdown dưới đây. Tìm sai sót về:
@@ -171,6 +172,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Thiếu GOOGLE_API_KEY.' }, { status: 500 })
     }
     const body = await req.json().catch(() => ({}))
+    bindCurriculumApiCost(typeof body.curriculumId === 'string' ? body.curriculumId : null)
     const content = typeof body.content === 'string' ? body.content : ''
     const originalRegion = typeof body.originalRegion === 'string' ? body.originalRegion : ''
     const editedRegion = typeof body.editedRegion === 'string' ? body.editedRegion : ''

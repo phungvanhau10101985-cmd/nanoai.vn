@@ -3,7 +3,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import sharp from 'sharp'
 import { getUserForCreditAction } from '@/lib/auth'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { bindCurriculumApiCost, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { randomUUID } from 'crypto'
@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
     if (!curriculumId) {
       return NextResponse.json({ error: 'Thiếu curriculumId.' }, { status: 400 })
     }
+    bindCurriculumApiCost(curriculumId)
     if (lessonText.length < 40) {
       return NextResponse.json({ error: 'Nội dung giáo trình quá ngắn để tạo infographic.' }, { status: 400 })
     }

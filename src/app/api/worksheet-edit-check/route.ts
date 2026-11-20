@@ -6,7 +6,7 @@
 import { NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { bindCurriculumApiCost, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getUserOrBypass } from '@/lib/auth'
 
 const PROMPT_QUIZ = `Bạn là chuyên gia kiểm tra phiếu bài tập toán. Phân tích câu trắc nghiệm dưới đây.
@@ -111,6 +111,7 @@ export async function POST(req: Request) {
 
     if (isFormData) {
       const formData = await req.formData()
+      bindCurriculumApiCost(String(formData.get('curriculumId') ?? ''))
       content = String(formData.get('content') ?? '').trim()
       blockType = (String(formData.get('blockType') ?? 'quiz') as 'quiz' | 'essay')
       curriculum = String(formData.get('curriculum') ?? '').trim().slice(0, 4000)
@@ -131,6 +132,7 @@ export async function POST(req: Request) {
       }
     } else {
       const body = await req.json().catch(() => ({}))
+      bindCurriculumApiCost(typeof body?.curriculumId === 'string' ? body.curriculumId : null)
       content = String(body?.content ?? '').trim()
       blockType = (body?.blockType ?? 'quiz') as 'quiz' | 'essay'
       curriculum = String(body?.curriculum ?? '').trim().slice(0, 4000)

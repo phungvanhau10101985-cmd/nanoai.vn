@@ -5267,6 +5267,7 @@ export default function CurriculumViewPage() {
       const existingCount = getQuizCount(blocks)
       if (existingCount >= 1) return
       const body = {
+        curriculumId,
         title: s.title,
         content: blocks.map((b) => b?.content ?? '').join('\n\n'),
         blocks: blocks.map((b) => ({ header: b?.header, content: b?.content ?? '' })),

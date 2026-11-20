@@ -35,6 +35,28 @@ export type VisualHtmlHoistedScript = {
 }
 
 const EXECUTABLE_TYPE = /^(?:text\/javascript|application\/javascript|module|)$/i
+const JSON_LD_TYPE = 'application/ld+json'
+
+/** JSON-LD in the visual `<head>` is dropped when live inlines only the body. */
+export function extractVisualHtmlJsonLdBlocks(html: string): string[] {
+  const blocks: string[] = []
+  const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi
+  let match: RegExpExecArray | null
+  while ((match = re.exec(html))) {
+    const type = String(parseAttrs(match[1]).type || '').trim().toLowerCase()
+    if (type !== JSON_LD_TYPE) continue
+    const body = String(match[2] || '').trim()
+    if (body) blocks.push(body.replace(/</g, '\\u003c'))
+  }
+  return blocks
+}
+
+export function stripVisualHtmlJsonLdScripts(html: string): string {
+  return String(html || '').replace(
+    /<script\b[^>]*\btype=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi,
+    ''
+  )
+}
 
 function parseAttrs(raw: string): Record<string, string> {
   const out: Record<string, string> = {}

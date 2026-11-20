@@ -91,3 +91,46 @@ export function buildShopVisualWebsiteJsonLd(input: {
   const graph = { '@context': 'https://schema.org', '@graph': [org, site] }
   return `<script type="application/ld+json" data-pw-seo-jsonld="website">${JSON.stringify(graph).replace(/</g, '\\u003c')}</script>`
 }
+
+/** Business identity Google can read on every public shop page. */
+export function buildShopPublicOrganizationJsonLd(input: {
+  name: string
+  url: string
+  logoUrl?: string | null
+  telephone?: string | null
+}): Record<string, unknown> {
+  const name = input.name.trim() || 'Shop'
+  const url = input.url.trim()
+  const org: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name,
+    ...(url ? { url } : {}),
+  }
+  const logo = input.logoUrl?.trim() || ''
+  if (logo) org.logo = logo
+  const telephone = input.telephone?.trim() || ''
+  if (telephone) {
+    org.contactPoint = {
+      '@type': 'ContactPoint',
+      telephone,
+      contactType: 'customer service',
+      areaServed: 'VN',
+      availableLanguage: ['Vietnamese', 'English'],
+    }
+  }
+  return org
+}
+
+export function injectShopOrganizationJsonLd(
+  html: string,
+  input: { name: string; url: string; logoUrl?: string | null; telephone?: string | null }
+): string {
+  if (!html.trim()) return html
+  const json = JSON.stringify(buildShopPublicOrganizationJsonLd(input)).replace(/</g, '\\u003c')
+  const tag = `<script type="application/ld+json" data-pw-seo-jsonld="organization">${json}</script>`
+  const re = /<script\b[^>]*\bdata-pw-seo-jsonld=["']organization["'][^>]*>[\s\S]*?<\/script>/i
+  if (re.test(html)) return html.replace(re, tag)
+  if (/<\/head>/i.test(html)) return html.replace(/<\/head>/i, `${tag}\n</head>`)
+  return `${html}\n${tag}`
+}

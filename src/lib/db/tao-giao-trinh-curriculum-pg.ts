@@ -1,5 +1,7 @@
+import { randomUUID } from 'crypto'
 import { CURRICULUM_ORIGINAL_BODY_SQL } from '@/app/tao-giao-trinh/lib/curriculum-original-body'
 import { curriculumBuyerSourceForStorage } from '@/lib/curriculum/curriculum-buyer-source'
+import { normalizeCurriculumApiCostId } from '@/lib/track-ai-usage'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
@@ -1025,6 +1027,7 @@ export async function fetchCurriculaForCreateDuplicateCheckPg(opts: {
 }
 
 export type InsertWorksheetCurriculumPgInput = {
+  id?: string | null
   userId: string | null
   topic: string
   subjectId: string
@@ -1055,18 +1058,19 @@ export async function insertWorksheetCurriculumPg(
     )
     const row = await pgQueryOne<{ id: string }>(
       `insert into public.worksheet_curricula (
-         user_id, topic, subject_id, grade_level_id, textbook_set_id,
+         id, user_id, topic, subject_id, grade_level_id, textbook_set_id,
          textbook_volume, textbook_isbn, lesson_number, lesson_type_id,
          num_lessons, lesson_duration_minutes, goals, content_markdown, lesson_topics,
          created_source, created_source_detail
        ) values (
-         $1::uuid, $2, $3, $4, $5,
-         $6, $7, $8::numeric, $9,
-         $10, $11, $12, $13, $14::text[],
-         $15, $16
+         $1::uuid, $2::uuid, $3, $4, $5, $6,
+         $7, $8, $9::numeric, $10,
+         $11, $12, $13, $14, $15::text[],
+         $16, $17
        )
        returning id::text as id`,
       [
+        normalizeCurriculumApiCostId(input.id) ?? randomUUID(),
         input.userId,
         input.topic,
         input.subjectId,

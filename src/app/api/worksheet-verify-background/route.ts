@@ -3,7 +3,8 @@
  * Giai đoạn 2: verify từng câu, cập nhật DB nếu cần sửa.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { worksheetSheetExistsByIdFromPg } from '@/lib/db/worksheet-pg'
+import { fetchWorksheetSheetMetaForSaveFromPg, worksheetSheetExistsByIdFromPg } from '@/lib/db/worksheet-pg'
+import { bindCurriculumApiCost } from '@/lib/track-ai-usage'
 import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
 import { runWorksheetVerifyForSheet } from '@/lib/worksheet-verify/run-worksheet-verify-for-sheet'
@@ -35,6 +36,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Không đọc được phiếu bài tập.' }, { status: 500 })
     }
 
+    const sheet = await fetchWorksheetSheetMetaForSaveFromPg(worksheetId)
+    bindCurriculumApiCost(sheet?.curriculum_id)
     const t0 = Date.now()
     const stats = await runWorksheetVerifyForSheet(worksheetId, {
       curriculumMarkdownOverride: curriculumMarkdownParam,

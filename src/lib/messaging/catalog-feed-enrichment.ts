@@ -32,16 +32,20 @@ export type CatalogFeedBuildContext = {
   industryKey: CatalogFeedIndustryKey
   /** Breadcrumb danh mục chính: "Túi > Túi đeo chéo" */
   productTypeByInventoryId: Record<string, string>
+  /** Flat shipping fee for the Google feed `shipping` column. null = omit the column. */
+  shippingFeeAmount?: number | null
 }
 
 export function emptyCatalogFeedBuildContext(
   partial: Pick<CatalogFeedBuildContext, 'platformOrigin' | 'partnerSlug' | 'brand' | 'shop'> &
-    Partial<Pick<CatalogFeedBuildContext, 'industryKey' | 'productTypeByInventoryId'>>
+    Partial<Pick<CatalogFeedBuildContext, 'industryKey' | 'productTypeByInventoryId' | 'shippingFeeAmount'>>
 ): CatalogFeedBuildContext {
+  const fee = partial.shippingFeeAmount
   return {
     ...partial,
     industryKey: partial.industryKey ?? null,
     productTypeByInventoryId: partial.productTypeByInventoryId ?? {},
+    shippingFeeAmount: fee != null && Number.isFinite(fee) ? Math.max(0, Math.round(fee)) : null,
   }
 }
 

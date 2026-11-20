@@ -5,6 +5,7 @@ import {
   catalogFeedFileResponse,
   loadPartnerCatalogFeedContext,
 } from '@/lib/messaging/partner-catalog-feed-http'
+import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
 import { applyPartnerSaleParityToCatalogRows } from '@/lib/messaging/partner-catalog-sale-parity'
 
 export const dynamic = 'force-dynamic'
@@ -23,8 +24,17 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const loaded = await loadPartnerCatalogFeedContext(request, slug)
   if (loaded instanceof Response) return loaded
 
-  const sale = await applyPartnerSaleParityToCatalogRows(loaded.partnerId, loaded.rows)
-  const buf = buildGoogleMerchantCatalogFeedTsv(sale.rows, catalogFeedBuildArgs(loaded))
+  const [sale, payment] = await Promise.all([
+    applyPartnerSaleParityToCatalogRows(loaded.partnerId, loaded.rows),
+    fetchPartnerPaymentSettingsFromPg(loaded.partnerId).catch(() => null),
+  ])
+  const shippingFeeAmount = payment
+    ? Math.max(0, Math.round(Number(payment.shipping_fee_amount) || 0))
+    : null
+  const buf = buildGoogleMerchantCatalogFeedTsv(sale.rows, {
+    ...catalogFeedBuildArgs(loaded),
+    shippingFeeAmount,
+  })
 
   return catalogFeedFileResponse(buf, 'text/tab-separated-values; charset=utf-8', 'google-merchant.tsv')
 }

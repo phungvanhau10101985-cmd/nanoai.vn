@@ -11,6 +11,7 @@ import {
 } from '@/lib/db/worksheet-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
+import { bindCurriculumApiCost } from '@/lib/track-ai-usage'
 import { verifyQuizWithDeepSeek, verifyEssayWithDeepSeek } from '@/app/tao-giao-trinh/lib/worksheet-verify-oneshot'
 import { fixQuizWhenVerifyFailed, fixEssayWhenVerifyFailed } from '@/app/tao-giao-trinh/lib/worksheet-regenerate'
 import { cleanThinkingGuide, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
     const curriculumMarkdown = String(body?.curriculumMarkdown ?? '').trim()
     const worksheetId = (body?.worksheetId as string) || null
     const curriculumId = (body?.curriculumId as string) || null
+    bindCurriculumApiCost(curriculumId)
     const topic = String(body?.topic ?? '').trim() || 'Phiếu bài tập'
     const subjectId = String(body?.subjectId ?? 'toan').trim() || 'toan'
     const gradeLevelId = String(body?.gradeLevelId ?? 'lop-6').trim() || 'lop-6'

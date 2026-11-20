@@ -2620,6 +2620,7 @@ export default function TaoGiaoTrinhClientPage({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            curriculumId,
             originalRegion: regions.originalRegion,
             editedRegion: regions.editedRegion,
           }),
@@ -2698,7 +2699,7 @@ export default function TaoGiaoTrinhClientPage({
         setRegionCharCount(null)
       }
     },
-    [tr, toast]
+    [tr, toast, curriculumId]
   )
 
   const autoSaveStateRef = useRef({
@@ -2925,7 +2926,7 @@ export default function TaoGiaoTrinhClientPage({
       const res = await fetch('/api/curriculum-edit-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ originalRegion, editedRegion }),
+        body: JSON.stringify({ curriculumId, originalRegion, editedRegion }),
         signal: controller.signal,
       })
       clearTimeout(timeoutId)
@@ -2974,7 +2975,7 @@ export default function TaoGiaoTrinhClientPage({
       clearTimeout(timeoutId)
       setEditCompareLoading(false)
     }
-  }, [editOriginalText, editEditedText, editMatchStatus, curriculumMarkdown, handleApplyEditFromSheet, tr, toast])
+  }, [editOriginalText, editEditedText, editMatchStatus, curriculumMarkdown, curriculumId, handleApplyEditFromSheet, tr, toast])
 
   const handleSaveWorksheetBlockEdit = useCallback(async () => {
     const blockIdx = worksheetEditBlockIndex

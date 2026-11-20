@@ -12,6 +12,7 @@ import {
 } from './lib/curriculum-original-body'
 import { applyCurriculumMathMarks, curriculumMarkdownForStudents } from './lib/curriculum-math-check'
 import { repairThenMarkLessonMarkdown } from './lib/curriculum-math-repair'
+import { randomUUID } from 'crypto'
 import { headers } from 'next/headers'
 import { getUserForCreditAction } from '@/lib/auth'
 import { recordedCurriculumBuyerSource } from '@/lib/curriculum/curriculum-buyer-source'
@@ -118,7 +119,7 @@ import {
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
-import { trackApiUsage } from '@/lib/track-ai-usage'
+import { bindCurriculumApiCost, trackApiUsage } from '@/lib/track-ai-usage'
 import {
   buildDeepSeekCompletionBody,
   DEEPSEEK_CHAT_COMPLETIONS_URL,
@@ -850,6 +851,8 @@ Chỉ trả JSON hợp lệ:
 {"lessons":[{"lessonNo":1,"title":"...","markdown":"..."}]}
 `
 
+  const createdCurriculumId = randomUUID()
+  bindCurriculumApiCost(createdCurriculumId)
   try {
     const lessonOutline = await buildLessonOutlineDirectByAI({
       prompt: directPrompt,
@@ -892,6 +895,7 @@ Chỉ trả JSON hợp lệ:
 
     const buyerSource = await buyerSourceForForm(formData.get('buyerSource'))
     const ins = await insertWorksheetCurriculumPg({
+      id: createdCurriculumId,
       userId: user?.id ?? null,
       topic: topicFinal,
       subjectId,
@@ -980,6 +984,9 @@ export async function saveCurriculum(formData: FormData) {
     if (!isValidBookIsbn(bookIsbn)) return { error: 'ISBN không hợp lệ (chấp nhận ISBN-10 hoặc ISBN-13).' }
   }
 
+  const presetCurriculumId = curriculumId || randomUUID()
+  bindCurriculumApiCost(presetCurriculumId)
+
   // Chỉ trích lesson_topics khi TẠO MỚI (không có curriculumId) – tránh gọi AI mỗi lần "Lưu thay đổi"
   let lessonTopics: string[] | null = null
   const apiKey = process.env.GOOGLE_API_KEY?.trim()
@@ -1036,6 +1043,7 @@ export async function saveCurriculum(formData: FormData) {
 
   const buyerSource = await buyerSourceForForm(formData.get('buyerSource'))
   const ins = await insertWorksheetCurriculumPg({
+    id: presetCurriculumId,
     userId: user?.id ?? null,
     topic: topicFinal,
     subjectId,
@@ -2655,6 +2663,7 @@ async function loadExpectedLessonCount(curriculumId: string): Promise<number> {
 }
 
 async function rebuildLessonRowsForCurriculum(curriculumId: string, userId?: string | null): Promise<number> {
+  bindCurriculumApiCost(curriculumId)
   let markdown = ''
   let expectedLessonCount = 1
   if (isPgConfigured()) {
@@ -2701,6 +2710,7 @@ export async function getCurriculumLessonMeta(curriculumId: string, mode: Curric
 
 /** Chỉ lấy slide của một tiết để mở nhẹ dữ liệu. */
 export async function getCurriculumSlidesByLesson(curriculumId: string, mode: CurriculumSlideModeForLesson, lessonNo: number) {
+  bindCurriculumApiCost(curriculumId)
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {
@@ -3188,6 +3198,7 @@ export async function verifySlideEditProposalDraft(opts: {
   /** true: trừ credit cho lần kiểm tra AI (nút "Kiểm tra AI"). */
   chargeCredits?: boolean
 }) {
+  bindCurriculumApiCost(opts.curriculumId)
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   if (!isPgConfigured()) {

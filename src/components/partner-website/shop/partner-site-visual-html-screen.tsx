@@ -38,6 +38,9 @@ import { loadPdpLadipageOverlay } from '@/lib/partner-website/shop/load-pdp-ladi
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { loadPartnerShopLiveBrandTheme } from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
+import { injectShopOrganizationJsonLd } from '@/lib/partner-website/shop/build-shop-visual-seo-head'
+import { fetchMessagingPartnerContactChannelsFromPg } from '@/lib/db/messaging-partners-pg'
+import { normalizePartnerSiteContactChannels } from '@/lib/partner-website/shop/partner-site-contact-channels'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
   PARTNER_SITE_PLATFORM_INFO_KEYS,
@@ -173,16 +176,25 @@ export async function PartnerSiteVisualHtmlScreen({
     site.zaloFloatEnabled === false ? '0' : '1',
     String(site.zaloCustomHtml?.length || 0),
   ].join('|')
-  const [liveCategoryBind, liveMarketingBanners, liveBrand] = await Promise.all([
+  const [liveCategoryBind, liveMarketingBanners, liveBrand, contactRaw] = await Promise.all([
     loadSiteLiveCategoryBind(site.siteSlug, navOnly),
     wantsHomeBanners ? loadSiteLiveMarketingBanners(site.siteSlug) : Promise.resolve(null),
     shopCtx
       ? loadPartnerShopLiveBrandTheme({ partnerId: shopCtx.partnerId, theme: site.theme })
       : Promise.resolve({ theme: site.theme, saleIconUrl: null, cacheToken: 'off' }),
+    shopCtx
+      ? fetchMessagingPartnerContactChannelsFromPg(shopCtx.partnerId).catch(() => null)
+      : Promise.resolve(null),
   ])
+  const orgPhone = contactRaw ? normalizePartnerSiteContactChannels(contactRaw).phone || '' : ''
   const prepareShell = async (sourceHtml: string, sourceDevice: VisualDeviceVariant | null) => {
     const prepare = () => {
-      const seoHtml = withInfoPageAdvancedSeo(site, sourceHtml, infoSeo)
+      const seoHtml = injectShopOrganizationJsonLd(withInfoPageAdvancedSeo(site, sourceHtml, infoSeo), {
+        name: site.partnerDisplayName || site.title,
+        url: resolvePartnerSiteAbsoluteUrl(site.siteSlug, '/'),
+        logoUrl: site.logoUrl,
+        telephone: orgPhone || null,
+      })
       return preparePartnerVisualHtmlForPublic(seoHtml, {
         siteSlug: site.siteSlug,
         locale: site.locale,
@@ -206,6 +218,7 @@ export async function PartnerSiteVisualHtmlScreen({
         infoSeo?.followWhenNoIndex ? 'f1' : 'f0',
         'promo-home-1',
         'live-chrome-stamp-3',
+        `org-phone-${orgPhone}`,
         PARTNER_SHOP_LIVE_HTML_CACHE_EXTRA,
         `sale-icon-${liveBrand.cacheToken}`,
         trackingCacheToken,

@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { bindCurriculumApiCost, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { THINKING_GUIDE_RULE, cleanThinkingGuide, getEssayProblem, getEssaySolution, getThinkingGuide, normalizeSolutionToStr, thinkingGuideIsUsable } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -82,6 +82,7 @@ export async function runSolveSgkEssays(userId: string, params: SolveSgkEssaysPa
 
   const ws = await fetchWorksheetSheetOwnedByUserPg(worksheetId, userId)
   if (!ws) throw new Error('Không tìm thấy phiếu bài tập.')
+  bindCurriculumApiCost(ws.curriculum_id)
 
   const questionIds = ws.question_ids
   if (questionIds.length === 0) {

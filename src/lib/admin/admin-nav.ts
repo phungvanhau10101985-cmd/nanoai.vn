@@ -8,6 +8,7 @@ import {
   Download,
   ClipboardCheck,
   GraduationCap,
+  Library,
   ShieldCheck,
   Landmark,
   Wallet,
@@ -321,6 +322,24 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       ko: '교육',
     },
     items: [
+      {
+        href: '/admin/curriculum-manage',
+        title: {
+          vi: 'Quản lý giáo trình',
+          en: 'Curriculum library',
+          zh: '课程管理',
+          ja: '教材の管理',
+          ko: '교육과정 관리',
+        },
+        description: {
+          vi: 'Chi tiết từng giáo trình và chi phí API tạo bài, câu hỏi, slide, ảnh.',
+          en: 'Each curriculum with the API cost of the lesson, questions, slides, and images.',
+          zh: '每份课程的详情，以及创建课程、题目、幻灯片和图片的 API 费用。',
+          ja: '各教材の詳細と、教材・問題・スライド・画像の API 費用。',
+          ko: '교육과정별 상세와 수업, 문항, 슬라이드, 이미지 API 비용.',
+        },
+        icon: Library,
+      },
       {
         href: '/admin/curriculum-teacher-stats',
         title: {

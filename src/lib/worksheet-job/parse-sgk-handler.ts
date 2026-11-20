@@ -4,7 +4,7 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { bindCurriculumApiCost, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { THINKING_GUIDE_RULE, cleanThinkingGuide, normalizeSolutionToStr, thinkingGuideIsUsable } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { QUIZ_SOLUTION_RULE, cleanQuizSolution, quizSolutionIsDetailed } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
@@ -395,6 +395,7 @@ export async function runParseSgk(
   params: ParseSgkParams,
   options?: ParseSgkOptions
 ): Promise<ParseSgkResult> {
+  bindCurriculumApiCost(params.curriculumId)
   const billing = await beginSgkExtractBilling(userId, params.curriculumId)
   try {
     const result = await runParseSgkWork(userId, params, options)

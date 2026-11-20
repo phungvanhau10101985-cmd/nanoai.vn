@@ -7,7 +7,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { bindCurriculumApiCost, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { THINKING_GUIDE_RULE, cleanThinkingGuide, normalizeSolutionToStr, thinkingGuideIsUsable } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
 /** 5 mức độ Bloom cho tự luận – giống phiếu tạo một lần */
@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
     const subjectId = String(body?.subjectId ?? 'toan')
     const gradeLevelId = String(body?.gradeLevelId ?? 'lop-6')
     const curriculumId = (body?.curriculumId as string) || null
+    bindCurriculumApiCost(curriculumId)
     const lessonTopics = Array.isArray(body?.lessonTopics) ? (body.lessonTopics as string[]).filter(Boolean) : undefined
     const difficultyRaw = String(body?.difficulty ?? 'thong-hieu').toLowerCase().replace(/\s+/g, '-')
     const difficulty: EssayBloomLevel = ESSAY_BLOOM_VALUES.includes(difficultyRaw as EssayBloomLevel)

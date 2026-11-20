@@ -25,6 +25,7 @@ import {
   type PartnerSiteSearchParams,
 } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 
 type Props = { params: Promise<{ slug: string }>; searchParams?: PartnerSiteSearchParams }
 
@@ -34,11 +35,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!shop) {
     return buildMetadata({ title: 'Products', description: 'Shop products', path: `/site/${slug}/products`, noIndex: true })
   }
+  const t = getPartnerSiteShopCopy(shop.site.locale)
   return buildPartnerSiteMetadata({
     siteSlug: shop.site.siteSlug,
     siteName: shop.site.title,
-    title: `${shop.site.title} — Products`,
-    description: shop.site.partnerDisplayName,
+    title: `${shop.site.title} — ${t.catalogTitle}`,
+    description: t.catalogTitle,
     path: '/products',
     image: shop.site.logoUrl,
     locale: shop.site.locale,

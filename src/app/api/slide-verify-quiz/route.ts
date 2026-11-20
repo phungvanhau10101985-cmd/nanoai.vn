@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { bindCurriculumApiCost, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { getUserOrBypass } from '@/lib/auth'
 
 /** Kiểm tra câu hỏi trắc nghiệm chèn thủ công – đối chiếu đáp án với nội dung slide.
@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
     const userId = u?.id ?? null
 
     const body = await req.json().catch(() => ({}))
+    bindCurriculumApiCost(typeof body?.curriculumId === 'string' ? body.curriculumId : null)
     const slideTitle = String(body?.slideTitle ?? '').trim()
     const slideContent = String(body?.slideContent ?? '').trim()
     const question = String(body?.question ?? '').trim()

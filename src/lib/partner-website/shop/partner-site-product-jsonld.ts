@@ -8,12 +8,12 @@ export const PARTNER_PRODUCT_JSONLD_BRAND_MAX = 70
  */
 export const PARTNER_PRODUCT_RETURN_DAYS = 7
 /**
- * Shipping page says the order is handled after the shop confirms, then transit
- * depends on area. This is the outer window for schema — not a same-day promise.
- * handling 1–2 days, transit 2–7 days, nationwide (`addressCountry` VN).
+ * Shipping policy outer window — do not promise faster than imported stock.
+ * Handling 1–2 days after confirmation. Transit 2–12 days nationwide
+ * (domestic about 2–5, imported about 6–12). `addressCountry` VN.
  */
 export const PARTNER_PRODUCT_HANDLING_DAYS = { min: 1, max: 2 } as const
-export const PARTNER_PRODUCT_TRANSIT_DAYS = { min: 2, max: 7 } as const
+export const PARTNER_PRODUCT_TRANSIT_DAYS = { min: 2, max: 12 } as const
 
 export type PartnerProductJsonLdReview = {
   authorName: string
@@ -198,6 +198,9 @@ export function buildPartnerSiteProductJsonLd(input: {
               returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
               merchantReturnDays: PARTNER_PRODUCT_RETURN_DAYS,
               returnMethod: 'https://schema.org/ReturnByMail',
+              returnFees: 'https://schema.org/ReturnFeesCustomerResponsibility',
+              itemDefectReturnFees: 'https://schema.org/FreeReturn',
+              customerRemorseReturnFees: 'https://schema.org/ReturnFeesCustomerResponsibility',
               url: input.returnPolicyUrl,
             },
           },

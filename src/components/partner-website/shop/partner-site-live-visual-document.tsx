@@ -17,7 +17,9 @@ import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/p
 import { stripPartnerShopVerifyMetasFromHtml } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 import {
   dropScriptsAlreadyEmittedByLiveHead,
+  extractVisualHtmlJsonLdBlocks,
   splitVisualHtmlBodyScripts,
+  stripVisualHtmlJsonLdScripts,
   type VisualHtmlHoistedScript,
 } from '@/lib/partner-website/shop/split-visual-html-scripts'
 import { staticShopRuntimeSrcForBody } from '@/lib/partner-website/shop/pw-shop-static-runtime'
@@ -193,9 +195,12 @@ export function PartnerSiteLiveVisualDocument({
 }) {
   const previewHtml = hideChatLaunchersInHtml(html, Boolean(hideChatLauncher))
   const codes = extractVisualHtmlDocumentCodes(previewHtml)
+  const jsonLdBlocks = extractVisualHtmlJsonLdBlocks(previewHtml)
   const { markup, scripts: hoisted } = splitVisualHtmlBodyScripts(
-    stripPartnerShopVerifyMetasFromHtml(
-      stripExtractedVisualStyleTags(extractVisualHtmlBodyMarkup(previewHtml))
+    stripVisualHtmlJsonLdScripts(
+      stripPartnerShopVerifyMetasFromHtml(
+        stripExtractedVisualStyleTags(extractVisualHtmlBodyMarkup(previewHtml))
+      )
     )
   )
   const scripts = dropScriptsAlreadyEmittedByLiveHead(hoisted)
@@ -203,6 +208,13 @@ export function PartnerSiteLiveVisualDocument({
   return (
     <>
       <PartnerSiteLiveVisualHead html={previewHtml} device={device} />
+      {jsonLdBlocks.map((body, index) => (
+        <script
+          key={`pw-jsonld-${index}`}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: body }}
+        />
+      ))}
       <div
         data-pw-inline-visual-root="1"
         data-pw-page={codes['data-pw-page'] || undefined}

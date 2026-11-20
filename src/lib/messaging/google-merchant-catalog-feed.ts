@@ -96,6 +96,10 @@ function rowToTsvLine(row: CatalogFeedInventoryRow, ctx: CatalogFeedBuildContext
   const additional = catalogFeedAdditionalImages(row).join(',')
   const currency = catalogFeedCurrency(row)
 
+  const shipping =
+    ctx.shippingFeeAmount != null && Number.isFinite(ctx.shippingFeeAmount)
+      ? `VN:::${formatCatalogFeedPrice(Math.max(0, Math.round(ctx.shippingFeeAmount)), currency)}`
+      : ''
   const cells = [
     catalogFeedItemId(row),
     catalogFeedTitle(row, 150),
@@ -130,6 +134,7 @@ function rowToTsvLine(row: CatalogFeedInventoryRow, ctx: CatalogFeedBuildContext
     catalogFeedShippingWeight(row),
     catalogFeedItemGroupId(row),
     catalogFeedVideoUrl(row),
+    ...(shipping ? [shipping] : []),
   ].map(tsvEscapeCell)
 
   return cells.join('\t')
@@ -140,7 +145,11 @@ export function buildGoogleMerchantCatalogFeedTsv(
   ctx: CatalogFeedBuildContext | Omit<CatalogFeedBuildContext, 'industryKey' | 'productTypeByInventoryId'>
 ): Buffer {
   const full = emptyCatalogFeedBuildContext(ctx)
-  const lines: string[] = [GOOGLE_MERCHANT_TSV_HEADERS.join('\t')]
+  const headers =
+    full.shippingFeeAmount != null
+      ? [...GOOGLE_MERCHANT_TSV_HEADERS, 'shipping']
+      : [...GOOGLE_MERCHANT_TSV_HEADERS]
+  const lines: string[] = [headers.join('\t')]
   for (const row of rows) {
     const line = rowToTsvLine(row, full)
     if (line) lines.push(line)

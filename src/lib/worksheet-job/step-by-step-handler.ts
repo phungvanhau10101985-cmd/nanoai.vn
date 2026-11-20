@@ -5,7 +5,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { withTransientGeminiRetry } from '@/lib/ai/gemini-transient'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { bindCurriculumApiCost, trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { explainQuizDraft, readEssayDraft, readQuizDraft } from '@/lib/worksheet-job/model-draft'
 import {
   beginQuestionTurn,
@@ -325,6 +325,7 @@ export async function runStepByStep(
   params: StepByStepParams,
   type: 'quiz' | 'essay'
 ): Promise<StepByStepResult> {
+  bindCurriculumApiCost(params.curriculumId)
   if (!isPgConfigured()) throw new Error('DATABASE_URL chưa cấu hình')
 
   const ids: string[] = []
