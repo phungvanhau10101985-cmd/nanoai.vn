@@ -136,6 +136,7 @@ import {
   toggleFigureRun,
   toggleTitrationValve,
   toggleChemSwitch,
+  setWaveSources,
   moveFigureTune,
   releaseFigureTune,
   dialogClearOfFigure,
@@ -1435,6 +1436,17 @@ export function TeacherWhiteboardCanvas({
     if (!hit) return false
     setSelectedIds([hit.object.id])
     selectedIdsRef.current = [hit.object.id]
+    if (hit.handle === 'one' || hit.handle === 'two') {
+      const params = setWaveSources(hit.object.params, hit.handle === 'two')
+      const nextObj = { ...hit.object, params }
+      const objects = stateRef.current.objects.map((item) => (item.id === hit.object.id ? nextObj : item))
+      const nextState = { ...stateRef.current, objects }
+      stateRef.current = nextState
+      onStateChange(nextState)
+      emit({ type: 'whiteboard-upsert', object: nextObj })
+      onClaimSimRef.current?.()
+      return true
+    }
     if (hit.handle === 'push') {
       const params = toggleChemSwitch(hit.object.params)
       const nextObj = { ...hit.object, params }

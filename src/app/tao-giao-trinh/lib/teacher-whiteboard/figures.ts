@@ -51,18 +51,18 @@ export const FIGURE_SUBJECTS: { id: FigureSubject; label: FigureLabel; color: st
 const L = (vi: string, en: string, zh: string, ja: string, ko: string): FigureLabel => [vi, en, zh, ja, ko]
 
 export const FIGURE_ITEMS: FigureItem[] = [
-  { id: 'math-formula', subject: 'math', w: 460, h: 168, fields: ['variant'], label: L('Công thức', 'Formulas', '公式', '公式', '공식'), variants: [
-    { id: 'pythagoras', label: L('Pythagore', 'Pythagoras', '勾股定理', '三平方の定理', '피타고라스') },
-    { id: 'square-sum', label: L('Bình phương tổng', 'Square of a sum', '和平方', '和の二乗', '합의 제곱') },
-    { id: 'square-diff', label: L('Bình phương hiệu', 'Square of a difference', '差平方', '差の二乗', '차의 제곱') },
-    { id: 'diff-squares', label: L('Hiệu hai bình phương', 'Difference of squares', '平方差', '二乗の差', '제곱의 차') },
-    { id: 'cube-sum', label: L('Lập phương tổng', 'Cube of a sum', '和立方', '和の三乗', '합의 세제곱') },
-    { id: 'linear', label: L('Phương trình bậc nhất', 'Linear equation', '一次方程', '一次方程式', '일차방정식') },
-    { id: 'quadratic', label: L('Phương trình bậc hai', 'Quadratic', '二次方程', '二次方程式', '이차방정식') },
-    { id: 'vieta', label: L('Hệ thức Vi-ét', 'Vieta', '韦达定理', '解と係数', '근과 계수의 관계') },
-    { id: 'identity', label: L('sin²α + cos²α', 'sin²α + cos²α', 'sin²α + cos²α', 'sin²α + cos²α', 'sin²α + cos²α') },
-    { id: 'sin-sum', label: L('sin(α + β)', 'sin(α + β)', 'sin(α + β)', 'sin(α + β)', 'sin(α + β)') },
-    { id: 'tan', label: L('tan α', 'tan α', 'tan α', 'tan α', 'tan α') },
+  { id: 'math-formula', subject: 'math', w: 460, h: 168, fields: ['variant'], label: L('Công thức toán', 'Math formulas', '数学公式', '数学の公式', '수학 공식'), variants: [
+    { id: 'pythagoras', label: L('Pythagore a² + b² = c²', 'Pythagoras a² + b² = c²', '勾股定理 a² + b² = c²', '三平方の定理 a² + b² = c²', '피타고라스 a² + b² = c²') },
+    { id: 'square-sum', label: L('(a + b)²', '(a + b)²', '(a + b)²', '(a + b)²', '(a + b)²') },
+    { id: 'square-diff', label: L('(a − b)²', '(a − b)²', '(a − b)²', '(a − b)²', '(a − b)²') },
+    { id: 'diff-squares', label: L('a² − b²', 'a² − b²', 'a² − b²', 'a² − b²', 'a² − b²') },
+    { id: 'cube-sum', label: L('(a + b)³', '(a + b)³', '(a + b)³', '(a + b)³', '(a + b)³') },
+    { id: 'linear', label: L('Phương trình bậc nhất ax + b = 0', 'Linear equation ax + b = 0', '一次方程 ax + b = 0', '一次方程式 ax + b = 0', '일차방정식 ax + b = 0') },
+    { id: 'quadratic', label: L('Phương trình bậc hai ax² + bx + c = 0', 'Quadratic ax² + bx + c = 0', '二次方程 ax² + bx + c = 0', '二次方程式 ax² + bx + c = 0', '이차방정식 ax² + bx + c = 0') },
+    { id: 'vieta', label: L('Vi-ét: tổng và tích hai nghiệm', 'Vieta: sum and product of roots', '韦达：两根之和与积', '解と係数：和と積', '근과 계수: 합과 곱') },
+    { id: 'identity', label: L('sin²α + cos²α = 1', 'sin²α + cos²α = 1', 'sin²α + cos²α = 1', 'sin²α + cos²α = 1', 'sin²α + cos²α = 1') },
+    { id: 'sin-sum', label: L('Công thức cộng sin(α + β)', 'Angle-sum sin(α + β)', '和角公式 sin(α + β)', '加法公式 sin(α + β)', '덧셈 공식 sin(α + β)') },
+    { id: 'tan', label: L('tan α = sin α / cos α', 'tan α = sin α / cos α', 'tan α = sin α / cos α', 'tan α = sin α / cos α', 'tan α = sin α / cos α') },
     { id: 'area', label: L('Diện tích hình tròn', 'Circle area', '圆面积', '円の面積', '원의 넓이') },
     { id: 'tri-area', label: L('Diện tích tam giác', 'Triangle area', '三角形面积', '三角形の面積', '삼각형 넓이') },
     { id: 'tri-sin', label: L('Diện tích tam giác (sin)', 'Triangle area (sin)', '三角形面积（正弦）', '三角形の面積（正弦）', '삼각형 넓이 (사인)') },
@@ -71,125 +71,127 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'sphere', label: L('Thể tích hình cầu', 'Sphere volume', '球体积', '球の体積', '구의 부피') },
     { id: 'cylinder', label: L('Thể tích hình trụ', 'Cylinder volume', '圆柱体积', '円柱の体積', '원기둥 부피') },
     { id: 'cone', label: L('Thể tích hình nón', 'Cone volume', '圆锥体积', '円錐の体積', '원뿔 부피') },
-    { id: 'distance', label: L('Khoảng cách hai điểm', 'Distance', '两点距离', '2点間の距離', '두 점 사이 거리') },
-    { id: 'slope', label: L('Hệ số góc', 'Slope', '斜率', '傾き', '기울기') },
+    { id: 'distance', label: L('Khoảng cách hai điểm trên mặt phẳng', 'Distance between two points', '平面上两点距离', '平面上の2点間の距離', '평면 위 두 점 사이 거리') },
+    { id: 'slope', label: L('Hệ số góc của đường thẳng', 'Slope of a line', '直线的斜率', '直線の傾き', '직선의 기울기') },
     { id: 'circle-eq', label: L('Phương trình đường tròn', 'Circle equation', '圆的方程', '円の方程式', '원의 방정식') },
-    { id: 'arith', label: L('Cấp số cộng', 'Arithmetic sequence', '等差数列', '等差数列', '등차수열') },
-    { id: 'geom', label: L('Cấp số nhân', 'Geometric sequence', '等比数列', '等比数列', '등비수열') },
-    { id: 'sum-arith', label: L('Tổng cấp số cộng', 'Arithmetic sum', '等差数列的和', '等差数列の和', '등차수열의 합') },
-    { id: 'log', label: L('Logarit', 'Logarithm', '对数', '対数', '로그') },
+    { id: 'arith', label: L('Số hạng cấp số cộng uₙ', 'General term of an arithmetic sequence', '等差数列的通项', '等差数列の一般項', '등차수열의 일반항') },
+    { id: 'geom', label: L('Số hạng cấp số nhân uₙ', 'General term of a geometric sequence', '等比数列的通项', '等比数列の一般項', '등비수열의 일반항') },
+    { id: 'sum-arith', label: L('Tổng n số hạng đầu của cấp số cộng', 'Sum of an arithmetic sequence', '等差数列前 n 项和', '等差数列の和', '등차수열의 합') },
+    { id: 'log', label: L('Logarit của một tích', 'Logarithm of a product', '积的对数', '積の対数', '곱의 로그') },
     { id: 'deriv', label: L('Đạo hàm luỹ thừa', 'Power derivative', '幂的导数', 'べきの導関数', '거듭제곱의 도함수') },
     { id: 'integral', label: L('Tích phân luỹ thừa', 'Power integral', '幂的积分', 'べきの積分', '거듭제곱의 적분') },
-    { id: 'choose', label: L('Tổ hợp', 'Combinations', '组合', '組合せ', '조합') },
-    { id: 'prob', label: L('Xác suất', 'Probability', '概率', '確率', '확률') },
+    { id: 'choose', label: L('Tổ hợp chập k của n phần tử', 'Combinations of n taken k', '从 n 个中取 k 个的组合', 'n 個から k 個の組合せ', 'n개 중 k개의 조합') },
+    { id: 'prob', label: L('Xác suất biến cố P(A)', 'Probability of an event P(A)', '事件概率 P(A)', '事象の確率 P(A)', '사건의 확률 P(A)') },
   ] },
   { id: 'math-graph', subject: 'math', menu: false, w: 320, h: 220, fields: ['variant'], label: L('Đồ thị hàm số', 'Function graph', '函数图像', '関数のグラフ', '함수 그래프'), variants: [
     { id: 'parabola', label: L('Parabol', 'Parabola', '抛物线', '放物線', '포물선') },
     { id: 'line', label: L('Hàm bậc nhất', 'Linear', '一次函数', '一次関数', '일차함수') },
     { id: 'sine', label: L('Hàm sin', 'Sine', '正弦', 'サイン', '사인') },
   ] },
-  { id: 'math-trig', subject: 'math', w: 460, h: 400, fields: [], label: L('Lượng giác', 'Unit circle', '单位圆', '単位円', '단위원') },
-  { id: 'spatial', subject: 'math', w: 420, h: 320, fields: ['variant', 'equation'], label: L('Không gian', '3D graph', '空间图', '空間', '공간'), variants: [
-    { id: 'paraboloid', label: L('z = x² + y²', 'z = x² + y²', 'z = x² + y²', 'z = x² + y²', 'z = x² + y²'), sample: 'x^2+y^2' },
-    { id: 'saddle', label: L('z = x² − y²', 'z = x² − y²', 'z = x² − y²', 'z = x² − y²', 'z = x² − y²'), sample: 'x^2-y^2' },
-    { id: 'ripple', label: L('z = sin x cos y', 'z = sin x cos y', 'z = sin x cos y', 'z = sin x cos y', 'z = sin x cos y'), sample: 'sin(x)*cos(y)' },
+  { id: 'math-trig', subject: 'math', w: 460, h: 400, fields: [], label: L('Đường tròn lượng giác', 'Unit circle', '单位圆', '単位円', '단위원') },
+  { id: 'spatial', subject: 'math', w: 420, h: 320, fields: ['variant', 'equation'], label: L('Đồ thị không gian', 'Spatial graph', '空间图像', '空間グラフ', '공간 그래프'), variants: [
+    { id: 'paraboloid', label: L('Mặt paraboloid z = x² + y²', 'Paraboloid z = x² + y²', '抛物面 z = x² + y²', '放物面 z = x² + y²', '포물면 z = x² + y²'), sample: 'x^2+y^2' },
+    { id: 'saddle', label: L('Mặt yên ngựa z = x² − y²', 'Saddle z = x² − y²', '马鞍面 z = x² − y²', '鞍形面 z = x² − y²', '안장면 z = x² − y²'), sample: 'x^2-y^2' },
+    { id: 'ripple', label: L('Mặt sóng z = sin x cos y', 'Wave surface z = sin x cos y', '波浪面 z = sin x cos y', '波面 z = sin x cos y', '파동면 z = sin x cos y'), sample: 'sin(x)*cos(y)' },
   ] },
   { id: 'math-geometry', subject: 'math', menu: false, w: 300, h: 200, fields: ['variant'], label: L('Hình học', 'Geometry', '几何', '幾何', '기하'), variants: [
     { id: 'right', label: L('Tam giác vuông', 'Right triangle', '直角三角形', '直角三角形', '직각삼각형') },
     { id: 'tangent', label: L('Tiếp tuyến đường tròn', 'Tangent', '切线', '接線', '접선') },
   ] },
-  { id: 'circuit', subject: 'physics', w: 340, h: 200, fields: ['variant'], label: L('Mạch điện', 'Electric circuit', '电路', '電気回路', '전기 회로'), variants: [
-    { id: 'series', label: L('Mắc nối tiếp', 'Series', '串联', '直列', '직렬') },
-    { id: 'parallel', label: L('Mắc song song', 'Parallel', '并联', '並列', '병렬') },
+  { id: 'circuit', subject: 'physics', w: 560, h: 300, fields: ['variant'], label: L('Mạch điện', 'Electric circuit', '电路', '電気回路', '전기 회로'), variants: [
+    { id: 'series', label: L('Mạch điện mắc nối tiếp', 'Series circuit', '串联电路', '直列回路', '직렬 회로') },
+    { id: 'parallel', label: L('Mạch điện mắc song song', 'Parallel circuit', '并联电路', '並列回路', '병렬 회로') },
   ] },
-  { id: 'force', subject: 'physics', w: 320, h: 220, fields: ['variant'], label: L('Lực', 'Forces', '力', '力', '힘'), variants: [
+  { id: 'force', subject: 'physics', w: 320, h: 220, fields: ['variant'], label: L('Lực trên vật', 'Forces on an object', '物体受力', '物体にはたらく力', '물체에 작용하는 힘'), variants: [
     { id: 'block', label: L('Vật trên mặt ngang', 'Block on a surface', '水平面上的物体', '水平面上の物体', '수평면 위 물체') },
-    { id: 'incline', label: L('Mặt nghiêng', 'Incline', '斜面', '斜面', '빗면') },
+    { id: 'incline', label: L('Vật trên mặt nghiêng', 'Object on an incline', '斜面上的物体', '斜面上の物体', '빗면 위 물체') },
   ] },
   { id: 'ray', subject: 'physics', w: 360, h: 220, fields: ['variant'], label: L('Thấu kính', 'Lenses', '透镜', 'レンズ', '렌즈'), variants: [
     { id: 'convex', label: L('Thấu kính hội tụ', 'Convex lens', '凸透镜', '凸レンズ', '볼록 렌즈') },
     { id: 'concave', label: L('Thấu kính phân kỳ', 'Concave lens', '凹透镜', '凹レンズ', '오목 렌즈') },
   ] },
-  { id: 'phys-graph', subject: 'physics', w: 360, h: 220, fields: ['variant'], label: L('Đồ thị v, x, a', 'v, x, a graphs', 'v、x、a 图', 'v・x・a', 'v, x, a'), variants: [
-    { id: 'vt', label: L('v – t', 'v – t', 'v – t', 'v – t', 'v – t') },
-    { id: 'xt', label: L('x – t', 'x – t', 'x – t', 'x – t', 'x – t') },
-    { id: 'at', label: L('a – t', 'a – t', 'a – t', 'a – t', 'a – t') },
+  { id: 'phys-graph', subject: 'physics', w: 360, h: 220, fields: ['variant'], label: L('Đồ thị vận tốc, li độ, gia tốc', 'Velocity, position, acceleration graphs', '速度、位移、加速度图', '速度・位置・加速度のグラフ', '속도·위치·가속도 그래프'), variants: [
+    { id: 'vt', label: L('Vận tốc theo thời gian v–t', 'Velocity against time v–t', '速度–时间 v–t', '速度と時間 v–t', '속도-시간 v–t') },
+    { id: 'xt', label: L('Li độ theo thời gian x–t', 'Position against time x–t', '位置–时间 x–t', '位置と時間 x–t', '위치-시간 x–t') },
+    { id: 'at', label: L('Gia tốc theo thời gian a–t', 'Acceleration against time a–t', '加速度–时间 a–t', '加速度と時間 a–t', '가속도-시간 a–t') },
   ] },
-  { id: 'wave', subject: 'physics', w: 380, h: 210, fields: ['variant'], label: L('Dao động, sóng', 'Waves', '振动与波', '振動・波', '진동·파동'), variants: [
+  { id: 'wave', subject: 'physics', w: 380, h: 210, fields: ['variant'], label: L('Sóng ngang và đồ thị li độ', 'Transverse wave and displacement graph', '横波与位移图', '横波と変位のグラフ', '횡파와 변위 그래프'), variants: [
     { id: 'wave', label: L('Sóng ngang', 'Transverse wave', '横波', '横波', '횡파') },
     { id: 'spring', menu: false, label: L('Con lắc lò xo', 'Spring oscillator', '弹簧振子', 'ばね振り子', '용수철 진자') },
-    { id: 'osc', label: L('Li độ x – t', 'Displacement', '位移', '変位', '변위') },
+    { id: 'osc', label: L('Li độ dao động theo thời gian x–t', 'Oscillation displacement x–t', '振动位移–时间 x–t', '振動の変位と時間 x–t', '진동 변위-시간 x–t') },
   ] },
-  { id: 'field', subject: 'physics', w: 340, h: 220, fields: ['variant'], label: L('Điện, từ', 'Fields', '电场磁场', '電場・磁場', '전기·자기'), variants: [
-    { id: 'electric', label: L('Điện tích', 'Charges', '电荷', '電荷', '전하') },
-    { id: 'magnet', label: L('Nam châm', 'Magnet', '磁铁', '磁石', '자석') },
+  { id: 'field', subject: 'physics', w: 340, h: 220, fields: ['variant'], label: L('Điện trường, từ trường', 'Electric and magnetic fields', '电场与磁场', '電場と磁場', '전기장·자기장'), variants: [
+    { id: 'electric', label: L('Điện trường của hai điện tích', 'Field of two charges', '两个电荷的电场', '2つの電荷の電場', '두 전하의 전기장') },
+    { id: 'magnet', label: L('Từ trường của thanh nam châm', 'Field of a bar magnet', '条形磁铁的磁场', '棒磁石の磁場', '막대자석의 자기장') },
     { id: 'wire', label: L('Lực từ lên dòng điện', 'Force on a current', '电流所受磁力', '電流が受ける力', '전류가 받는 자기력') },
   ] },
-  { id: 'law-graph', subject: 'physics', w: 320, h: 210, fields: ['variant'], label: L('Phóng xạ, khí', 'Decay and gas', '衰变与气体', '崩壊と気体', '붕괴·기체'), variants: [
-    { id: 'decay', label: L('Phóng xạ', 'Radioactive decay', '放射性衰变', '放射性崩壊', '방사성 붕괴') },
-    { id: 'gas', label: L('Chất khí p – V', 'Gas p – V', '气体 p – V', '気体 p – V', '기체 p – V') },
-    { id: 'motion', label: L('Chuyển động s – t', 'Motion s – t', '运动 s – t', '運動 s – t', '운동 s – t') },
+  { id: 'law-graph', subject: 'physics', w: 320, h: 210, fields: ['variant'], label: L('Đồ thị phóng xạ, chất khí, quãng đường', 'Decay, gas, and distance graphs', '衰变、气体、路程图', '崩壊・気体・道のりのグラフ', '붕괴·기체·이동거리 그래프'), variants: [
+    { id: 'decay', label: L('Phân rã phóng xạ theo thời gian', 'Radioactive decay over time', '放射性衰变随时间', '時間による放射性崩壊', '시간에 따른 방사성 붕괴') },
+    { id: 'gas', label: L('Đẳng nhiệt chất khí p–V', 'Isotherm of a gas p–V', '气体等温线 p–V', '気体の等温線 p–V', '기체 등온선 p–V') },
+    { id: 'motion', label: L('Quãng đường theo thời gian s–t', 'Distance against time s–t', '路程–时间 s–t', '道のりと時間 s–t', '이동거리-시간 s–t') },
   ] },
-  { id: 'refraction', subject: 'physics', w: 320, h: 220, fields: ['variant'], label: L('Khúc xạ', 'Refraction', '折射', '屈折', '굴절'), variants: [
-    { id: 'interface', label: L('Mặt phân cách', 'Interface', '界面', '境界面', '경계면') },
-    { id: 'prism', label: L('Lăng kính', 'Prism', '棱镜', 'プリズム', '프리즘') },
+  { id: 'refraction', subject: 'physics', w: 320, h: 220, fields: ['variant'], label: L('Khúc xạ ánh sáng', 'Refraction of light', '光的折射', '光の屈折', '빛의 굴절'), variants: [
+    { id: 'interface', label: L('Tia sáng qua mặt phân cách hai môi trường', 'Ray across a boundary', '光线经过两种介质的界面', '2つの媒質の境界面を通る光線', '두 매질 경계면을 지나는 빛') },
+    { id: 'prism', label: L('Lăng kính đổi hướng tia sáng', 'Prism bending a ray', '棱镜使光线转向', 'プリズムで光線が曲がる', '프리즘이 빛을 꺾음') },
   ] },
-  { id: 'experiment-phys', subject: 'physics', w: 360, h: 240, fields: ['variant'], label: L('Thí nghiệm', 'Experiments', '实验', '実験', '실험'), variants: [
+  { id: 'interfere', subject: 'physics', w: 720, h: 460, fields: [], label: L('Giao thoa sóng nước', 'Water-wave interference', '水波干涉', '水面波の干渉', '수면파 간섭') },
+  { id: 'young', subject: 'physics', w: 740, h: 480, fields: [], label: L('Giao thoa ánh sáng Young', "Young's light interference", '杨氏光的干涉', 'ヤングの光の干渉', '영의 빛 간섭') },
+  { id: 'experiment-phys', subject: 'physics', w: 360, h: 240, fields: ['variant'], label: L('Ném xiên, con lắc, rơi tự do', 'Projectile, pendulum, free fall', '斜抛、单摆、自由落体', '斜方投射・振り子・自由落下', '포물선·진자·자유낙하'), variants: [
     { id: 'projectile', label: L('Ném xiên', 'Projectile', '斜抛', '斜方投射', '포물선 운동') },
     { id: 'pendulum', label: L('Con lắc đơn', 'Simple pendulum', '单摆', '単振り子', '단진자') },
     { id: 'spring', label: L('Con lắc lò xo', 'Spring oscillator', '弹簧振子', 'ばね振り子', '용수철 진자') },
     { id: 'fall', label: L('Rơi tự do', 'Free fall', '自由落体', '自由落下', '자유낙하') },
   ] },
-  { id: 'constants', subject: 'physics', w: 300, h: 180, fields: [], label: L('Hằng số', 'Constants', '常数', '定数', '상수') },
-  { id: 'formula-physics', subject: 'physics', w: 460, h: 168, fields: ['variant'], label: L('Công thức', 'Formulas', '公式', '公式', '공식'), variants: [
-    { id: 'velocity', label: L('Vận tốc', 'Velocity', '速度', '速度', '속도') },
-    { id: 'accel', label: L('Gia tốc', 'Acceleration', '加速度', '加速度', '가속도') },
-    { id: 'motion', label: L('Chuyển động biến đổi đều', 'Uniform acceleration', '匀变速运动', '等加速度運動', '등가속도 운동') },
-    { id: 'newton', label: L('Định luật II Newton', 'Newton II', '牛顿第二定律', '運動の第2法則', '뉴턴 제2법칙') },
-    { id: 'weight', label: L('Trọng lượng', 'Weight', '重力', '重力', '무게') },
-    { id: 'momentum', label: L('Động lượng', 'Momentum', '动量', '運動量', '운동량') },
-    { id: 'work', label: L('Công', 'Work', '功', '仕事', '일') },
-    { id: 'power', label: L('Công suất', 'Power', '功率', '仕事率', '일률') },
-    { id: 'kinetic', label: L('Động năng', 'Kinetic energy', '动能', '運動エネルギー', '운동 에너지') },
-    { id: 'potential', label: L('Thế năng trọng trường', 'Gravitational potential', '重力势能', '重力による位置エネルギー', '중력 퍼텐셜 에너지') },
-    { id: 'friction', label: L('Ma sát', 'Friction', '摩擦力', '摩擦力', '마찰력') },
-    { id: 'density', label: L('Khối lượng riêng', 'Density', '密度', '密度', '밀도') },
-    { id: 'pressure', label: L('Áp suất', 'Pressure', '压强', '圧力', '압력') },
-    { id: 'ohm', label: L('Định luật Ohm', 'Ohm', '欧姆定律', 'オームの法則', '옴의 법칙') },
-    { id: 'series', label: L('Điện trở nối tiếp', 'Series resistors', '串联电阻', '直列抵抗', '직렬 저항') },
-    { id: 'parallel', label: L('Điện trở song song', 'Parallel resistors', '并联电阻', '並列抵抗', '병렬 저항') },
-    { id: 'current', label: L('Cường độ dòng điện', 'Current', '电流', '電流', '전류') },
-    { id: 'joule', label: L('Nhiệt lượng Joule', 'Joule heating', '焦耳热', 'ジュール熱', '줄 열') },
-    { id: 'heat', label: L('Nhiệt lượng', 'Heat', '热量', '熱量', '열량') },
-    { id: 'wave', label: L('Vận tốc sóng', 'Wave speed', '波速', '波の速さ', '파동 속력') },
-    { id: 'frequency', label: L('Tần số và chu kỳ', 'Frequency', '频率', '周波数', '진동수') },
-    { id: 'period', label: L('Chu kỳ con lắc', 'Pendulum period', '单摆周期', '振り子の周期', '진자 주기') },
-    { id: 'lens', label: L('Thấu kính', 'Thin lens', '薄透镜', 'レンズ', '렌즈') },
-    { id: 'snell', label: L('Khúc xạ', 'Snell', '折射', '屈折', '굴절') },
-    { id: 'coulomb', label: L('Định luật Coulomb', 'Coulomb', '库仑定律', 'クーロンの法則', '쿨롱 법칙') },
-    { id: 'gas', label: L('Khí lí tưởng', 'Ideal gas', '理想气体', '理想気体', '이상 기체') },
-    { id: 'energy', label: L('E = mc²', 'E = mc²', 'E = mc²', 'E = mc²', 'E = mc²') },
-    { id: 'efficiency', label: L('Hiệu suất', 'Efficiency', '效率', '効率', '효율') },
+  { id: 'constants', subject: 'physics', w: 300, h: 180, fields: [], label: L('Bảng hằng số g, c, h, e, Nₐ, R', 'Table of g, c, h, e, Nₐ, R', '常数表 g、c、h、e、Nₐ、R', '定数表 g・c・h・e・Nₐ・R', '상수표 g, c, h, e, Nₐ, R') },
+  { id: 'formula-physics', subject: 'physics', w: 460, h: 168, fields: ['variant'], label: L('Công thức vật lí', 'Physics formulas', '物理公式', '物理の公式', '물리 공식'), variants: [
+    { id: 'velocity', label: L('Vận tốc trung bình v = s/t', 'Average velocity v = s/t', '平均速度 v = s/t', '平均の速度 v = s/t', '평균 속도 v = s/t') },
+    { id: 'accel', label: L('Gia tốc a = (v − v₀)/t', 'Acceleration a = (v − v₀)/t', '加速度 a = (v − v₀)/t', '加速度 a = (v − v₀)/t', '가속도 a = (v − v₀)/t') },
+    { id: 'motion', label: L('Chuyển động biến đổi đều s = v₀t + ½at²', 'Uniform acceleration s = v₀t + ½at²', '匀变速 s = v₀t + ½at²', '等加速度 s = v₀t + ½at²', '등가속도 s = v₀t + ½at²') },
+    { id: 'newton', label: L('Định luật II Newton F = ma', 'Newton II F = ma', '牛顿第二定律 F = ma', '運動の第2法則 F = ma', '뉴턴 제2법칙 F = ma') },
+    { id: 'weight', label: L('Trọng lượng P = mg', 'Weight P = mg', '重力 P = mg', '重力 P = mg', '무게 P = mg') },
+    { id: 'momentum', label: L('Động lượng p = mv', 'Momentum p = mv', '动量 p = mv', '運動量 p = mv', '운동량 p = mv') },
+    { id: 'work', label: L('Công của lực A = Fs cos α', 'Work of a force A = Fs cos α', '力做的功 A = Fs cos α', '力の仕事 A = Fs cos α', '힘의 일 A = Fs cos α') },
+    { id: 'power', label: L('Công suất P = A/t', 'Power P = A/t', '功率 P = A/t', '仕事率 P = A/t', '일률 P = A/t') },
+    { id: 'kinetic', label: L('Động năng Wđ = ½mv²', 'Kinetic energy Wđ = ½mv²', '动能 Wđ = ½mv²', '運動エネルギー Wđ = ½mv²', '운동 에너지 Wđ = ½mv²') },
+    { id: 'potential', label: L('Thế năng trọng trường Wt = mgh', 'Gravitational potential Wt = mgh', '重力势能 Wt = mgh', '重力による位置エネルギー Wt = mgh', '중력 퍼텐셜 에너지 Wt = mgh') },
+    { id: 'friction', label: L('Lực ma sát trượt Fms = μN', 'Sliding friction Fms = μN', '滑动摩擦力 Fms = μN', '動摩擦力 Fms = μN', '운동 마찰력 Fms = μN') },
+    { id: 'density', label: L('Khối lượng riêng ρ = m/V', 'Density ρ = m/V', '密度 ρ = m/V', '密度 ρ = m/V', '밀도 ρ = m/V') },
+    { id: 'pressure', label: L('Áp suất p = F/S', 'Pressure p = F/S', '压强 p = F/S', '圧力 p = F/S', '압력 p = F/S') },
+    { id: 'ohm', label: L('Định luật Ohm U = IR', 'Ohm U = IR', '欧姆定律 U = IR', 'オームの法則 U = IR', '옴의 법칙 U = IR') },
+    { id: 'series', label: L('Điện trở mắc nối tiếp R = R₁ + R₂', 'Series resistors R = R₁ + R₂', '串联电阻 R = R₁ + R₂', '直列抵抗 R = R₁ + R₂', '직렬 저항 R = R₁ + R₂') },
+    { id: 'parallel', label: L('Điện trở mắc song song 1/R = 1/R₁ + 1/R₂', 'Parallel resistors 1/R = 1/R₁ + 1/R₂', '并联电阻 1/R = 1/R₁ + 1/R₂', '並列抵抗 1/R = 1/R₁ + 1/R₂', '병렬 저항 1/R = 1/R₁ + 1/R₂') },
+    { id: 'current', label: L('Cường độ dòng điện I = q/t', 'Current I = q/t', '电流 I = q/t', '電流 I = q/t', '전류 I = q/t') },
+    { id: 'joule', label: L('Nhiệt toả trên điện trở Q = I²Rt', 'Heat in a resistor Q = I²Rt', '电阻放热 Q = I²Rt', '抵抗で発生する熱 Q = I²Rt', '저항에서 나는 열 Q = I²Rt') },
+    { id: 'heat', label: L('Nhiệt lượng Q = mcΔt', 'Heat Q = mcΔt', '热量 Q = mcΔt', '熱量 Q = mcΔt', '열량 Q = mcΔt') },
+    { id: 'wave', label: L('Vận tốc truyền sóng v = λf', 'Wave speed v = λf', '波速 v = λf', '波の速さ v = λf', '파동 속력 v = λf') },
+    { id: 'frequency', label: L('Tần số và chu kỳ f = 1/T', 'Frequency and period f = 1/T', '频率与周期 f = 1/T', '周波数と周期 f = 1/T', '진동수와 주기 f = 1/T') },
+    { id: 'period', label: L('Chu kỳ con lắc đơn T = 2π√(l/g)', 'Simple pendulum period T = 2π√(l/g)', '单摆周期 T = 2π√(l/g)', '単振り子の周期 T = 2π√(l/g)', '단진자 주기 T = 2π√(l/g)') },
+    { id: 'lens', label: L('Công thức thấu kính 1/f = 1/d + 1/d′', 'Thin lens 1/f = 1/d + 1/d′', '薄透镜 1/f = 1/d + 1/d′', 'レンズの公式 1/f = 1/d + 1/d′', '렌즈 공식 1/f = 1/d + 1/d′') },
+    { id: 'snell', label: L('Định luật khúc xạ n₁ sin i = n₂ sin r', 'Snell n₁ sin i = n₂ sin r', '折射定律 n₁ sin i = n₂ sin r', '屈折の法則 n₁ sin i = n₂ sin r', '굴절 법칙 n₁ sin i = n₂ sin r') },
+    { id: 'coulomb', label: L('Định luật Coulomb F = k|q₁q₂|/r²', 'Coulomb F = k|q₁q₂|/r²', '库仑定律 F = k|q₁q₂|/r²', 'クーロンの法則 F = k|q₁q₂|/r²', '쿨롱 법칙 F = k|q₁q₂|/r²') },
+    { id: 'gas', label: L('Phương trình khí lí tưởng pV = nRT', 'Ideal gas pV = nRT', '理想气体 pV = nRT', '理想気体 pV = nRT', '이상 기체 pV = nRT') },
+    { id: 'energy', label: L('Hệ thức Einstein E = mc²', 'Einstein E = mc²', '爱因斯坦关系 E = mc²', 'アインシュタインの関係 E = mc²', '아인슈타인 관계 E = mc²') },
+    { id: 'efficiency', label: L('Hiệu suất H = công có ích / công toàn phần', 'Efficiency H = useful work / total work', '效率 H = 有用功 / 总功', '効率 H = 有用な仕事 / 全体の仕事', '효율 H = 유용한 일 / 전체 일') },
   ] },
-  { id: 'equation', subject: 'chemistry', w: 360, h: 140, fields: ['variant', 'equation'], label: L('Phương trình', 'Equation', '方程式', '反応式', '반응식'), variants: [
-    { id: 'water', label: L('Tạo nước', 'Water', '生成水', '水の生成', '물 생성'), sample: 'H2 + O2 -> H2O' },
-    { id: 'burn', label: L('Đốt metan', 'Methane', '甲烷燃烧', 'メタンの燃焼', '메테인 연소'), sample: 'CH4 + O2 -> CO2 + H2O' },
-    { id: 'rust', label: L('Sắt và oxi', 'Iron and oxygen', '铁与氧气', '鉄と酸素', '철과 산소'), sample: 'Fe + O2 -> Fe2O3' },
-    { id: 'neutral', label: L('Trung hoà', 'Neutralisation', '中和', '中和', '중화'), sample: 'HCl + NaOH -> NaCl + H2O' },
-    { id: 'carbon', label: L('Đốt cacbon', 'Burn carbon', '碳燃烧', '炭素の燃焼', '탄소 연소'), sample: 'C + O2 -> CO2' },
+  { id: 'equation', subject: 'chemistry', w: 360, h: 140, fields: ['variant', 'equation'], label: L('Phương trình phản ứng hoá học', 'Chemical reaction equation', '化学反应方程式', '化学反応式', '화학 반응식'), variants: [
+    { id: 'water', label: L('Hiđro cháy tạo nước', 'Hydrogen burns to form water', '氢气燃烧生成水', '水素が燃えて水になる', '수소가 타서 물이 됨'), sample: 'H2 + O2 -> H2O' },
+    { id: 'burn', label: L('Đốt metan tạo CO₂ và nước', 'Burn methane to CO₂ and water', '甲烷燃烧生成二氧化碳和水', 'メタンを燃やすと CO₂ と水', '메테인을 태우면 CO₂와 물'), sample: 'CH4 + O2 -> CO2 + H2O' },
+    { id: 'rust', label: L('Sắt tác dụng với oxi', 'Iron reacts with oxygen', '铁与氧气反应', '鉄と酸素の反応', '철과 산소의 반응'), sample: 'Fe + O2 -> Fe2O3' },
+    { id: 'neutral', label: L('Trung hoà axit và bazơ', 'Acid–base neutralisation', '酸碱中和', '酸と塩基の中和', '산과 염기의 중화'), sample: 'HCl + NaOH -> NaCl + H2O' },
+    { id: 'carbon', label: L('Đốt cacbon tạo CO₂', 'Burn carbon to CO₂', '碳燃烧生成 CO₂', '炭素を燃やすと CO₂', '탄소를 태우면 CO₂'), sample: 'C + O2 -> CO2' },
     { id: 'lime', label: L('Nhiệt phân đá vôi', 'Lime decomposition', '石灰石分解', '石灰石の熱分解', '석회석 열분해'), sample: 'CaCO3 -> CaO + CO2' },
-    { id: 'zinc', label: L('Kẽm và axit', 'Zinc and acid', '锌与酸', '亜鉛と酸', '아연과 산'), sample: 'Zn + HCl -> ZnCl2 + H2' },
-    { id: 'sodium', label: L('Natri và nước', 'Sodium and water', '钠与水', 'ナトリウムと水', '나트륨과 물'), sample: 'Na + H2O -> NaOH + H2' },
-    { id: 'alumina', label: L('Nhôm và oxi', 'Aluminium and oxygen', '铝与氧气', 'アルミニウムと酸素', '알루미늄과 산소'), sample: 'Al + O2 -> Al2O3' },
-    { id: 'displace', label: L('Thế đồng', 'Copper displacement', '置换铜', '銅の置換', '구리 치환'), sample: 'CuSO4 + Zn -> ZnSO4 + Cu' },
+    { id: 'zinc', label: L('Kẽm tác dụng với axit clohiđric', 'Zinc reacts with hydrochloric acid', '锌与盐酸反应', '亜鉛と塩酸の反応', '아연과 염산의 반응'), sample: 'Zn + HCl -> ZnCl2 + H2' },
+    { id: 'sodium', label: L('Natri tác dụng với nước', 'Sodium reacts with water', '钠与水反应', 'ナトリウムと水の反応', '나트륨과 물의 반응'), sample: 'Na + H2O -> NaOH + H2' },
+    { id: 'alumina', label: L('Nhôm tác dụng với oxi', 'Aluminium reacts with oxygen', '铝与氧气反应', 'アルミニウムと酸素の反応', '알루미늄과 산소의 반응'), sample: 'Al + O2 -> Al2O3' },
+    { id: 'displace', label: L('Kẽm đẩy đồng khỏi dung dịch', 'Zinc displaces copper', '锌置换出铜', '亜鉛が銅を追い出す', '아연이 구리를 밀어냄'), sample: 'CuSO4 + Zn -> ZnSO4 + Cu' },
   ] },
-  { id: 'structure', subject: 'chemistry', w: 280, h: 180, fields: ['variant'], label: L('Cấu tạo', 'Structure', '结构式', '構造式', '구조식'), variants: [
-    { id: 'water', label: L('Nước', 'Water', '水', '水', '물') },
-    { id: 'methane', label: L('Metan', 'Methane', '甲烷', 'メタン', '메테인') },
-    { id: 'co2', label: L('Cacbon đioxit', 'Carbon dioxide', '二氧化碳', '二酸化炭素', '이산화탄소') },
-    { id: 'ethanol', label: L('Etanol', 'Ethanol', '乙醇', 'エタノール', '에탄올') },
+  { id: 'structure', subject: 'chemistry', w: 280, h: 180, fields: ['variant'], label: L('Cấu tạo phân tử', 'Molecular structure', '分子结构', '分子の構造', '분자 구조'), variants: [
+    { id: 'water', label: L('Phân tử nước H₂O', 'Water molecule H₂O', '水分子 H₂O', '水分子 H₂O', '물 분자 H₂O') },
+    { id: 'methane', label: L('Phân tử metan CH₄', 'Methane molecule CH₄', '甲烷分子 CH₄', 'メタン分子 CH₄', '메테인 분자 CH₄') },
+    { id: 'co2', label: L('Phân tử cacbon đioxit CO₂', 'Carbon dioxide molecule CO₂', '二氧化碳分子 CO₂', '二酸化炭素分子 CO₂', '이산화 탄소 분자 CO₂') },
+    { id: 'ethanol', label: L('Phân tử etanol C₂H₅OH', 'Ethanol molecule C₂H₅OH', '乙醇分子 C₂H₅OH', 'エタノール分子 C₂H₅OH', '에탄올 분자 C₂H₅OH') },
   ] },
-  { id: 'glass', subject: 'chemistry', w: 260, h: 280, fields: ['variant', 'liquid', 'level', 'label'], label: L('Dụng cụ', 'Glassware', '器具', '器具', '기구'), variants: [
+  { id: 'glass', subject: 'chemistry', w: 260, h: 280, fields: ['variant', 'liquid', 'level', 'label'], label: L('Dụng cụ thuỷ tinh', 'Glassware', '玻璃器具', 'ガラス器具', '유리 기구'), variants: [
     { id: 'tube', label: L('Ống nghiệm', 'Test tube', '试管', '試験管', '시험관') },
     { id: 'beaker', label: L('Cốc thuỷ tinh', 'Beaker', '烧杯', 'ビーカー', '비커') },
     { id: 'erlenmeyer', label: L('Bình tam giác', 'Erlenmeyer flask', '锥形瓶', '三角フラスコ', '삼각 플라스크') },
@@ -201,75 +203,75 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'burette', label: L('Buret trên giá', 'Burette on a stand', '铁架上的滴定管', 'スタンドのビュレット', '스탠드 위 뷰렛') },
     { id: 'tube-stand', label: L('Ống nghiệm kẹp trên giá', 'Test tube on a stand', '铁架上的试管', 'スタンドの試験管', '스탠드에 집게로 고정한 시험관') },
   ] },
-  { id: 'chem-scheme', subject: 'chemistry', w: 320, h: 210, fields: ['variant'], label: L('Năng lượng, pH', 'Energy and pH', '能量与 pH', 'エネルギーと pH', '에너지·pH'), variants: [
-    { id: 'energy', label: L('Năng lượng phản ứng', 'Energy profile', '能量图', 'エネルギー図', '에너지 도표') },
-    { id: 'ph', label: L('Thang pH', 'pH scale', 'pH 标度', 'pH の尺度', 'pH 척도') },
-    { id: 'activity', label: L('Dãy hoạt động', 'Activity series', '活动性顺序', 'イオン化列', '활동도 서열') },
+  { id: 'chem-scheme', subject: 'chemistry', w: 320, h: 210, fields: ['variant'], label: L('Năng lượng phản ứng, pH, dãy hoạt động', 'Reaction energy, pH, activity series', '反应能量、pH、活动性', '反応エネルギー・pH・イオン化列', '반응 에너지·pH·활동도'), variants: [
+    { id: 'energy', label: L('Sơ đồ năng lượng của phản ứng', 'Energy profile of a reaction', '反应的能量图', '反応のエネルギー図', '반응의 에너지 도표') },
+    { id: 'ph', label: L('Thang pH từ axit đến bazơ', 'pH scale from acid to base', '从酸到碱的 pH 标度', '酸から塩基までの pH', '산에서 염기까지의 pH') },
+    { id: 'activity', label: L('Dãy hoạt động hoá học của kim loại', 'Activity series of metals', '金属活动性顺序', '金属のイオン化列', '금속의 활동도 서열') },
   ] },
-  { id: 'atom', subject: 'chemistry', w: 300, h: 210, fields: ['variant'], label: L('Nguyên tử', 'Atom', '原子', '原子', '원자'), variants: [
-    { id: 'atom', label: L('Nguyên tử', 'Atom', '原子', '原子', '원자') },
+  { id: 'atom', subject: 'chemistry', w: 300, h: 210, fields: ['variant'], label: L('Nguyên tử và liên kết', 'Atom and chemical bonds', '原子与化学键', '原子と化学結合', '원자와 화학 결합'), variants: [
+    { id: 'atom', label: L('Mô hình nguyên tử', 'Atom model', '原子模型', '原子模型', '원자 모형') },
     { id: 'covalent', label: L('Liên kết cộng hoá trị', 'Covalent bond', '共价键', '共有結合', '공유 결합') },
-    { id: 'ionic', label: L('Liên kết ion', 'Ionic bond', '离子键', 'イオン結合', '이온 결합') },
+    { id: 'ionic', label: L('Liên kết ion giữa Na và Cl', 'Ionic bond between Na and Cl', '钠与氯的离子键', 'Na と Cl のイオン結合', 'Na와 Cl의 이온 결합') },
   ] },
-  { id: 'periodic', subject: 'chemistry', w: 1180, h: 760, fields: ['label'], label: L('Bảng tuần hoàn', 'Periodic table', '元素周期表', '周期表', '주기율표') },
-  { id: 'titration', subject: 'chemistry', w: 240, h: 280, fields: ['liquid', 'level', 'label'], label: L('Chuẩn độ', 'Titration', '滴定', '滴定', '적정') },
-  { id: 'chem-experiment', subject: 'chemistry', w: 380, h: 260, fields: ['variant'], label: L('Thí nghiệm', 'Experiments', '实验', '実験', '실험'), variants: [
+  { id: 'periodic', subject: 'chemistry', w: 1180, h: 760, fields: ['label'], label: L('Bảng tuần hoàn các nguyên tố hoá học', 'Periodic table of the elements', '化学元素周期表', '元素の周期表', '화학 원소 주기율표') },
+  { id: 'titration', subject: 'chemistry', w: 240, h: 280, fields: ['liquid', 'level', 'label'], label: L('Nhận biết axit, bazơ bằng quỳ tím', 'Identify acid and base with litmus', '用石蕊鉴别酸碱', 'リトマスで酸と塩基を見分ける', '리트머스로 산·염기 구별') },
+  { id: 'chem-experiment', subject: 'chemistry', w: 380, h: 260, fields: ['variant'], label: L('Điện phân nước, thu khí, nhiệt phân', 'Electrolysis, collecting gas, heating limestone', '电解水、收集气体、热分解', '電気分解・気体捕集・熱分解', '전기분해·기체포집·열분해'), variants: [
     { id: 'electro', label: L('Điện phân nước', 'Electrolysis of water', '电解水', '水の電気分解', '물의 전기 분해') },
-    { id: 'collect', label: L('Thu khí', 'Gas collection', '收集气体', '気体の捕集', '기체 포집') },
-    { id: 'heat', label: L('Đun nóng', 'Heating', '加热', '加熱', '가열') },
+    { id: 'collect', label: L('Thu khí hiđro', 'Collect hydrogen', '收集氢气', '水素の捕集', '수소 포집') },
+    { id: 'heat', label: L('Nhiệt phân đá vôi', 'Heat limestone', '加热石灰石', '石灰石の熱分解', '석회석 열분해') },
   ] },
-  { id: 'formula-chem', subject: 'chemistry', w: 480, h: 168, fields: ['variant'], label: L('Công thức', 'Formulas', '公式', '公式', '공식'), variants: [
-    { id: 'mole', label: L('Lượng chất', 'Amount of substance', '物质的量', '物質量', '물질량') },
-    { id: 'count', label: L('Số hạt', 'Particle count', '粒子数', '粒子数', '입자 수') },
-    { id: 'volume', label: L('Thể tích khí', 'Gas volume', '气体体积', '気体の体積', '기체 부피') },
-    { id: 'conc', label: L('Nồng độ mol', 'Molarity', '物质的量浓度', 'モル濃度', '몰 농도') },
-    { id: 'percent', label: L('Nồng độ phần trăm', 'Mass percent', '质量分数', '質量パーセント', '질량 퍼센트') },
-    { id: 'convert', label: L('Đổi C% sang CM', 'Percent to molarity', '质量分数换算浓度', '質量%からモル濃度', '퍼센트를 몰 농도로') },
-    { id: 'dilute', label: L('Pha loãng', 'Dilution', '稀释', '希釈', '묽히기') },
-    { id: 'density', label: L('Khối lượng riêng', 'Density', '密度', '密度', '밀도') },
-    { id: 'yield', label: L('Hiệu suất phản ứng', 'Reaction yield', '反应产率', '反応の収率', '반응 수율') },
+  { id: 'formula-chem', subject: 'chemistry', w: 480, h: 168, fields: ['variant'], label: L('Công thức hoá học', 'Chemistry formulas', '化学公式', '化学の公式', '화학 공식'), variants: [
+    { id: 'mole', label: L('Lượng chất n = m/M', 'Amount of substance n = m/M', '物质的量 n = m/M', '物質量 n = m/M', '물질량 n = m/M') },
+    { id: 'count', label: L('Số hạt n = N/Nₐ', 'Particle count n = N/Nₐ', '粒子数 n = N/Nₐ', '粒子数 n = N/Nₐ', '입자 수 n = N/Nₐ') },
+    { id: 'volume', label: L('Thể tích khí n = V/Vₘ', 'Gas volume n = V/Vₘ', '气体体积 n = V/Vₘ', '気体の体積 n = V/Vₘ', '기체 부피 n = V/Vₘ') },
+    { id: 'conc', label: L('Nồng độ mol C = n/V', 'Molarity C = n/V', '物质的量浓度 C = n/V', 'モル濃度 C = n/V', '몰 농도 C = n/V') },
+    { id: 'percent', label: L('Nồng độ phần trăm C% = khối lượng chất tan / dung dịch', 'Mass percent of solute', '质量分数：溶质质量 / 溶液质量', '質量パーセント：溶質 / 溶液', '질량 퍼센트: 용질 / 용액') },
+    { id: 'convert', label: L('Đổi nồng độ phần trăm sang nồng độ mol', 'Convert percent to molarity', '质量分数换算成物质的量浓度', '質量%をモル濃度に換算', '퍼센트를 몰 농도로 환산') },
+    { id: 'dilute', label: L('Pha loãng C₁V₁ = C₂V₂', 'Dilution C₁V₁ = C₂V₂', '稀释 C₁V₁ = C₂V₂', '希釈 C₁V₁ = C₂V₂', '묽히기 C₁V₁ = C₂V₂') },
+    { id: 'density', label: L('Khối lượng riêng dung dịch d = m/V', 'Solution density d = m/V', '溶液密度 d = m/V', '溶液の密度 d = m/V', '용액 밀도 d = m/V') },
+    { id: 'yield', label: L('Hiệu suất phản ứng: khối lượng thực tế / lí thuyết', 'Yield: actual mass / theoretical mass', '产率：实际质量 / 理论质量', '収率：実際の質量 / 理論質量', '수율: 실제 질량 / 이론 질량') },
     { id: 'element', label: L('% nguyên tố trong hợp chất', 'Element percent', '元素质量分数', '成分元素の質量%', '화합물 속 원소 %') },
-    { id: 'ph', label: L('pH', 'pH', 'pH', 'pH', 'pH') },
-    { id: 'poh', label: L('pOH', 'pOH', 'pOH', 'pOH', 'pOH') },
-    { id: 'ph-sum', label: L('pH + pOH', 'pH + pOH', 'pH + pOH', 'pH + pOH', 'pH + pOH') },
+    { id: 'ph', label: L('pH = −log[H⁺]', 'pH = −log[H⁺]', 'pH = −log[H⁺]', 'pH = −log[H⁺]', 'pH = −log[H⁺]') },
+    { id: 'poh', label: L('pOH = −log[OH⁻]', 'pOH = −log[OH⁻]', 'pOH = −log[OH⁻]', 'pOH = −log[OH⁻]', 'pOH = −log[OH⁻]') },
+    { id: 'ph-sum', label: L('pH + pOH = 14 ở 25 °C', 'pH + pOH = 14 at 25 °C', '25 °C 时 pH + pOH = 14', '25 °C で pH + pOH = 14', '25 °C에서 pH + pOH = 14') },
     { id: 'kw', label: L('Tích số ion của nước', 'Ion product of water', '水的离子积', '水のイオン積', '물의 이온곱') },
-    { id: 'ka', label: L('Hằng số axit', 'Acid constant', '酸常数', '酸解離定数', '산 해리 상수') },
-    { id: 'buffer', label: L('Dung dịch đệm', 'Buffer', '缓冲溶液', '緩衝液', '완충 용액') },
-    { id: 'rate', label: L('Tốc độ phản ứng', 'Reaction rate', '反应速率', '反応速度', '반응 속도') },
-    { id: 'kc', label: L('Hằng số cân bằng', 'Equilibrium constant', '平衡常数', '平衡定数', '평형 상수') },
-    { id: 'gas', label: L('Phương trình trạng thái', 'Ideal gas', '理想气体', '理想気体', '이상 기체') },
-    { id: 'electro', label: L('Điện phân', 'Electrolysis', '电解', '電気分解', '전기 분해') },
-    { id: 'alpha', label: L('Độ điện li', 'Degree of dissociation', '电离度', '電離度', '이온화도') },
+    { id: 'ka', label: L('Hằng số phân li axit Kₐ', 'Acid dissociation constant Kₐ', '酸解离常数 Kₐ', '酸解離定数 Kₐ', '산 해리 상수 Kₐ') },
+    { id: 'buffer', label: L('pH của dung dịch đệm', 'pH of a buffer', '缓冲溶液的 pH', '緩衝液の pH', '완충 용액의 pH') },
+    { id: 'rate', label: L('Tốc độ phản ứng v = ΔC/Δt', 'Reaction rate v = ΔC/Δt', '反应速率 v = ΔC/Δt', '反応速度 v = ΔC/Δt', '반응 속도 v = ΔC/Δt') },
+    { id: 'kc', label: L('Hằng số cân bằng Kc của phản ứng', 'Equilibrium constant Kc', '反应的平衡常数 Kc', '反応の平衡定数 Kc', '반응의 평형 상수 Kc') },
+    { id: 'gas', label: L('Phương trình trạng thái khí pV = nRT', 'Gas equation pV = nRT', '气体状态方程 pV = nRT', '気体の状態方程式 pV = nRT', '기체 상태 방정식 pV = nRT') },
+    { id: 'electro', label: L('Khối lượng chất thu được khi điện phân', 'Mass deposited in electrolysis', '电解析出的质量', '電気分解で生じる質量', '전기 분해로 얻는 질량') },
+    { id: 'alpha', label: L('Độ điện li α = số hạt phân li / số hạt ban đầu', 'Degree of dissociation α', '电离度 α', '電離度 α', '이온화도 α') },
     { id: 'titrate', menu: false, label: L('Chuẩn độ', 'Titration', '滴定', '滴定', '적정') },
   ] },
-  { id: 'bio-graph', subject: 'biology', w: 320, h: 210, fields: ['variant'], label: L('Đồ thị', 'Graphs', '图表', 'グラフ', '그래프'), variants: [
-    { id: 'logistic', label: L('Tăng trưởng logistic', 'Logistic growth', '逻辑增长', 'ロジスティック成長', '로지스틱 성장') },
-    { id: 'exponential', label: L('Tăng trưởng mũ', 'Exponential growth', '指数增长', '指数成長', '지수 성장') },
+  { id: 'bio-graph', subject: 'biology', w: 320, h: 210, fields: ['variant'], label: L('Đồ thị tăng trưởng quần thể', 'Population growth graph', '种群增长图', '個体群の成長グラフ', '개체군 성장 그래프'), variants: [
+    { id: 'logistic', label: L('Tăng trưởng logistic, chậm lại khi gần cực đại', 'Logistic growth, slowing near the limit', '逻辑增长，接近上限时变慢', 'ロジスティック成長、上限付近で減速', '로지스틱 성장, 한계 근처에서 느려짐') },
+    { id: 'exponential', label: L('Tăng trưởng mũ, càng về sau càng nhanh', 'Exponential growth, faster over time', '指数增长，越往后越快', '指数成長、後になるほど速い', '지수 성장, 갈수록 빠름') },
   ] },
-  { id: 'ecology', subject: 'biology', w: 320, h: 230, fields: ['variant'], label: L('Sinh thái', 'Ecology', '生态', '生態', '생태'), variants: [
-    { id: 'web', label: L('Lưới thức ăn', 'Food web', '食物网', '食物網', '먹이 그물') },
-    { id: 'pyramid', label: L('Tháp sinh thái', 'Ecological pyramid', '生态金字塔', '生態ピラミッド', '생태 피라미드') },
+  { id: 'ecology', subject: 'biology', w: 320, h: 230, fields: ['variant'], label: L('Lưới thức ăn, tháp sinh thái', 'Food web and pyramid', '食物网与生态金字塔', '食物網・生態ピラミッド', '먹이 그물·생태 피라미드'), variants: [
+    { id: 'web', label: L('Lưới thức ăn: ai ăn ai', 'Food web: who eats whom', '食物网：谁吃谁', '食物網：だれがだれを食べるか', '먹이 그물: 누가 누구를 먹나') },
+    { id: 'pyramid', label: L('Tháp sinh thái: sinh khối theo bậc dinh dưỡng', 'Ecological pyramid of biomass', '生态金字塔：各营养级的生物量', '生態ピラミッド：栄養段階の生物量', '생태 피라미드: 영양 단계별 생물량') },
   ] },
-  { id: 'genetic', subject: 'biology', w: 340, h: 180, fields: ['variant'], label: L('ADN, ARN', 'DNA and RNA', 'DNA、RNA', 'DNA・RNA', 'DNA, RNA'), variants: [
-    { id: 'dna', label: L('ADN', 'DNA', 'DNA', 'DNA', 'DNA') },
-    { id: 'codon', label: L('Dịch mã', 'Translation', '翻译', '翻訳', '번역') },
+  { id: 'genetic', subject: 'biology', w: 340, h: 180, fields: ['variant'], label: L('Cấu trúc ADN, dịch mã ARN', 'DNA structure and RNA translation', 'DNA 结构与 RNA 翻译', 'DNA の構造と RNA の翻訳', 'DNA 구조와 RNA 번역'), variants: [
+    { id: 'dna', label: L('Mô hình chuỗi xoắn ADN', 'DNA double helix', 'DNA 双螺旋', 'DNA の二重らせん', 'DNA 이중 나선') },
+    { id: 'codon', label: L('Dịch mã ARN thành protein', 'Translation of RNA into protein', 'RNA 翻译成蛋白质', 'RNA からタンパク質への翻訳', 'RNA를 단백질로 번역') },
   ] },
-  { id: 'division', subject: 'biology', w: 380, h: 180, fields: ['variant'], label: L('Phân bào', 'Cell division', '细胞分裂', '細胞分裂', '세포 분열'), variants: [
-    { id: 'mitosis', label: L('Nguyên phân', 'Mitosis', '有丝分裂', '体細胞分裂', '체세포 분열') },
-    { id: 'meiosis', label: L('Giảm phân', 'Meiosis', '减数分裂', '減数分裂', '감수 분열') },
+  { id: 'division', subject: 'biology', w: 380, h: 180, fields: ['variant'], label: L('Nguyên phân, giảm phân', 'Mitosis and meiosis', '有丝分裂与减数分裂', '体細胞分裂と減数分裂', '체세포 분열과 감수 분열'), variants: [
+    { id: 'mitosis', label: L('Nguyên phân: một tế bào thành hai tế bào con', 'Mitosis: one cell becomes two', '有丝分裂：一个细胞变成两个', '体細胞分裂：1個が2個に', '체세포 분열: 세포 하나가 둘로') },
+    { id: 'meiosis', label: L('Giảm phân: tạo giao tử, số nhiễm sắc thể giảm một nửa', 'Meiosis: gametes, chromosome number halves', '减数分裂：形成配子，染色体减半', '減数分裂：配偶子、染色体が半分', '감수 분열: 생식자, 염색체 수 절반') },
   ] },
-  { id: 'cell', subject: 'biology', w: 320, h: 230, fields: ['variant'], label: L('Tế bào', 'Cell', '细胞', '細胞', '세포'), variants: [
+  { id: 'cell', subject: 'biology', w: 320, h: 230, fields: ['variant'], label: L('Tế bào động vật, thực vật', 'Animal and plant cells', '动植物细胞', '動物細胞・植物細胞', '동물·식물 세포'), variants: [
     { id: 'animal', label: L('Tế bào động vật', 'Animal cell', '动物细胞', '動物細胞', '동물 세포') },
     { id: 'plant', label: L('Tế bào thực vật', 'Plant cell', '植物细胞', '植物細胞', '식물 세포') },
   ] },
-  { id: 'pedigree', subject: 'biology', w: 280, h: 210, fields: [], label: L('Phả hệ', 'Pedigree', '系谱', '家系', '가계도') },
-  { id: 'punnett', subject: 'biology', w: 240, h: 220, fields: ['variant'], label: L('Punnett', 'Punnett', '庞氏表', 'パネット', '퍼넷'), variants: [
+  { id: 'pedigree', subject: 'biology', w: 280, h: 210, fields: [], label: L('Sơ đồ phả hệ di truyền', 'Inheritance pedigree', '遗传系谱', '遺伝の家系図', '유전 가계도') },
+  { id: 'punnett', subject: 'biology', w: 240, h: 220, fields: ['variant'], label: L('Bảng Punnett', 'Punnett square', '庞氏方格', 'パネット方形', '퍼넷 사각형'), variants: [
     { id: 'mono', label: L('Một cặp alen Aa × Aa', 'Aa × Aa', 'Aa × Aa', 'Aa × Aa', 'Aa × Aa') },
     { id: 'test', label: L('Lai phân tích Aa × aa', 'Aa × aa', 'Aa × aa', 'Aa × aa', 'Aa × aa') },
   ] },
-  { id: 'formula-bio', subject: 'biology', w: 320, h: 140, fields: ['variant'], label: L('Công thức', 'Formulas', '公式', '公式', '공식'), variants: [
-    { id: 'hardy', label: L('Hardy–Weinberg', 'Hardy–Weinberg', '哈迪-温伯格', 'ハーディ・ワインベルク', '하디-바인베르크') },
-    { id: 'growth', label: L('Tăng trưởng', 'Growth', '增长', '成長', '성장') },
+  { id: 'formula-bio', subject: 'biology', w: 320, h: 140, fields: ['variant'], label: L('Công thức quần thể', 'Population formulas', '种群公式', '個体群の公式', '개체군 공식'), variants: [
+    { id: 'hardy', label: L('Hardy–Weinberg p² + 2pq + q² = 1', 'Hardy–Weinberg p² + 2pq + q² = 1', '哈迪-温伯格 p² + 2pq + q² = 1', 'ハーディ・ワインベルク p² + 2pq + q² = 1', '하디-바인베르크 p² + 2pq + q² = 1') },
+    { id: 'growth', label: L('Tăng trưởng mũ quần thể Nₜ = N₀e^(rt)', 'Exponential population growth Nₜ = N₀e^(rt)', '种群指数增长 Nₜ = N₀e^(rt)', '個体群の指数成長 Nₜ = N₀e^(rt)', '개체군 지수 성장 Nₜ = N₀e^(rt)') },
   ] },
 ]
 
@@ -416,11 +418,11 @@ function resistor(ctx: Ctx, x: number, y: number, horizontal: boolean) {
   ctx.stroke()
 }
 
-function lamp(ctx: Ctx, x: number, y: number) {
-  ink(ctx, INK.amber)
+function lamp(ctx: Ctx, x: number, y: number, lit = false) {
+  ink(ctx, lit ? INK.amber : INK.muted)
   ctx.beginPath()
   ctx.arc(x, y, 12, 0, Math.PI * 2)
-  ctx.fillStyle = '#fef3c7'
+  ctx.fillStyle = lit ? '#fde68a' : '#f8fafc'
   ctx.fill()
   ctx.stroke()
   ctx.beginPath()
@@ -431,115 +433,187 @@ function lamp(ctx: Ctx, x: number, y: number) {
   ctx.stroke()
 }
 
-function battery(ctx: Ctx, x: number, y: number) {
+function circuitLayout(w: number, h: number) {
+  const xL = 86
+  const xR = w - 36
+  const yTop = 58
+  const yBot = h - 50
+  const midY = (yTop + yBot) / 2
+  return {
+    xL,
+    xR,
+    yTop,
+    yBot,
+    yPlus: midY - 30,
+    yMinus: midY + 24,
+    switchX: xL + 92,
+  }
+}
+
+function cellSource(ctx: Ctx, x: number, yPlus: number, yMinus: number) {
+  ctx.save()
+  ctx.lineWidth = 3
   ink(ctx, INK.red)
   ctx.beginPath()
-  ctx.moveTo(x - 14, y - 7)
-  ctx.lineTo(x + 14, y - 7)
+  ctx.moveTo(x - 16, yPlus)
+  ctx.lineTo(x + 16, yPlus)
   ctx.stroke()
+  ctx.lineWidth = 5
   ink(ctx, INK.blue)
   ctx.beginPath()
-  ctx.moveTo(x - 8, y + 7)
-  ctx.lineTo(x + 8, y + 7)
+  ctx.moveTo(x - 9, yMinus)
+  ctx.lineTo(x + 9, yMinus)
   ctx.stroke()
-  textAt(ctx, '+', x + 22, y - 8, 11, INK.red)
-  textAt(ctx, '−', x + 22, y + 10, 11, INK.blue)
+  ctx.restore()
+  textAt(ctx, '+', x - 28, yPlus, 15, INK.red)
+  textAt(ctx, '−', x - 28, yMinus, 15, INK.blue)
+  textAt(ctx, 'ε', x + 24, (yPlus + yMinus) / 2, 14, INK.red)
+}
+
+function wireTo(ctx: Ctx, pts: Array<[number, number]>) {
+  if (pts.length < 2) return
+  ink(ctx, INK.muted)
+  ctx.beginPath()
+  ctx.moveTo(pts[0][0], pts[0][1])
+  for (let i = 1; i < pts.length; i += 1) ctx.lineTo(pts[i][0], pts[i][1])
+  ctx.stroke()
+}
+
+function junction(ctx: Ctx, x: number, y: number) {
+  ctx.beginPath()
+  ctx.arc(x, y, 3.2, 0, Math.PI * 2)
+  ctx.fillStyle = INK.text
+  ctx.fill()
+}
+
+function flowDots(ctx: Ctx, pts: Array<[number, number]>, time: number, count: number) {
+  const seg: number[] = []
+  let total = 0
+  for (let i = 1; i < pts.length; i += 1) {
+    const len = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+    seg.push(len)
+    total += len
+  }
+  if (total < 1) return
+  ink(ctx, INK.sky)
+  for (let k = 0; k < count; k += 1) {
+    let dist = wrap01(time * 0.16 + k / count) * total
+    for (let i = 0; i < seg.length; i += 1) {
+      const len = seg[i]
+      if (dist <= len || i === seg.length - 1) {
+        const t = len === 0 ? 0 : Math.min(1, dist / len)
+        const x = pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t
+        const y = pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t
+        ctx.beginPath()
+        ctx.arc(x, y, 3.4, 0, Math.PI * 2)
+        ctx.fill()
+        break
+      }
+      dist -= len
+    }
+  }
+}
+
+function dirArrow(ctx: Ctx, x1: number, y1: number, x2: number, y2: number) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const len = Math.hypot(dx, dy) || 1
+  const ux = dx / len
+  const uy = dy / len
+  const mx = (x1 + x2) / 2
+  const my = (y1 + y2) / 2
+  ink(ctx, INK.green)
+  arrow(ctx, mx - ux * 16, my - uy * 16, mx + ux * 12, my + uy * 12, 7)
+}
+
+function drawSwitch(ctx: Ctx, x: number, y: number, closed: boolean) {
+  ink(ctx, INK.text)
+  ctx.beginPath()
+  ctx.arc(x - 18, y, 2.4, 0, Math.PI * 2)
+  ctx.arc(x + 18, y, 2.4, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.beginPath()
+  ctx.moveTo(x - 18, y)
+  if (closed) ctx.lineTo(x + 18, y)
+  else ctx.lineTo(x + 2, y - 18)
+  ctx.stroke()
+  knob(ctx, closed ? x : x - 2, closed ? y : y - 10)
+  textAt(ctx, 'K', x, y + 22, 12, INK.text)
 }
 
 function drawCircuit(ctx: Ctx, w: number, h: number, parallel: boolean, tune?: number[], time = 0) {
-  const l = 48
-  const t = 42
-  const r = w - 36
-  const b = h - 34
-  const mid = (l + r) / 2
-  const yb = (t + b) / 2
-  ink(ctx, INK.muted)
-  ctx.beginPath()
-  ctx.moveTo(l, t)
-  ctx.lineTo(l, yb - 20)
-  ctx.moveTo(l, yb + 20)
-  ctx.lineTo(l, b)
-  ctx.stroke()
-  battery(ctx, l, yb)
+  const box = circuitLayout(w, h)
+  const { xL, xR, yTop, yBot, yPlus, yMinus, switchX } = box
+  const closed = tuneAt(tune, 0, 1) >= 0.5
+  const lampX = switchX + (xR - switchX) * 0.48
+  const resX = xL + (xR - xL) * 0.46
+  wireTo(ctx, [[xL, yTop], [xL, yPlus]])
+  wireTo(ctx, [[xL, yMinus], [xL, yBot]])
+  cellSource(ctx, xL, yPlus, yMinus)
+  wireTo(ctx, [[xL, yTop], [switchX - 18, yTop]])
+  drawSwitch(ctx, switchX, yTop, closed)
   if (!parallel) {
-    ctx.beginPath()
-    ctx.moveTo(l, t)
-    ctx.lineTo(mid - 18, t)
-    ctx.moveTo(mid + 18, t)
-    ctx.lineTo(r - 40, t)
-    ctx.moveTo(r - 6, t)
-    ctx.lineTo(r, t)
-    ctx.lineTo(r, b)
-    ctx.lineTo(mid + 26, b)
-    ctx.moveTo(mid - 26, b)
-    ctx.lineTo(l, b)
-    ctx.stroke()
-    const closed = tuneAt(tune, 0, 1) >= 0.5
-    ink(ctx, INK.text)
-    ctx.beginPath()
-    ctx.moveTo(r - 40, t)
-    if (closed) ctx.lineTo(r - 6, t)
-    else {
-      ctx.lineTo(r - 22, t - 14)
-      ctx.lineTo(r - 6, t)
-    }
-    ctx.stroke()
-    knob(ctx, r - 22, t)
-    lamp(ctx, mid, t)
-    resistor(ctx, mid - 23, b, true)
-    textAt(ctx, 'ε', l - 16, yb, 13, INK.red)
-    textAt(ctx, 'đèn', mid, t - 20, 12, INK.amber)
-    textAt(ctx, 'R', mid, b + 16, 12, INK.violet)
-    textAt(ctx, 'K', r - 24, t - 22, 12, INK.text)
+    wireTo(ctx, [[switchX + 18, yTop], [lampX - 14, yTop]])
+    wireTo(ctx, [[lampX + 14, yTop], [xR, yTop], [xR, yBot], [resX + 46, yBot]])
+    wireTo(ctx, [[resX, yBot], [xL, yBot]])
+    lamp(ctx, lampX, yTop, closed)
+    resistor(ctx, resX, yBot, true)
+    textAt(ctx, 'đèn', lampX, yTop - 22, 12, INK.amber)
+    textAt(ctx, 'R', resX + 23, yBot - 18, 12, INK.violet)
     if (closed) {
-      ink(ctx, INK.green)
-      arrow(ctx, r - 14, (t + b) / 2 - 16, r - 14, (t + b) / 2 + 16)
-      textAt(ctx, 'I', r - 26, (t + b) / 2 - 22, 12, INK.green)
-      const flow = wrap01(time * 0.25)
-      ink(ctx, INK.sky)
-      ctx.beginPath()
-      ctx.arc(r - 24 - flow * (r - l - 56), b, 3, 0, Math.PI * 2)
-      ctx.fill()
-      textAt(ctx, 'I = ε / (Rđ + R)', w * 0.34, h - 12, 11, INK.green)
+      dirArrow(ctx, xL, yPlus, xL, yTop)
+      dirArrow(ctx, lampX + 20, yTop, xR - 16, yTop)
+      dirArrow(ctx, xR, yTop + 24, xR, yBot - 24)
+      dirArrow(ctx, resX - 8, yBot, xL + 16, yBot)
+      textAt(ctx, 'I', xR - 16, (yTop + yBot) / 2, 13, INK.green)
+      flowDots(ctx, [
+        [xL, yPlus], [xL, yTop], [switchX - 18, yTop], [switchX + 18, yTop],
+        [lampX - 14, yTop], [lampX + 14, yTop], [xR, yTop], [xR, yBot],
+        [resX + 46, yBot], [resX, yBot], [xL, yBot], [xL, yMinus],
+      ], time, 4)
+      textAt(ctx, 'Ngoài mạch, dòng chạy từ cực + về cực −.  I = ε / (Rđ + R)', w * 0.52, h - 16, 12, INK.green)
     } else {
-      textAt(ctx, 'I = 0, mạch hở', w * 0.3, h - 12, 12, INK.muted)
+      textAt(ctx, 'Khoá K mở, mạch hở, I = 0', w * 0.42, h - 16, 12, INK.muted)
     }
     return
   }
-  const y1 = t + 22
-  const y2 = b - 18
-  const split = l + 42
-  const join = r - 28
-  ctx.beginPath()
-  ctx.moveTo(l, t)
-  ctx.lineTo(split, t)
-  ctx.lineTo(split, b)
-  ctx.lineTo(l, b)
-  ctx.moveTo(split, y1)
-  ctx.lineTo(mid - 16, y1)
-  ctx.moveTo(mid + 16, y1)
-  ctx.lineTo(join, y1)
-  ctx.moveTo(split, y2)
-  ctx.lineTo(mid - 26, y2)
-  ctx.moveTo(mid + 26, y2)
-  ctx.lineTo(join, y2)
-  ctx.moveTo(join, y1)
-  ctx.lineTo(join, y2)
-  ctx.stroke()
-  lamp(ctx, mid, y1)
-  resistor(ctx, mid - 23, y2, true)
-  textAt(ctx, 'ε', l - 16, yb, 13, INK.red)
-  textAt(ctx, 'đèn', mid, y1 - 20, 12, INK.amber)
-  textAt(ctx, 'R', mid, y2 + 18, 12, INK.violet)
-  ink(ctx, INK.green)
-  arrow(ctx, join + 12, y1 + 8, join + 12, y2 - 8)
-  textAt(ctx, 'I', join + 22, (y1 + y2) / 2, 12, INK.green)
-  textAt(ctx, 'song song, 1/R = 1/R₁ + 1/R₂', w * 0.46, h - 12, 11, INK.violet)
-  const flow = wrap01(time * 0.25)
-  ink(ctx, INK.sky)
-  ctx.beginPath()
-  ctx.arc(l + 20 + flow * (r - l - 50), t, 3, 0, Math.PI * 2)
-  ctx.fill()
+  const y1 = yTop + 34
+  const y2 = yTop + (yBot - yTop) * 0.62
+  const xSplit = switchX + 70
+  const branchLamp = xSplit + (xR - xSplit) * 0.46
+  const branchRes = xSplit + (xR - xSplit) * 0.34
+  wireTo(ctx, [[switchX + 18, yTop], [xSplit, yTop], [xSplit, y1]])
+  wireTo(ctx, [[xSplit, y1], [xSplit, y2]])
+  wireTo(ctx, [[xSplit, y1], [branchLamp - 14, y1]])
+  wireTo(ctx, [[branchLamp + 14, y1], [xR, y1]])
+  wireTo(ctx, [[xSplit, y2], [branchRes, y2]])
+  wireTo(ctx, [[branchRes + 46, y2], [xR, y2]])
+  wireTo(ctx, [[xR, y1], [xR, y2], [xR, yBot], [xL, yBot]])
+  lamp(ctx, branchLamp, y1, closed)
+  resistor(ctx, branchRes, y2, true)
+  junction(ctx, xSplit, y1)
+  junction(ctx, xSplit, y2)
+  junction(ctx, xR, y1)
+  junction(ctx, xR, y2)
+  textAt(ctx, 'đèn', branchLamp, y1 - 20, 12, INK.amber)
+  textAt(ctx, 'R', branchRes + 23, y2 + 18, 12, INK.violet)
+  if (closed) {
+    dirArrow(ctx, xL, yPlus, xL, yTop)
+    dirArrow(ctx, branchLamp + 28, y1, xR - 24, y1)
+    dirArrow(ctx, branchRes + 58, y2, xR - 24, y2)
+    dirArrow(ctx, xR, y2 + 12, xR, yBot - 10)
+    dirArrow(ctx, xR - 30, yBot, xL + 24, yBot)
+    textAt(ctx, 'I₁', branchLamp + 46, y1 - 14, 12, INK.green)
+    textAt(ctx, 'I₂', branchRes + 70, y2 - 14, 12, INK.green)
+    textAt(ctx, 'I', xR - 16, (y2 + yBot) / 2, 13, INK.green)
+    const trunk: Array<[number, number]> = [[xL, yPlus], [xL, yTop], [switchX - 18, yTop], [switchX + 18, yTop], [xSplit, yTop], [xSplit, y1]]
+    const back: Array<[number, number]> = [[xR, y2], [xR, yBot], [xL, yBot], [xL, yMinus]]
+    flowDots(ctx, [...trunk, [branchLamp - 14, y1], [branchLamp + 14, y1], [xR, y1], ...back], time, 2)
+    flowDots(ctx, [...trunk, [xSplit, y2], [branchRes, y2], [branchRes + 46, y2], ...back], time + 0.35, 2)
+    textAt(ctx, 'Ngoài mạch, dòng chạy từ cực + về cực −.  I = I₁ + I₂', w * 0.5, h - 16, 12, INK.green)
+  } else {
+    textAt(ctx, 'Khoá K mở, mạch hở, I = 0', w * 0.42, h - 16, 12, INK.muted)
+  }
 }
 
 function drawForce(ctx: Ctx, w: number, h: number, incline: boolean, tune?: number[], run = false) {
@@ -621,9 +695,15 @@ function drawForce(ctx: Ctx, w: number, h: number, incline: boolean, tune?: numb
   ink(ctx, INK.amber)
   arrow(ctx, bx - 6, by - 22, bx - 6 + downX * 46, by - 22 + downY * 46)
   textAt(ctx, 'mg sin α', bx + downX * 54, by - 30 + downY * 54, 12, INK.amber)
-  ink(ctx, INK.red)
-  arrow(ctx, bx + 8, by - 30, bx + 8 - downX * 36, by - 30 - downY * 36)
-  textAt(ctx, 'f', bx + 8 - downX * 48, by - 30 - downY * 48, 13, INK.red)
+  if (run) {
+    ink(ctx, INK.red)
+    arrow(ctx, bx + 8, by - 30, bx + 8 + downX * 36, by - 30 + downY * 36)
+    textAt(ctx, 'a', bx + 8 + downX * 48, by - 30 + downY * 48, 13, INK.red)
+  } else {
+    ink(ctx, INK.red)
+    arrow(ctx, bx + 8, by - 30, bx + 8 - downX * 36, by - 30 - downY * 36)
+    textAt(ctx, 'f', bx + 8 - downX * 48, by - 30 - downY * 48, 13, INK.red)
+  }
   ink(ctx, INK.red)
   ctx.beginPath()
   ctx.arc(x1, y0, 28, Math.PI, Math.PI + ang, false)
@@ -631,7 +711,7 @@ function drawForce(ctx: Ctx, w: number, h: number, incline: boolean, tune?: numb
   const mid = Math.PI + ang / 2
   textAt(ctx, 'α', x1 + Math.cos(mid) * 42, y0 + Math.sin(mid) * 42, 13, INK.red)
   knob(ctx, bx, by)
-  textAt(ctx, run ? 'a = g sin α, trượt xuống' : 'đứng yên: f = mg sin α', w * 0.42, h - 10, 11, run ? INK.red : INK.green)
+  textAt(ctx, run ? 'bỏ ma sát: a = g sin α, trượt xuống' : 'đứng yên: f hướng lên dốc, f = mg sin α', w * 0.46, h - 10, 11, run ? INK.red : INK.green)
 }
 
 function lens(ctx: Ctx, cx: number, cy: number, convex: boolean) {
@@ -781,7 +861,7 @@ function projectilePose(w: number, h: number, tune: number[] | undefined, time: 
     pts.push([px, Math.min(ground, py)])
   }
   if (pts.length === 0) pts.push([x0, ground])
-  const phase = wrap01(time * 0.45)
+  const phase = wrap01(time * 0.28)
   const flight = phase * (Number.isFinite(tmax) ? tmax : 1)
   const last = pts.length - 1
   const ball = pts[Math.min(last, Math.max(0, Math.round(phase * last)))] ?? pts[0] ?? [x0, ground]
@@ -906,7 +986,7 @@ export function litmusWord(acidLeft: number, excess: number) {
   return 'tím'
 }
 
-const LAB_RUN = new Set(['ray', 'circuit', 'force', 'wave', 'field', 'refraction', 'experiment-phys', 'chem-experiment', 'titration', 'spatial'])
+const LAB_RUN = new Set(['ray', 'circuit', 'force', 'wave', 'field', 'refraction', 'experiment-phys', 'interfere', 'young', 'chem-experiment', 'titration', 'spatial'])
 
 export function figureClock(params: { run?: boolean; clock?: number; shift?: number } | undefined, sim: number) {
   const clock = finiteOr(params?.clock)
@@ -1167,7 +1247,7 @@ function drawSpatial(ctx: Ctx, w: number, h: number, equation: string, time = 0)
 
 export function figureSimulates(id: string, variant = '', run = false): boolean {
   if (!run) return false
-  if (id === 'spatial' || id === 'experiment-phys' || id === 'wave' || id === 'field' || id === 'chem-experiment' || id === 'titration' || id === 'ray' || id === 'circuit' || id === 'refraction') return true
+  if (id === 'spatial' || id === 'experiment-phys' || id === 'interfere' || id === 'young' || id === 'wave' || id === 'field' || id === 'chem-experiment' || id === 'titration' || id === 'ray' || id === 'circuit' || id === 'refraction') return true
   return variant === 'pendulum'
 }
 
@@ -1232,15 +1312,20 @@ function drawWave(ctx: Ctx, w: number, h: number, kind = 'wave', time = 0, tune?
     }
     ink(ctx, INK.violet)
     plotLine(ctx, pts)
+    const periodY = y - amp - 14
     ink(ctx, INK.amber)
     ctx.save()
     ctx.setLineDash([3, 3])
     ctx.beginPath()
-    ctx.moveTo(pts[0][0], y - 42)
-    ctx.lineTo(pts[60][0], y - 42)
+    ctx.moveTo(pts[0][0], periodY)
+    ctx.lineTo(pts[60][0], periodY)
+    ctx.moveTo(pts[0][0], periodY)
+    ctx.lineTo(pts[0][0], y)
+    ctx.moveTo(pts[60][0], periodY)
+    ctx.lineTo(pts[60][0], y)
     ctx.stroke()
     ctx.restore()
-    textAt(ctx, 'T', (pts[0][0] + pts[60][0]) / 2, y - 52, 12, INK.amber)
+    textAt(ctx, 'T', (pts[0][0] + pts[60][0]) / 2, periodY - 10, 12, INK.amber)
     ink(ctx, INK.green)
     arrow(ctx, x + 10, y, x + 10, y - amp)
     knob(ctx, x + 10, y - amp)
@@ -1275,15 +1360,20 @@ function drawWave(ctx: Ctx, w: number, h: number, kind = 'wave', time = 0, tune?
   arrow(ctx, x0 + 20, y, x0 + 20, y - amp)
   knob(ctx, x0 + 20, y - amp)
   textAt(ctx, 'A', x0 + 32, y - amp * 0.5, 12, INK.green)
+  const waveMark = y - amp - 16
   ink(ctx, INK.amber)
   ctx.save()
   ctx.setLineDash([3, 3])
   ctx.beginPath()
-  ctx.moveTo(pts[10][0], y - 44)
-  ctx.lineTo(pts[50][0], y - 44)
+  ctx.moveTo(pts[10][0], waveMark)
+  ctx.lineTo(pts[50][0], waveMark)
+  ctx.moveTo(pts[10][0], waveMark)
+  ctx.lineTo(pts[10][0], pts[10][1])
+  ctx.moveTo(pts[50][0], waveMark)
+  ctx.lineTo(pts[50][0], pts[50][1])
   ctx.stroke()
   ctx.restore()
-  textAt(ctx, 'λ', (pts[10][0] + pts[50][0]) / 2, y - 54, 13, INK.amber)
+  textAt(ctx, 'λ', (pts[10][0] + pts[50][0]) / 2, waveMark - 10, 13, INK.amber)
   textAt(ctx, 'x', x1 - 6, y + 14, 12, INK.muted)
   textAt(ctx, 'cân bằng', x0 + 78, y + 16, 11, INK.muted)
   const grain = pts[20]
@@ -1512,13 +1602,558 @@ function drawRefraction(ctx: Ctx, w: number, h: number, prism: boolean, tune?: n
   ctx.moveTo(inX, inY)
   ctx.lineTo(outX, outY)
   ctx.stroke()
+  const run = Math.max(24, w - 16 - outX)
+  const slope = (outY - inY) / Math.max(8, outX - inX)
+  const straight = outY + slope * run
   ctx.strokeStyle = '#dc2626'
-  arrow(ctx, outX, outY, w - 16, outY - 14)
+  arrow(ctx, outX, outY, w - 16, straight + 10)
   ctx.strokeStyle = '#2563eb'
-  arrow(ctx, outX, outY, w - 16, outY + 30)
+  arrow(ctx, outX, outY, w - 16, straight + 34)
   ctx.strokeStyle = '#1e293b'
-  textAt(ctx, 'đỏ', w - 28, outY - 22, 11, '#dc2626')
-  textAt(ctx, 'tím', w - 28, outY + 40, 11, '#2563eb')
+  textAt(ctx, 'đỏ', w - 28, straight + 2, 11, '#dc2626')
+  textAt(ctx, 'tím', w - 28, straight + 42, 11, '#2563eb')
+  textAt(ctx, 'cả hai lệch về đáy, tím lệch hơn', w * 0.55, h - 12, 11, INK.text)
+}
+
+export function waveTankLayout(w: number, h: number, tune?: number[]) {
+  const tray = { x: w * 0.018, y: h * 0.075, w: w * 0.71, h: h * 0.89 }
+  const panelX = tray.x + tray.w + w * 0.018
+  const panelW = Math.max(36, w - panelX - w * 0.014)
+  const both = tuneAt(tune, 1, 1) >= 0.5
+  const gap = clampNum(tuneAt(tune, 0, 0.2), 0.12, 0.34)
+  const midX = tray.x + tray.w * 0.5
+  const sy = tray.y + tray.h * 0.4
+  const half = tray.w * gap * 0.5
+  const lambda = Math.max(14, tray.w * 0.054)
+  const chipH = Math.max(20, Math.min(28, h * 0.056))
+  const insetH = Math.min(panelW * 0.46, tray.h * 0.18)
+  const insetY = tray.y + Math.max(48, h * 0.108)
+  const noteY = insetY + insetH + Math.max(18, h * 0.034)
+  const oneY = noteY + Math.max(64, h * 0.15)
+  const twoY = oneY + chipH + 6
+  const watchY = twoY + chipH * 0.5 + Math.max(14, h * 0.03)
+  return {
+    tray,
+    panelX,
+    panelW,
+    both,
+    lambda,
+    midX,
+    sy,
+    chipH,
+    insetH,
+    insetY,
+    noteY,
+    oneY,
+    twoY,
+    watchY,
+    s1: { x: midX - half, y: sy },
+    s2: { x: midX + half, y: sy },
+  }
+}
+
+function plate(ctx: Ctx, text: string, x: number, y: number, size: number, color: string) {
+  const width = spanWidth(text, size) + 10
+  ctx.save()
+  ctx.fillStyle = 'rgba(255,255,255,0.92)'
+  ctx.strokeStyle = '#e2e8f0'
+  ctx.lineWidth = 1
+  ctx.fillRect(x - width / 2, y - size * 0.65, width, size * 1.3)
+  ctx.strokeRect(x - width / 2, y - size * 0.65, width, size * 1.3)
+  ctx.restore()
+  textAt(ctx, text, x, y, size, color)
+}
+
+function strokePathGap(ctx: Ctx, midX: number, sy: number, d: number, delta: number, y0: number, y1: number) {
+  const c = d / 2
+  const a = delta / 2
+  if (!(a > 0.6) || a >= c - 0.6) return
+  const b = Math.sqrt(c * c - a * a)
+  if (b < 0.8) return
+  const reach = Math.max(Math.abs(y0 - sy), Math.abs(y1 - sy), 1)
+  const tMax = Math.min(2.8, Math.asinh(reach / b))
+  const steps = 32
+  for (const sign of [-1, 1]) {
+    ctx.beginPath()
+    for (let i = 0; i <= steps; i += 1) {
+      const t = -tMax + (2 * tMax * i) / steps
+      const x = midX + sign * a * Math.cosh(t)
+      const y = sy + b * Math.sinh(t)
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+  }
+}
+
+function drawWaveRings(ctx: Ctx, x: number, y: number, phase: number, lambda: number, maxR: number, color: string) {
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.lineWidth = Math.max(1.25, lambda * 0.055)
+  const lead = phase * lambda
+  for (let i = 0; i < 28; i += 1) {
+    const r = lead + i * lambda
+    if (r < lambda * 0.35 || r > maxR) continue
+    ctx.globalAlpha = 0.28 + 0.62 * (1 - r / maxR)
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+function drawTankSide(ctx: Ctx, x: number, y: number, w: number, h: number, both: boolean, bob: number) {
+  const rim = y + h * 0.46
+  const base = y + h - 1
+  ink(ctx, '#64748b')
+  ctx.lineWidth = 1.4
+  ctx.strokeRect(x, rim, w, Math.max(8, base - rim))
+  const waterTop = rim + Math.max(4, (base - rim) * 0.42)
+  ctx.fillStyle = '#bae6fd'
+  ctx.fillRect(x + 1.5, waterTop, Math.max(0, w - 3), Math.max(0, base - waterTop - 1.5))
+  textAt(ctx, 'nước nông', x + w * 0.5, (waterTop + base) / 2, 10, INK.sky)
+  const railY = y + 12
+  const x1 = x + w * 0.34
+  const x2 = x + w * 0.68
+  ink(ctx, '#44403c')
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(x1 - 8, railY)
+  ctx.lineTo(x2 + 8, railY)
+  ctx.stroke()
+  const dip = (px: number, on: boolean, name: string) => {
+    const tip = on ? waterTop + bob : railY + 8
+    ctx.beginPath()
+    ctx.moveTo(px, railY)
+    ctx.lineTo(px, tip)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(px, tip, 3.1, 0, Math.PI * 2)
+    ctx.fillStyle = on ? '#0284c7' : '#e2e8f0'
+    ctx.fill()
+    ctx.stroke()
+    textAt(ctx, name, px, y + 5, 10, on ? INK.blue : INK.muted)
+  }
+  dip(x1, true, 'S1')
+  dip(x2, both, 'S2')
+}
+
+export function youngLayout(w: number, h: number, tune?: number[]) {
+  const stage = { x: w * 0.02, y: h * 0.08, w: w * 0.68, h: h * 0.86 }
+  const panelX = stage.x + stage.w + w * 0.02
+  const panelW = Math.max(36, w - panelX - w * 0.016)
+  const midY = stage.y + stage.h * 0.46
+  const dFrac = clampNum(tuneAt(tune, 0, 0.18), 0.08, 0.28)
+  const along = clampNum(tuneAt(tune, 1, 0.55), 0, 1)
+  const slitX = stage.x + stage.w * 0.3
+  const minL = stage.w * 0.28
+  const maxL = stage.w * 0.52
+  const L = minL + (maxL - minL) * along
+  const screenX = slitX + L
+  const d = Math.max(8, stage.h * dFrac)
+  const lambda = Math.max(10, stage.h * 0.038)
+  const fringe = lambda * L / d
+  const pad = Math.max(8, Math.min(36, stage.h * 0.09))
+  const screenTop = stage.y + pad
+  const screenH = Math.max(16, stage.h - pad * 2)
+  const source = { x: stage.x + Math.min(36, stage.w * 0.08), y: midY }
+  return {
+    stage,
+    panelX,
+    panelW,
+    midY,
+    slitX,
+    screenX,
+    minL,
+    maxL,
+    L,
+    d,
+    lambda,
+    fringe,
+    screenTop,
+    screenH,
+    source,
+    s1: { x: slitX, y: midY - d / 2 },
+    s2: { x: slitX, y: midY + d / 2 },
+    slitHandle: { x: slitX - 50, y: midY + d / 2 + 10 },
+  }
+}
+
+function drawYoungScreen(ctx: Ctx, x: number, top: number, height: number, midY: number, fringe: number) {
+  const width = 20
+  ctx.fillStyle = '#1e1b4b'
+  ctx.fillRect(x, top, width, height)
+  const step = 2
+  const safe = Math.max(fringe, 1)
+  for (let y = top; y < top + height; y += step) {
+    const intens = Math.cos(Math.PI * (y + step / 2 - midY) / safe) ** 2
+    const r = Math.round(24 + intens * 227)
+    const g = Math.round(18 + intens * 171)
+    const b = Math.round(70 + intens * 10)
+    ctx.fillStyle = `rgb(${r},${g},${b})`
+    ctx.fillRect(x + 1, y, width - 2, step + 0.5)
+  }
+  ctx.strokeStyle = '#94a3b8'
+  ctx.lineWidth = 1.4
+  ctx.strokeRect(x, top, width, height)
+}
+
+function drawYoung(ctx: Ctx, w: number, h: number, time = 0, tune?: number[]) {
+  const scene = youngLayout(w, h, tune)
+  const { stage, s1, s2 } = scene
+  const spin = Number.isFinite(time) ? time : 0
+  const phase = wrap01(spin * 0.32)
+  const screenW = 20
+  ctx.fillStyle = '#f8fafc'
+  ctx.strokeStyle = '#e2e8f0'
+  ctx.lineWidth = 1
+  ctx.fillRect(scene.panelX - 6, stage.y, scene.panelW + 10, stage.h)
+  ctx.strokeRect(scene.panelX - 6, stage.y, scene.panelW + 10, stage.h)
+  ctx.fillStyle = '#ffffff'
+  ctx.strokeStyle = '#cbd5e1'
+  ctx.fillRect(stage.x, stage.y, stage.w, stage.h)
+  ctx.strokeRect(stage.x, stage.y, stage.w, stage.h)
+  ink(ctx, '#cbd5e1')
+  ctx.save()
+  ctx.setLineDash([4, 4])
+  ctx.beginPath()
+  ctx.moveTo(scene.source.x, scene.midY)
+  ctx.lineTo(scene.screenX, scene.midY)
+  ctx.stroke()
+  ctx.restore()
+  ink(ctx, INK.amber)
+  ctx.lineWidth = 1.4
+  ctx.beginPath()
+  ctx.moveTo(scene.source.x + 8, scene.source.y)
+  ctx.lineTo(s1.x - 6, s1.y)
+  ctx.moveTo(scene.source.x + 8, scene.source.y)
+  ctx.lineTo(s2.x - 6, s2.y)
+  ctx.stroke()
+  ink(ctx, INK.blue)
+  ctx.lineWidth = 1.15
+  ctx.beginPath()
+  ctx.moveTo(s1.x + 6, s1.y)
+  ctx.lineTo(scene.screenX, scene.midY)
+  ctx.moveTo(s2.x + 6, s2.y)
+  ctx.lineTo(scene.screenX, scene.midY)
+  ctx.stroke()
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(scene.slitX + 8, scene.screenTop, Math.max(0, scene.screenX - scene.slitX - 10), scene.screenH)
+  ctx.clip()
+  const maxR = scene.L
+  for (const src of [s1, s2]) {
+    ctx.strokeStyle = src === s1 ? '#0284c7' : '#7c3aed'
+    ctx.lineWidth = 1.15
+    for (let i = 0; i < 10; i += 1) {
+      const r = (phase + i) * scene.lambda * 1.35
+      if (r < 8 || r > maxR) continue
+      ctx.globalAlpha = 0.18 + 0.28 * (1 - r / maxR)
+      ctx.beginPath()
+      ctx.arc(src.x, src.y, r, -1.15, 1.15)
+      ctx.stroke()
+    }
+  }
+  ctx.restore()
+  const wallTop = scene.screenTop
+  const wallBot = scene.screenTop + scene.screenH
+  const gap = 6
+  ctx.fillStyle = '#334155'
+  const bands: Array<[number, number]> = [
+    [wallTop, s1.y - gap],
+    [s1.y + gap, s2.y - gap],
+    [s2.y + gap, wallBot],
+  ]
+  for (const [a, b] of bands) {
+    if (b - a > 2) ctx.fillRect(scene.slitX - 6, a, 12, b - a)
+  }
+  ctx.strokeStyle = '#1e293b'
+  ctx.lineWidth = 1.2
+  ctx.strokeRect(scene.slitX - 6, wallTop, 12, Math.max(0, wallBot - wallTop))
+  ctx.fillStyle = '#fef3c7'
+  ctx.strokeStyle = INK.amber
+  ctx.lineWidth = 1.6
+  ctx.fillRect(scene.source.x - 11, scene.source.y - 11, 22, 22)
+  ctx.strokeRect(scene.source.x - 11, scene.source.y - 11, 22, 22)
+  textAt(ctx, 'S', scene.source.x, scene.source.y + 24, 13, INK.amber)
+  drawYoungScreen(ctx, scene.screenX, scene.screenTop, scene.screenH, scene.midY, scene.fringe)
+  const hop = wrap01(spin * 0.45)
+  ink(ctx, INK.amber)
+  const travel = (x1: number, y1: number, x2: number, y2: number) => {
+    ctx.beginPath()
+    ctx.arc(x1 + (x2 - x1) * hop, y1 + (y2 - y1) * hop, 3.2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  travel(scene.source.x + 10, scene.source.y, s1.x, s1.y)
+  travel(scene.source.x + 10, scene.source.y, s2.x, s2.y)
+  travel(s1.x, s1.y, scene.screenX, scene.midY)
+  travel(s2.x, s2.y, scene.screenX, scene.midY)
+  plate(ctx, 'S1', s1.x - 24, s1.y - 18, 12, INK.blue)
+  plate(ctx, 'S2', s2.x - 24, s2.y + 18, 12, INK.violet)
+  plate(ctx, 'M', scene.screenX + screenW / 2, scene.screenTop - 12, 12, INK.text)
+  plate(ctx, 'O', scene.screenX + screenW + 40, scene.midY, 12, INK.amber)
+  ink(ctx, INK.green)
+  ctx.lineWidth = 1.2
+  const iTop = scene.midY - scene.fringe
+  if (iTop > scene.screenTop + 8 && scene.fringe < scene.screenH * 0.48) {
+    const ix = scene.screenX + screenW + 8
+    ctx.beginPath()
+    ctx.moveTo(ix, scene.midY)
+    ctx.lineTo(ix, iTop)
+    ctx.moveTo(ix - 4, scene.midY)
+    ctx.lineTo(ix + 4, scene.midY)
+    ctx.moveTo(ix - 4, iTop)
+    ctx.lineTo(ix + 4, iTop)
+    ctx.stroke()
+    plate(ctx, 'i', ix + 14, (scene.midY + iTop) / 2, 12, INK.green)
+  }
+  ink(ctx, INK.violet)
+  ctx.lineWidth = 1.15
+  const dx = scene.slitX + 18
+  ctx.beginPath()
+  ctx.moveTo(dx, s1.y)
+  ctx.lineTo(dx, s2.y)
+  ctx.moveTo(dx - 4, s1.y)
+  ctx.lineTo(dx + 4, s1.y)
+  ctx.moveTo(dx - 4, s2.y)
+  ctx.lineTo(dx + 4, s2.y)
+  ctx.stroke()
+  plate(ctx, 'd', dx + 8, s1.y - 22, 12, INK.violet)
+  const baseY = stage.y + stage.h - 18
+  ink(ctx, INK.blue)
+  ctx.beginPath()
+  ctx.moveTo(scene.slitX, baseY)
+  ctx.lineTo(scene.screenX, baseY)
+  ctx.moveTo(scene.slitX, baseY - 4)
+  ctx.lineTo(scene.slitX, baseY + 4)
+  ctx.moveTo(scene.screenX, baseY - 4)
+  ctx.lineTo(scene.screenX, baseY + 4)
+  ctx.stroke()
+  plate(ctx, 'L', (scene.slitX + scene.screenX) / 2, baseY - 12, 12, INK.blue)
+  plate(ctx, 'y', scene.screenX - 28, scene.screenTop - 2, 12, INK.green)
+  knob(ctx, scene.slitHandle.x, scene.slitHandle.y)
+  knob(ctx, scene.screenX + screenW / 2, scene.screenTop + scene.screenH - 10)
+  textAt(ctx, 'Thí nghiệm Young', stage.x + 78, Math.max(14, stage.y * 0.42), 13, INK.text)
+  const px = scene.panelX + scene.panelW / 2
+  const top = stage.y
+  textAt(ctx, 'Tạo 2 nguồn kết hợp', px, top + 14, 12, INK.text)
+  textAt(ctx, 'Nguồn S chiếu qua hai khe', px, top + 32, 11, INK.text)
+  textAt(ctx, 'S1, S2 cùng pha', px, top + 48, 11, INK.sky)
+  ctx.fillStyle = '#fff7ed'
+  ctx.strokeStyle = '#fdba74'
+  ctx.lineWidth = 1.2
+  ctx.fillRect(scene.panelX, top + 62, scene.panelW, 48)
+  ctx.strokeRect(scene.panelX, top + 62, scene.panelW, 48)
+  richLine(ctx, [
+    { text: 'i', color: INK.green },
+    { text: ' = ', color: INK.muted },
+    { text: 'λL', color: INK.blue },
+    { text: ' / ', color: INK.muted },
+    { text: 'd', color: INK.violet },
+  ], px, top + 80, 18)
+  textAt(ctx, 'khoảng vân', px, top + 98, 11, INK.amber)
+  textAt(ctx, 'Kéo S2 để đổi d', px, top + 126, 11, INK.violet)
+  textAt(ctx, 'Kéo màn M để đổi L', px, top + 142, 11, INK.blue)
+  textAt(ctx, 'Trên màn: vân sáng, vân tối', px, top + 166, 11, INK.text)
+  textAt(ctx, 'i là hai vân sáng liền kề', px, top + 182, 11, INK.green)
+  const ratio = scene.L / scene.d
+  textAt(ctx, `i = ${ratio.toFixed(1).replace('.', ',')} λ`, px, top + 204, 13, INK.amber)
+  textAt(ctx, 'd tăng thì i giảm', px, top + 224, 11, INK.violet)
+  textAt(ctx, 'L tăng thì i tăng', px, top + 240, 11, INK.blue)
+  const gy = top + 268
+  const gx = scene.panelX + 16
+  const gw = Math.max(20, scene.panelW - 32)
+  if (gy + 52 < stage.y + stage.h - 28) {
+    ink(ctx, INK.muted)
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(gx, gy + 36)
+    ctx.lineTo(gx + gw, gy + 36)
+    ctx.stroke()
+    const pts: Array<[number, number]> = []
+    for (let i = 0; i <= 48; i += 1) {
+      const t = i / 48
+      pts.push([gx + t * gw, gy + 36 - Math.cos(Math.PI * (t * 4 - 2)) ** 2 * 18])
+    }
+    ink(ctx, INK.amber)
+    ctx.lineWidth = 1.6
+    plotLine(ctx, pts)
+    textAt(ctx, 'sáng', gx + gw * 0.12, gy + 4, 10, INK.amber)
+    textAt(ctx, 'tối', gx + gw * 0.37, gy + 4, 10, INK.muted)
+  }
+  textAt(ctx, 'Đo bước sóng, đo kích thước nhỏ', px, stage.y + stage.h - 14, 11, INK.muted)
+}
+
+function drawInterfere(ctx: Ctx, w: number, h: number, time = 0, tune?: number[]) {
+  const scene = waveTankLayout(w, h, tune)
+  const { tray, s1, s2 } = scene
+  const spin = Number.isFinite(time) ? time : 0
+  const phase = wrap01(spin * 0.32)
+  const bob = Math.sin(spin * 2.1) * Math.min(5, tray.h * 0.012)
+  const size = w < 560 ? 10 : 12
+  ctx.fillStyle = '#f8fafc'
+  ctx.strokeStyle = '#e2e8f0'
+  ctx.lineWidth = 1
+  ctx.fillRect(scene.panelX - 6, tray.y, scene.panelW + 10, tray.h)
+  ctx.strokeRect(scene.panelX - 6, tray.y, scene.panelW + 10, tray.h)
+  ctx.fillStyle = '#e0f2fe'
+  ctx.fillRect(tray.x, tray.y, tray.w, tray.h)
+  const maxR = Math.hypot(tray.w, tray.h)
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(tray.x + 2, tray.y + 2, Math.max(0, tray.w - 4), Math.max(0, tray.h - 4))
+  ctx.clip()
+  drawWaveRings(ctx, s1.x, s1.y, phase, scene.lambda, maxR, '#0284c7')
+  if (scene.both) drawWaveRings(ctx, s2.x, s2.y, phase, scene.lambda, maxR, '#2563eb')
+  if (scene.both) {
+    const d = Math.max(1, s2.x - s1.x)
+    const y0 = tray.y + 4
+    const y1 = tray.y + tray.h - 4
+    ctx.save()
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = 'rgba(248,250,252,0.8)'
+    ctx.lineWidth = Math.max(3, scene.lambda * 0.2)
+    for (let n = 0; n < 8; n += 1) {
+      const delta = (n + 0.5) * scene.lambda
+      if (delta >= d - 1) break
+      strokePathGap(ctx, scene.midX, scene.sy, d, delta, y0, y1)
+    }
+    ctx.strokeStyle = '#d97706'
+    ctx.lineWidth = 1.15
+    ctx.setLineDash([4, 4])
+    for (let n = 0; n < 8; n += 1) {
+      const delta = (n + 0.5) * scene.lambda
+      if (delta >= d - 1) break
+      strokePathGap(ctx, scene.midX, scene.sy, d, delta, y0, y1)
+    }
+    ctx.strokeStyle = '#059669'
+    for (let n = 1; n < 8; n += 1) {
+      const delta = n * scene.lambda
+      if (delta >= d - 1) break
+      strokePathGap(ctx, scene.midX, scene.sy, d, delta, y0, y1)
+    }
+    ctx.setLineDash([])
+    ctx.beginPath()
+    ctx.moveTo(scene.midX, y0)
+    ctx.lineTo(scene.midX, y1)
+    ctx.stroke()
+    ctx.restore()
+  }
+  ctx.restore()
+  ink(ctx, '#475569')
+  ctx.lineWidth = 3
+  ctx.strokeRect(tray.x, tray.y, tray.w, tray.h)
+  ctx.lineWidth = 1.25
+  ctx.strokeRect(tray.x + 6, tray.y + 6, Math.max(0, tray.w - 12), Math.max(0, tray.h - 12))
+  const railY = Math.max(tray.y + 26, scene.sy - Math.max(34, tray.h * 0.1))
+  ink(ctx, '#44403c')
+  ctx.lineWidth = 3
+  ctx.beginPath()
+  ctx.moveTo(s1.x - 16, railY)
+  ctx.lineTo(s2.x + 16, railY)
+  ctx.stroke()
+  ctx.fillStyle = '#f5f5f4'
+  ctx.strokeStyle = '#44403c'
+  ctx.lineWidth = 1.4
+  ctx.fillRect(scene.midX - 14, railY - 13, 28, 16)
+  ctx.strokeRect(scene.midX - 14, railY - 13, 28, 16)
+  textAt(ctx, 'f', scene.midX, railY - 5, 11, INK.text)
+  textAt(ctx, 'Giao thoa sóng nước', tray.x + 78, Math.max(14, tray.y * 0.45), 13, INK.text)
+  const rod = (x: number, live: boolean) => {
+    const tip = scene.sy + (live ? bob : 0)
+    ink(ctx, live ? '#44403c' : '#94a3b8')
+    ctx.lineWidth = 1.6
+    ctx.beginPath()
+    ctx.moveTo(x, railY)
+    ctx.lineTo(x, tip)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(x, tip, 5.5, 0, Math.PI * 2)
+    ctx.fillStyle = live ? '#e0f2fe' : '#f8fafc'
+    ctx.fill()
+    ctx.stroke()
+  }
+  rod(s1.x, true)
+  rod(s2.x, scene.both)
+  ink(ctx, INK.amber)
+  ctx.lineWidth = 1.2
+  const dimY = scene.sy + 26
+  ctx.beginPath()
+  ctx.moveTo(s1.x, dimY)
+  ctx.lineTo(s2.x, dimY)
+  ctx.moveTo(s1.x, dimY - 4)
+  ctx.lineTo(s1.x, dimY + 4)
+  ctx.moveTo(s2.x, dimY - 4)
+  ctx.lineTo(s2.x, dimY + 4)
+  ctx.stroke()
+  plate(ctx, 'd', scene.midX, dimY + 12, 11, INK.amber)
+  plate(ctx, 'S1', s1.x - 22, scene.sy - 16, 12, INK.blue)
+  plate(ctx, scene.both ? 'S2' : 'S2 tắt', s2.x + 26, scene.sy - 16, 12, scene.both ? INK.blue : INK.muted)
+  plate(ctx, 'khay nước nông', tray.x + 62, tray.y + tray.h - 16, 11, INK.muted)
+  knob(ctx, s2.x, s2.y)
+  const markY = Math.min(tray.y + tray.h - 36, scene.sy + scene.lambda * 2.3)
+  if (scene.both) {
+    plate(ctx, 'gợn cao', scene.midX + 34, markY, 11, INK.green)
+    let nodeX = s2.x + scene.lambda
+    let best = Number.POSITIVE_INFINITY
+    const y = markY + 22
+    for (let x = scene.midX + 6; x < tray.x + tray.w - 24; x += 3) {
+      const gap = Math.abs(Math.hypot(x - s1.x, y - s1.y) - Math.hypot(x - s2.x, y - s2.y))
+      const err = Math.abs(gap - scene.lambda * 0.5)
+      if (err < best) {
+        best = err
+        nodeX = x
+      }
+    }
+    if (best < scene.lambda * 0.2) plate(ctx, 'đứng yên', nodeX, y + 16, 11, INK.amber)
+  } else {
+    plate(ctx, 'vòng tròn đồng tâm', scene.midX, tray.y + tray.h - 42, 11, INK.sky)
+  }
+  const px = scene.panelX + scene.panelW / 2
+  textAt(ctx, 'Bố trí thí nghiệm', px, tray.y + 10, size, INK.text)
+  textAt(ctx, 'nhìn ngang', px, tray.y + 30, 10, INK.muted)
+  drawTankSide(ctx, scene.panelX, scene.insetY, scene.panelW, scene.insetH, scene.both, bob * 0.45)
+  textAt(ctx, 'Hai đầu rung trên mặt nước', px, scene.noteY, 11, INK.text)
+  textAt(ctx, 'S1, S2 gần nhau', px, scene.noteY + 14, 11, INK.text)
+  textAt(ctx, 'Cùng tần số, cùng pha', px, scene.noteY + 28, 11, INK.sky)
+  const chip = (y: number, label: string, on: boolean) => {
+    ctx.save()
+    ctx.fillStyle = on ? '#e0f2fe' : '#ffffff'
+    ctx.strokeStyle = on ? INK.sky : '#cbd5e1'
+    ctx.lineWidth = on ? 2 : 1
+    ctx.fillRect(scene.panelX, y - scene.chipH / 2, scene.panelW, scene.chipH)
+    ctx.strokeRect(scene.panelX, y - scene.chipH / 2, scene.panelW, scene.chipH)
+    ctx.restore()
+    textAt(ctx, label, px, y, 12, on ? INK.sky : INK.muted)
+  }
+  chip(scene.oneY, 'Một nguồn S1', !scene.both)
+  chip(scene.twoY, 'Hai nguồn S1, S2', scene.both)
+  textAt(ctx, 'Quan sát', px, scene.watchY, 11, INK.muted)
+  if (scene.both) {
+    textAt(ctx, 'Hai nguồn chồng chất', px, scene.watchY + 16, 11, INK.text)
+    textAt(ctx, 'Xanh: gợn sóng cao', px, scene.watchY + 32, 11, INK.green)
+    textAt(ctx, 'Cam: gần như đứng yên', px, scene.watchY + 48, 11, INK.amber)
+  } else {
+    textAt(ctx, 'Chỉ S1 hoạt động', px, scene.watchY + 16, 11, INK.text)
+    textAt(ctx, 'Vòng tròn đồng tâm', px, scene.watchY + 32, 11, INK.sky)
+  }
+  const ratio = (s2.x - s1.x) / scene.lambda
+  const ratioY = scene.watchY + (scene.both ? 68 : 52)
+  textAt(ctx, `d = ${ratio.toFixed(1).replace('.', ',')} λ`, px, ratioY, 12, INK.amber)
+  const keyY = ratioY + 22
+  ink(ctx, INK.sky)
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(scene.panelX + 10, keyY)
+  ctx.lineTo(scene.panelX + 10 + scene.lambda, keyY)
+  ctx.moveTo(scene.panelX + 10, keyY - 4)
+  ctx.lineTo(scene.panelX + 10, keyY + 4)
+  ctx.moveTo(scene.panelX + 10 + scene.lambda, keyY - 4)
+  ctx.lineTo(scene.panelX + 10 + scene.lambda, keyY + 4)
+  ctx.stroke()
+  textAt(ctx, 'λ', scene.panelX + 18 + scene.lambda, keyY, 12, INK.sky)
+  textAt(ctx, 'Kéo núm S2 để đổi d', px, tray.y + tray.h - 14, 11, INK.muted)
 }
 
 function drawExperiment(ctx: Ctx, w: number, h: number, kind = 'projectile', time = 0, tune?: number[]) {
@@ -1601,8 +2236,9 @@ function drawExperiment(ctx: Ctx, w: number, h: number, kind = 'projectile', tim
     textAt(ctx, 'g', w * 0.16, h * 0.3, 13, INK.violet)
     const start = clampNum(tuneAt(tune, 0, 36 / 240), 0.08, 0.62) * h
     knob(ctx, w * 0.5, start)
-    const drop = wrap01(time * 0.55)
-    const by = start + drop * Math.max(12, ground - 16 - start)
+    const phase = wrap01(time * 0.42)
+    const room = Math.max(12, ground - 16 - start)
+    const by = start + phase * phase * room
     ink(ctx, INK.red)
     ctx.beginPath()
     ctx.arc(w * 0.5, by, 8, 0, Math.PI * 2)
@@ -1610,13 +2246,16 @@ function drawExperiment(ctx: Ctx, w: number, h: number, kind = 'projectile', tim
     ctx.fill()
     ctx.stroke()
     const dropped = Math.max(0, by - start)
-    const room = Math.max(1, ground - 16 - start)
     const kinetic = dropped / room
     energySplit(ctx, 16, 28, 72, kinetic, 1 - kinetic)
     ink(ctx, INK.violet)
-    arrow(ctx, w * 0.5 + 16, by, w * 0.5 + 16, by + 28)
-    textAt(ctx, 'mg', w * 0.5 + 32, by + 16, 11, INK.violet)
-    textAt(ctx, kinetic < 0.04 ? 'v ≈ 0, U cực đại' : 'v tăng, U giảm', w * 0.72, h - 12, 11, INK.text)
+    arrow(ctx, w * 0.5 + 16, by, w * 0.5 + 16, by + 22)
+    textAt(ctx, 'mg', w * 0.5 + 32, by + 14, 11, INK.violet)
+    ink(ctx, INK.green)
+    const vLen = 10 + phase * 36
+    arrow(ctx, w * 0.5 - 16, by, w * 0.5 - 16, by + vLen)
+    textAt(ctx, 'v', w * 0.5 - 28, by + vLen * 0.5, 11, INK.green)
+    textAt(ctx, kinetic < 0.04 ? 'thả: v = 0, U cực đại' : 's = ½gt², v tăng dần', w * 0.72, h - 12, 11, INK.text)
     textAt(ctx, 'bỏ qua sức cản', w * 0.22, h - 12, 11, INK.muted)
     return
   }
@@ -1660,7 +2299,7 @@ function drawExperiment(ctx: Ctx, w: number, h: number, kind = 'projectile', tim
     const vyNow = shot.vy - shot.g * shot.flight
     const height = Math.max(0, y - ball[1])
     const total = shot.vx * shot.vx + shot.vy * shot.vy
-    const potential = shot.g * height
+    const potential = Math.min(total, 2 * shot.g * height)
     const kinetic = Math.max(0, total - potential)
     energySplit(ctx, 16, 18, 78, kinetic, potential)
     ink(ctx, INK.violet)
@@ -1705,7 +2344,7 @@ function drawExperiment(ctx: Ctx, w: number, h: number, kind = 'projectile', tim
   knob(ctx, bx, by)
   textAt(ctx, 'θ', x - 18, y + 36, 14, INK.green)
   textAt(ctx, 'l', x + 16, y + 70, 13, INK.blue)
-  textAt(ctx, 'cân bằng, K max', x + 46, y + 108, 11, INK.muted)
+  textAt(ctx, 'vị trí cân bằng', x + 52, y + 108, 11, INK.muted)
   textAt(ctx, 'm', bx - 22, by + 16, 12, INK.amber)
   ink(ctx, INK.violet)
   arrow(ctx, bx, by + 14, bx, by + 46)
@@ -2443,6 +3082,12 @@ function electroButton(w: number, h: number) {
   return { x: w * 0.72, y: h * 0.24 }
 }
 
+export function setWaveSources(params: FigureParams, both: boolean): FigureParams {
+  const tune = baseTune(params, 2, [0.2, 1])
+  tune[1] = both ? 1 : 0
+  return withTune(params, tune)
+}
+
 export function toggleChemSwitch(params: FigureParams): FigureParams {
   const on = tuneAt(params.tune, 0, 1) >= 0.5
   return { ...params, tune: [on ? 0 : 1] }
@@ -2450,42 +3095,65 @@ export function toggleChemSwitch(params: FigureParams): FigureParams {
 
 function drawChemExperiment(ctx: Ctx, w: number, h: number, kind: string, tune?: number[], time = 0) {
   if (kind === 'collect') {
-    const basinTop = h * 0.62
+    const basinTop = h * 0.58
+    const basinLeft = w * 0.4
+    const basinRight = w * 0.94
     ctx.fillStyle = '#e0f2fe'
     ctx.strokeStyle = INK.sky
     ctx.beginPath()
-    ctx.rect(w * 0.38, basinTop, w * 0.5, h * 0.28)
+    ctx.rect(basinLeft, basinTop, basinRight - basinLeft, h * 0.3)
     ctx.fill()
     ctx.stroke()
-    textAt(ctx, 'nước', w * 0.78, basinTop + 28, 12, INK.sky)
+    const tubeLeft = w * 0.58
+    const tubeRight = w * 0.74
+    const tubeTop = h * 0.16
+    const tubeMouth = basinTop + h * 0.16
+    const open = tuneAt(tune, 0, 1) >= 0.5
+    const gas = open ? 0.15 + 0.7 * wrap01(time * 0.12) : 0
+    const waterLine = tubeTop + 16 + gas * (tubeMouth - tubeTop - 22)
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(tubeLeft, tubeTop, tubeRight - tubeLeft, tubeMouth - tubeTop)
+    ctx.clip()
+    ctx.fillStyle = '#bae6fd'
+    ctx.fillRect(tubeLeft, waterLine, tubeRight - tubeLeft, tubeMouth - waterLine + 2)
+    ctx.restore()
     ink(ctx, INK.sky)
     ctx.beginPath()
-    ctx.moveTo(w * 0.55, basinTop + 8)
-    ctx.lineTo(w * 0.55, h * 0.28)
-    ctx.arc(w * 0.55, h * 0.22, 16, 0, Math.PI, true)
-    ctx.lineTo(w * 0.39, h * 0.22)
+    ctx.moveTo(tubeLeft, tubeMouth)
+    ctx.lineTo(tubeLeft, tubeTop + 10)
+    ctx.quadraticCurveTo((tubeLeft + tubeRight) / 2, tubeTop - 8, tubeRight, tubeTop + 10)
+    ctx.lineTo(tubeRight, tubeMouth)
     ctx.stroke()
-    textAt(ctx, 'H₂', w * 0.55, h * 0.16, 12, INK.green)
+    if (gas > 0.04) textAt(ctx, 'H₂', (tubeLeft + tubeRight) / 2, (tubeTop + waterLine) / 2, 12, INK.green)
+    textAt(ctx, 'nước', tubeRight + 8, (waterLine + tubeMouth) / 2, 11, INK.sky)
+    const flaskL = w * 0.08
+    const flaskR = w * 0.26
+    const flaskTop = h * 0.3
+    const flaskBot = h * 0.72
+    ctx.strokeStyle = INK.sky
+    ctx.strokeRect(flaskL, flaskTop, flaskR - flaskL, flaskBot - flaskTop)
+    ctx.fillStyle = '#bae6fd'
+    ctx.fillRect(flaskL + 1, flaskTop + (flaskBot - flaskTop) * 0.45, flaskR - flaskL - 2, (flaskBot - flaskTop) * 0.55 - 1)
+    textAt(ctx, 'Zn + HCl', (flaskL + flaskR) / 2, flaskTop - 12, 11, INK.amber)
+    const neck = (flaskL + flaskR) / 2
     ink(ctx, INK.muted)
     ctx.beginPath()
-    ctx.moveTo(w * 0.22, h * 0.42)
-    ctx.quadraticCurveTo(w * 0.32, h * 0.42, w * 0.4, basinTop + 16)
+    ctx.moveTo(neck, flaskTop)
+    ctx.lineTo(neck, flaskTop - 14)
+    ctx.lineTo(w * 0.36, flaskTop - 14)
+    ctx.quadraticCurveTo(w * 0.48, flaskTop + 8, (tubeLeft + tubeRight) / 2, tubeMouth - 4)
     ctx.stroke()
-    ctx.strokeStyle = INK.sky
-    ctx.strokeRect(w * 0.08, h * 0.28, w * 0.16, h * 0.4)
-    ctx.fillStyle = '#bae6fd'
-    ctx.fillRect(w * 0.08, h * 0.46, w * 0.16, h * 0.22)
-    textAt(ctx, 'Zn+HCl', w * 0.16, h * 0.22, 11, INK.amber)
-    const open = tuneAt(tune, 0, 1) >= 0.5
-    textAt(ctx, open ? 'Zn+2HCl→ZnCl₂+H₂' : '', w * 0.28, h - 12, 11, INK.blue)
-    textAt(ctx, open ? 'H₂ đẩy nước ra' : 'khoá, chưa có khí', w * 0.68, h - 12, 11, open ? INK.green : INK.muted)
-    knob(ctx, w * 0.16, h * 0.48)
+    textAt(ctx, 'nước chậu', basinRight - 36, basinTop + 16, 11, INK.sky)
+    knob(ctx, (flaskL + flaskR) / 2, flaskTop + (flaskBot - flaskTop) * 0.55)
+    textAt(ctx, open ? 'Zn + 2HCl → ZnCl₂ + H₂' : 'chưa mở, ống đầy nước', w * 0.34, h - 12, 11, open ? INK.blue : INK.muted)
+    textAt(ctx, open ? 'H₂ nhẹ, dâng lên, đẩy nước xuống' : '', w * 0.72, h - 12, 11, INK.green)
     if (open) {
       const rise = wrap01(time * 0.35)
       ink(ctx, INK.green)
       for (let i = 0; i < 3; i += 1) {
         ctx.beginPath()
-        ctx.arc(w * 0.55, h * 0.42 - wrap01(rise + i / 3) * h * 0.16, 3, 0, Math.PI * 2)
+        ctx.arc((tubeLeft + tubeRight) / 2, tubeMouth - 8 - wrap01(rise + i / 3) * (tubeMouth - waterLine - 10), 2.6, 0, Math.PI * 2)
         ctx.stroke()
       }
     }
@@ -2508,8 +3176,18 @@ function drawChemExperiment(ctx: Ctx, w: number, h: number, kind: string, tune?:
     ctx.fillStyle = '#fed7aa'
     ctx.fillRect(w * 0.36, h * 0.4, 16, 10)
     textAt(ctx, 'CaCO₃', w * 0.28, h * 0.3, 12, INK.amber)
-    textAt(ctx, hot ? 'CO₂' : 'chưa đun', w * 0.78, h * 0.46, 12, hot ? INK.green : INK.muted)
-    textAt(ctx, hot ? 'CaCO₃ → CaO + CO₂' : 'đưa đèn vào dưới ống', w * 0.4, h - 12, 11, hot ? INK.amber : INK.muted)
+    ink(ctx, INK.muted)
+    ctx.beginPath()
+    ctx.moveTo(w * 0.7, h * 0.52)
+    ctx.lineTo(w * 0.78, h * 0.52)
+    ctx.lineTo(w * 0.78, h * 0.7)
+    ctx.stroke()
+    ctx.strokeStyle = INK.sky
+    ctx.strokeRect(w * 0.7, h * 0.68, w * 0.18, h * 0.16)
+    ctx.fillStyle = hot ? '#e7e5e4' : '#e0f2fe'
+    ctx.fillRect(w * 0.7, h * 0.76, w * 0.18, h * 0.08)
+    textAt(ctx, hot ? 'vôi trong vẩn đục' : 'nước vôi trong', w * 0.79, h * 0.66, 10, hot ? INK.muted : INK.sky)
+    textAt(ctx, hot ? 'CaCO₃ → CaO + CO₂' : 'đưa đèn vào dưới bột', w * 0.36, h - 12, 11, hot ? INK.amber : INK.muted)
     textAt(ctx, 'đèn cồn', frac * w, h * 0.9, 12, INK.amber)
     if (hot) {
       const rise = wrap01(time * 0.4)
@@ -2600,8 +3278,8 @@ function drawChemExperiment(ctx: Ctx, w: number, h: number, kind: string, tune?:
   textAt(ctx, 'H₂', cathode, vatTop + 16, 13, INK.blue)
   textAt(ctx, 'O₂', anode, vatTop + 16, 13, INK.red)
   if (on) {
-    textAt(ctx, '2', cathode - 24, vatTop + 16, 12, INK.blue)
-    textAt(ctx, '1', anode + 24, vatTop + 16, 12, INK.red)
+    textAt(ctx, '2V', cathode - 22, vatTop + 32, 11, INK.blue)
+    textAt(ctx, '1V', anode + 22, vatTop + 32, 11, INK.red)
     const rise = wrap01(time * 0.45)
     ink(ctx, INK.sky)
     for (const [x, n] of [[cathode, 4], [anode, 2]] as Array<[number, number]>) {
@@ -3492,6 +4170,8 @@ export function drawFigureLocal(ctx: Ctx, id: string, params: FigureParams, w: n
   else if (id === 'law-graph') drawLaw(ctx, w, h, variant || 'decay')
   else if (id === 'refraction') drawRefraction(ctx, w, h, variant === 'prism', params.tune, time)
   else if (id === 'experiment-phys') drawExperiment(ctx, w, h, variant || 'projectile', time, params.tune)
+  else if (id === 'interfere') drawInterfere(ctx, w, h, time, params.tune)
+  else if (id === 'young') drawYoung(ctx, w, h, time, params.tune)
   else if (id === 'constants') drawConstants(ctx, w, h)
   else if (id === 'formula-physics') drawPhysicsFormula(ctx, w, h, variant)
   else if (id === 'equation') drawEquation(ctx, w, h, params.equation || 'H2 + O2 -> H2O')
@@ -3536,7 +4216,11 @@ function labHandles(figure: string, params: FigureParams, w: number, h: number, 
     const scene = lensMetrics(w, h, variant !== 'concave', tune)
     return [{ id: 'object', x: scene.ox, y: scene.oy }]
   }
-  if (figure === 'circuit' && variant !== 'parallel') return [{ id: 'switch', x: w - 58, y: 42 }]
+  if (figure === 'circuit') {
+    const box = circuitLayout(w, h)
+    const closed = tuneAt(tune, 0, 1) >= 0.5
+    return [{ id: 'switch', x: box.switchX, y: closed ? box.yTop : box.yTop - 10 }]
+  }
   if (figure === 'force' && variant === 'incline') {
     const x0 = 36
     const y0 = h - 28
@@ -3572,6 +4256,24 @@ function labHandles(figure: string, params: FigureParams, w: number, h: number, 
   if (figure === 'refraction' && variant !== 'prism') {
     const ray = snellPose(w, h, tune)
     return [{ id: 'ray', x: ray.x1, y: ray.y1 }]
+  }
+  if (figure === 'interfere') {
+    const scene = waveTankLayout(w, h, tune)
+    const handles: Array<{ id: string; x: number; y: number }> = [{ id: 's2', x: scene.s2.x, y: scene.s2.y }]
+    for (const spot of [0.22, 0.5, 0.78]) {
+      handles.push({ id: 'one', x: scene.panelX + scene.panelW * spot, y: scene.oneY })
+      handles.push({ id: 'two', x: scene.panelX + scene.panelW * spot, y: scene.twoY })
+    }
+    return handles
+  }
+  if (figure === 'young') {
+    const scene = youngLayout(w, h, tune)
+    const handles: Array<{ id: string; x: number; y: number }> = [{ id: 'slit', x: scene.slitHandle.x, y: scene.slitHandle.y }]
+    const step = Math.max(24, scene.screenH / 8)
+    for (let y = scene.screenTop + 12; y <= scene.screenTop + scene.screenH - 8; y += step) {
+      handles.push({ id: 'screen', x: scene.screenX + 10, y })
+    }
+    return handles
   }
   if (figure === 'experiment-phys' && variant === 'spring') {
     const eq = springShift(h * 0.58, 16 / 240, h, tune, time)
@@ -3621,7 +4323,7 @@ export function figureHandleAt(
   }
   let best: { id: string; d: number } | null = null
   for (const handle of handles) {
-    const reach = handle.id === 'run' || handle.id === 'valve' || handle.id === 'push' ? Math.max(thresh, 22) : Math.max(thresh, 12)
+    const reach = handle.id === 'run' || handle.id === 'valve' || handle.id === 'push' || handle.id === 'one' || handle.id === 'two' || handle.id === 'screen' || handle.id === 'slit' ? Math.max(thresh, 18) : Math.max(thresh, 12)
     const d = Math.hypot(local.x - handle.x, local.y - handle.y)
     if (d <= reach && (!best || d < best.d)) best = { id: handle.id, d }
   }
@@ -3645,7 +4347,10 @@ export function moveFigureTune(
     tune[1] = clampNum((h * 0.56 - local.y) / h, -0.36, 0.38)
     return withTune(params, tune)
   }
-  if (figure === 'circuit' && handle === 'switch') return withTune(params, [local.y < 36 ? 0 : 1])
+  if (figure === 'circuit' && handle === 'switch') {
+    const box = circuitLayout(w, h)
+    return withTune(params, [local.y < box.yTop - 6 ? 0 : 1])
+  }
   if (figure === 'force' && handle === 'block') {
     if (variant === 'incline') {
       const run = w - 28 - 36
@@ -3679,6 +4384,24 @@ export function moveFigureTune(
     const dy = h * 0.48 - local.y
     if (dy <= 8) return params
     return withTune(params, [clampNum((Math.atan2(dx, dy) * 180) / Math.PI, 8, 72)])
+  }
+  if (figure === 'young' && handle === 'slit') {
+    const scene = youngLayout(w, h, params.tune)
+    const next = baseTune(params, 2, [0.18, 0.55])
+    next[0] = clampNum((Math.abs(local.y - scene.midY) * 2) / scene.stage.h, 0.08, 0.28)
+    return withTune(params, next)
+  }
+  if (figure === 'young' && handle === 'screen') {
+    const scene = youngLayout(w, h, params.tune)
+    const next = baseTune(params, 2, [0.18, 0.55])
+    next[1] = clampNum((local.x - scene.slitX - scene.minL) / Math.max(1, scene.maxL - scene.minL), 0, 1)
+    return withTune(params, next)
+  }
+  if (figure === 'interfere' && handle === 's2') {
+    const scene = waveTankLayout(w, h, params.tune)
+    const next = baseTune(params, 2, [0.2, 1])
+    next[0] = clampNum((Math.abs(local.x - scene.midX) * 2) / scene.tray.w, 0.12, 0.34)
+    return withTune(params, next)
   }
   if (figure === 'experiment-phys' && handle === 'bob') {
     const tune = baseTune(params, 3, [-0.46, time, 1])

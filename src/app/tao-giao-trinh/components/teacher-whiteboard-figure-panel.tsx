@@ -14,6 +14,7 @@ import {
   type FigureSubject,
 } from '../lib/teacher-whiteboard/figures'
 import { parsePlotInput, parseSpatialInput, samplePlot, formatAxisNumber, axisTickStep } from '../lib/teacher-whiteboard/plot'
+import { FigureMenuIcon } from './teacher-whiteboard-figure-icons'
 
 type Tr = (vi: string, en: string, zh: string, ja: string, ko: string) => string
 
@@ -23,16 +24,16 @@ function say(tr: Tr, label: FigureLabel) {
 
 const MENU_GROUPS: Record<FigureSubject, { title: FigureLabel; ids: string[] }[]> = {
   math: [
-    { title: ['Đồ thị', 'Graphs', '图像', 'グラフ', '그래프'], ids: ['spatial', 'math-trig'] },
-    { title: ['Công thức', 'Formulas', '公式', '公式', '공식'], ids: ['math-formula'] },
+    { title: ['Đồ thị hàm số', 'Function graphs', '函数图像', '関数のグラフ', '함수 그래프'], ids: ['spatial', 'math-trig'] },
+    { title: ['Công thức toán', 'Math formulas', '数学公式', '数学の公式', '수학 공식'], ids: ['math-formula'] },
   ],
   physics: [
-    { title: ['Hình', 'Figures', '图', '図', '그림'], ids: ['force', 'circuit', 'ray', 'refraction', 'field'] },
-    { title: ['Đồ thị', 'Graphs', '图像', 'グラフ', '그래프'], ids: ['phys-graph', 'wave', 'law-graph'] },
-    { title: ['Bài', 'Lesson', '课', '授業', '수업'], ids: ['experiment-phys', 'formula-physics', 'constants'] },
+    { title: ['Lực, mạch, ánh sáng', 'Force, circuits, light', '力、电路、光', '力・回路・光', '힘·회로·빛'], ids: ['force', 'circuit', 'ray', 'refraction', 'field'] },
+    { title: ['Đồ thị chuyển động, sóng', 'Motion and wave graphs', '运动与波的图像', '運動・波のグラフ', '운동·파동 그래프'], ids: ['phys-graph', 'wave', 'law-graph'] },
+    { title: ['Thí nghiệm và công thức', 'Experiments and formulas', '实验与公式', '実験と公式', '실험과 공식'], ids: ['young', 'interfere', 'experiment-phys', 'formula-physics', 'constants'] },
   ],
   chemistry: [
-    { title: ['Chất', 'Matter', '物质', '物質', '물질'], ids: ['equation', 'structure', 'atom'] },
+    { title: ['Phương trình và cấu tạo', 'Equations and structure', '方程式与结构', '反応式と構造', '반응식과 구조'], ids: ['equation', 'structure', 'atom'] },
     { title: ['Thí nghiệm', 'Lab', '实验', '実験', '실험'], ids: ['glass', 'titration', 'chem-experiment'] },
     { title: ['Tra cứu', 'Reference', '查阅', '資料', '자료'], ids: ['chem-scheme', 'periodic', 'formula-chem'] },
   ],
@@ -47,14 +48,14 @@ const FORMULA_GROUPS: Record<string, { title: FigureLabel; ids: string[] }[]> = 
   'math-formula': [
     { title: ['Đại số', 'Algebra', '代数', '代数', '대수'], ids: ['pythagoras', 'square-sum', 'square-diff', 'diff-squares', 'cube-sum', 'linear', 'quadratic', 'vieta'] },
     { title: ['Lượng giác', 'Trigonometry', '三角', '三角', '삼각'], ids: ['identity', 'sin-sum', 'tan'] },
-    { title: ['Đo', 'Measure', '度量', '計量', '측정'], ids: ['area', 'tri-area', 'tri-sin', 'trapezoid', 'rect', 'sphere', 'cylinder', 'cone', 'distance', 'slope', 'circle-eq'] },
+    { title: ['Diện tích, thể tích, toạ độ', 'Area, volume, coordinates', '面积、体积、坐标', '面積・体積・座標', '넓이·부피·좌표'], ids: ['area', 'tri-area', 'tri-sin', 'trapezoid', 'rect', 'sphere', 'cylinder', 'cone', 'distance', 'slope', 'circle-eq'] },
     { title: ['Dãy, giải tích', 'Sequences, calculus', '数列与微积分', '数列・解析', '수열·미적분'], ids: ['arith', 'geom', 'sum-arith', 'log', 'deriv', 'integral'] },
     { title: ['Xác suất', 'Probability', '概率', '確率', '확률'], ids: ['choose', 'prob'] },
   ],
   'formula-physics': [
     { title: ['Chuyển động', 'Motion', '运动', '運動', '운동'], ids: ['velocity', 'accel', 'motion'] },
     { title: ['Lực, năng lượng', 'Force and energy', '力与能量', '力・エネルギー', '힘·에너지'], ids: ['newton', 'weight', 'momentum', 'work', 'power', 'kinetic', 'potential', 'friction'] },
-    { title: ['Điện', 'Electricity', '电', '電気', '전기'], ids: ['ohm', 'series', 'parallel', 'current', 'joule', 'coulomb'] },
+    { title: ['Công thức điện', 'Electricity formulas', '电学公式', '電気の公式', '전기 공식'], ids: ['ohm', 'series', 'parallel', 'current', 'joule', 'coulomb'] },
     { title: ['Nhiệt, sóng, quang', 'Heat, waves, light', '热、波、光', '熱・波・光', '열·파동·빛'], ids: ['heat', 'wave', 'frequency', 'period', 'lens', 'snell', 'density', 'pressure', 'gas', 'energy', 'efficiency'] },
   ],
   'formula-chem': [
@@ -327,10 +328,15 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
         </div>
         <button
           type="button"
-          className={cn('mt-1 w-full rounded-md border border-slate-200 text-left font-semibold text-slate-800 hover:bg-sky-50', tap)}
+          className={cn('mt-1 flex w-full items-center gap-1.5 rounded-md border border-slate-200 text-left font-semibold text-slate-800 hover:bg-sky-50', tap)}
           onClick={onInsertImage}
         >
-          {tr('Chèn ảnh', 'Insert image', '插入图片', '画像を挿入', '이미지 넣기')}
+          <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-sky-700" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+            <rect x="4" y="5" width="16" height="14" rx="2" />
+            <circle cx="9" cy="10" r="1.4" fill="currentColor" stroke="none" />
+            <path d="M5 16 L10 12 L13 15 L16 12 L19 16" />
+          </svg>
+          <span>{tr('Chèn ảnh', 'Insert image', '插入图片', '画像を挿入', '이미지 넣기')}</span>
         </button>
       </div>
       {subject === 'math' && showPlot && mathPlot ? (
@@ -345,10 +351,14 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
         {subject === 'math' && mathPlot ? (
           <button
             type="button"
-            className={cn('mt-2 w-full rounded-md bg-sky-600 text-left font-semibold text-white hover:bg-sky-500', tap)}
+            className={cn('mt-2 flex w-full items-center gap-1.5 rounded-md bg-sky-600 text-left font-semibold text-white hover:bg-sky-500', tap)}
             onClick={() => setShowPlot(true)}
           >
-            {tr('Vẽ đồ thị', 'Plot a graph', '绘制图像', 'グラフを描く', '그래프 그리기')}
+            <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+              <path d="M5 18 V5 M5 18 H20" />
+              <path d="M7 15 C10 15 11 8 14 8 C17 8 18 6 20 5" />
+            </svg>
+            <span>{tr('Vẽ đồ thị', 'Plot a graph', '绘制图像', 'グラフを描く', '그래프 그리기')}</span>
           </button>
         ) : null}
         {groups.map((group) => (
@@ -359,10 +369,11 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
                 <button
                   key={item.id}
                   type="button"
-                  className={cn('rounded-md border border-slate-200 text-left leading-tight text-slate-800 hover:border-sky-300 hover:bg-sky-50', tap)}
+                  className={cn('flex items-start gap-1.5 rounded-md border border-slate-200 text-left leading-tight text-slate-800 hover:border-sky-300 hover:bg-sky-50', tap)}
                   onClick={() => onPick(item.id)}
                 >
-                  {say(tr, item.label)}
+                  <FigureMenuIcon id={item.id} />
+                  <span className="min-w-0 flex-1">{say(tr, item.label)}</span>
                 </button>
               ))}
             </div>
@@ -427,8 +438,8 @@ export function FigureEditor({
           {item.variants ? (
             <label className="block text-[11px] font-medium">
               {item.id === 'glass'
-                ? tr('Dụng cụ', 'Apparatus', '器具', '器具', '기구')
-                : tr('Loại', 'Type', '类型', '種類', '종류')}
+                ? tr('Dụng cụ thuỷ tinh', 'Glassware', '玻璃器具', 'ガラス器具', '유리 기구')
+                : tr('Nội dung hình', 'What to draw', '图的内容', '図の内容', '그림 내용')}
               <select
                 className="mt-0.5 h-8 w-full rounded border border-slate-300 px-2 text-[12px]"
                 value={params.variant}
@@ -457,7 +468,7 @@ export function FigureEditor({
           ) : null}
           {item.fields.includes('equation') ? (
             <label className="mt-2 block text-[11px] font-medium">
-              {tr('Phương trình', 'Equation', '方程式', '反応式', '반응식')}
+              {tr('Phương trình phản ứng', 'Reaction equation', '反应方程式', '反応式', '반응식')}
               <input
                 value={params.equation}
                 onChange={(event) => onParams({ ...params, equation: event.target.value })}

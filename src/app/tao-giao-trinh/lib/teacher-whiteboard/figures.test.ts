@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { balanceEquation, FIGURE_ITEMS, drawFigureLocal, figureClock, figureHandleAt, freshFigureParams, lensImage, moveFigureTune, missingFormulaVariants, figureItem, litmusColor, litmusWord, phenolphthaleinColor, toggleChemSwitch, toggleFigureRun, toggleTitrationValve } from './figures'
+import { balanceEquation, FIGURE_ITEMS, drawFigureLocal, figureClock, figureHandleAt, figureSimulates, freshFigureParams, lensImage, moveFigureTune, missingFormulaVariants, figureItem, litmusColor, litmusWord, phenolphthaleinColor, setWaveSources, toggleChemSwitch, toggleFigureRun, toggleTitrationValve, waveTankLayout, youngLayout } from './figures'
 
 test('cân bằng phương trình phổ thông', () => {
   assert.equal(balanceEquation('H2 + O2 -> H2O'), '2H2 + O2 → 2H2O')
@@ -306,6 +306,61 @@ test('thời gian âm vẫn vẽ được thí nghiệm', () => {
       )
     }
   }
+})
+
+test('giao thoa sóng đổi một nguồn và khoảng cách hai đầu rung', () => {
+  const item = figureItem('interfere')
+  assert.ok(item)
+  assert.equal(figureSimulates('interfere', '', true), true)
+  const params = freshFigureParams(item)
+  const ctx = new Proxy({} as CanvasRenderingContext2D, {
+    get: () => () => undefined,
+    set: () => true,
+  })
+  drawFigureLocal(ctx, 'interfere', params, item.w, item.h, 1.4)
+  drawFigureLocal(ctx, 'interfere', setWaveSources(params, false), item.w, item.h, -2)
+  assert.equal(setWaveSources(params, false).tune[1], 0)
+  assert.equal(setWaveSources(params, true).tune[1], 1)
+  const far = moveFigureTune('interfere', params, item.w, item.h, 's2', { x: item.w * 0.62, y: item.h * 0.4 }, 0)
+  const near = moveFigureTune('interfere', params, item.w, item.h, 's2', { x: item.w * 0.4, y: item.h * 0.4 }, 0)
+  assert.ok(far.tune[0] > near.tune[0])
+  assert.equal(setWaveSources(far, false).tune[0], far.tune[0])
+  const scene = waveTankLayout(item.w, item.h, params.tune)
+  assert.equal(figureHandleAt('interfere', params, item.w, item.h, scene.s2, 16, 0), 's2')
+  assert.equal(figureHandleAt('interfere', params, item.w, item.h, { x: scene.panelX + scene.panelW * 0.5, y: scene.oneY }, 18, 0), 'one')
+  assert.equal(figureHandleAt('interfere', params, item.w, item.h, { x: scene.panelX + scene.panelW * 0.78, y: scene.twoY }, 18, 0), 'two')
+  assert.equal(scene.both, true)
+  assert.ok(scene.s2.x - scene.s1.x > scene.lambda)
+})
+
+test('thí nghiệm Young đổi d và L thì khoảng vân đổi', () => {
+  const item = figureItem('young')
+  assert.ok(item)
+  assert.equal(figureSimulates('young', '', true), true)
+  const params = freshFigureParams(item)
+  const ctx = new Proxy({} as CanvasRenderingContext2D, {
+    get: () => () => undefined,
+    set: () => true,
+  })
+  drawFigureLocal(ctx, 'young', params, item.w, item.h, 1.2)
+  drawFigureLocal(ctx, 'young', params, item.w, item.h, -3)
+  const wide = moveFigureTune('young', params, item.w, item.h, 'slit', { x: item.w * 0.3, y: item.h * 0.75 }, 0)
+  const narrow = moveFigureTune('young', params, item.w, item.h, 'slit', { x: item.w * 0.3, y: item.h * 0.5 }, 0)
+  assert.ok(wide.tune[0] > narrow.tune[0])
+  const far = moveFigureTune('young', params, item.w, item.h, 'screen', { x: item.w * 0.7, y: item.h * 0.4 }, 0)
+  const near = moveFigureTune('young', params, item.w, item.h, 'screen', { x: item.w * 0.35, y: item.h * 0.4 }, 0)
+  assert.ok(far.tune[1] > near.tune[1])
+  assert.equal(moveFigureTune('young', wide, item.w, item.h, 'screen', { x: item.w * 0.7, y: item.h * 0.4 }, 0).tune[0], wide.tune[0])
+  const scene = youngLayout(item.w, item.h, params.tune)
+  assert.equal(figureHandleAt('young', params, item.w, item.h, scene.slitHandle, 16, 0), 'slit')
+  assert.equal(figureHandleAt('young', params, item.w, item.h, { x: scene.screenX + 10, y: scene.midY }, 16, 0), 'screen')
+  const bigD = youngLayout(item.w, item.h, [0.28, 0.55])
+  const smallD = youngLayout(item.w, item.h, [0.08, 0.55])
+  assert.ok(smallD.fringe > bigD.fringe)
+  const longL = youngLayout(item.w, item.h, [0.18, 1])
+  const shortL = youngLayout(item.w, item.h, [0.18, 0])
+  assert.ok(longL.fringe > shortL.fringe)
+  assert.ok(Math.abs(scene.fringe - scene.lambda * scene.L / scene.d) < 0.01)
 })
 
 test('bấm chạy rồi đứng im giữ đúng thời điểm', () => {
