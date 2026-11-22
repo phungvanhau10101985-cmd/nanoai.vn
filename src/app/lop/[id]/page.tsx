@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
-import { getUserOrBypass } from '@/lib/auth'
+import { getLopViewer } from '@/lib/lop/lop-viewer'
 import { fetchClassNameByIdPg } from '@/lib/db/classes-pg'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
@@ -31,7 +31,7 @@ export default async function LopDetailPage({
   searchParams: Promise<{ subject?: string; teacher?: string }>
 }) {
   const { id } = await params
-  const user = await getUserOrBypass()
+  const user = await getLopViewer(id)
   if (!user) redirectToLogin()
 
   const payload = await loadClassDetailPayload(id, user.id)

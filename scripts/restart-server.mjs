@@ -73,7 +73,7 @@ function printLanUrl(port) {
   const ip = addresses.find((item) => item.startsWith('192.168.'))
   console.log(`[restart-server] This PC:    http://localhost:${port}`)
   if (ip) console.log(`[restart-server] Phone Wi-Fi: http://${ip}:${port}`)
-  else console.log('[restart-server] No 192.168 Wi-Fi address. Phone on the same network cannot open the dev server.')
+  else console.log('[restart-server] No 192.168 Wi-Fi address.')
   console.log('[restart-server] QR uses the Wi-Fi address. ngrok is not started.')
 }
 

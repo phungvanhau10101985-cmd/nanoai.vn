@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
-import { getUserOrBypass } from '@/lib/auth'
+import { getLopViewer } from '@/lib/lop/lop-viewer'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { fetchReviewSlidesJsonPg, lessonIsTaughtInClassPg } from '@/lib/db/class-taught-lessons-pg'
@@ -35,7 +35,7 @@ export default async function ClassReviewSlidePage({
   searchParams: Promise<{ subject?: string; teacher?: string; curriculum?: string; lesson?: string }>
 }) {
   const { id: classId } = await params
-  const user = await getUserOrBypass()
+  const user = await getLopViewer(classId)
   if (!user) redirectToLogin()
   const sp = await searchParams
   const focus = classSubjectScopeFromSearch(sp)

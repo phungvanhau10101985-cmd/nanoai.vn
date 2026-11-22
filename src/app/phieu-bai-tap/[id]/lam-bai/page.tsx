@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
-import { getUserOrBypass } from '@/lib/auth'
+import { getLopViewer } from '@/lib/lop/lop-viewer'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import LamBaiClient from './lam-bai-client'
@@ -47,9 +47,9 @@ export default async function LamBaiPage({
 }) {
   const { id: worksheetId } = await params
   const { classId } = await searchParams
-  const user = await getUserOrBypass()
-  if (!user) redirectToLogin()
   if (!classId) notFound()
+  const user = await getLopViewer(classId)
+  if (!user) redirectToLogin()
   if (!isPgConfigured()) notFound()
 
   const memberOk = await classMemberExistsPg(classId, user.id)

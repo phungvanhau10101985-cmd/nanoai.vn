@@ -1217,18 +1217,18 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   },
   'tao-bai-tap-ve-nha': {
     key: 'tao-bai-tap-ve-nha',
-    pageTitle: 'Tạo bài tập về nhà trực tuyến – không chấm điểm hiển thị cho học sinh',
+    pageTitle: 'Tạo bài tập về nhà trực tuyến – có chấm điểm, không tính tổng kết',
     pageDescription:
-      'Tạo bài tập về nhà giống bài thi trực tuyến (môn, lớp, câu hỏi, QR/link) nhưng không bắt tổng 100 điểm; học sinh không xem điểm sau khi nộp.',
+      'Tạo bài tập về nhà giống bài thi trực tuyến (môn, lớp, câu hỏi, QR/link). Có chấm điểm. Điểm không tính vào điểm tổng kết.',
     path: '/tao-bai-tap-ve-nha',
     keywords: ['bài tập về nhà', 'homework online', 'bài tập trực tuyến', 'QR bài tập', 'giao bài tập'],
     serviceName: 'Tạo bài tập về nhà trực tuyến',
     serviceDescription:
-      'Giáo viên tạo phiên bài tập về nhà từ ngân hàng câu hỏi giáo trình, chọn lớp và chia sẻ QR/link; học sinh không xem điểm sau khi nộp. Trong trang lớp, mục «Bài tập về nhà» liệt kê các phiên đã gắn lớp.',
+      'Giáo viên tạo phiên bài tập về nhà từ ngân hàng câu hỏi giáo trình, chọn lớp và chia sẻ QR/link. Có chấm điểm, điểm không tính vào điểm tổng kết. Trong trang lớp, mục «Bài tập về nhà» liệt kê các phiên đã gắn lớp.',
     h2: 'Tạo bài tập về nhà trực tuyến',
     overview:
-      'Luồng tạo giống bài thi: chọn thời lượng, môn, lớp, chọn câu trắc nghiệm và tự luận từ giáo trình. Khác biệt: không yêu cầu tổng điểm 100; sau khi nộp, giao diện học sinh không hiển thị thang điểm.',
-    benefits: ['Cùng QR/link và gán lớp như bài thi', 'Không ép phân bổ 100 điểm', 'Học sinh tập trung làm bài, không xem điểm ngay'],
+      'Luồng tạo giống bài thi: chọn thời lượng, môn, lớp, chọn câu trắc nghiệm và tự luận từ giáo trình, tổng 100 điểm. Sau khi nộp, học sinh thấy điểm. Điểm này không tính vào điểm tổng kết.',
+    benefits: ['Cùng QR/link và gán lớp như bài thi', 'Chấm điểm giống bài thi', 'Điểm không tính vào điểm tổng kết'],
     useCases: ['Ôn tập về nhà', 'Bài luyện theo bài học', 'Giao bài kèm phiếu'],
     tips: [
       'Tạo câu hỏi trên slide trước để có đủ câu trong ngân hàng',

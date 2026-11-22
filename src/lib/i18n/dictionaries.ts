@@ -3143,6 +3143,46 @@ export type Dictionary = {
     studentIdentityEdit: string
     studentIdentityShownAs: string
     studentIdentityAccountNote: string
+    studentIdentityCodeLabel: string
+    studentIdentityCodePlaceholder: string
+    rosterTemplate: string
+    rosterImport: string
+    rosterImporting: string
+    rosterImportHint: string
+    rosterImportDone: string
+    rosterImportFailed: string
+    rosterRowError: string
+    rosterCodeRequired: string
+    rosterCodeInvalid: string
+    rosterNameInvalid: string
+    rosterBirthInvalid: string
+    rosterCodeTaken: string
+    rosterSchemaMissing: string
+    rosterNotJoined: string
+    entryLinkTitle: string
+    entryLinkHint: string
+    entryLinkCopy: string
+    entryLinkCopied: string
+    entryLoginCodeOnCard: string
+    answerCardFoldHint: string
+    answerCardClassLabel: string
+    entryReissue: string
+    entryReissuing: string
+    entryReissueDone: string
+    entryReissueFailed: string
+    entryPageTitle: string
+    entryPageLead: string
+    entryContinue: string
+    entryOtherStudent: string
+    entryCodeLabel: string
+    entryPasswordLabel: string
+    entrySubmit: string
+    entrySubmitting: string
+    entryFailed: string
+    entryLocked: string
+    entryNotReady: string
+    entryEmailSubject: string
+    entryEmailText: string
     createClassFacingFieldsHint: string
     updateClassFacingSave: string
     updateClassFacingSaveAsDefaults: string
@@ -3159,6 +3199,16 @@ export type Dictionary = {
     joinQrHint: string
     joinQrCopyLink: string
     joinQrFailed: string
+    joinChoiceLink: string
+    joinChoiceTitle: string
+    joinChoiceLead: string
+    joinChoiceGmail: string
+    joinChoiceGmailHint: string
+    joinChoiceIdentity: string
+    joinChoiceIdentityHint: string
+    joinChoiceNotFound: string
+    joinChoiceRecommended: string
+    joinChoiceExamLead: string
     students: string
     worksheets: string
     noStudents: string
@@ -3251,9 +3301,9 @@ export type Dictionary = {
     studentClassExamsTitle: string
     /** GV: nhóm phiên thi có chấm điểm (tách khỏi bài tập về nhà) */
     classExamsSubsectionGraded: string
-    /** GV: nhóm bài tập về nhà (HS không xem điểm công khai) */
+    /** GV: nhóm bài tập (có điểm, không tính tổng kết) */
     classExamsSubsectionPracticeHomework: string
-    /** HS: đã nộp bài tập về nhà — không hiển thị điểm trên danh sách lớp */
+    /** HS: điểm bài tập không tính vào điểm tổng kết */
     studentClassHomeworkSubmittedCaption: string
     /** Nhãn nhỏ: phiên là bài tập về nhà */
     classSessionBadgeHomework: string
@@ -3375,7 +3425,7 @@ export type Dictionary = {
     examProctorBeforeStartHint: string
     /** Nhắc khi đang làm bài thi tính điểm */
     examProctorDuringHint: string
-    /** Bài tập về nhà (không hiển thị điểm cho HS) */
+    /** Bài tập: có điểm, không tính tổng kết */
     homeworkSubmittedTitle: string
     homeworkSubmittedSavedEarlier: string
     homeworkSubmittedBody: string
@@ -3685,6 +3735,11 @@ export type Dictionary = {
     /** Thẻ hub: mô tả đề thi */
     classHubCardExamsDesc: string
     classHubCardStudentsDesc: string
+    /** Trang lớp: mở danh sách để xem học lực mọi môn */
+    classRosterOverviewLead: string
+    classRosterNoSubjectScore: string
+    /** Trong một môn: danh sách để quản lý học sinh môn đó */
+    classSubjectRosterDesc: string
     /** Hub: mô tả đề thi / danh sách lớp khi người xem là học sinh */
     classHubCardExamsDescStudent: string
     classHubCardStudentsDescStudent: string
@@ -3722,6 +3777,89 @@ export type Dictionary = {
     classReviewOpen: string
     classReviewLesson: string
     classReviewNoSlides: string
+    answerCardsTitle: string
+    answerCardsLead: string
+    answerCardsHubDesc: string
+    answerCardsPrint: string
+    answerCardsDownloadPdf: string
+    answerCardsDownloadDocx: string
+    answerCardsOneQr: string
+    answerCardsExporting: string
+    answerCardsExportFailed: string
+    answerCardsPrintHint: string
+    answerCardsExportAllHint: string
+    answerCardsExportSelectedHint: string
+    answerCardsSelectStudent: string
+    answerCardsStudentOwnHint: string
+    answerCardsEmptyStudents: string
+    answerCardsEmptySources: string
+    answerCardsStart: string
+    answerScanNow: string
+    answerScanResult: string
+    answerScanPhone: string
+    answerScanPickClass: string
+    answerScanDialogTitle: string
+    answerScanDialogLead: string
+    answerCardsMcqCount: string
+    answerCardsSourcesTitle: string
+    answerCardsRoundsTitle: string
+    answerCardsRoundOpen: string
+    answerCardsNoRounds: string
+    answerCardsKindExam: string
+    answerCardsKindHomework: string
+    answerCardsKindWorksheet: string
+    answerCardsConnect: string
+    answerCardsConnectLead: string
+    answerCardsWaitingPhone: string
+    answerCardsPhoneReady: string
+    answerCardsConnectOnce: string
+    answerCardsGrade: string
+    answerCardsPhoneScan: string
+    answerCardsExamSummary: string
+    answerCardsExamSummaryLead: string
+    answerCardsClose: string
+    answerCardsResult: string
+    answerCardsHideResult: string
+    answerCardsNext: string
+    answerCardsPrev: string
+    answerCardsBackToList: string
+    answerCardsListHint: string
+    answerCardsSavedCount: string
+    answerCardsCorrect: string
+    answerCardsWrong: string
+    answerCardsUnanswered: string
+    answerCardsAll: string
+    answerCardsHideNames: string
+    answerCardsShowNames: string
+    answerCardsEnd: string
+    answerCardsEnded: string
+    answerCardsLive: string
+    answerCardsScanTitle: string
+    answerCardsScanning: string
+    answerCardsSavedToast: string
+    answerCardsHoldPortrait: string
+    answerCardsHoldLeft: string
+    answerCardsHoldRight: string
+    answerCardsHoldHint: string
+    answerCardsSwitchCamera: string
+    answerCardsCameraOff: string
+    answerCardsCameraOn: string
+    answerCardsCameraDenied: string
+    answerCardsCameraInsecure: string
+    answerCardsCorrectIs: string
+    answerCardsCorrectRatio: string
+    answerCardsNotFound: string
+    answerCardsNoMcq: string
+    answerCardsQuestionWord: string
+    answerCardsRosterCount: string
+    answerCardsBack: string
+    answerCardsRaiseHint: string
+    answerCardsReviewHint: string
+    answerCardsScore: string
+    answerCardsAllScanned: string
+    answerCardsSavedOf: string
+    answerCardsSchema: string
+    answerCardsLoadError: string
     studentMyScoresTitle: string
     studentMyScoresLead: string
     studentMyScoresEmpty: string
@@ -8093,12 +8231,54 @@ export const VI_DICTIONARY: Dictionary = {
     teacherIdentityAccountNote: 'Tên lấy từ tài khoản, không nhập riêng khi tạo lớp.',
     studentIdentityTitle: 'Cập nhật thông tin học sinh',
     studentIdentityLead:
-      'Cần có họ tên, ngày sinh và giới tính trước khi tham gia lớp. Sửa trên tài khoản thì mọi lớp cập nhật theo.',
-    studentIdentityRequired: 'Nhập họ tên, ngày sinh và chọn giới tính.',
-    studentIdentitySaved: 'Đã lưu. Tên trên các lớp đã đổi theo tài khoản.',
+      'Cần có họ tên, ngày sinh, giới tính và mã định danh trước khi tham gia lớp. Mã định danh khớp danh sách đã có, không tạo thêm học sinh.',
+    studentIdentityRequired: 'Nhập họ tên, ngày sinh, mã định danh và chọn giới tính.',
+    studentIdentitySaved: 'Đã lưu. Tài khoản đã khớp với danh sách lớp theo mã định danh.',
     studentIdentityEdit: 'Sửa thông tin học sinh',
-    studentIdentityShownAs: 'Tên trong lớp: {name} · Sinh {birth} · {gender}',
-    studentIdentityAccountNote: 'Họ tên, ngày sinh và giới tính lấy từ tài khoản, không nhập riêng khi tham gia lớp.',
+    studentIdentityShownAs: 'Tên trong lớp: {name} · Sinh {birth} · {gender} · Mã {code}',
+    studentIdentityAccountNote: 'Họ tên, ngày sinh, giới tính và mã định danh lấy từ tài khoản. Mã này là khóa đồng bộ với danh sách lớp.',
+    studentIdentityCodeLabel: 'Mã định danh',
+    studentIdentityCodePlaceholder: 'Ví dụ HS0000000001',
+    rosterTemplate: 'Tải file mẫu',
+    rosterImport: 'Nhập danh sách',
+    rosterImporting: 'Đang nhập…',
+    rosterImportHint: 'File có cột STT, họ tên, ngày sinh và mã định danh. Mã định danh là bắt buộc. Trùng mã thì ghi đè, không tạo học sinh mới.',
+    rosterImportDone: 'Đã ghi đè {updated} học sinh, thêm {inserted} học sinh.',
+    rosterImportFailed: 'Không nhập được danh sách.',
+    rosterRowError: 'Dòng {row}: {message}',
+    rosterCodeRequired: 'Thiếu cột hoặc ô mã định danh.',
+    rosterCodeInvalid: 'Mã định danh cần 4–32 chữ hoặc số.',
+    rosterNameInvalid: 'Thiếu họ tên.',
+    rosterBirthInvalid: 'Ngày sinh không đúng. Dùng dạng ngày/tháng/năm.',
+    rosterCodeTaken: 'Mã định danh này đã gắn với học sinh khác.',
+    rosterSchemaMissing: 'Danh sách lớp chưa được cập nhật trên máy chủ.',
+    rosterNotJoined: 'Chưa vào lớp',
+    entryLinkTitle: 'Link vào lớp không cần email',
+    entryLinkHint:
+      'Đưa link này cho học sinh. Link luôn có hai cách vào lớp: Google, hoặc mã định danh và mật khẩu trên phiếu QR.',
+    entryLinkCopy: 'Sao chép link',
+    entryLinkCopied: 'Đã chép link',
+    entryLoginCodeOnCard: 'Mật khẩu {code}',
+    answerCardFoldHint: 'Giáo viên hãy gấp ngược phần dưới này ra đằng sau mã quét.',
+    answerCardClassLabel: 'Lớp',
+    entryReissue: 'Cấp lại mật khẩu',
+    entryReissuing: 'Đang cấp…',
+    entryReissueDone: 'Mật khẩu mới của {name}: {code}. In lại phiếu QR. Mã QR đáp án giữ nguyên.',
+    entryReissueFailed: 'Không cấp lại được mật khẩu.',
+    entryPageTitle: 'Vào lớp {name}',
+    entryPageLead: 'Gõ mã định danh và mật khẩu in trên phiếu. Lần sau máy này nhớ em.',
+    entryContinue: 'Vào lớp — {name}',
+    entryOtherStudent: 'Em khác',
+    entryCodeLabel: 'Mã định danh',
+    entryPasswordLabel: 'Mật khẩu trên phiếu',
+    entrySubmit: 'Vào lớp',
+    entrySubmitting: 'Đang vào…',
+    entryFailed: 'Mã định danh hoặc mật khẩu chưa đúng.',
+    entryLocked: 'Nhập sai nhiều lần. Đợi một lát rồi thử lại.',
+    entryNotReady: 'Phiếu của lớp chưa được cấp. Nhờ cô giáo mở danh sách học sinh.',
+    entryEmailSubject: 'Link cho học sinh vào lớp {name}',
+    entryEmailText:
+      'Gửi các em link này:\n{url}\nLink có hai cách vào lớp: Google, hoặc mã định danh và mật khẩu trên phiếu QR.',
     createClassFacingFieldsHint:
       'Học sinh sẽ thấy dạng: Tên lớp — Môn — Giáo viên khi tham gia và trong danh sách lớp. Có thể sửa sau ở trang lớp hoặc khi tạo đề thi.',
     updateClassFacingSave: 'Lưu thông tin hiển thị',
@@ -8112,9 +8292,19 @@ export const VI_DICTIONARY: Dictionary = {
     copied: 'Đã sao chép',
     joinQrButton: 'Xem mã QR',
     joinQrTitle: 'Mã QR tham gia lớp',
-    joinQrHint: 'Học sinh quét mã, nhập họ tên và ngày sinh để vào lớp.',
+    joinQrHint: 'Học sinh quét mã, rồi chọn một link: tham gia bằng Gmail hoặc bằng mã định danh.',
     joinQrCopyLink: 'Sao chép liên kết',
     joinQrFailed: 'Không tạo được mã QR. Dùng liên kết bên dưới.',
+    joinChoiceLink: 'Link tham gia',
+    joinChoiceTitle: 'Chọn cách vào lớp',
+    joinChoiceLead: 'Chọn một link. Link nào được chọn thì mở đúng cách vào đó.',
+    joinChoiceGmail: 'Vào bằng Google',
+    joinChoiceGmailHint: 'Đăng nhập Google. Họ tên và mã định danh đã lưu sẽ được điền sẵn.',
+    joinChoiceIdentity: 'Vào bằng mã định danh',
+    joinChoiceIdentityHint: 'Gõ mã định danh in trên phiếu và mật khẩu trên phiếu QR của học sinh.',
+    joinChoiceNotFound: 'Không có lớp với mã này.',
+    joinChoiceRecommended: 'Đề xuất',
+    joinChoiceExamLead: 'Cần vào lớp trước khi làm bài. Cách đề xuất là Google. Cách còn lại dùng mã định danh và mật khẩu trên phiếu QR.',
     students: 'Học sinh',
     worksheets: 'Phiếu bài tập',
     noClasses: 'Chưa có lớp nào',
@@ -8195,16 +8385,16 @@ export const VI_DICTIONARY: Dictionary = {
     noExamsForClass: 'Lớp này chưa có đề thi nào.',
     studentClassExamsTitle: 'Bài thi trong lớp',
     classExamsSubsectionGraded: 'Bài thi (có chấm điểm)',
-    classExamsSubsectionPracticeHomework: 'Bài tập về nhà (không hiển thị điểm cho học sinh)',
+    classExamsSubsectionPracticeHomework: 'Bài tập (có chấm điểm, không tính tổng kết)',
     studentClassHomeworkSubmittedCaption:
-      'Đã nộp bài. Đây là bài tập về nhà — điểm không hiển thị tại đây.',
+      'Điểm này không tính vào điểm tổng kết. Chỉ để đánh giá mức hiểu biết.',
     classSessionBadgeHomework: 'Bài tập về nhà',
     lamBaiSeoTitleSuffixExam: 'Bài thi trực tuyến',
     lamBaiSeoTitleSuffixHomework: 'Bài tập về nhà',
     lamBaiSeoDescriptionExam:
       'Làm bài thi trực tuyến theo mã phiên: trắc nghiệm và tự luận, có chấm điểm.',
     lamBaiSeoDescriptionHomework:
-      'Làm bài tập về nhà trực tuyến theo mã phiên — ôn luyện, không hiển thị điểm như bài thi.',
+      'Làm bài tập về nhà trực tuyến theo mã phiên. Có chấm điểm. Điểm không tính vào điểm tổng kết.',
     lamBaiSeoKeywordsExam: 'bài thi, làm bài, trắc nghiệm, tự luận, NanoAI',
     lamBaiSeoKeywordsHomework: 'bài tập về nhà, ôn tập, NanoAI',
     lamBaiSeoFallbackTitle: 'Làm bài trực tuyến',
@@ -8311,7 +8501,7 @@ export const VI_DICTIONARY: Dictionary = {
     homeworkSubmittedTitle: 'Đã nộp bài tập về nhà',
     homeworkSubmittedSavedEarlier: 'Bạn đã nộp bài tập này. Thông tin đã lưu bên dưới.',
     homeworkSubmittedBody:
-      'Đây là bài luyện tập, không hiển thị điểm hay thang điểm cho học sinh. Giáo viên vẫn xem bài và nhận xét trong lớp.',
+      'Điểm này không tính vào điểm tổng kết. Chỉ để đánh giá mức hiểu biết.',
     homeworkMcCorrectOnlyLine: 'Trắc nghiệm: {correct}/{total} câu đúng',
     homeworkShareLine: 'Đã nộp: {title}',
     examScoreOutOf10: 'Điểm {grade}/10',
@@ -8572,7 +8762,10 @@ export const VI_DICTIONARY: Dictionary = {
     gradebookKindExam: 'Đề thi',
     classPageBackToClass: 'Về trang lớp',
     classHubCardExamsDesc: 'Danh sách đề thi — mỗi đề một trang: QR, chấm tự luận, AI hàng loạt.',
-    classHubCardStudentsDesc: 'Thành viên lớp, sửa tên HS, gỡ khỏi lớp.',
+    classHubCardStudentsDesc: 'Thành viên lớp, sửa tên, in mã QR từng học sinh.',
+    classRosterOverviewLead: 'Mở để xem học lực từng học sinh trên mọi môn.',
+    classRosterNoSubjectScore: 'Chưa có điểm',
+    classSubjectRosterDesc: 'Quản lý học sinh của môn này.',
     classHubCardExamsDescStudent:
       'Các đề thi của lớp: làm bài và xem điểm, nhận xét sau khi giáo viên chấm.',
     classHubCardStudentsDescStudent: 'Xem danh sách bạn cùng lớp và giáo viên.',
@@ -8602,8 +8795,91 @@ export const VI_DICTIONARY: Dictionary = {
     classReviewOpen: 'Ôn',
     classReviewLesson: 'Tiết {n}',
     classReviewNoSlides: 'Tiết này chưa có slide để ôn.',
+    answerCardsTitle: 'Thẻ trả lời',
+    answerCardsLead: 'Học sinh giơ thẻ giấy. Thầy cô lia điện thoại một vòng để thu đáp án cả lớp. Học sinh không cần điện thoại.',
+    answerCardsHubDesc: 'In thẻ A B C D, quét kết quả khi cả lớp làm trắc nghiệm.',
+    answerCardsPrint: 'In thẻ',
+    answerCardsDownloadPdf: 'PDF cả lớp',
+    answerCardsDownloadDocx: 'Word cả lớp',
+    answerCardsOneQr: 'Mã QR',
+    answerCardsExporting: 'Đang xuất…',
+    answerCardsExportFailed: 'Không xuất được file.',
+    answerCardsPrintHint: 'Mỗi dòng một học sinh. Học sinh bấm Mã QR để tự in. Tick những ai cần in, rồi xuất Word hoặc PDF.',
+    answerCardsExportAllHint: 'Không chọn ai thì xuất cả lớp. Một file gửi cửa hàng in.',
+    answerCardsExportSelectedHint: 'Đã chọn {n}. Word và PDF chỉ xuất những người này.',
+    answerCardsSelectStudent: 'Chọn {name}',
+    answerCardsStudentOwnHint: 'Bấm Mã QR để tải thẻ của bạn, rồi mang đi in.',
+    answerCardsEmptyStudents: 'Lớp chưa có học sinh. Mời vào lớp trước khi in thẻ.',
+    answerCardsEmptySources: 'Chưa có bài trắc nghiệm A–D trong môn này. Tạo đề hoặc phiếu có câu chọn A B C D.',
+    answerCardsStart: 'Chiếu và quét',
+    answerScanNow: 'Quét',
+    answerScanResult: 'Quét kết quả',
+    answerScanPhone: 'Mở bằng điện thoại',
+    answerScanPickClass: 'Lớp',
+    answerScanDialogTitle: 'Quét bằng điện thoại',
+    answerScanDialogLead: 'Quét mã này. Điện thoại mở camera và nhận đáp án trên thẻ. Màn học sinh đang chiếu hiện câu và kết quả.',
+    answerCardsMcqCount: '{n} câu A–D',
+    answerCardsSourcesTitle: 'Bài để quét',
+    answerCardsRoundsTitle: 'Kết quả đã thu',
+    answerCardsRoundOpen: 'Mở lại',
+    answerCardsNoRounds: 'Chưa thu lần nào.',
+    answerCardsKindExam: 'Đề thi',
+    answerCardsKindHomework: 'Bài tập',
+    answerCardsKindWorksheet: 'Phiếu',
+    answerCardsConnect: 'Nối',
+    answerCardsConnectLead: 'Mở camera điện thoại và quét mã này. Điện thoại vào buổi đang chiếu. Chỉ cần nối một lần.',
+    answerCardsWaitingPhone: 'Đang chờ điện thoại...',
+    answerCardsPhoneReady: 'Điện thoại đã nối',
+    answerCardsConnectOnce: 'Chọn một lần cho cả buổi',
+    answerCardsGrade: 'Quét chấm bài',
+    answerCardsPhoneScan: 'Quét điện thoại',
+    answerCardsExamSummary: 'Bảng điểm',
+    answerCardsExamSummaryLead: 'Điểm từng học sinh sau khi quét hết đề.',
+    answerCardsClose: 'Xong',
+    answerCardsResult: 'Kết quả',
+    answerCardsHideResult: 'Ẩn kết quả',
+    answerCardsNext: 'Câu sau',
+    answerCardsPrev: 'Câu trước',
+    answerCardsBackToList: 'Danh sách đề',
+    answerCardsListHint: 'Đề hiện đủ mọi câu. Bấm Quét ở một câu thì điện thoại chỉ thu câu đó và đối chiếu đáp án câu đó.',
+    answerCardsSavedCount: '{saved}/{total}',
+    answerCardsCorrect: 'Đúng',
+    answerCardsWrong: 'Sai',
+    answerCardsUnanswered: 'Chưa trả lời',
+    answerCardsAll: 'Tất cả',
+    answerCardsHideNames: 'Ẩn tên',
+    answerCardsShowNames: 'Hiện tên',
+    answerCardsEnd: 'Kết thúc',
+    answerCardsEnded: 'Đã kết thúc',
+    answerCardsLive: 'Đang thu',
+    answerCardsScanTitle: 'Câu {n}/{total}',
+    answerCardsScanning: 'Đang thu',
+    answerCardsSavedToast: 'Đã lưu {n} thẻ vào hệ thống',
+    answerCardsHoldPortrait: 'Bình thường',
+    answerCardsHoldLeft: 'Quay ngang cam bên trái',
+    answerCardsHoldRight: 'Quay ngang cam bên phải',
+    answerCardsHoldHint: 'Cầm dọc khi chữ trên thẻ đã xoay đúng. Nếu quay ngang, chọn cam bên trái hoặc cam bên phải cho khớp chữ đang ở trên thẻ.',
+    answerCardsSwitchCamera: 'Đổi camera',
+    answerCardsCameraOff: 'Tắt camera',
+    answerCardsCameraOn: 'Bật camera',
+    answerCardsCameraDenied: 'Chưa mở được camera. Cho phép camera rồi thử lại.',
+    answerCardsCameraInsecure: 'Điện thoại đang mở trang bằng http. Trình duyệt không hỏi quyền camera trên địa chỉ này. Camera chỉ bật khi trang là https.',
+    answerCardsCorrectIs: 'Đáp án đúng {letter}',
+    answerCardsCorrectRatio: '{correct}/{answered} câu trả lời đúng',
+    answerCardsNotFound: 'Không tìm thấy buổi quét.',
+    answerCardsNoMcq: 'Bài này không có câu trắc nghiệm A–D để quét.',
+    answerCardsQuestionWord: 'Câu {n}',
+    answerCardsRosterCount: '{n} học sinh',
+    answerCardsBack: 'Về thẻ trả lời',
+    answerCardsRaiseHint: 'Giơ thẻ, xoay đáp án lên trên',
+    answerCardsReviewHint: 'Xanh là đúng, đỏ là sai.',
+    answerCardsScore: 'Điểm {points}/{total}',
+    answerCardsAllScanned: 'Đã quét đủ cả lớp.',
+    answerCardsSavedOf: 'Đã lưu {saved}/{total} em',
+    answerCardsSchema: 'Chưa có bảng thẻ trả lời. Chạy migration rồi mở lại trang.',
+    answerCardsLoadError: 'Không tải được thẻ trả lời.',
     studentMyScoresTitle: 'Điểm của tôi',
-    studentMyScoresLead: 'Bài thi và bài tập cô đã giao trong môn này. Bài thi hiện điểm của em.',
+    studentMyScoresLead: 'Bài thi và bài tập trong môn này đều có điểm. Điểm bài tập không tính vào điểm tổng kết.',
     studentMyScoresEmpty: 'Chưa có bài nào được giao trong môn này.',
     studentMyScoresExam: 'Bài thi',
     studentMyScoresHomework: 'Bài tập',
@@ -9739,7 +10015,7 @@ export const VI_DICTIONARY: Dictionary = {
       'Hiện tổng thời gian là {total} phút. Chỉnh phút từng câu trắc nghiệm và từng câu tự luận sao cho cộng lại đúng {limit} phút.',
     homeworkPageTitle: 'Tạo bài tập về nhà',
     homeworkPageSubtitle:
-      'Cùng bước như bài thi trực tuyến (môn, lớp, câu hỏi, QR/link) nhưng không bắt tổng 100 điểm; học sinh không thấy điểm sau khi nộp.',
+      'Cùng cách làm với bài thi. Có chấm điểm. Điểm bài tập không tính vào điểm tổng kết.',
     defaultHomeworkTitle: 'Bài tập về nhà',
     homeworkCreatedBadge: 'Đã tạo bài tập về nhà',
     createHomework: 'Tạo bài tập về nhà',
@@ -9750,13 +10026,13 @@ export const VI_DICTIONARY: Dictionary = {
     homeworkCreateSuccess: 'Đã tạo bài tập về nhà',
     homeworkCreateSuccessDesc: 'Chia sẻ link hoặc mã QR cho học sinh.',
     homeworkEssayNo100Note:
-      'Chọn câu tự luận nếu cần. Học sinh không xem điểm sau khi nộp; không cần chỉnh phút hay điểm từng câu.',
+      'Chọn câu tự luận nếu cần. Chấm điểm giống bài thi. Điểm không tính vào điểm tổng kết.',
     homeworkCardInfo: 'Thông tin bài tập về nhà',
     homeworkFormCardDescription:
-      'Chọn môn, lớp và câu hỏi từ giáo trình. Không cần cài đặt điểm hay thời gian thi — hệ thống lưu bài làm, học sinh không xem điểm.',
+      'Chọn môn, lớp và câu hỏi từ giáo trình. Chấm điểm và thời gian giống bài thi. Điểm không tính vào điểm tổng kết.',
     homeworkTitlePlaceholder: 'Bài tập Toán — ôn tập',
     homeworkQuizPartFooterHint:
-      'Nhập số câu từng mức độ, rồi chọn đúng số câu trong danh sách bên dưới. Bài tập về nhà không cần chỉnh phút hay điểm ở đây.',
+      'Nhập số câu từng mức độ, rồi chọn đúng số câu trong danh sách bên dưới. Chỉnh phút và điểm giống bài thi.',
     noHomeworkSessionsYet: 'Chưa có bài tập về nhà nào.',
     homeworkCreatedResultLine: '{count} câu hỏi',
     homeworkSummaryMc: 'Trắc nghiệm: {count} câu',

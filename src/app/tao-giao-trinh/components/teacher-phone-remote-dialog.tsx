@@ -18,6 +18,9 @@ export function TeacherPhoneRemoteDialog({
   busy,
   onClose,
   tr,
+  title,
+  lead,
+  layerClassName = 'z-[80]',
 }: {
   open: boolean
   loginUrl: string | null
@@ -25,6 +28,9 @@ export function TeacherPhoneRemoteDialog({
   busy: boolean
   onClose: () => void
   tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string
+  title?: string
+  lead?: string
+  layerClassName?: string
 }) {
   const [qr, setQr] = useState<string | null>(null)
   const payload = loginUrl ? phoneRemoteQrPayload(loginUrl) : null
@@ -59,18 +65,18 @@ export function TeacherPhoneRemoteDialog({
   const localHost = !!loginUrl && /\/\/(localhost|127\.0\.0\.1)([:/]|$)/i.test(loginUrl)
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true">
+    <div className={`fixed inset-0 ${layerClassName} flex items-center justify-center bg-black/70 p-4`} role="dialog" aria-modal="true">
       <div className="w-full max-w-md rounded-2xl border border-slate-600 bg-slate-900 p-4 text-slate-100 shadow-2xl">
         <div className="mb-3 flex items-start justify-between gap-3">
           <h2 className="text-base font-semibold text-sky-100">
-            {tr('Điều khiển ĐT', 'Phone remote', '手机操控', 'スマホ操作', '폰 조작')}
+            {title || tr('Điều khiển ĐT', 'Phone remote', '手机操控', 'スマホ操作', '폰 조작')}
           </h2>
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-300 hover:bg-slate-700" aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}>
             <X className="h-4 w-4" />
           </button>
         </div>
         <p className="text-sm leading-relaxed text-slate-300">
-          {tr(
+          {lead || tr(
             'Quét mã bằng điện thoại. Máy đăng nhập đúng tài khoản giáo viên và mở bảng điều khiển. Bấm slide hoặc chạm trên điện thoại thì màn học sinh trên máy này hiện theo.',
             'Scan with the phone. It signs in as this teacher and opens the remote. Slide changes and taps on the phone show on the student screen here.',
             '用手机扫码。手机会以该教师账号登录并打开操控页。手机上的翻页和点击会显示在这台电脑的学生画面上。',

@@ -16,6 +16,7 @@ import { BookOpen, Copy, ExternalLink, Link2, RefreshCw, Trash2 } from 'lucide-r
 import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 import { createFromClassHref } from '@/lib/lop/create-from-class-href'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 
 export type ClassHomeworkSession = {
   id: string
@@ -74,13 +75,8 @@ export default function GanPhieuClient({
   const buildReviewUrl = (code: string) =>
     `/giao-trinh/giao-vien/de-thi/${encodeURIComponent(code)}?t=${Date.now()}`
 
-  const studentUrl = (code: string) => {
-    if (typeof window === 'undefined') return `/lam-bai/${encodeURIComponent(code)}`
-    return `${window.location.origin}/lam-bai/${encodeURIComponent(code)}`
-  }
-
   const copyStudentLink = async (code: string) => {
-    const url = studentUrl(code)
+    const url = await phoneOpenableUrl(`/lam-bai/${encodeURIComponent(code)}`)
     try {
       await navigator.clipboard.writeText(url)
       toast({ description: t.copied })

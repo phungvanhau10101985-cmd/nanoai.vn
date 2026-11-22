@@ -1,35 +1,41 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { StudentBirthDateSelects } from '@/components/student-birth-date-selects'
 import { buildDob, splitDob } from '@/lib/student-dob'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { isStudentCode, normalizeStudentCode } from '@/lib/lop/class-roster'
 import type { TeacherGender } from '@/lib/lop/teacher-public-name'
 
 export type StudentIdentityValue = {
   givenName: string
   gender: TeacherGender | null
   birthDate: string
+  studentCode: string
 }
 
 export function StudentIdentityForm({
   initialName = '',
   initialGender = null,
   initialBirthDate = '',
+  initialStudentCode = '',
   labels,
   onSaved,
 }: {
   initialName?: string
   initialGender?: TeacherGender | null
   initialBirthDate?: string
+  initialStudentCode?: string
   labels: {
     title: string
     lead: string
     nameLabel: string
     namePlaceholder: string
+    codeLabel: string
+    codePlaceholder: string
     birthLabel: string
     day: string
     month: string
@@ -44,12 +50,23 @@ export function StudentIdentityForm({
 }) {
   const initialDob = splitDob(initialBirthDate)
   const [name, setName] = useState(initialName)
+  const [studentCode, setStudentCode] = useState(initialStudentCode)
   const [gender, setGender] = useState<TeacherGender | null>(initialGender)
   const [dobDay, setDobDay] = useState(initialDob.day)
   const [dobMonth, setDobMonth] = useState(initialDob.month)
   const [dobYear, setDobYear] = useState(initialDob.year)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const dob = splitDob(initialBirthDate)
+    setName(initialName)
+    setStudentCode(initialStudentCode)
+    setGender(initialGender)
+    setDobDay(dob.day)
+    setDobMonth(dob.month)
+    setDobYear(dob.year)
+  }, [initialName, initialGender, initialBirthDate, initialStudentCode])
 
   return (
     <form
@@ -58,7 +75,8 @@ export function StudentIdentityForm({
         e.preventDefault()
         if (saving) return
         const birthDate = buildDob(dobDay, dobMonth, dobYear)
-        if (name.trim().length < 2 || !gender || !birthDate) {
+        const code = normalizeStudentCode(studentCode)
+        if (name.trim().length < 2 || !gender || !birthDate || !isStudentCode(code)) {
           setError(labels.required)
           return
         }
@@ -68,7 +86,7 @@ export function StudentIdentityForm({
           const res = await fetch('/api/profile/student-identity', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fullName: name, gender, birthDate }),
+            body: JSON.stringify({ fullName: name, gender, birthDate, studentCode: code }),
           })
           const data = await res.json().catch(() => ({}))
           if (!res.ok) {
@@ -79,6 +97,7 @@ export function StudentIdentityForm({
             givenName: String(data?.givenName ?? name.trim()),
             gender,
             birthDate: String(data?.birthDate ?? birthDate),
+            studentCode: String(data?.studentCode ?? code),
           })
         } finally {
           setSaving(false)
@@ -100,6 +119,21 @@ export function StudentIdentityForm({
           placeholder={labels.namePlaceholder}
           maxLength={120}
           autoComplete="name"
+        />
+      </div>
+      <div className="space-y-1">
+        <label htmlFor="student-identity-code" className="text-sm font-medium text-foreground">
+          {labels.codeLabel} <span className="text-destructive">*</span>
+        </label>
+        <Input
+          id="student-identity-code"
+          value={studentCode}
+          onChange={(e) => setStudentCode(normalizeStudentCode(e.target.value))}
+          placeholder={labels.codePlaceholder}
+          maxLength={32}
+          autoComplete="off"
+          spellCheck={false}
+          className="font-mono tracking-wide"
         />
       </div>
       <div className="space-y-1">
@@ -149,6 +183,8 @@ export function studentIdentityLabels(t: Dictionary['classes']) {
     lead: t.studentIdentityLead,
     nameLabel: t.joinStudentDisplayName,
     namePlaceholder: t.teacherIdentityNamePlaceholder,
+    codeLabel: t.studentIdentityCodeLabel,
+    codePlaceholder: t.studentIdentityCodePlaceholder,
     birthLabel: t.joinStudentBirthDate,
     day: t.joinDobDayPlaceholder,
     month: t.joinDobMonthPlaceholder,
@@ -166,11 +202,13 @@ export function StudentIdentityGate({
   initialName,
   initialGender,
   initialBirthDate,
+  initialStudentCode = '',
 }: {
   t: Dictionary['classes']
   initialName: string
   initialGender: TeacherGender | null
   initialBirthDate: string
+  initialStudentCode?: string
 }) {
   const router = useRouter()
   return (
@@ -178,6 +216,7 @@ export function StudentIdentityGate({
       initialName={initialName}
       initialGender={initialGender}
       initialBirthDate={initialBirthDate}
+      initialStudentCode={initialStudentCode}
       labels={studentIdentityLabels(t)}
       onSaved={() => router.refresh()}
     />

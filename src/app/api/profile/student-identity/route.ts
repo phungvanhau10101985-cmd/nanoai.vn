@@ -25,9 +25,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Server database is not configured.' }, { status: 503 })
   }
   const { t } = getServerDictionary()
-  let body: { fullName?: unknown; gender?: unknown; birthDate?: unknown }
+  let body: { fullName?: unknown; gender?: unknown; birthDate?: unknown; studentCode?: unknown }
   try {
-    body = (await request.json()) as { fullName?: unknown; gender?: unknown; birthDate?: unknown }
+    body = (await request.json()) as { fullName?: unknown; gender?: unknown; birthDate?: unknown; studentCode?: unknown }
   } catch {
     return NextResponse.json({ error: 'JSON không hợp lệ.' }, { status: 400 })
   }
@@ -40,12 +40,17 @@ export async function PATCH(request: Request) {
     fullName: String(body.fullName ?? ''),
     gender,
     birthDate: String(body.birthDate ?? ''),
+    studentCode: String(body.studentCode ?? ''),
   })
   if (!saved.ok) {
     const message =
-      saved.error === 'name_required' || saved.error === 'birth_required'
+      saved.error === 'name_required' || saved.error === 'birth_required' || saved.error === 'code_required'
         ? t.classes.studentIdentityRequired
-        : saved.error
+        : saved.error === 'code_taken'
+          ? t.classes.rosterCodeTaken
+          : saved.error === 'schema'
+            ? t.classes.rosterSchemaMissing
+            : saved.error
     return NextResponse.json({ error: message }, { status: 400 })
   }
   revalidatePath('/lop')
@@ -54,6 +59,7 @@ export async function PATCH(request: Request) {
     givenName: saved.givenName,
     birthDate: saved.birthDate,
     gender: saved.gender,
+    studentCode: saved.studentCode,
     complete: true,
   })
 }

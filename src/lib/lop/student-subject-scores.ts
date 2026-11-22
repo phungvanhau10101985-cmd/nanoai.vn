@@ -14,7 +14,7 @@ export type StudentSubjectScoreRow = {
   title: string
   homework: boolean
   submitted: boolean
-  /** Điểm bài thi quy về thang 10. Bài tập không hiện số điểm. */
+  /** Điểm thang 10. Bài tập vẫn có điểm, nhưng không đưa vào điểm tổng kết. */
   score10: number | null
   createdAt: string | null
   submittedAt: string | null
@@ -55,7 +55,7 @@ export async function listStudentSubjectScoresPg(opts: {
       const homework = Boolean(row.is_practice_homework)
       const submitted = row.submitted_at != null
       let score10: number | null = null
-      if (!homework && submitted) {
+      if (submitted) {
         score10 = examPointsOn10(
           Number(row.score ?? 0),
           Number(row.max_score ?? 0),

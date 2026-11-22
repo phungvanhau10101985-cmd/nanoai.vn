@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, type ReactNode } from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import {
   Dialog,
@@ -54,6 +54,10 @@ interface QuizPopupDialogProps {
   onQuizSessionCreated?: (slideIndex: number, blockIndex: number, sessionCode: string, quizDurationSeconds?: number) => void
   /** Callback khi giáo viên đổi cài đặt quiz trước khi bắt đầu */
   onQuizSettingsChange?: (slideIndex: number, blockIndex: number, settings: { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }) => void
+  /** Nút quét thẻ, hiện khi giáo viên mở câu trắc nghiệm. */
+  footer?: ReactNode
+  /** Nút quét kết quả trên từng câu của bảng học sinh. Chỉ số là thứ tự câu A–D trên slide. */
+  renderScan?: (questionIndex: number) => ReactNode
 }
 
 export function QuizPopupDialog({
@@ -72,6 +76,8 @@ export function QuizPopupDialog({
   quizSessionAutoReveal = {},
   onQuizSessionCreated,
   onQuizSettingsChange,
+  footer,
+  renderScan,
 }: QuizPopupDialogProps) {
   const quizzes = extractQuizFromSlide(slide)
   const hasQuiz = quizzes.length > 0
@@ -124,6 +130,9 @@ export function QuizPopupDialog({
             {hasQuiz ? (
               quizzes.map((q, i) => {
                 const parsed = parseQuizData(q.urlOrId)
+                const scanIndex = parsed
+                  ? quizzes.slice(0, i).filter((item) => parseQuizData(item.urlOrId)).length
+                  : -1
                 if (!parsed) {
                   return (
                     <div key={`${i}-${q.urlOrId.slice(0, 30)}`} className="border border-amber-200 rounded-lg p-4 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800">
@@ -165,6 +174,7 @@ export function QuizPopupDialog({
                       }}
                       tr={tr}
                     />
+                    {renderScan && scanIndex >= 0 ? renderScan(scanIndex) : null}
                   </div>
                 )
               })
@@ -194,6 +204,7 @@ export function QuizPopupDialog({
           </div>
           </QuizErrorBoundary>
           </div>
+          {footer ? <div className="shrink-0 border-t bg-background p-3">{footer}</div> : null}
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>

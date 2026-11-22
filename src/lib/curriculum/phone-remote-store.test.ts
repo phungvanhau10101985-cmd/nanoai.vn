@@ -17,6 +17,7 @@ import {
   pullPhoneRemoteCommands,
   pushPhoneRemoteCommands,
   readPhoneRemoteForUser,
+  phoneTeacherReturnPath,
   redeemPhoneRemoteLogin,
   splitPhoneLoginKey,
   updatePhoneRemoteFromDesktop,
@@ -166,6 +167,15 @@ describe('phone remote login key', () => {
     if ('error' in created) return
     const redeemed = await redeemPhoneRemoteLogin(`${created.id}.${created.secret}`)
     assert.equal(redeemed?.userId, userId)
+    assert.equal(phoneTeacherReturnPath(redeemed?.snapshot, created.id), `/giao-trinh/giao-vien?phone=${created.id}`)
+    assert.equal(
+      phoneTeacherReturnPath({ phoneSurface: 'worksheet', worksheetId: 'ws_1' }, created.id),
+      `/giao-trinh/giao-vien?phone=${created.id}&worksheetId=ws_1`,
+    )
+    assert.equal(
+      phoneTeacherReturnPath({ phoneSurface: 'exam', examCode: 'de01' }, created.id),
+      `/giao-trinh/giao-vien?phone=${created.id}&examCode=DE01`,
+    )
     assert.equal(await redeemPhoneRemoteLogin(`${created.id}.wrong-secret-value-here`), null)
     const pushed = await pushPhoneRemoteCommands({
       id: created.id,

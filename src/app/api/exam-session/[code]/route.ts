@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserForAction } from '@/lib/auth'
+import { actingStudentUserId, resolveExamActor } from '@/lib/lop/lop-viewer'
 import {
   fetchClassAndSchoolDisplayNamesPg,
   getClassMemberExamIdentityFromPg,
@@ -45,14 +45,13 @@ export async function GET(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const auth = await getUserForAction('Vui lòng đăng nhập để làm bài thi.')
-    if ('error' in auth) {
+    const user = await resolveExamActor()
+    if (!user) {
       return NextResponse.json(
-        { error: auth.error },
+        { error: 'Vui lòng đăng nhập để làm bài thi.' },
         { status: 401, headers: NO_STORE_HEADERS }
       )
     }
-    const user = auth.user
 
     const { code } = await params
     if (!code || code.length < 4) {
@@ -84,6 +83,7 @@ export async function GET(
     }
 
     const session = sessionRes
+    user.id = await actingStudentUserId(user.id, session.class_id ? String(session.class_id) : null)
     const practiceHomework = session.is_practice_homework
     const reqLocale = resolveWebLocaleFromAcceptLanguage(_req.headers.get('accept-language'))
     const sessionTitleFallback = resolveDefaultExamSessionTitle(reqLocale, practiceHomework)
@@ -230,7 +230,7 @@ export async function GET(
           )
         }
 
-        if (!practiceHomework && isExamSignalLost(attemptRow.last_seen_at, serverNowMs)) {
+        if (isExamSignalLost(attemptRow.last_seen_at, serverNowMs)) {
           const lost = await tryFinalizeSignalLostExamAttemptPg({
             sessionId: String(session.id),
             sessionTitle: resolvedSessionTitle,
@@ -269,7 +269,7 @@ export async function GET(
           )
         }
 
-        if (!practiceHomework) {
+        {
           const touched = await touchExamAttemptLastSeenPg(String(attemptRow.id), user.id)
           if (touched === 'stale' || touched === 'closed') {
             const lost =

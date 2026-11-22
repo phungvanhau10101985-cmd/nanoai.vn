@@ -7,6 +7,7 @@ import { worksheetDisplayMarkdownFromDb } from '@/app/tao-giao-trinh/lib/merge-w
 import { getServerDictionary } from '@/lib/i18n/server'
 import { isPgConfigured } from '@/lib/db/pool'
 import { classMemberExistsPg, classWorksheetLinkExistsPg } from '@/lib/db/classes-pg'
+import { actingStudentUserId } from '@/lib/lop/lop-viewer'
 import {
   fetchWorksheetSheetMinimalByIdFromPg,
   upsertWorksheetSubmissionPg,
@@ -27,7 +28,8 @@ export async function submitWorksheet(
     return { error: 'Chưa cấu hình cơ sở dữ liệu.' }
   }
 
-  const memberOk = await classMemberExistsPg(classId, user.id)
+  const actorId = await actingStudentUserId(user.id, classId)
+  const memberOk = await classMemberExistsPg(classId, actorId)
   if (memberOk !== true) {
     return { error: 'Bạn chưa tham gia lớp này.' }
   }
@@ -54,7 +56,7 @@ export async function submitWorksheet(
   const ok = await upsertWorksheetSubmissionPg({
     worksheetId,
     classId,
-    userId: user.id,
+    userId: actorId,
     answersJson,
     quizScore,
     quizTotal,

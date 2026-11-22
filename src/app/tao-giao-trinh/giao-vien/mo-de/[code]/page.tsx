@@ -3,15 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
+import { scannerOpensOnThisDevice } from '@/components/lop/answer-scan-launch'
 import { playExamEndBell, unlockExamBellAudio } from '@/lib/exam-end-bell'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import type { WebLocale } from '@/lib/i18n/config'
+import { raisedCardQuestionIndex } from '@/lib/lop/answer-card'
 
 type PaperQuestion = {
   index: number
   questionText: string
   options: string[]
+  canScan?: boolean
 }
 
 function formatClock(ms: number): string {
@@ -30,6 +34,11 @@ export default function TeacherExamPaperPage() {
   const code = String(params?.code ?? '').trim().toUpperCase()
   const [locale, setLocale] = useState<WebLocale>('vi')
   const tx = getDictionary(locale).createExamPage
+  const classes = getDictionary(locale).classes
+  const [busyPosition, setBusyPosition] = useState<number | null>(null)
+  const [scanPosition, setScanPosition] = useState<number | null>(null)
+  const [scanQr, setScanQr] = useState('')
+  const [gradeError, setGradeError] = useState('')
   const [loading, setLoading] = useState(true)
   const [errorKind, setErrorKind] = useState<'forbidden' | 'failed' | null>(null)
   const [title, setTitle] = useState('')
@@ -134,9 +143,81 @@ export default function TeacherExamPaperPage() {
   const remaining = deadlineAt == null ? durationMinutes * 60_000 : Math.max(0, deadlineAt - now)
   const started = deadlineAt != null
 
+  const scanQuestion = useCallback(async (position: number) => {
+    if (!code || busyPosition != null) return
+    const scanIndex = raisedCardQuestionIndex(questions.map((item) => item.canScan === true), position)
+    if (scanIndex == null) return
+    setBusyPosition(position)
+    setGradeError('')
+    try {
+      const ctxRes = await fetch(`/api/lop/answer-cards/context?examCode=${encodeURIComponent(code)}`, { cache: 'no-store' })
+      const ctx = await ctxRes.json().catch(() => null) as { classId?: string; sourceId?: string } | null
+      if (!ctxRes.ok || !ctx?.classId || !ctx.sourceId) {
+        setGradeError(classes.answerCardsLoadError)
+        return
+      }
+      const res = await fetch(`/api/lop/${ctx.classId}/answer-cards/rounds`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sourceKind: 'exam', sourceId: ctx.sourceId }),
+      })
+      const data = await res.json().catch(() => null) as {
+        id?: string
+        phonePath?: string
+        error?: string
+        questions?: unknown[]
+      } | null
+      const questionCount = Array.isArray(data?.questions) ? data.questions.length : 0
+      if (!res.ok || !data?.id || typeof data.phonePath !== 'string') {
+        setGradeError(
+          data?.error === 'no_mcq'
+            ? classes.answerCardsNoMcq
+            : data?.error === 'schema'
+              ? classes.answerCardsSchema
+              : classes.answerCardsLoadError
+        )
+        return
+      }
+      if (scanIndex >= questionCount) {
+        setGradeError(classes.answerCardsNoMcq)
+        return
+      }
+      const focusRes = await fetch(`/api/lop/answer-cards/rounds/${data.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'focus', questionIndex: scanIndex }),
+      })
+      if (!focusRes.ok) {
+        setGradeError(classes.answerCardsLoadError)
+        return
+      }
+      if (scannerOpensOnThisDevice()) {
+        window.location.assign(data.phonePath)
+        return
+      }
+      const url = await phoneOpenableUrl(data.phonePath)
+      const QRCode = (await import('qrcode')).default
+      const image = await QRCode.toDataURL(url, { margin: 1, width: 320 })
+      setScanPosition(position)
+      setScanQr(image)
+    } catch {
+      setGradeError(classes.answerCardsLoadError)
+    } finally {
+      setBusyPosition(null)
+    }
+  }, [
+    busyPosition,
+    classes.answerCardsLoadError,
+    classes.answerCardsNoMcq,
+    classes.answerCardsSchema,
+    code,
+    questions,
+  ])
+
   return (
     <div className="fixed inset-0 z-[200] overflow-y-auto bg-white text-slate-900">
       <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 py-6 sm:px-8">
+        {gradeError ? <p className="mb-4 text-sm text-red-600">{gradeError}</p> : null}
         {loading ? (
           <p className="text-sm text-slate-500">{tx.teacherPaperLoading}</p>
         ) : errorKind === 'forbidden' ? (
@@ -168,12 +249,24 @@ export default function TeacherExamPaperPage() {
               <p className="text-sm text-slate-500">{tx.teacherPaperEmpty}</p>
             ) : (
               <ol className="space-y-6 pb-10">
-                {questions.map((q) => (
+                {questions.map((q, position) => (
                   <li key={q.index} className="space-y-2">
-                    <p className="whitespace-pre-wrap text-base leading-relaxed">
-                      <span className="font-semibold">{tx.teacherPaperQuestion} {q.index}. </span>
-                      {latexToReadable(q.questionText)}
-                    </p>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="whitespace-pre-wrap text-base leading-relaxed">
+                        <span className="font-semibold">{tx.teacherPaperQuestion} {q.index}. </span>
+                        {latexToReadable(q.questionText)}
+                      </p>
+                      {q.canScan ? (
+                        <button
+                          type="button"
+                          onClick={() => { void scanQuestion(position) }}
+                          disabled={busyPosition != null}
+                          className="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                        >
+                          {busyPosition === position ? '…' : classes.answerScanResult}
+                        </button>
+                      ) : null}
+                    </div>
                     {q.options.length > 0 ? (
                       <ul className="space-y-1 pl-1 text-base leading-relaxed">
                         {q.options.map((opt, i) => (
@@ -182,6 +275,16 @@ export default function TeacherExamPaperPage() {
                           </li>
                         ))}
                       </ul>
+                    ) : null}
+                    {scanPosition === position && scanQr ? (
+                      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- QR tạo trên máy để điện thoại quét */}
+                        <img src={scanQr} alt="" className="h-40 w-40 rounded-lg bg-white" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold">{classes.answerScanDialogTitle}</p>
+                          <p className="mt-1 text-sm text-slate-600">{classes.answerCardsConnectLead}</p>
+                        </div>
+                      </div>
                     ) : null}
                   </li>
                 ))}

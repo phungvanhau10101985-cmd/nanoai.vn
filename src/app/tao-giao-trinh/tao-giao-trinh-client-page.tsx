@@ -16,6 +16,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, Camera, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen, Link2, CircleHelp, Plus } from 'lucide-react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { latexToReadable } from './lib/latex-to-readable'
 import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-version-dialog'
 import { CurriculumExerciseListDialog } from './components/curriculum-exercise-list-dialog'
@@ -916,20 +917,21 @@ export default function TaoGiaoTrinhClientPage({
     exam: { code: string; title: string; examUrl: string },
     forHomework?: boolean
   ) => {
+    const examUrl = await phoneOpenableUrl(exam.examUrl)
     setExamPreview({
       code: exam.code,
       title: exam.title,
-      examUrl: exam.examUrl,
+      examUrl,
       qrDataUrl: null,
       loadingQr: true,
       forHomework: Boolean(forHomework),
     })
     try {
-      const qr = await QRCode.toDataURL(exam.examUrl, { width: 220, margin: 2 })
+      const qr = await QRCode.toDataURL(examUrl, { width: 220, margin: 2 })
       setExamPreview({
         code: exam.code,
         title: exam.title,
-        examUrl: exam.examUrl,
+        examUrl,
         qrDataUrl: qr,
         loadingQr: false,
         forHomework: Boolean(forHomework),
@@ -5880,11 +5882,11 @@ export default function TaoGiaoTrinhClientPage({
               </CardTitle>
               <CardDescription>
                 {tr(
-                  'Giống bài thi trực tuyến nhưng không bắt tổng 100 điểm; học sinh không xem điểm sau khi nộp. Có thể gán vào lớp và phiếu như bài thi.',
-                  'Like the online exam but no 100-point total; students do not see scores after submit. Attach to classes and worksheets like exams.',
-                  '与在线测验相同，但不要求总分100分；学生提交后不显示成绩。可像测验一样关联班级与练习单。',
-                  'オンライン試験と同様ですが合計100点は不要。提出後も生徒に点数は表示しません。クラスやワークシートへの割当は試験と同様です。',
-                  '온라인 시험과 같으나 총 100점은 필요 없고 제출 후 학생에게 점수를 보여주지 않습니다. 학급·워크시트 연결은 시험과 같습니다.'
+                  'Giống bài thi. Có chấm điểm. Điểm bài tập không tính vào điểm tổng kết. Gán vào lớp và phiếu như bài thi.',
+                  'Same as the exam. It is graded. The homework score is not part of the summary grade. Attach to classes and worksheets like exams.',
+                  '与测验相同。有分数。作业分数不计入总评。可像测验一样关联班级与练习单。',
+                  'テストと同じです。採点します。宿題の点数は総合成績に入りません。クラスやワークシートへの割当はテストと同様です。',
+                  '시험과 같습니다. 채점합니다. 숙제 점수는 총점에 들어가지 않습니다. 학급·워크시트 연결은 시험과 같습니다.'
                 )}
               </CardDescription>
             </CardHeader>

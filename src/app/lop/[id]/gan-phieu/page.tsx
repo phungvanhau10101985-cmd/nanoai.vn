@@ -2,7 +2,7 @@ import { BrowserBackTextButton } from '@/components/navigation/browser-back-cont
 import { ChevronRight } from 'lucide-react'
 import { notFound, redirect } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
-import { getUserOrBypass } from '@/lib/auth'
+import { getLopViewer } from '@/lib/lop/lop-viewer'
 import {
   fetchClassGateForGanPhieuPg,
   fetchHomeworkExamSessionsForGanPhieuPg,
@@ -39,7 +39,7 @@ export default async function GanPhieuPage({
   searchParams: Promise<{ subject?: string; teacher?: string }>
 }) {
   const { id: classId } = await params
-  const user = await getUserOrBypass()
+  const user = await getLopViewer(classId)
   if (!user) redirectToLogin()
 
   const featureBlock = await tutoringClassFeatureBlock(classId)

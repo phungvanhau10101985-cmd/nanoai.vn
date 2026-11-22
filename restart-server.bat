@@ -94,12 +94,12 @@ echo       Worker dang khoi dong...
 timeout /t 5 /nobreak >nul
 echo.
 
-echo [7/7] Dia chi Wi-Fi cho dien thoai ^(khong mo ngrok^)...
+echo [7/7] Dia chi Wi-Fi cho dien thoai...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\print-lan-dev-url.ps1" -Port %DEV_PORT%
 echo.
 echo ========================================
 echo   Xong. Thu-do: Next.js va Worker tren cong %DEV_PORT%.
-echo   Dien thoai cung Wi-Fi quet ma QR. Khong dung ngrok.
+echo   Dien thoai cung Wi-Fi quet ma QR.
 echo   188-com-vn (8001/3001) — khong bi anh huong boi script nay.
 echo ========================================
 pause

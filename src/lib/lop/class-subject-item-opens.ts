@@ -1,4 +1,5 @@
 import { classMemberExistsPg } from '@/lib/db/classes-pg'
+import { actingStudentUserId } from '@/lib/lop/lop-viewer'
 import { lessonIsTaughtInClassPg, listTaughtLessonsPg } from '@/lib/db/class-taught-lessons-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
@@ -160,8 +161,9 @@ export async function markLamBaiOpenedForMember(userId: string, code: string): P
       [examCode]
     )
     if (!row?.class_id || !row.teacher_id || !row.subject_id) return
-    if (row.teacher_id === userId) return
-    await markSubjectItemOpenedForUser(userId, {
+    const actorId = await actingStudentUserId(userId, row.class_id)
+    if (row.teacher_id === actorId) return
+    await markSubjectItemOpenedForUser(actorId, {
       classId: row.class_id,
       subjectId: row.subject_id,
       teacherId: row.teacher_id,

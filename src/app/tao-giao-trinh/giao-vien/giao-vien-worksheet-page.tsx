@@ -7,6 +7,8 @@ import { useSearchParams, useParams } from 'next/navigation'
 import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
+import { AnswerScanLaunch, scanQuestionsFromSlide } from '@/components/lop/answer-scan-launch'
+import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
 import { parseWorksheetToSlides, questionsToSlides, examReviewQuestionsToSlides, type ExamReviewQuestionInput } from '@/lib/worksheet-to-slides'
 import { latexToReadable } from '../lib/latex-to-readable'
@@ -16,6 +18,16 @@ import { SlideProposalVote } from '../components/slide-proposal-vote'
 import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { PresentationControlBar } from '../components/presentation-control-bar'
+import { TeacherPhoneRemoteDialog } from '../components/teacher-phone-remote-dialog'
+import { TeacherWhiteboardCanvas, type WhiteboardLivePointer } from '../components/teacher-whiteboard-canvas'
+import { clientPointForWhiteboardPointer, isWhiteboardWireType } from '../lib/teacher-whiteboard'
+import {
+  asBoolRecord,
+  asNumberRecord,
+  isReviewTypingHeartbeat,
+  mergeReviewTypingReveal,
+  useReviewSlidePhoneBoard,
+} from './use-review-slide-phone-board'
 import { WorksheetTeacherReviewGate } from './worksheet-teacher-review-gate'
 import { WorksheetAnswerTypedBody } from '../components/worksheet-answer-typed-body'
 import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from '../components/slide-sync-markdown-classes'
@@ -551,6 +563,8 @@ export default function GiaoVienWorksheetPage() {
   const worksheetId = searchParams?.get('worksheetId')
   const examCodeRaw = (searchParams?.get('examCode') || (typeof params?.code === 'string' ? params.code : '') || '').trim()
   const examCode = examCodeRaw.toUpperCase()
+  /** Điện thoại đã quét QR: cùng phiên với máy chiếu, không mở thêm cửa sổ học sinh. */
+  const phoneFollowerId = (searchParams?.get('phone') || '').trim()
   /** Cùng UI trình chiếu / HS như phiếu bài tập — gồm cả chữa bài đề thi (`examCode` hoặc `/giao-vien/de-thi/[code]`). */
   const isWorksheetSlideMode = Boolean(worksheetId?.trim()) || Boolean(examCode)
   const [examLoadError, setExamLoadError] = useState<string | null>(null)
@@ -602,7 +616,7 @@ export default function GiaoVienWorksheetPage() {
   const [gvWorksheetEditBlockIndex, setGvWorksheetEditBlockIndex] = useState<number | null>(null)
   const [gvWorksheetEditBlockContent, setGvWorksheetEditBlockContent] = useState('')
   const [gvWorksheetEditSaving, setGvWorksheetEditSaving] = useState(false)
-  const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual'>('curriculum')
+  const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual' | 'whiteboard'>('curriculum')
   useEffect(() => {
     if (leftPanelMode === 'slide') setLeftPanelMode('curriculum')
   }, [leftPanelMode])
@@ -933,6 +947,20 @@ export default function GiaoVienWorksheetPage() {
 
   const prevSlideModeRef = useRef<string | null>(null)
   const studentViewWindowRef = useRef<Window | null>(null)
+  const currentIndexRef = useRef(0)
+  const typingDriverRef = useRef(!phoneFollowerId)
+  const typingClaimedRef = useRef(false)
+  const timerHostRef = useRef(!phoneFollowerId)
+  const answerRevealProgressRef = useRef<Record<string, number>>({})
+  const answerVisibilityRef = useRef<Record<string, boolean>>({})
+  const answerTypingEnabledRef = useRef<Record<string, boolean>>({})
+  const answerTypingSpeedMsRef = useRef(55)
+  const phoneDeliverRef = useRef<(msg: Record<string, unknown>) => void>(() => {})
+  const phoneApplyRef = useRef<(msg: Record<string, unknown>) => void>(() => {})
+  const phoneSnapshotRef = useRef<() => Record<string, unknown>>(() => ({}))
+  const phoneOnSnapshotRef = useRef<(snap: Record<string, unknown>, index: number, takeBoard: boolean) => void>(() => {})
+  const phoneOnIndexRef = useRef<(index: number) => void>(() => {})
+  const phonePaneAppliedRef = useRef(false)
   const projectorPendingRef = useRef(false)
   const projectorBusyRef = useRef(false)
   const flushPendingProjectorRef = useRef<(w: Window | null) => void>(() => {})
@@ -1026,8 +1054,9 @@ export default function GiaoVienWorksheetPage() {
     }
   }, [worksheetId, examCode, topic, tr])
 
-  /** Phiếu bài tập: khi có worksheetId trong URL, fetch và load slides */
+  /** Phiếu bài tập: khi có worksheetId trong URL, fetch và load slides. Điện thoại lấy bản máy chiếu. */
   useEffect(() => {
+    if (phoneFollowerId) return
     if (!worksheetId?.trim()) {
       setWorksheetMarkdownSource('')
       setWorksheetQuestionTypes([])
@@ -1081,10 +1110,11 @@ export default function GiaoVienWorksheetPage() {
       })
       .catch(() => { setWorksheetLoading(false) })
     return () => { cancelled = true }
-  }, [worksheetId])
+  }, [worksheetId, phoneFollowerId])
 
   /** Chữa bài đề thi — cùng pipeline slide như phiếu bài tập (parse → blocks có isAnswer). */
   useEffect(() => {
+    if (phoneFollowerId) return
     if (worksheetId?.trim()) return
     if (!examCode) {
       setExamLoadError(null)
@@ -1166,7 +1196,7 @@ export default function GiaoVienWorksheetPage() {
     return () => {
       cancelled = true
     }
-  }, [worksheetId, examCode, tr])
+  }, [worksheetId, examCode, tr, phoneFollowerId])
 
   useEffect(() => {
     const syncStudentWindowState = () => {
@@ -1184,38 +1214,57 @@ export default function GiaoVienWorksheetPage() {
     if (window.opener) window.opener.postMessage({ type: 'request-curriculum' }, window.location.origin)
   }, [])
 
+  const slideSig = `${slides[currentIndex]?.title ?? ''}:${(slides[currentIndex]?.blocks ?? []).map((b) => (b.content ?? '').length).join(',')}`
+  const phoneSnapshotKey = [
+    currentIndex,
+    slides.length,
+    content.length,
+    topic,
+    leftPanelMode,
+    teacherTimerRunning ? 1 : 0,
+    remoteAutoPlay ? 1 : 0,
+    slideSig,
+  ].join('|')
+  phoneDeliverRef.current = (msg) => {
+    const payload = { ...msg, __syncSeq: syncSeqRef.current++ }
+    try {
+      const w = studentViewWindowRef.current
+      if (w && !w.closed) w.postMessage(payload, window.location.origin)
+      else syncChannelRef.current?.postMessage(payload)
+    } catch {
+      /* ignore */
+    }
+  }
+  const phoneBoard = useReviewSlidePhoneBoard({
+    phoneFollowerId,
+    tr,
+    deliverRef: phoneDeliverRef,
+    applyRef: phoneApplyRef,
+    snapshotRef: phoneSnapshotRef,
+    onSnapshotRef: phoneOnSnapshotRef,
+    onIndexRef: phoneOnIndexRef,
+    snapshotKey: phoneSnapshotKey,
+  })
+  const sendToStudentView = useCallback((msg: Record<string, unknown>) => {
+    phoneBoard.routeOutgoing(msg)
+  }, [phoneBoard.routeOutgoing])
+
   const sendTeacherTimer = useCallback((action: 'teacher-timer-start' | 'teacher-timer-stop' | 'teacher-timer-reset') => {
+    timerHostRef.current = true
     if (action === 'teacher-timer-start') setTeacherTimerRunning(true)
     else if (action === 'teacher-timer-stop') setTeacherTimerRunning(false)
     else if (action === 'teacher-timer-reset') { setTeacherTimerRunning(false); setTeacherTimerSeconds(0) }
     if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
-    try {
-      const w = studentViewWindowRef.current
-      if (w && !w.closed) w.postMessage({ type: action }, window.location.origin)
-    } catch {
-      /* ignore */
-    }
-  }, [])
+    sendToStudentView({ type: action })
+  }, [sendToStudentView])
 
   useEffect(() => {
     if (!teacherTimerRunning) return
+    const linked = Boolean(phoneBoard.phoneSessionId || phoneFollowerId)
+    if (linked && !timerHostRef.current) return
     const id = window.setInterval(() => setTeacherTimerSeconds((s) => s + 1), 1000)
     return () => window.clearInterval(id)
-  }, [teacherTimerRunning])
-
-  const sendToStudentView = useCallback((msg: Record<string, unknown>) => {
-    const payload = { ...msg, __syncSeq: syncSeqRef.current++ }
-    try {
-      const w = studentViewWindowRef.current
-      if (w && !w.closed) {
-        w.postMessage(payload, window.location.origin)
-      } else {
-        syncChannelRef.current?.postMessage(payload)
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [])
+  }, [teacherTimerRunning, phoneBoard.phoneSessionId, phoneFollowerId])
 
   const toStudentSlidePayload = useCallback((s: SlideItem, slideIndex: number) => {
     const normalized = getVisualCells(s)
@@ -1259,6 +1308,8 @@ export default function GiaoVienWorksheetPage() {
       topic,
       currentIndex: Math.max(0, Math.min(idx, slidesToSend.length - 1)),
       curriculumId: curriculumId ?? null,
+      scanExamCode: examCode || null,
+      scanWorksheetId: examCode ? null : (worksheetId || null),
       slideMode: slideMode ?? null,
       personalViewSubMode,
       hasOriginalSlides,
@@ -1269,6 +1320,7 @@ export default function GiaoVienWorksheetPage() {
       worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
       worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
       worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+      teacherSlideLeftPane: leftPanelMode === 'whiteboard' ? 'whiteboard' : 'visual',
       ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
     }
     try {
@@ -1282,7 +1334,7 @@ export default function GiaoVienWorksheetPage() {
     } catch {
       /* ignore */
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, teacherTimerSeconds, teacherTimerRunning, toStudentSlidePayload, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode, leftPanelMode])
 
   /** Phiếu / giáo trình (đã lưu): khi ẩn/hiện đáp án hoặc bật/tắt chế độ gõ, gửi lại dữ liệu sang học sinh */
   useEffect(() => {
@@ -1317,7 +1369,9 @@ export default function GiaoVienWorksheetPage() {
       }
     }
 
-    setAnswerRevealProgress({})
+    if (!phoneFollowerId || typingClaimedRef.current) {
+      setAnswerRevealProgress({})
+    }
     if (carryPause) {
       const s = sl[currentIndex]
       const blks = s?.blocks ?? []
@@ -1343,6 +1397,7 @@ export default function GiaoVienWorksheetPage() {
     if (!(worksheetId || examCode) && !curriculumId) return
     const ms = Math.max(15, answerTypingSpeedMs)
     const id = window.setInterval(() => {
+      if (!typingDriverRef.current) return
       setAnswerRevealProgress((prev) => {
         const slide = slides[currentIndex]
         if (!slide?.blocks?.length) return prev
@@ -1379,11 +1434,22 @@ export default function GiaoVienWorksheetPage() {
     return () => window.clearInterval(id)
   }, [worksheetId, examCode, curriculumId, answerTypingSpeedMs, currentIndex, slides, answerVisibility, answerTypingEnabled, answerTypingPaused])
 
-  /** Đẩy tiến độ gõ segment sang cửa sổ học sinh */
+  /** Đẩy tiến độ gõ segment sang học sinh và máy giáo viên kia. */
   useEffect(() => {
-    if (!((worksheetId || examCode || curriculumId)) || !studentViewOpened) return
-    sendToStudentView({ type: 'worksheet-answer-reveal', worksheetAnswerReveal: answerRevealProgress })
-  }, [answerRevealProgress, worksheetId, examCode, curriculumId, studentViewOpened, sendToStudentView])
+    const linked = Boolean(phoneBoard.phoneSessionId || phoneFollowerId)
+    if (!((worksheetId || examCode || curriculumId)) || (!studentViewOpened && !linked)) return
+    sendToStudentView({
+      type: 'worksheet-answer-reveal',
+      worksheetAnswerReveal: answerRevealProgress,
+      worksheetAnswerTypingPaused: answerTypingPaused,
+      worksheetAnswerTypingEnabled: answerTypingEnabled,
+      answerVisibility,
+      typingSpeedMs: answerTypingSpeedMs,
+      typingOn: worksheetTypingEffectsGloballyEnabled,
+      currentIndex,
+      control: false,
+    })
+  }, [answerRevealProgress, answerTypingPaused, answerVisibility, answerTypingEnabled, answerTypingSpeedMs, worksheetTypingEffectsGloballyEnabled, currentIndex, worksheetId, examCode, curriculumId, studentViewOpened, phoneBoard.phoneSessionId, phoneFollowerId, sendToStudentView])
 
   /** Đồng bộ định kỳ sang học sinh khi cửa sổ mở – đảm bảo visual (đồ thị từ ô nhập) luôn cập nhật */
   useEffect(() => {
@@ -1502,15 +1568,33 @@ export default function GiaoVienWorksheetPage() {
     const nextIndex = action === 'slide-next'
       ? Math.min(currentIndex + 1, slides.length - 1)
       : Math.max(currentIndex - 1, 0)
+    phoneBoard.holdSlide(nextIndex)
+    typingClaimedRef.current = true
+    typingDriverRef.current = true
     setCurrentIndex(nextIndex)
     if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
-    try {
-      const w = studentViewWindowRef.current
-      if (w && !w.closed) w.postMessage({ type: 'slide-go', index: nextIndex }, window.location.origin)
-    } catch {
-      /* ignore */
-    }
-  }, [commitCurrentSlideDraft, currentIndex, slides.length])
+    sendToStudentView({ type: 'slide-go', index: nextIndex })
+  }, [commitCurrentSlideDraft, currentIndex, slides.length, phoneBoard.holdSlide, sendToStudentView])
+
+  useEffect(() => {
+    const linked = Boolean(phoneBoard.phoneSessionId || phoneFollowerId)
+    if (!studentViewOpened && !linked) return
+    if (linked && !timerHostRef.current) return
+    sendToStudentView({ type: 'teacher-timer-sync', seconds: teacherTimerSeconds, running: teacherTimerRunning })
+  }, [studentViewOpened, phoneBoard.phoneSessionId, phoneFollowerId, teacherTimerSeconds, teacherTimerRunning, sendToStudentView])
+
+  useEffect(() => {
+    if (!studentViewOpened && !phoneBoard.phoneSessionId && !phoneFollowerId) return
+    const pane = leftPanelMode === 'whiteboard' ? 'whiteboard' : 'visual'
+    sendToStudentView({
+      type: 'student-curriculum-left-pane',
+      pane,
+      panel: leftPanelMode === 'whiteboard' ? 'whiteboard' : leftPanelMode,
+    })
+    if (leftPanelMode !== 'whiteboard') return
+    const wb = phoneBoard.whiteboardStateRef.current
+    sendToStudentView({ type: 'whiteboard-sync', objects: wb.objects, camera: wb.camera, grid: wb.grid })
+  }, [studentViewOpened, leftPanelMode, phoneBoard.phoneSessionId, phoneFollowerId, phoneBoard.whiteboardStateRef, sendToStudentView])
 
   const persistSlidesRef = useRef<(s: SlideItem[]) => Promise<void>>(async () => {})
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
@@ -1566,6 +1650,8 @@ export default function GiaoVienWorksheetPage() {
         topic,
         currentIndex,
         curriculumId: curriculumId ?? null,
+        scanExamCode: examCode || null,
+        scanWorksheetId: examCode ? null : (worksheetId || null),
         slideMode: slideMode ?? null,
         personalViewSubMode,
         hasOriginalSlides,
@@ -1576,6 +1662,7 @@ export default function GiaoVienWorksheetPage() {
         worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
         worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
         worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+      teacherSlideLeftPane: leftPanelMode === 'whiteboard' ? 'whiteboard' : 'visual',
         ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
       })
       channel.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' })
@@ -1607,7 +1694,7 @@ export default function GiaoVienWorksheetPage() {
       channel.close()
       if (syncChannelRef.current === channel) syncChannelRef.current = null
     }
-  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode])
+  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, quizPopupOpen, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, studentCurriculumRemoteMode, leftPanelMode])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     setTeacherExpandedCellIndex(typeof cellIndex === 'number' ? cellIndex : null)
@@ -1649,6 +1736,8 @@ export default function GiaoVienWorksheetPage() {
             topic,
             currentIndex,
             curriculumId: curriculumId ?? null,
+            scanExamCode: examCode || null,
+            scanWorksheetId: examCode ? null : (worksheetId || null),
             slideMode: slideMode ?? null,
             personalViewSubMode,
             hasOriginalSlides,
@@ -1659,6 +1748,7 @@ export default function GiaoVienWorksheetPage() {
             worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
             worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
             worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+      teacherSlideLeftPane: leftPanelMode === 'whiteboard' ? 'whiteboard' : 'visual',
             ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
           },
           window.location.origin
@@ -1683,7 +1773,7 @@ export default function GiaoVienWorksheetPage() {
       sendToStudentView({ type: 'presentation-mode', mode: 'slide-interaction' })
       sendToStudentView(openMsg)
     }, 650)
-  }, [sendToStudentView, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
+  }, [sendToStudentView, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, leftPanelMode])
 
   const closeTeacherVisualFullscreen = useCallback(() => {
     setVisualFullscreenOpen(false)
@@ -2317,6 +2407,8 @@ export default function GiaoVienWorksheetPage() {
             topic,
             currentIndex,
             curriculumId: curriculumId ?? null,
+            scanExamCode: examCode || null,
+            scanWorksheetId: examCode ? null : (worksheetId || null),
             slideMode: slideMode ?? null,
             personalViewSubMode,
             hasOriginalSlides,
@@ -2327,6 +2419,7 @@ export default function GiaoVienWorksheetPage() {
             worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
             worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
             worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+      teacherSlideLeftPane: leftPanelMode === 'whiteboard' ? 'whiteboard' : 'visual',
             ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
           },
           window.location.origin
@@ -2352,7 +2445,7 @@ export default function GiaoVienWorksheetPage() {
     sendState()
     setTimeout(sendState, 300)
     if (!navigated) flushPendingProjector(targetWin)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, toast, tr, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, flushPendingProjector])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, toast, tr, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, leftPanelMode, flushPendingProjector])
 
   const startStudentProjector = useCallback(() => {
     const existing = studentViewWindowRef.current
@@ -2364,6 +2457,36 @@ export default function GiaoVienWorksheetPage() {
     projectorPendingRef.current = true
     openStudentView()
   }, [studentSlideWindowIsLive, activateStudentProjector, openStudentView])
+
+  const showAnswerBoard = useCallback((href: string) => {
+    if (phoneFollowerId) {
+      void fetch('/api/giao-trinh/phone-remote/command', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        keepalive: true,
+        body: JSON.stringify({ id: phoneFollowerId, commands: [{ type: 'answer-card-show', href }] }),
+      }).catch(() => {})
+      return
+    }
+    const existing = studentViewWindowRef.current
+    if (existing && !existing.closed) {
+      existing.location.href = href
+      try { existing.focus() } catch { /* ignore */ }
+      return
+    }
+    const opened = openDetachedTeacherSlideWindow(href)
+    if (opened) studentViewWindowRef.current = opened
+  }, [phoneFollowerId])
+
+  const studentAutoOpenedRef = useRef(false)
+  useEffect(() => {
+    if (studentAutoOpenedRef.current) return
+    if (searchParams?.get('hocsinh') !== '1') return
+    if (!worksheetId || slides.length === 0) return
+    studentAutoOpenedRef.current = true
+    openStudentView()
+  }, [searchParams, worksheetId, slides.length, openStudentView])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -2975,6 +3098,252 @@ export default function GiaoVienWorksheetPage() {
       .catch(() => {})
   }, [curriculumId, toast, tr])
 
+  currentIndexRef.current = currentIndex
+  answerRevealProgressRef.current = answerRevealProgress
+  answerVisibilityRef.current = answerVisibility
+  answerTypingEnabledRef.current = answerTypingEnabled
+  answerTypingSpeedMsRef.current = answerTypingSpeedMs
+  phoneSnapshotRef.current = () => ({
+    phoneSurface: examCode ? 'exam' : 'worksheet',
+    worksheetId: worksheetId ?? '',
+    examCode,
+    content,
+    topic,
+    currentIndex,
+    curriculumId,
+    slideMode,
+    personalViewSubMode,
+    hasOriginalSlides,
+    slides,
+    leftPanelMode,
+    whiteboard: phoneBoard.boardSnapshot(),
+    teacherTimerSeconds,
+    teacherTimerRunning,
+    remoteAutoPlay,
+    remoteAutoPlayIntervalMs,
+    answerRevealProgress,
+    answerTypingPaused,
+    answerVisibility,
+    worksheetTypingEffectsGloballyEnabled,
+    answerTypingSpeedMs,
+  })
+  phoneOnIndexRef.current = (index) => {
+    const max = Math.max(0, slidesRef.current.length - 1)
+    const idx = Math.max(0, Math.min(Math.floor(index), max))
+    if (idx !== currentIndexRef.current) setCurrentIndex(idx)
+  }
+  phoneOnSnapshotRef.current = (snap, index) => {
+    const sl = Array.isArray(snap.slides) ? (snap.slides as SlideItem[]) : []
+    const sanitized = sl.map((s) => normalizeSlideVisualInputs(s))
+    const incomingContent = typeof snap.content === 'string' ? snap.content : ''
+    if (!incomingContent.trim() && sanitized.length === 0) {
+      setWorksheetLoading(false)
+      return
+    }
+    setContent(incomingContent.trim() ? incomingContent : (typeof snap.topic === 'string' && snap.topic.trim() ? snap.topic : ' '))
+    setTopic(typeof snap.topic === 'string' ? snap.topic : '')
+    setSlideTitles(sanitized.map((s) => s?.title ?? ''))
+    setSlides(sanitized)
+    slidesRef.current = sanitized
+    setWorksheetLoading(false)
+    setExamLoadError(null)
+    hasHydratedFromCurriculumRef.current = true
+    const max = Math.max(0, sanitized.length - 1)
+    setCurrentIndex(Math.max(0, Math.min(Math.floor(index) || 0, max)))
+    if (typeof snap.curriculumId === 'string') setCurriculumId(snap.curriculumId)
+    const mode = snap.slideMode === 'personal' || snap.slideMode === 'shared' || snap.slideMode === 'original' ? snap.slideMode : 'original'
+    setSlideMode(mode)
+    setPersonalViewSubMode(snap.personalViewSubMode === 'original' ? 'original' : 'current')
+    setHasOriginalSlides(Boolean(snap.hasOriginalSlides))
+    if (!phonePaneAppliedRef.current && (snap.leftPanelMode === 'whiteboard' || snap.leftPanelMode === 'visual' || snap.leftPanelMode === 'curriculum')) {
+      phonePaneAppliedRef.current = true
+      setLeftPanelMode(snap.leftPanelMode)
+    }
+    if (typeof snap.remoteAutoPlay === 'boolean') setRemoteAutoPlay(snap.remoteAutoPlay)
+    if (typeof snap.remoteAutoPlayIntervalMs === 'number' && snap.remoteAutoPlayIntervalMs >= 1000) {
+      setRemoteAutoPlayIntervalMs(snap.remoteAutoPlayIntervalMs)
+    }
+    if (typeof snap.teacherTimerSeconds === 'number') setTeacherTimerSeconds(Math.max(0, Math.floor(snap.teacherTimerSeconds)))
+    if (typeof snap.teacherTimerRunning === 'boolean') setTeacherTimerRunning(snap.teacherTimerRunning)
+    if (typeof snap.worksheetTypingEffectsGloballyEnabled === 'boolean') {
+      setWorksheetTypingEffectsGloballyEnabled(snap.worksheetTypingEffectsGloballyEnabled)
+    }
+    const snapReveal = asNumberRecord(snap.answerRevealProgress)
+    if (snapReveal) setAnswerRevealProgress(snapReveal)
+    const snapPaused = asBoolRecord(snap.answerTypingPaused)
+    if (snapPaused) setAnswerTypingPaused(snapPaused)
+    const snapVisible = asBoolRecord(snap.answerVisibility)
+    if (snapVisible) setAnswerVisibility(snapVisible)
+    if (typeof snap.answerTypingSpeedMs === 'number' && snap.answerTypingSpeedMs >= 15 && snap.answerTypingSpeedMs <= 180) {
+      setAnswerTypingSpeedMs(snap.answerTypingSpeedMs)
+    }
+  }
+  phoneApplyRef.current = (msg) => {
+    const type = typeof msg.type === 'string' ? msg.type : ''
+    if (type === 'answer-card-show') {
+      const href = typeof msg.href === 'string' ? msg.href : ''
+      if (!phoneFollowerId && href.startsWith('/lop/') && !href.includes('://')) {
+        const existing = studentViewWindowRef.current
+        if (existing && !existing.closed) {
+          existing.location.href = href
+          try { existing.focus() } catch { /* ignore */ }
+        } else {
+          const opened = openDetachedTeacherSlideWindow(href)
+          if (opened) studentViewWindowRef.current = opened
+        }
+      }
+      return
+    }
+    const source = typeof msg.typingSource === 'string' ? msg.typingSource : ''
+    const fromSelf = source !== '' && source === phoneBoard.clientIdRef.current
+    const fromOther = source !== '' && source !== phoneBoard.clientIdRef.current
+    const typingHeartbeat = isReviewTypingHeartbeat(msg)
+    const keepTyping = type === 'mouse-pos' || type === 'mouse-click' || type === 'chain-pane-scroll' || type.startsWith('whiteboard-')
+    if (fromOther && !typingHeartbeat && !keepTyping) typingDriverRef.current = false
+    const relayStudent = () => {
+      if (!phoneFollowerId) phoneDeliverRef.current(msg)
+    }
+    if (fromSelf) return
+    if (type === 'mouse-pos' || type === 'mouse-click') {
+      const click = type === 'mouse-click'
+      if (msg.hide === true) {
+        studentMouseRef.current?.hide()
+      } else {
+        let point: { x: number; y: number } | null = null
+        if (msg.whiteboard === true) {
+          point = clientPointForWhiteboardPointer(
+            {
+              boardChrome: msg.boardChrome === true,
+              relX: typeof msg.relX === 'number' ? msg.relX : undefined,
+              relY: typeof msg.relY === 'number' ? msg.relY : undefined,
+              worldX: typeof msg.worldX === 'number' ? msg.worldX : undefined,
+              worldY: typeof msg.worldY === 'number' ? msg.worldY : undefined,
+            },
+            phoneBoard.whiteboardStateRef.current.camera,
+          )
+        } else if (typeof msg.syncAnchor === 'string' && typeof msg.relX === 'number' && typeof msg.relY === 'number') {
+          const el = document.querySelector(`[data-pointer-sync-id="${CSS.escape(msg.syncAnchor)}"]`) as HTMLElement | null
+          const rect = el?.getBoundingClientRect()
+          if (rect && rect.width > 0 && rect.height > 0) point = { x: rect.left + msg.relX * rect.width, y: rect.top + msg.relY * rect.height }
+        } else if (msg.quizPopup === true && typeof msg.relX === 'number' && typeof msg.relY === 'number') {
+          const el = document.querySelector('[data-quiz-popup]') as HTMLElement | null
+          const rect = el?.getBoundingClientRect()
+          if (rect) point = { x: rect.right - msg.relX, y: rect.top + msg.relY }
+        } else if (msg.slideContentPane === true && typeof msg.relX === 'number' && typeof msg.relY === 'number') {
+          const el = teacherSlideContentLayoutRef.current ?? teacherSlidePointerSyncRef.current
+          const rect = el?.getBoundingClientRect()
+          if (rect && rect.width > 0 && rect.height > 0) point = { x: rect.left + msg.relX * rect.width, y: rect.top + msg.relY * rect.height }
+        } else if (
+          msg.visualFrame === true &&
+          msg.imageCenter === true &&
+          typeof msg.dxFromCenter === 'number' &&
+          typeof msg.dyFromCenter === 'number' &&
+          typeof msg.visW === 'number' &&
+          typeof msg.visH === 'number'
+        ) {
+          const img = teacherVisualFrameRef.current?.querySelector('img') ?? null
+          if (img && img.complete && img.naturalWidth > 0) {
+            const vis = getVisibleImageBounds(img)
+            const scaleX = vis.width / (msg.visW || 1)
+            const scaleY = vis.height / (msg.visH || 1)
+            point = {
+              x: vis.left + vis.width / 2 + msg.dxFromCenter * scaleX,
+              y: vis.top + vis.height / 2 + msg.dyFromCenter * scaleY,
+            }
+          }
+        } else if (msg.visualFrame === true && typeof msg.relX === 'number' && typeof msg.relY === 'number') {
+          const rect = teacherVisualFrameRef.current?.getBoundingClientRect()
+          if (rect && rect.width > 0 && rect.height > 0) point = { x: rect.left + msg.relX * rect.width, y: rect.top + msg.relY * rect.height }
+        } else if (typeof msg.x === 'number' && typeof msg.y === 'number') {
+          point = { x: msg.x * (window.innerWidth || 1), y: msg.y * (window.innerHeight || 1) }
+        }
+        if (point) {
+          studentMouseRef.current?.moveTo(point.x, point.y, click ? { snap: true } : undefined)
+          if (click) studentMouseRef.current?.pulseClick(point.x, point.y)
+        }
+      }
+      relayStudent()
+      return
+    }
+    if (type === 'worksheet-answer-reveal') {
+      const exact = msg.control === true
+      const paused = asBoolRecord(msg.worksheetAnswerTypingPaused)
+      if (msg.control === true) {
+        typingDriverRef.current = false
+        if (typeof msg.typingOn === 'boolean') setWorksheetTypingEffectsGloballyEnabled(msg.typingOn)
+        if (paused) setAnswerTypingPaused(paused)
+        const visible = asBoolRecord(msg.answerVisibility)
+        if (visible) setAnswerVisibility(visible)
+        if (typeof msg.typingSpeedMs === 'number' && msg.typingSpeedMs >= 15 && msg.typingSpeedMs <= 180) {
+          setAnswerTypingSpeedMs(msg.typingSpeedMs)
+        }
+      } else if (typingDriverRef.current) {
+        return
+      }
+      const reveal = asNumberRecord(msg.worksheetAnswerReveal)
+      if (reveal) setAnswerRevealProgress((prev) => mergeReviewTypingReveal(prev, reveal, exact))
+      relayStudent()
+      return
+    }
+    if (type === 'slide-go' && typeof msg.index === 'number') {
+      const max = Math.max(0, slidesRef.current.length - 1)
+      const idx = Math.max(0, Math.min(Math.floor(msg.index), max))
+      phoneBoard.holdSlide(idx)
+      phoneBoard.markApplyingShared()
+      setCurrentIndex(idx)
+      relayStudent()
+    } else if (type === 'set-auto-play') {
+      setRemoteAutoPlay(Boolean(msg.value))
+      relayStudent()
+    } else if (type === 'set-auto-play-interval' && typeof msg.ms === 'number') {
+      setRemoteAutoPlayIntervalMs(msg.ms)
+      relayStudent()
+    } else if (type === 'teacher-timer-start' || type === 'teacher-timer-stop' || type === 'teacher-timer-reset' || type === 'teacher-timer-sync') {
+      timerHostRef.current = false
+      if (type === 'teacher-timer-start') setTeacherTimerRunning(true)
+      else if (type === 'teacher-timer-stop' || type === 'teacher-timer-reset') {
+        setTeacherTimerRunning(false)
+        if (type === 'teacher-timer-reset') setTeacherTimerSeconds(0)
+      } else {
+        if (typeof msg.seconds === 'number' && Number.isFinite(msg.seconds)) setTeacherTimerSeconds(Math.max(0, Math.floor(msg.seconds)))
+        if (typeof msg.running === 'boolean') setTeacherTimerRunning(msg.running)
+      }
+      relayStudent()
+    } else if (type === 'student-curriculum-left-pane') {
+      const panel = msg.panel
+      if (panel === 'whiteboard') setLeftPanelMode('whiteboard')
+      else if (panel === 'visual') setLeftPanelMode('visual')
+      else if (panel === 'curriculum' || panel === 'slide') setLeftPanelMode('curriculum')
+      else if (msg.pane === 'whiteboard') setLeftPanelMode('whiteboard')
+      else if (msg.pane === 'visual') setLeftPanelMode('visual')
+      relayStudent()
+    } else if (type === 'visual-fullscreen-open') {
+      setTeacherExpandedCellIndex(typeof msg.cellIndex === 'number' ? msg.cellIndex : null)
+      setVisualFullscreenOpen(true)
+      relayStudent()
+    } else if (type === 'visual-fullscreen-close') {
+      setVisualFullscreenOpen(false)
+      setTeacherExpandedCellIndex(null)
+      relayStudent()
+    } else if (type === 'quiz-popup-open' && typeof msg.value === 'boolean') {
+      if (msg.value) openQuizPopupFresh()
+      else setQuizPopupOpen(false)
+      relayStudent()
+    } else if (type === 'whiteboard-sim' && typeof msg.sim === 'number' && Number.isFinite(msg.sim)) {
+      phoneBoard.followFigureSim(msg.sim)
+      relayStudent()
+    } else if (isWhiteboardWireType(type)) {
+      const incoming = msg.object as { kind?: unknown; params?: { run?: unknown; clock?: unknown; shift?: unknown; tune?: unknown } } | undefined
+      if (type === 'whiteboard-upsert' && incoming && incoming.kind === 'figure') {
+        phoneBoard.figureSimHostRef.current = false
+      }
+      phoneBoard.applyRemoteBoard(msg)
+      relayStudent()
+    } else {
+      relayStudent()
+    }
+  }
+
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
@@ -2996,6 +3365,8 @@ export default function GiaoVienWorksheetPage() {
               topic,
               currentIndex,
               curriculumId: curriculumId ?? null,
+              scanExamCode: examCode || null,
+              scanWorksheetId: examCode ? null : (worksheetId || null),
               slideMode: slideMode ?? null,
               personalViewSubMode,
               hasOriginalSlides,
@@ -3006,11 +3377,18 @@ export default function GiaoVienWorksheetPage() {
               worksheetAnswerReveal: (worksheetId || examCode || curriculumId) ? answerRevealProgress : undefined,
               worksheetAnswerTypingEnabled: (worksheetId || examCode || curriculumId) ? answerTypingEnabled : undefined,
               worksheetStemTypingEnabled: (worksheetId || examCode) ? worksheetTypingEffectsGloballyEnabled : undefined,
+      teacherSlideLeftPane: leftPanelMode === 'whiteboard' ? 'whiteboard' : 'visual',
               ...(!(worksheetId || examCode) ? { studentCurriculumRightMode: studentCurriculumRemoteMode } : {}),
             },
             window.location.origin
           )
           src.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' }, window.location.origin)
+          const pane = leftPanelMode === 'whiteboard' ? 'whiteboard' : 'visual'
+          src.postMessage({ type: 'student-curriculum-left-pane', pane }, window.location.origin)
+          if (leftPanelMode === 'whiteboard') {
+            const wb = phoneBoard.whiteboardStateRef.current
+            src.postMessage({ type: 'whiteboard-sync', objects: wb.objects, camera: wb.camera, grid: wb.grid }, window.location.origin)
+          }
         } catch {
           /* ignore */
         }
@@ -3039,7 +3417,14 @@ export default function GiaoVienWorksheetPage() {
       if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number' && e.source === studentViewWindowRef.current) {
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
         commitCurrentSlideDraft()
+        phoneBoard.holdSlide(idx)
+        phoneBoard.markApplyingShared()
         setCurrentIndex(idx)
+        phoneBoard.queueOtherTeacher({ type: 'slide-go', index: idx })
+      }
+      if (e.data?.type === 'student-curriculum-left-pane-changed' && e.source === studentViewWindowRef.current) {
+        if (e.data.pane === 'whiteboard') setLeftPanelMode('whiteboard')
+        else if (e.data.pane === 'visual') setLeftPanelMode('visual')
       }
       if (
         e.data?.type === 'student-curriculum-right-mode-changed' &&
@@ -3072,8 +3457,27 @@ export default function GiaoVienWorksheetPage() {
           setTimeout(() => { quizPopupScrollApplyingRef.current = false }, 80)
         }
       }
-      if (e.data?.type === 'mouse-pos' && e.data?.fromStudent && e.source === studentViewWindowRef.current) {
-        if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+      if ((e.data?.type === 'mouse-pos' || e.data?.type === 'mouse-click') && e.data?.fromStudent && e.source === studentViewWindowRef.current) {
+        const click = e.data.type === 'mouse-click'
+        if (e.data.whiteboard === true) {
+          if (e.data.hide === true) studentMouseRef.current?.hide()
+          else {
+            const point = clientPointForWhiteboardPointer(
+              {
+                boardChrome: e.data.boardChrome === true,
+                relX: typeof e.data.relX === 'number' ? e.data.relX : undefined,
+                relY: typeof e.data.relY === 'number' ? e.data.relY : undefined,
+                worldX: typeof e.data.worldX === 'number' ? e.data.worldX : undefined,
+                worldY: typeof e.data.worldY === 'number' ? e.data.worldY : undefined,
+              },
+              phoneBoard.whiteboardStateRef.current.camera,
+            )
+            if (point) {
+              studentMouseRef.current?.moveTo(point.x, point.y, click ? { snap: true } : undefined)
+              if (click) studentMouseRef.current?.pulseClick(point.x, point.y)
+            }
+          }
+        } else if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
           const el = document.querySelector('[data-quiz-popup]')
           const rect = el ? (el as HTMLElement).getBoundingClientRect() : null
           if (rect) {
@@ -3084,6 +3488,7 @@ export default function GiaoVienWorksheetPage() {
           const h = window.innerHeight || 1
           studentMouseRef.current?.moveTo(e.data.x * w, e.data.y * h)
         }
+        phoneBoard.queueOtherTeacher(e.data)
       }
       if (e.data?.type === 'curriculum-data') {
         // Chữa bài đề thi tự tải từ API. Tin curriculum-data (slideMode trống) từ cửa sổ khác sẽ xóa nội dung vừa tải.
@@ -3124,7 +3529,7 @@ export default function GiaoVienWorksheetPage() {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen, openQuizPopupFresh, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, studentCurriculumRemoteMode, commitCurrentSlideDraft])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen, openQuizPopupFresh, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, studentCurriculumRemoteMode, leftPanelMode, commitCurrentSlideDraft])
 
   useEffect(() => {
     slidesRef.current = slides
@@ -3272,6 +3677,14 @@ export default function GiaoVienWorksheetPage() {
 
   return (
     <div key={apple.ios ? 'apple-ios' : apple.mac ? 'apple-mac' : 'win'} {...apple.shellProps} className={cn('fixed inset-0 z-50 flex h-screen w-screen flex-col items-stretch overflow-x-hidden bg-slate-950 text-white', apple.ios || apple.mac ? 'overflow-hidden' : 'overflow-y-auto')}>
+      <TeacherPhoneRemoteDialog
+        open={phoneBoard.phoneRemoteOpen}
+        loginUrl={phoneBoard.phoneLoginUrl}
+        error={phoneBoard.phoneRemoteError}
+        busy={phoneBoard.phoneRemoteBusy}
+        onClose={() => phoneBoard.setPhoneRemoteOpen(false)}
+        tr={tr}
+      />
       {worksheetId && !worksheetLoading && worksheetMarkdownSource.trim() ? (
         <WorksheetTeacherReviewGate
           worksheetId={worksheetId}
@@ -3309,7 +3722,8 @@ export default function GiaoVienWorksheetPage() {
           onNext={() => sendSlideControl('slide-next')}
           slideViewMode={slideViewMode}
           onSlideViewModeChange={(m) => setSlideViewMode(m)}
-          onOpenStudentView={slides.length > 0 ? openStudentView : undefined}
+          onOpenStudentView={!phoneFollowerId && slides.length > 0 ? openStudentView : undefined}
+          onPhoneControl={!phoneFollowerId && studentViewOpened ? () => phoneBoard.setPhoneRemoteOpen(true) : undefined}
           hideIndex
           hideInsert
           hideTeacherLeftButtons
@@ -3317,6 +3731,16 @@ export default function GiaoVienWorksheetPage() {
           appleMacBar={apple.mac}
         />
       </div>
+      {worksheetId || examCode ? (
+        <AnswerScanLaunch
+          examCode={examCode || undefined}
+          worksheetId={examCode ? undefined : worksheetId || undefined}
+          phoneMode={Boolean(phoneFollowerId)}
+          tone="dark"
+          onShowStudent={showAnswerBoard}
+          className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 px-3 py-1.5"
+        />
+      ) : null}
 
       <header className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex flex-col">
         {/* Hàng thông tin – mobile: wrap, desktop: flex-nowrap */}
@@ -3429,7 +3853,9 @@ export default function GiaoVienWorksheetPage() {
       {!content ? (
         <div className="flex-1 flex items-center justify-center p-4 md:p-8 bg-slate-900/30">
           <div className="text-center space-y-4 md:space-y-6 max-w-sm px-2">
-            {worksheetLoading ? (
+            {phoneFollowerId ? (
+              <p className="text-slate-400 text-sm">{phoneBoard.phoneRemoteError || tr('Đang mở bảng điều khiển trên điện thoại...', 'Opening the phone remote...', '正在打开手机操控...', 'スマホ操作を開いています...', '휴대폰 조작 화면을 여는 중...')}</p>
+            ) : worksheetLoading ? (
               <p className="text-slate-400 text-sm">
                 {examCode && !worksheetId
                   ? tr('Đang tải đề thi...', 'Loading exam...', '正在加载试卷...', '試験を読み込み中...', '시험 로딩 중...')
@@ -3482,8 +3908,8 @@ export default function GiaoVienWorksheetPage() {
                 ? apple.ios
                   ? cn(
                       'w-full min-h-0 border-b border-r-0',
-                      teacherPhonePane === 'slide' && 'hidden',
-                      teacherPhonePane === 'curriculum' && 'flex-1',
+                      teacherPhonePane === 'slide' && leftPanelMode !== 'whiteboard' && 'hidden',
+                      (teacherPhonePane === 'curriculum' || leftPanelMode === 'whiteboard') && 'flex-1',
                       teacherPhonePane === 'both' && 'h-[min(30dvh,220px)] shrink-0'
                     )
                   : 'w-full max-h-[min(48vh,380px)] border-b border-r-0 flex-shrink-0'
@@ -3518,6 +3944,16 @@ export default function GiaoVienWorksheetPage() {
                   <button type="button" onClick={() => setLeftPanelMode('visual')} className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center', (leftPanelMode as string) === 'visual' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}>
                     {tr('Visual', 'Visual', '视觉', 'ビジュアル', '비주얼')}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLeftPanelMode('whiteboard')
+                      if (narrowTeacherLayout) setTeacherPhonePane('curriculum')
+                    }}
+                    className={['px-3 py-1.5 text-[11px] font-medium transition-colors h-8 flex items-center border-l border-slate-600/70', leftPanelMode === 'whiteboard' ? 'bg-sky-500/30 text-sky-200' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'].join(' ')}
+                  >
+                    {tr('Bảng trắng', 'Whiteboard', '白板', 'ホワイトボード', '화이트보드')}
+                  </button>
                   {currentVisualHasAny && (
                     <button
                       type="button"
@@ -3538,8 +3974,37 @@ export default function GiaoVienWorksheetPage() {
                 </div>
               </div>
             </div>
-            <div className={cn('flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', (leftPanelMode as string) === 'visual' && 'p-0 pr-0 space-y-0 overflow-hidden')}>
-              {leftPanelMode === 'visual' ? (
+            <div className={cn('flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', (leftPanelMode === 'visual' || leftPanelMode === 'whiteboard') && 'p-0 pr-0 space-y-0 overflow-hidden')}>
+              {leftPanelMode === 'whiteboard' ? (
+                <div className="h-full min-h-0">
+                  <TeacherWhiteboardCanvas
+                    state={phoneBoard.whiteboardState}
+                    onStateChange={phoneBoard.commitWhiteboard}
+                    onBroadcast={(msg) => sendToStudentView(msg as unknown as Record<string, unknown>)}
+                    simHost={phoneBoard.figureSimHost}
+                    followedSimRef={phoneBoard.followedFigureSimRef}
+                    onSim={phoneBoard.publishFigureSim}
+                    onClaimSim={phoneBoard.claimFigureSim}
+                    onLivePointer={(point: WhiteboardLivePointer | null) => {
+                      studentMouseRef.current?.hide()
+                      if (!point) {
+                        sendToStudentView({ type: 'mouse-pos', whiteboard: true, hide: true })
+                        return
+                      }
+                      sendToStudentView({
+                        type: point.click ? 'mouse-click' : 'mouse-pos',
+                        whiteboard: true,
+                        boardChrome: point.boardChrome === true,
+                        relX: point.relX,
+                        relY: point.relY,
+                        worldX: point.worldX,
+                        worldY: point.worldY,
+                      })
+                    }}
+                    tr={tr}
+                  />
+                </div>
+              ) : leftPanelMode === 'visual' ? (
                 (() => {
                   const s = slides[currentIndex]
                   if (!s) return <p className="text-slate-500 text-sm">{tr('Không có slide', 'No slide', '无幻灯片', 'スライドなし', '슬라이드 없음')}</p>
@@ -4934,6 +5399,17 @@ export default function GiaoVienWorksheetPage() {
             setQuizSessionData((prev) => ({ ...prev, [key]: data }))
             sendToStudentView({ type: 'quiz-session-code', slideIndex: si, blockIndex: bi, sessionCode: code, quizDurationSeconds: data.quizDurationSeconds })
           }}
+          footer={slides[currentIndex] ? (
+            <AnswerScanLaunch
+              examCode={examCode || undefined}
+              worksheetId={examCode ? undefined : worksheetId || undefined}
+              curriculumId={!examCode && !worksheetId ? curriculumId ?? undefined : undefined}
+              questions={scanQuestionsFromSlide(slides[currentIndex])}
+              phoneMode={Boolean(phoneFollowerId)}
+              tone="light"
+              onShowStudent={showAnswerBoard}
+            />
+          ) : null}
         />
       )}
       <VirtualMouseOverlay variant="remote-student" controllerRef={studentMouseRef} />

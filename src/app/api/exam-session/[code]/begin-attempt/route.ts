@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserForAction } from '@/lib/auth'
+import { actingStudentUserId, resolveExamActor } from '@/lib/lop/lop-viewer'
 import { resolveWebLocaleFromAcceptLanguage } from '@/lib/i18n/config'
 import { resolveDefaultExamSessionTitle } from '@/lib/i18n/exam-session-default-titles'
 import { signExamLayoutToken } from '@/lib/exam-layout-token'
@@ -80,14 +80,13 @@ export async function POST(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const auth = await getUserForAction('Vui lòng đăng nhập để làm bài thi.')
-    if ('error' in auth) {
+    const user = await resolveExamActor()
+    if (!user) {
       return NextResponse.json(
-        { error: auth.error },
+        { error: 'Vui lòng đăng nhập để làm bài thi.' },
         { status: 401, headers: NO_STORE_HEADERS }
       )
     }
-    const user = auth.user
 
     const { code } = await params
     if (!code || code.length < 4) {
@@ -135,6 +134,7 @@ export async function POST(
     }
 
     const sess = sessRow
+    user.id = await actingStudentUserId(user.id, sess.class_id ? String(sess.class_id) : null)
     const userId = user.id
 
     const practiceHomework = Boolean(sess.is_practice_homework)
@@ -185,7 +185,6 @@ export async function POST(
     const durationMin = typeof sess.duration_minutes === 'number' ? sess.duration_minutes : 15
 
     async function jsonIfExamSignalLost(row: ExistingAttemptRow): Promise<NextResponse | null> {
-      if (practiceHomework) return null
       const nowMs = Date.now()
       if (!isExamSignalLost(row.last_seen_at, nowMs)) {
         const touched = await touchExamAttemptLastSeenPg(row.id, userId)

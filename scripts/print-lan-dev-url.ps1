@@ -8,7 +8,7 @@ $ip = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
 Write-Host "      May nay:    http://localhost:$Port"
 if ($ip) {
   Write-Host "      Dien thoai: http://${ip}:$Port"
-  Write-Host "      Cung Wi-Fi. Ma QR dung dia chi nay, khong mo ngrok."
+  Write-Host "      Cung Wi-Fi. Ma QR dung dia chi nay."
 } else {
   Write-Host "      Khong thay IP Wi-Fi 192.168. Dien thoai cung mang chua vao duoc."
 }

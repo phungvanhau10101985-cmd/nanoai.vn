@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Timer } from 'lucide-react'
 import QRCode from 'qrcode'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { GeoGebraApplet } from './geogebra-applet'
 
 /**
@@ -343,8 +344,9 @@ function LiveQuizEmbed({
       setSessionCode(initialSessionCode)
       setSessionQuizData(null)
       setDisplayQuizData(null)
-      const url = typeof window !== 'undefined' ? `${window.location.origin}/quiz/${initialSessionCode}` : ''
-      QRCode.toDataURL(url, { width: 140, margin: 2 }).then(setQrDataUrl).catch(() => setQrDataUrl(null))
+      void phoneOpenableUrl(`/quiz/${initialSessionCode}`).then((url) => {
+        QRCode.toDataURL(url, { width: 140, margin: 2 }).then(setQrDataUrl).catch(() => setQrDataUrl(null))
+      })
       if (typeof initialQuizDurationSeconds === 'number' && initialQuizDurationSeconds > 0) {
         setQuizTimerSeconds(initialQuizDurationSeconds)
         setQuizTimerRunning(true)
@@ -455,7 +457,7 @@ function LiveQuizEmbed({
         setQuizTimerSeconds(quizDurationSeconds)
         setQuizTimerRunning(true)
         onSessionCreated?.(slideIndex, blockIndex, data.code, quizDurationSeconds)
-        const url = typeof window !== 'undefined' ? `${window.location.origin}/quiz/${data.code}` : ''
+        const url = await phoneOpenableUrl(`/quiz/${data.code}`)
         QRCode.toDataURL(url, { width: 140, margin: 2 }).then(setQrDataUrl).catch(() => setQrDataUrl(null))
       } else {
         setCreateError(data.error || (res.status === 401 ? t('Vui lòng đăng nhập.', 'Please sign in.', '请登录。', 'ログインしてください。', '로그인해 주세요.') : t('Không tạo được phiên.', 'Could not create session.', '无法创建会话。', 'セッションを作成できません。', '세션을 만들 수 없습니다.')))
@@ -529,7 +531,20 @@ function LiveQuizEmbed({
     return () => clearInterval(id)
   }, [sessionCode])
 
-  const joinUrl = typeof window !== 'undefined' && sessionCode ? `${window.location.origin}/quiz/${sessionCode}` : ''
+  const [joinUrl, setJoinUrl] = useState('')
+  useEffect(() => {
+    if (!sessionCode) {
+      setJoinUrl('')
+      return
+    }
+    let cancel = false
+    void phoneOpenableUrl(`/quiz/${sessionCode}`).then((url) => {
+      if (!cancel) setJoinUrl(url)
+    })
+    return () => {
+      cancel = true
+    }
+  }, [sessionCode])
 
   const canCreateSession = teacherMode && curriculumId
   return (

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Copy, FileDown, QrCode } from 'lucide-react'
 import QRCode from 'qrcode'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { Button } from '@/components/ui/button'
 import { exportWorksheetToPdf, exportWorksheetToWord } from '@/app/tao-giao-trinh/lib/worksheet-export'
 
@@ -32,12 +33,20 @@ export function WorksheetSharePanel({
   const worksheetUrl = useMemo(() => `/phieu-bai-tap/${worksheetId}`, [worksheetId])
 
   useEffect(() => {
-    QRCode.toDataURL(
-      typeof window === 'undefined' ? worksheetUrl : `${window.location.origin}${worksheetUrl}`,
-      { width: 200, margin: 2 }
-    )
-      .then(setQrDataUrl)
-      .catch(() => setQrDataUrl(null))
+    let cancel = false
+    void phoneOpenableUrl(worksheetUrl).then((url) => {
+      if (cancel) return
+      return QRCode.toDataURL(url, { width: 200, margin: 2 })
+        .then((dataUrl) => {
+          if (!cancel) setQrDataUrl(dataUrl)
+        })
+        .catch(() => {
+          if (!cancel) setQrDataUrl(null)
+        })
+    })
+    return () => {
+      cancel = true
+    }
   }, [worksheetUrl])
 
   const downloadMd = () => {

@@ -13,7 +13,28 @@ function phoneCanOpenOrigin(origin: string): boolean {
   }
 }
 
-/** Máy giáo viên mở local thì QR là IP Wi‑Fi. Điện thoại cùng mạng vào http://IP:3000. */
+/** Link điện thoại quét. Máy giáo viên đang mở localhost thì đổi sang IP Wi‑Fi. */
+export async function phoneOpenableUrl(input: string): Promise<string> {
+  const raw = input.trim()
+  if (!raw) return raw
+  const origin = await phoneRemoteLoginOrigin()
+  if (raw.startsWith('/')) return `${origin}${raw}`
+  try {
+    const url = new URL(raw)
+    const host = url.hostname.toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '::1') {
+      const next = new URL(origin)
+      url.protocol = next.protocol
+      url.host = next.host
+      return url.href
+    }
+    return url.href
+  } catch {
+    return raw
+  }
+}
+
+/** Máy giáo viên mở local thì QR điện thoại là IP Wi‑Fi cùng mạng. */
 export async function phoneRemoteLoginOrigin(): Promise<string> {
   if (typeof window === 'undefined') return LOCAL_PHONE_NGROK_ORIGIN
   if (!isLocalDevHost(window.location.hostname)) return window.location.origin

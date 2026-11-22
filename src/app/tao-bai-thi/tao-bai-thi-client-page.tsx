@@ -33,6 +33,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import QRCode from 'qrcode'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { isStoredGradeLevelId } from '../tao-giao-trinh/lib/curriculum-subjects'
 import { GradeLevelOptions } from '../tao-giao-trinh/lib/grade-level-options'
 import ClassSubjectField from '../lop/class-subject-field'
@@ -543,10 +544,9 @@ export default function TaoBaiThiClientPage({
     const d = readExamFormDefaults(formDefaultsPrimary, formDefaultsLegacy)
     if (!d) {
       examFormHydratedRef.current = true
-      if (isHomework) setExamType('hocky')
       return
     }
-    if (!isHomework && d.examType && EXAM_TYPE_ID_SET.has(d.examType)) setExamType(d.examType)
+    if (d.examType && EXAM_TYPE_ID_SET.has(d.examType)) setExamType(d.examType)
     if (typeof d.subjectId === 'string' && d.subjectId && d.subjectId !== 'khac' && d.subjectId.length <= 40) {
       setSubjectId(d.subjectId)
     }
@@ -569,7 +569,6 @@ export default function TaoBaiThiClientPage({
     }
     if (typeof d.newClassTeacher === 'string') setNewClassTeacher(d.newClassTeacher)
     examFormHydratedRef.current = true
-    if (isHomework) setExamType('hocky')
   }, [formDefaultsPrimary, formDefaultsLegacy, isHomework])
 
   useEffect(() => {
@@ -1016,7 +1015,7 @@ export default function TaoBaiThiClientPage({
   const totalExamPointsRounded = roundExamPoints(totalExamPoints)
   const examPointsRemaining = roundExamPoints(EXAM_FULL_SCORE - totalExamPointsRounded)
   const isExamPointsExact100 = Math.abs(totalExamPointsRounded - EXAM_FULL_SCORE) < 0.005
-  const pointsOkForCreate = isHomework || isExamPointsExact100
+  const pointsOkForCreate = isExamPointsExact100
   const selectedExamTypeDuration = useMemo(() => {
     const id = examType as ExamTypeId
     return EXAM_TYPE_DURATION[id] ?? EXAM_TYPE_DURATION['15ph']
@@ -1025,7 +1024,7 @@ export default function TaoBaiThiClientPage({
   const examMinutesRemaining = roundExamMinutes(selectedExamTypeDuration - totalExamMinutes)
   const isExamMinutesExact = Math.abs(examMinutesRemaining) < 0.01
   const selectionFull =
-    !isHomework && examPointsRemaining <= 0.005 && examMinutesRemaining <= 0.01
+    examPointsRemaining <= 0.005 && examMinutesRemaining <= 0.01
 
   const toggleEssayQuestion = useCallback(
     (id: string) => {
@@ -1121,7 +1120,7 @@ export default function TaoBaiThiClientPage({
     [essayMinutesById, essayPointsById, examType, selectionFull]
   )
 
-  const timeOkForCreate = isHomework || isExamMinutesExact
+  const timeOkForCreate = isExamMinutesExact
   const canCreateExam = pointsOkForCreate && timeOkForCreate
   const selectedExamTypeLabel = useMemo(() => examTypeButtonLabel(tx, examType), [tx, examType])
   const classOptions = teacherClasses
@@ -1189,7 +1188,7 @@ export default function TaoBaiThiClientPage({
       })
       return
     }
-    if (!isHomework && !isExamPointsExact100) {
+    if (!isExamPointsExact100) {
       toast({
         title: tx.totalMustBe100,
         description: fillExamTpl(tx.totalMustBe100Desc, { total: String(totalExamPointsRounded) }),
@@ -1197,7 +1196,7 @@ export default function TaoBaiThiClientPage({
       })
       return
     }
-    if (!isHomework && !isExamMinutesExact) {
+    if (!isExamMinutesExact) {
       toast({
         title: tx.totalMustMatchDuration,
         description: fillExamTpl(tx.totalMustMatchDurationDesc, {
@@ -1270,9 +1269,10 @@ export default function TaoBaiThiClientPage({
         setPendingReview(null)
         clearCurriculaDraft()
         setSelectedCurriculumIds(new Set())
+        const examUrl = await phoneOpenableUrl(String(data.examUrl))
         setResult({
           code: data.code,
-          examUrl: data.examUrl,
+          examUrl,
           totalQuestions: data.totalQuestions ?? 0,
           durationMinutes: data.durationMinutes ?? 15,
           title: title.trim() || (isHomework ? tx.defaultHomeworkTitle : tx.defaultExamTitle),
@@ -1280,7 +1280,7 @@ export default function TaoBaiThiClientPage({
           schoolName: String(data?.schoolName ?? ''),
         })
         try {
-          const qr = await QRCode.toDataURL(data.examUrl, { width: 200, margin: 2 })
+          const qr = await QRCode.toDataURL(examUrl, { width: 200, margin: 2 })
           setQrDataUrl(qr)
         } catch {
           /* ignore */
@@ -1334,9 +1334,10 @@ export default function TaoBaiThiClientPage({
         return
       }
       noteTeacher()
+      const examUrl = await phoneOpenableUrl(String(data.examUrl))
       setResult({
         code: data.code,
-        examUrl: data.examUrl,
+        examUrl,
         totalQuestions: data.totalQuestions ?? 0,
         durationMinutes: data.durationMinutes ?? selectedExamTypeDuration,
         title: String(data.title ?? (title.trim() || tx.defaultExamTitle)),
@@ -1344,7 +1345,7 @@ export default function TaoBaiThiClientPage({
         schoolName: String(data?.schoolName ?? ''),
       })
       try {
-        const qr = await QRCode.toDataURL(data.examUrl, { width: 200, margin: 2 })
+        const qr = await QRCode.toDataURL(examUrl, { width: 200, margin: 2 })
         setQrDataUrl(qr)
       } catch {
         setQrDataUrl(null)
@@ -1411,19 +1412,20 @@ export default function TaoBaiThiClientPage({
 
   const openExamPreview = async (exam: { code: string; title: string; examUrl: string }) => {
     setCreatedExamsSheetOpen(false)
+    const examUrl = await phoneOpenableUrl(exam.examUrl)
     setExamPreview({
       code: exam.code,
       title: exam.title,
-      examUrl: exam.examUrl,
+      examUrl,
       qrDataUrl: null,
       loadingQr: true,
     })
     try {
-      const qr = await QRCode.toDataURL(exam.examUrl, { width: 220, margin: 2 })
+      const qr = await QRCode.toDataURL(examUrl, { width: 220, margin: 2 })
       setExamPreview({
         code: exam.code,
         title: exam.title,
-        examUrl: exam.examUrl,
+        examUrl,
         qrDataUrl: qr,
         loadingQr: false,
       })
@@ -1764,8 +1766,7 @@ export default function TaoBaiThiClientPage({
                 </div>
               </div>
 
-              {!isHomework ? (
-                <div className="space-y-2">
+              <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">
                     {tx.examType} <span className="text-destructive">*</span>
                   </label>
@@ -1784,7 +1785,6 @@ export default function TaoBaiThiClientPage({
                     ))}
                   </div>
                 </div>
-              ) : null}
 
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -1817,7 +1817,7 @@ export default function TaoBaiThiClientPage({
                 )}
               </div>
 
-              {!isHomework && selectedCurriculumTopics.length > 0 ? (
+              {selectedCurriculumTopics.length > 0 ? (
                 <ExamPresetPanel
                   subjectId={subjectId}
                   gradeLevelId={gradeLevelId}
@@ -1834,16 +1834,12 @@ export default function TaoBaiThiClientPage({
 
               <div className="space-y-2">
                 <p className="text-sm font-semibold">{tx.part1Quiz}</p>
-                {isHomework ? (
-                  <p className="text-xs text-muted-foreground">{tx.homeworkQuizPartFooterHint}</p>
-                ) : (
-                  <>
-                    <p className="text-xs text-muted-foreground">{tx.essayIntro100scale}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {fillExamTpl(tx.essayIntroDuration, { limit: String(selectedExamTypeDuration) })}
-                    </p>
-                  </>
-                )}
+                <>
+                  <p className="text-xs text-muted-foreground">{tx.essayIntro100scale}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {fillExamTpl(tx.essayIntroDuration, { limit: String(selectedExamTypeDuration) })}
+                  </p>
+                </>
                 {selectedCurriculumIds.size === 0 ? (
                   <p className="text-xs text-muted-foreground">
                     {tx.selectCurriculaForQuizList}
@@ -1979,7 +1975,7 @@ export default function TaoBaiThiClientPage({
                                     ) : null}
                                   </div>
                                   <p className="text-sm whitespace-pre-wrap">{q.preview}</p>
-                                  {checked && !isHomework ? (
+                                  {checked ? (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border border-emerald-200 bg-white/80 p-2 dark:bg-background/60">
                                       <div className="space-y-1">
                                         <div className="grid grid-cols-[1fr_5rem] gap-2 items-center">
@@ -2120,21 +2116,17 @@ export default function TaoBaiThiClientPage({
 
               <div className="space-y-2 rounded border p-3">
                 <p className="text-sm font-semibold">{tx.part2Essay}</p>
-                {isHomework ? (
-                  <p className="text-xs text-muted-foreground">{tx.homeworkEssayNo100Note}</p>
-                ) : (
-                  <>
-                    <p className="text-xs text-muted-foreground">
-                      {tx.essayIntroNoRandom}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {tx.essayIntro100scale}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {fillExamTpl(tx.essayIntroDuration, { limit: String(selectedExamTypeDuration) })}
-                    </p>
-                  </>
-                )}
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    {tx.essayIntroNoRandom}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {tx.essayIntro100scale}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {fillExamTpl(tx.essayIntroDuration, { limit: String(selectedExamTypeDuration) })}
+                  </p>
+                </>
                 <Button
                   type="button"
                   variant="outline"
@@ -2297,7 +2289,7 @@ export default function TaoBaiThiClientPage({
                                       ) : null}
                                     </div>
                                     <p className="text-sm whitespace-pre-wrap">{q.preview}</p>
-                                    {checked && !isHomework ? (
+                                    {checked ? (
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border border-emerald-200 bg-white/80 p-2 dark:bg-background/60">
                                         <div className="space-y-1">
                                           <div className="grid grid-cols-[1fr_5rem] gap-2 items-center">
@@ -2436,13 +2428,7 @@ export default function TaoBaiThiClientPage({
 
               <div className="space-y-2 rounded border p-3 bg-muted/20">
                 <p className="text-sm font-semibold">{tx.summaryBeforeCreate}</p>
-                {isHomework ? (
-                  <div className="space-y-1 text-sm">
-                    <p>{fillExamTpl(tx.homeworkSummaryMc, { count: String(totalQuizCount) })}</p>
-                    <p>{fillExamTpl(tx.homeworkSummaryEssay, { count: String(essaySummary.totalCount) })}</p>
-                  </div>
-                ) : (
-                  <>
+                <>
                     <div className="space-y-1 text-sm">
                       <p className="font-medium">{tx.quizSection}</p>
                       <p className="pt-1">
@@ -2534,8 +2520,7 @@ export default function TaoBaiThiClientPage({
                     <div className="rounded-md border border-input bg-background px-3 py-2 text-sm">
                       {tx.officialExamDuration}: <strong>{selectedExamTypeDuration}</strong> {tx.minutes}
                     </div>
-                  </>
-                )}
+                </>
               </div>
 
               {pendingReview && pendingReview.length > 0 ? (

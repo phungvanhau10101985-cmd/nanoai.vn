@@ -3,6 +3,8 @@ import { fetchClassSubjectsPg } from '@/lib/db/classes-pg'
 import { dissolveLapsedTutoringClasses, readTutoringPackage, tutoringTeacherGrace } from '@/lib/db/tutoring-package-pg'
 import { tutoringPackagePhase } from '@/lib/lop/tutoring-package'
 import { loadClassTuitionViewPg } from '@/lib/db/class-tuition-pg'
+import { listClassRosterPg } from '@/lib/db/class-roster-pg'
+import { ensureClassEntryTokenPg, listRosterLoginCodesPg, provisionRosterLoginsPg } from '@/lib/db/class-entry-pg'
 import { fetchTeacherIdentity, fetchTeacherPublicNames, saveTeacherIdentity } from '@/lib/db/teacher-identity-pg'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { fetchSubjectNameExtrasPg } from '@/lib/db/name-edit-votes'
@@ -18,6 +20,10 @@ export type ClassMemberPayload = {
   birthDate: string | null
   kind: 'student' | 'teacher_member'
   removable: boolean
+  studentCode?: string | null
+  sortNo?: number | null
+  accountLinked?: boolean
+  loginCode?: string | null
 }
 
 export type ExamAttemptPayload = {
@@ -31,7 +37,7 @@ export type ExamAttemptPayload = {
   maxScore: number
   submittedAt: string
   gradingMeta: ReturnType<typeof parseExamGradingMeta>
-  /** Phiên bài tập về nhà — HS không xem điểm công khai */
+  /** Phiên bài tập — có điểm, không đưa vào điểm tổng kết */
   practiceHomework: boolean
 }
 
@@ -74,6 +80,7 @@ export type ClassDetailPayload = {
   schoolName: string
   subjectNames: string[]
   members: ClassMemberPayload[]
+  studentEntryPath: string | null
   initialExamAttempts: ExamAttemptPayload[]
   initialExamSessions: ExamSessionPayload[]
   tuition: ClassTuitionView | null
@@ -96,7 +103,8 @@ function tsIso(v: unknown): string {
  */
 export async function loadClassDetailPayload(
   classId: string,
-  userId: string
+  userId: string,
+  options?: { provisionStudentEntry?: boolean }
 ): Promise<ClassDetailPayload | null> {
   if (!isPgConfigured()) return null
 
@@ -166,6 +174,18 @@ export async function loadClassDetailPayload(
       )
     )
 
+    let studentEntryPath: string | null = null
+    if (isTeacher) {
+      const token = await ensureClassEntryTokenPg(classId)
+      const joinCode = String(cls.join_code ?? '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+      if (joinCode.length >= 4) studentEntryPath = `/lop/chon-vao?code=${encodeURIComponent(joinCode)}`
+      else if (typeof token === 'string') studentEntryPath = `/lop/vao/${token}`
+      if (options?.provisionStudentEntry) await provisionRosterLoginsPg(classId)
+    }
+
     const memberRows = await pgQuery<{
       user_id: string
       member_display_name: string | null
@@ -180,16 +200,61 @@ export async function loadClassDetailPayload(
     const isMember = memberRows.some((m) => m.user_id === userId)
     if (!isOwner && !isSubjectTeacher && !isMember) return null
 
+    const roster = await listClassRosterPg(classId)
+    const rosterRows = Array.isArray(roster) ? roster : []
+    const rosterByUser = new Map(rosterRows.filter((row) => row.userId).map((row) => [row.userId as string, row]))
     const baseMembers: ClassMemberPayload[] = memberRows.map((m) => {
       const kind = m.user_id === cls.teacher_id ? ('teacher_member' as const) : ('student' as const)
-      const display = String(m.member_display_name ?? '').trim()
+      const linked = rosterByUser.get(m.user_id)
+      const display = String(linked?.displayName || m.member_display_name || '').trim()
       return {
         userId: m.user_id,
         name: display || '—',
-        birthDate: birthDateOnly(m.birth_date),
+        birthDate: linked?.birthDate || birthDateOnly(m.birth_date),
         kind,
         removable: false,
+        studentCode: linked?.studentCode ?? null,
+        sortNo: linked?.sortNo ?? null,
+        accountLinked: true,
       }
+    })
+    const memberIds = new Set(memberRows.map((m) => m.user_id))
+    for (const row of rosterRows) {
+      if (row.userId && memberIds.has(row.userId)) continue
+      baseMembers.push({
+        userId: `roster:${row.studentCode}`,
+        name: row.displayName,
+        birthDate: row.birthDate,
+        kind: 'student',
+        removable: false,
+        studentCode: row.studentCode,
+        sortNo: row.sortNo,
+        accountLinked: false,
+      })
+    }
+    if (!isTeacher) {
+      for (const member of baseMembers) {
+        if (member.userId !== userId) member.studentCode = null
+      }
+    }
+    const loginCodes = await listRosterLoginCodesPg(classId)
+    if (Array.isArray(loginCodes)) {
+      const byUser = new Map(
+        loginCodes.filter((row) => row.userId).map((row) => [row.userId as string, row.loginCode])
+      )
+      const byCode = new Map(loginCodes.map((row) => [row.studentCode, row.loginCode]))
+      for (const member of baseMembers) {
+        const code = byUser.get(member.userId) ?? (member.studentCode ? byCode.get(member.studentCode) : undefined)
+        if (!code) continue
+        if (isTeacher || member.userId === userId) member.loginCode = code
+      }
+    }
+    baseMembers.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === 'teacher_member' ? -1 : 1
+      const as = a.sortNo ?? 100000
+      const bs = b.sortNo ?? 100000
+      if (as !== bs) return as - bs
+      return a.name.localeCompare(b.name, 'vi')
     })
 
     let mergedMembers = baseMembers
@@ -450,6 +515,7 @@ export async function loadClassDetailPayload(
       schoolName,
       subjectNames,
       members: mergedMembers,
+      studentEntryPath,
       initialExamAttempts,
       initialExamSessions,
       tuition,

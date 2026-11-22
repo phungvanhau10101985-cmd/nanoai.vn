@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import QRCode from 'qrcode'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { cn } from '@/lib/utils'
 import { parseCurriculumToSlides, parseContentToBlocks, type AISlideData } from '../lib/curriculum-to-slides'
 import { latexToReadable } from '../lib/latex-to-readable'
@@ -33,6 +34,7 @@ import {
 import { clientPointForPointerTextHit } from './slide-pointer-text-hit'
 import { bindLatestPointerFrame, VirtualMouseOverlay, type VirtualMouseController } from './virtual-mouse-overlay'
 import { QuizPopupDialog, extractQuizFromSlide } from './quiz-popup-dialog'
+import { AnswerScanLaunch, scanQuestionsFromSlide } from '@/components/lop/answer-scan-launch'
 import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
@@ -855,6 +857,9 @@ interface NanoAISlideViewerProps {
   /** Slides từ AI – nếu có thì dùng trực tiếp, không parse từ markdown */
   aiSlides?: AISlideData[] | null
   curriculumId?: string | null
+  /** Đề hoặc phiếu đang chiếu, để nút quét kết quả chấm đúng bài. */
+  scanExamCode?: string | null
+  scanWorksheetId?: string | null
   subjectId?: string
   gradeLevelId?: string
   tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string
@@ -1333,7 +1338,7 @@ function slideProseClientPoint(data: {
   })
 }
 
-export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
+export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, scanExamCode = null, scanWorksheetId = null, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [memoryDebugEnabled, setMemoryDebugEnabled] = useState(false)
   const curriculumPayloadStatsRef = useRef<{
@@ -2670,7 +2675,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         setShareDialogOpen(false)
         return
       }
-      const url = data.shareUrl
+      const url = data.shareUrl ? await phoneOpenableUrl(String(data.shareUrl)) : ''
       if (url) {
         setShareUrl(url)
         try {
@@ -2965,16 +2970,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
       else if (t === 'student-curriculum-left-pane' && (e.data?.pane === 'infographic' || e.data?.pane === 'visual' || e.data?.pane === 'whiteboard')) {
-        if (!isTeacherView && !worksheetPresentation) {
+        if (!isTeacherView && (!worksheetPresentation || e.data.pane !== 'infographic')) {
           setStudentCurriculumLeftPaneTab(e.data.pane)
-          closeInfographicFullscreenRef.current({ fromMessage: true })
+          if (!worksheetPresentation) closeInfographicFullscreenRef.current({ fromMessage: true })
         }
       }
       else if (t === 'whiteboard-sim' && typeof e.data?.sim === 'number' && Number.isFinite(e.data.sim)) {
-        if (!isTeacherView && !worksheetPresentation) followedFigureSimRef.current = e.data.sim
+        if (!isTeacherView) followedFigureSimRef.current = e.data.sim
       }
       else if (isWhiteboardWireType(t)) {
-        if (!isTeacherView && !worksheetPresentation) {
+        if (!isTeacherView) {
           setWhiteboardState((prev) => applyRemoteWhiteboard(prev, e.data as Record<string, unknown>))
         }
       }
@@ -4913,6 +4918,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           ...Object.fromEntries(Object.entries(quizSessionData).map(([k, v]) => [k, v.quizDurationSeconds])),
         }}
         quizSessionAutoReveal={Object.fromEntries(Object.entries(quizSessionSettings).map(([k, v]) => [k, v.autoRevealOnTimerEnd]))}
+        renderScan={isTeacherView ? undefined : (questionIndex) => (
+          <AnswerScanLaunch
+            presentation="board"
+            examCode={scanExamCode || undefined}
+            worksheetId={scanExamCode ? undefined : scanWorksheetId || undefined}
+            curriculumId={!scanExamCode && !scanWorksheetId ? curriculumId ?? undefined : undefined}
+            questions={scanQuestionsFromSlide(slides[quizViewSlideIndex ?? currentIndex] ?? slide)}
+            questionIndex={questionIndex}
+          />
+        )}
       />
       {/* Fullscreen overlay cho visual slide – phần làm việc to hết khung hình */}
       {visualFullscreenOpen && (() => {
@@ -5339,7 +5354,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           )}
           style={{ background: visualPaneBackground }}
         >
-          {isStudentCurriculumSlide && studentCurriculumLeftPaneTab === 'whiteboard' ? (
+          {!isTeacherView && studentCurriculumLeftPaneTab === 'whiteboard' ? (
             <div className="absolute inset-0 z-30">
               <TeacherWhiteboardCanvas
                 readOnly
@@ -5395,14 +5410,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 {tr('GeoGebra', 'GeoGebra', 'GeoGebra', 'GeoGebra', 'GeoGebra')}
               </button>
             )}
-            {!worksheetPresentation && (
+            {(!worksheetPresentation || !isTeacherView) && (
               <div className="flex shrink-0 overflow-hidden rounded-md border border-white/25 bg-black/55 text-[10px] font-medium text-white shadow-md md:text-[11px]">
                 <button
                   type="button"
                   onClick={() => {
-                    if (isStudentCurriculumSlide) {
+                    if (!isTeacherView) {
                       setStudentCurriculumLeftPaneTab('visual')
-                      closeInfographicFullscreen()
+                      if (!worksheetPresentation) closeInfographicFullscreen()
                       notifyTeacherStudentCurriculumLeftPane('visual')
                     } else {
                       setPresenterLeftTab('visual')

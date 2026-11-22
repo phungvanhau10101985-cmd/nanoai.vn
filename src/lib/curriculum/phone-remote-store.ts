@@ -186,12 +186,30 @@ export async function createPhoneRemoteSession(input: {
   return { id, secret }
 }
 
-export async function redeemPhoneRemoteLogin(rawKey: string): Promise<{ id: string; userId: string; email: string } | null> {
+export async function redeemPhoneRemoteLogin(rawKey: string): Promise<{ id: string; userId: string; email: string; snapshot: Record<string, unknown> } | null> {
   const parsed = splitPhoneLoginKey(rawKey)
   if (!parsed) return null
   const row = await load(parsed.id)
   if (!row || !secretMatches(parsed.secret, row.secretHash)) return null
-  return { id: parsed.id, userId: row.userId, email: row.email }
+  return { id: parsed.id, userId: row.userId, email: row.email, snapshot: row.snapshot }
+}
+
+function phoneQueryToken(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  return /^[A-Za-z0-9_-]{1,80}$/.test(trimmed) ? trimmed : ''
+}
+
+/** Điện thoại mở đúng màn giáo viên của phiên. Giáo trình giữ đường cũ. */
+export function phoneTeacherReturnPath(snapshot: Record<string, unknown> | null | undefined, phoneId: string): string {
+  const params = new URLSearchParams()
+  params.set('phone', phoneId)
+  const surface = snapshot && typeof snapshot.phoneSurface === 'string' ? snapshot.phoneSurface : ''
+  const worksheetId = phoneQueryToken(snapshot?.worksheetId)
+  const examCode = phoneQueryToken(snapshot?.examCode).toUpperCase()
+  if (surface === 'exam' && examCode) params.set('examCode', examCode)
+  else if (surface === 'worksheet' && worksheetId) params.set('worksheetId', worksheetId)
+  return `/giao-trinh/giao-vien?${params.toString()}`
 }
 
 export async function readPhoneRemoteForUser(id: string, userId: string): Promise<PhoneRemoteRow | null> {

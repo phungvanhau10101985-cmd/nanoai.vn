@@ -555,12 +555,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (practiceHomework) {
-      for (const q of pickedQuestions) {
-        ;(q as { points?: number }).points = 1
-      }
-    }
-
     const nQuiz = pickedQuestions.filter(
       (q) => Array.isArray(q.options) && q.options.length >= 2
     ).length
@@ -575,7 +569,7 @@ export async function POST(req: NextRequest) {
     }
 
     const totalPickedPoints = roundExamTotalPoints(quizPointsMax + essayPointsMax)
-    if (!practiceHomework && Math.abs(totalPickedPoints - EXAM_TARGET_TOTAL_POINTS) > 0.01) {
+    if (Math.abs(totalPickedPoints - EXAM_TARGET_TOTAL_POINTS) > 0.01) {
       return NextResponse.json(
         {
           error: `Tổng điểm trắc nghiệm + tự luận phải đúng 100 điểm (hiện: ${totalPickedPoints}).`,
@@ -587,7 +581,7 @@ export async function POST(req: NextRequest) {
     const plannedMinutes = roundExamMinutes(
       perQuestionMinutes.reduce((sum, m) => sum + (Number.isFinite(m) ? m : 0), 0)
     )
-    if (!practiceHomework && Math.abs(plannedMinutes - config.duration) > 0.01) {
+    if (Math.abs(plannedMinutes - config.duration) > 0.01) {
       return NextResponse.json(
         {
           error: `Tổng thời gian trắc nghiệm + tự luận phải đúng ${config.duration} phút (hiện: ${plannedMinutes}).`,

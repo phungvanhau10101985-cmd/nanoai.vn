@@ -8,6 +8,7 @@ import {
   classMemberExistsPg,
   deleteClassWorksheetForTeacherPg,
   fetchClassIdByJoinCodePg,
+  fetchClassJoinCodeByIdPg,
   fetchClassMemberBriefForUserPg,
   fetchClassTeacherAndSchoolIdPg,
   fetchTeacherSchoolSettingsPrevMinePg,
@@ -23,6 +24,12 @@ import {
   upsertTeacherSchoolSettingsMinePg,
 } from '@/lib/db/classes-pg'
 import { fetchExamSessionForClassJoinByCodePg } from '@/lib/db/exam-session-pg'
+import { attachStudentToClassPg, unlinkRosterOnLeavePg } from '@/lib/db/class-roster-pg'
+import { ensureClassEntryTokenPg } from '@/lib/db/class-entry-pg'
+import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
+import { sendSmtpMail } from '@/lib/email/smtp'
+import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
+import { fillAnswerCardText } from '@/lib/lop/answer-card'
 import { fetchStudentIdentity } from '@/lib/db/student-identity-pg'
 import { fetchTeacherIdentity } from '@/lib/db/teacher-identity-pg'
 import { getServerDictionary } from '@/lib/i18n/server'
@@ -191,7 +198,43 @@ export async function createClass(formData: FormData) {
   }
 
   revalidatePath('/lop')
+  await emailClassEntryLink({
+    classId: inserted.row.id,
+    className: inserted.row.name,
+    teacherId: user.id,
+    teacherEmail: user.email,
+    subject: t.classes.entryEmailSubject,
+    text: t.classes.entryEmailText,
+  })
   return { success: true, classId: inserted.row.id, joinCode }
+}
+
+async function emailClassEntryLink(input: {
+  classId: string
+  className: string
+  teacherId: string
+  teacherEmail?: string | null
+  subject: string
+  text: string
+}) {
+  try {
+    const token = await ensureClassEntryTokenPg(input.classId)
+    if (typeof token !== 'string') return
+    const email = String(input.teacherEmail ?? '').trim() || (await getAuthUserEmailFromPg(input.teacherId)) || ''
+    if (!email || email.endsWith('@hocsinh.invalid')) return
+    const joinCode = await fetchClassJoinCodeByIdPg(input.classId)
+    const url = joinCode
+      ? `${getPublicAppUrlForServer()}/lop/chon-vao?code=${encodeURIComponent(joinCode)}`
+      : `${getPublicAppUrlForServer()}/lop/vao/${token}`
+    const sent = await sendSmtpMail({
+      to: email,
+      subject: fillAnswerCardText(input.subject, { name: input.className }),
+      text: fillAnswerCardText(input.text, { name: input.className, url }),
+    })
+    if (!sent.ok && sent.error !== 'smtp_not_configured') console.warn('[class-entry] email', sent.error)
+  } catch (error) {
+    console.warn('[class-entry] email', error)
+  }
 }
 
 export async function updateClassStudentFacingInfo(input: {
@@ -337,20 +380,34 @@ export async function joinClass(input: { joinCode: string }) {
   if (joinBlock === 'dissolved') return { error: t.classes.tutoringClassDissolved }
   if (joinBlock === 'closed') return { error: t.classes.tutoringJoinClosed }
 
-  const exists = await classMemberExistsPg(classId, user.id)
-  if (exists === null) return { error: DB_ERR }
-  if (exists) return { error: 'Bạn đã trong lớp này.' }
-
-  const ins = await insertClassMemberPg({
-    classId,
-    userId: user.id,
-    memberDisplayName: identity.givenName,
-    birthDateIso: identity.birthDate,
-  })
-  if (ins !== true) return { error: 'Không thể tham gia lớp.' }
+  if (identity.studentCode) {
+    const attached = await attachStudentToClassPg({
+      classId,
+      userId: user.id,
+      studentCode: identity.studentCode,
+      displayName: identity.givenName,
+      birthDateIso: identity.birthDate,
+      gender: identity.gender,
+    })
+    if (attached === 'code_taken') return { error: t.classes.rosterCodeTaken }
+    if (attached === 'schema') return { error: t.classes.rosterSchemaMissing }
+    if (attached !== 'ok') return { error: 'Không thể tham gia lớp.' }
+  } else {
+    const exists = await classMemberExistsPg(classId, user.id)
+    if (exists === null) return { error: DB_ERR }
+    if (exists) return { error: 'Bạn đã trong lớp này.' }
+    const ins = await insertClassMemberPg({
+      classId,
+      userId: user.id,
+      memberDisplayName: identity.givenName,
+      birthDateIso: identity.birthDate,
+    })
+    if (ins !== true) return { error: 'Không thể tham gia lớp.' }
+  }
 
   revalidatePath('/lop')
   revalidatePath(`/lop/${classId}`)
+  revalidatePath(`/lop/${classId}/hoc-sinh`)
   return { success: true, classId }
 }
 
@@ -374,8 +431,10 @@ export async function leaveClass(classId: string) {
   const res = await leaveClassAsStudentPg(cid, user.id)
   if (res === null) return { error: DB_ERR }
   if (res !== 'ok') return { error: t.classes.leaveClassFailed }
+  await unlinkRosterOnLeavePg(cid, user.id)
 
   revalidatePath('/lop')
+  revalidatePath(`/lop/${cid}/hoc-sinh`)
   revalidatePath(`/lop/${cid}`)
   return { success: true }
 }
@@ -486,7 +545,19 @@ export async function joinClassForActiveExam(input: { examCode: string }) {
     return { error: t.classes.studentIdentityRequired, code: 'profile_required' as const }
   }
 
-  if (existing) {
+  if (identity.studentCode) {
+    const attached = await attachStudentToClassPg({
+      classId,
+      userId: user.id,
+      studentCode: identity.studentCode,
+      displayName: identity.givenName,
+      birthDateIso: identity.birthDate,
+      gender: identity.gender,
+    })
+    if (attached === 'code_taken') return { error: t.classes.rosterCodeTaken }
+    if (attached === 'schema') return { error: t.classes.rosterSchemaMissing }
+    if (attached !== 'ok') return { error: 'Không thể tham gia lớp.' }
+  } else if (existing) {
     const upd = await updateClassMemberProfilePg({
       classId,
       userId: user.id,

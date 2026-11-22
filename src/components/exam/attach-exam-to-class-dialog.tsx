@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import QRCode from 'qrcode'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import {
   Dialog,
   DialogContent,
@@ -191,8 +192,9 @@ export function AttachExamToClassDialog({
       if (!res.ok) {
         throw new Error(typeof data.error === 'string' && data.error.trim() ? data.error : tc.examAttachFailed)
       }
-      const examUrl = String(data.examUrl ?? '')
-      if (!examUrl) throw new Error(tc.examAttachFailed)
+      const rawExamUrl = String(data.examUrl ?? '')
+      if (!rawExamUrl) throw new Error(tc.examAttachFailed)
+      const examUrl = await phoneOpenableUrl(rawExamUrl)
       let qrDataUrl: string | null = null
       try {
         qrDataUrl = await QRCode.toDataURL(examUrl, { width: 220, margin: 2 })

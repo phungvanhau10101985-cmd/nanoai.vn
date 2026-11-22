@@ -521,6 +521,7 @@ export default function LamBaiClientPage({
     givenName: string
     gender: TeacherGender | null
     birthDate: string
+    studentCode: string
     complete: boolean
   } | null>(null)
   const { toast } = useToast()
@@ -669,12 +670,13 @@ export default function LamBaiClientPage({
           givenName: typeof data?.givenName === 'string' ? data.givenName : '',
           gender,
           birthDate: typeof data?.birthDate === 'string' ? data.birthDate : '',
+          studentCode: typeof data?.studentCode === 'string' ? data.studentCode : '',
           complete: data?.complete === true && gender != null,
         })
       })
       .catch(() => {
         if (!cancelled) {
-          setEnrollProfile({ givenName: '', gender: null, birthDate: '', complete: false })
+          setEnrollProfile({ givenName: '', gender: null, birthDate: '', studentCode: '', complete: false })
         }
       })
     return () => {
@@ -948,8 +950,7 @@ export default function LamBaiClientPage({
     }
     const onPopState = () => {
       trap()
-      if (exam.practiceHomework) setExitSubmitDialogOpen(true)
-      else void handleSubmitRef.current('hidden')
+      void handleSubmitRef.current('hidden')
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
@@ -1124,7 +1125,7 @@ export default function LamBaiClientPage({
           layoutToken,
           answers,
           essaySubmission,
-          ...(reason === 'hidden' && !exam.practiceHomework ? { autoSubmitReason: 'hidden' } : {}),
+          ...(reason === 'hidden' ? { autoSubmitReason: 'hidden' } : {}),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -1161,7 +1162,7 @@ export default function LamBaiClientPage({
         scoringBreakdown: parseScoringBreakdown(data.scoringBreakdown),
         practiceHomework: Boolean(exam.practiceHomework),
         submittedDueToServerDeadline: fromApi === 'deadline',
-        autoSubmitReason: fromApi ?? (reason === 'hidden' && !exam.practiceHomework ? 'hidden' : null),
+        autoSubmitReason: fromApi ?? (reason === 'hidden' ? 'hidden' : null),
       })
     } catch (e) {
       submitLockRef.current = false
@@ -1179,7 +1180,7 @@ export default function LamBaiClientPage({
   resultRef.current = result
 
   useEffect(() => {
-    if (!examStarted || result || !exam || exam.practiceHomework) return
+    if (!examStarted || result || !exam) return
     const flushDraft = () => {
       const token = layoutTokenRef.current
       const current = examRef.current
@@ -1231,7 +1232,7 @@ export default function LamBaiClientPage({
       flushDraft()
       const token = layoutTokenRef.current
       const current = examRef.current
-      if (!token || !current || current.practiceHomework) return
+      if (!token || !current) return
       const essaySubmission: Record<string, { text: string; imageUrls: string[] }> = {}
       for (const q of current.questions) {
         const isEssay = q.type === 'essay' || !q.options || q.options.length < 2
@@ -1286,12 +1287,12 @@ export default function LamBaiClientPage({
 
   /** Rời trang bằng link trên site (không pagehide): nộp nháp. Trễ một nhịp để Strict Mode không nộp lúc vừa vào bài. */
   useEffect(() => {
-    if (!examStarted || result || !exam || exam.practiceHomework) return
+    if (!examStarted || result || !exam) return
     const armId = ++leaveBeaconArmRef.current
     return () => {
       window.setTimeout(() => {
         if (leaveBeaconArmRef.current !== armId) return
-        if (resultRef.current || examRef.current?.practiceHomework) return
+        if (resultRef.current) return
         const token = layoutTokenRef.current
         const current = examRef.current
         if (!token || !current) return
@@ -1324,7 +1325,7 @@ export default function LamBaiClientPage({
   }, [examStarted, result, exam, code])
 
   useEffect(() => {
-    if (!examStarted || result || !exam || exam.practiceHomework) return
+    if (!examStarted || result || !exam) return
     const inEditable = (target: EventTarget | null) => {
       const el = target instanceof Element ? target : target instanceof Node ? target.parentElement : null
       return !!el?.closest('textarea, input, [contenteditable="true"]')
@@ -1570,12 +1571,14 @@ export default function LamBaiClientPage({
                 initialName={enrollProfile.givenName}
                 initialGender={enrollProfile.gender}
                 initialBirthDate={enrollProfile.birthDate}
+                initialStudentCode={enrollProfile.studentCode}
                 labels={studentIdentityLabels(t)}
                 onSaved={(value) => {
                   setEnrollProfile({
                     givenName: value.givenName,
                     gender: value.gender,
                     birthDate: value.birthDate,
+                    studentCode: value.studentCode,
                     complete: true,
                   })
                 }}
@@ -1588,7 +1591,8 @@ export default function LamBaiClientPage({
                   .replace(
                     '{gender}',
                     enrollProfile.gender === 'male' ? t.teacherIdentityMale : t.teacherIdentityFemale
-                  )}
+                  )
+                  .replace('{code}', enrollProfile.studentCode || '—')}
               </p>
             )}
             {profileReady ? (
@@ -1668,13 +1672,11 @@ export default function LamBaiClientPage({
     const shareTitle = exam?.title ?? t.examSubmittedTitle
     const score100Str = formatExamScaleNumber(result.scoreOn100)
     const gradeStr = formatExamScaleNumber(result.grade10)
-    const shareText = result.practiceHomework
-      ? fillExamTemplate(t.homeworkShareLine, { title: shareTitle })
-      : fillExamTemplate(t.examShareResultScaleLine, {
-          title: shareTitle,
-          score100: score100Str,
-          grade: gradeStr,
-        })
+    const shareText = fillExamTemplate(t.examShareResultScaleLine, {
+      title: shareTitle,
+      score100: score100Str,
+      grade: gradeStr,
+    })
     const handleShare = () => {
       if (navigator.share) {
         navigator.share({
@@ -1731,74 +1733,7 @@ export default function LamBaiClientPage({
         {t.examResultBack}
       </Button>
     )
-    if (result.practiceHomework) {
-      return (
-        <div
-          ref={submitResultRef}
-          className="w-full"
-          id="exam-submit-result"
-          role="status"
-          aria-live="polite"
-        >
-          {headerBack}
-          <div className="px-4 pt-4">{backButton}</div>
-          <div className={resultShellClass}>
-          <Card className="max-w-md w-full border-sky-200 dark:border-sky-800">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sky-700 dark:text-sky-300">
-                <CheckCircle className="h-6 w-6" />
-                {t.homeworkSubmittedTitle}
-              </CardTitle>
-              {examResultInterruptHint(t, result) ? (
-                <CardDescription className="text-sm leading-relaxed pt-1">
-                  {examResultInterruptHint(t, result)}
-                </CardDescription>
-              ) : priorSubmissionResult ? (
-                <CardDescription className="text-sm leading-relaxed pt-1">
-                  {t.homeworkSubmittedSavedEarlier}
-                </CardDescription>
-              ) : null}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground leading-relaxed">{t.homeworkSubmittedBody}</p>
-              {bd && bd.quizTotal > 0 ? (
-                <p className="text-sm">
-                  {fillExamTemplate(t.homeworkMcCorrectOnlyLine, {
-                    correct: String(bd.quizCorrect),
-                    total: String(bd.quizTotal),
-                  })}
-                </p>
-              ) : null}
-              {bd && bd.essayPointsMax > 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {fillExamTemplate(t.examEssayPendingBreakdownLine, {
-                    essayMax: formatExamScaleNumber(bd.essayPointsMax),
-                  })}
-                </p>
-              ) : null}
-              {bd?.essayImageUrlsExpireAt ? (
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  {fillExamTemplate(t.examEssayImageRetentionResult, {
-                    expiresAt: formatExamEssayImageExpireAtForUi(bd.essayImageUrlsExpireAt),
-                    days: String(EXAM_ESSAY_IMAGE_RETENTION_DAYS),
-                  })}
-                </p>
-              ) : null}
-              {result.comment ? (
-                <p className="text-sm leading-relaxed">{result.comment}</p>
-              ) : null}
-              {reviewToggle}
-              <Button variant="outline" size="sm" onClick={handleShare} className="w-full" disabled={shared}>
-                <Share2 className="h-4 w-4 mr-2" />
-                {shared ? t.examShareDone : result.shareHint || t.examShareDone}
-              </Button>
-            </CardContent>
-          </Card>
-          {reviewPanel}
-          </div>
-        </div>
-      )
-    }
+    const homeworkResult = Boolean(result.practiceHomework)
     return (
         <div
         ref={submitResultRef}
@@ -1814,7 +1749,7 @@ export default function LamBaiClientPage({
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
               <CheckCircle className="h-6 w-6" />
-              {t.examSubmittedTitle}
+              {homeworkResult ? t.homeworkSubmittedTitle : t.examSubmittedTitle}
             </CardTitle>
             {examResultInterruptHint(t, result) ? (
               <CardDescription className="text-sm leading-relaxed pt-1">
@@ -1822,7 +1757,7 @@ export default function LamBaiClientPage({
               </CardDescription>
             ) : priorSubmissionResult ? (
               <CardDescription className="text-sm leading-relaxed pt-1">
-                {t.examSubmittedSavedEarlier}
+                {homeworkResult ? t.homeworkSubmittedSavedEarlier : t.examSubmittedSavedEarlier}
               </CardDescription>
             ) : null}
           </CardHeader>
@@ -1834,9 +1769,10 @@ export default function LamBaiClientPage({
                 })}
               </p>
               <p className="text-2xl font-semibold text-emerald-700 dark:text-emerald-300 tabular-nums">
-                {fillExamTemplate(t.examResultSummaryGrade10Line, {
-                  grade: formatExamScaleNumber(result.grade10),
-                })}
+                {fillExamTemplate(
+                  homeworkResult ? t.examScoreOutOf10 : t.examResultSummaryGrade10Line,
+                  { grade: formatExamScaleNumber(result.grade10) }
+                )}
               </p>
             </div>
             <div className="text-sm text-muted-foreground space-y-1">
@@ -1891,6 +1827,9 @@ export default function LamBaiClientPage({
                 </p>
               )}
             </div>
+            {homeworkResult ? (
+              <p className="text-sm text-muted-foreground leading-relaxed">{t.homeworkSubmittedBody}</p>
+            ) : null}
             <p className="text-sm leading-relaxed">{result.comment}</p>
             {reviewToggle}
             {result.shareHint && (
@@ -1982,7 +1921,7 @@ export default function LamBaiClientPage({
             )}
             <p className="text-xs text-muted-foreground">{t.examOneAttemptNote}</p>
             <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-              {isHw ? t.lamBaiExitBlockedBeforeStartHint : t.examProctorBeforeStartHint}
+              {t.examProctorBeforeStartHint}
             </p>
             <Button
               onClick={() => void handleStartExam()}
@@ -2048,7 +1987,7 @@ export default function LamBaiClientPage({
         ) : null}
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="py-3 text-sm text-amber-950 dark:text-amber-100 leading-relaxed">
-            {isHw ? t.lamBaiExitBlockedBanner : t.examProctorDuringHint}
+            {t.examProctorDuringHint}
           </CardContent>
         </Card>
         {fiveMinuteWarning && !isTimeUp && (
@@ -2070,8 +2009,8 @@ export default function LamBaiClientPage({
 
         <div
           ref={examPaperRef}
-          className={isHw ? 'space-y-4' : 'space-y-4 select-none [&_input]:select-text [&_textarea]:select-text'}
-          onDragStart={isHw ? undefined : (event) => event.preventDefault()}
+          className="space-y-4 select-none [&_input]:select-text [&_textarea]:select-text"
+          onDragStart={(event) => event.preventDefault()}
         >
           {exam.questions.map((q) => (
             <Card key={q.id}>

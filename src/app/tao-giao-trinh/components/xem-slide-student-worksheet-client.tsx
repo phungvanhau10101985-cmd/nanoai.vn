@@ -72,6 +72,8 @@ export default function XemSlideStudentWorksheetClient() {
       onClose={() => window.close()}
       aiSlides={aiSlides}
       curriculumId={data.curriculumId}
+      scanExamCode={data.scanExamCode}
+      scanWorksheetId={data.scanWorksheetId}
       tr={tr.bind(null, locale)}
       slideMode={data.slideMode ?? undefined}
       initialSlideIndex={data.currentIndex}
@@ -82,6 +84,7 @@ export default function XemSlideStudentWorksheetClient() {
       worksheetStemTypingEnabled={data.worksheetStemTypingEnabled}
       presentationBroadcastSyncId={presentationBroadcastSyncId}
       syncedStudentCurriculumRightMode={null}
+      syncedStudentCurriculumLeftPane={data.teacherSlideLeftPane ?? null}
     />
   )
 }

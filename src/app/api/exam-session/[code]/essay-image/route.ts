@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
-import { getUserForAction } from '@/lib/auth'
+import { actingStudentUserId, resolveExamActor } from '@/lib/lop/lop-viewer'
 import { hasCompleteClassMemberProfileForExamPg } from '@/lib/db/classes-pg'
 import {
   fetchExamAttemptOpenForDraftPg,
@@ -24,11 +24,10 @@ export async function POST(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const auth = await getUserForAction('Vui lòng đăng nhập.')
-    if ('error' in auth) {
-      return NextResponse.json({ error: auth.error }, { status: 401 })
+    const user = await resolveExamActor()
+    if (!user) {
+      return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401 })
     }
-    const user = auth.user
 
     const { code } = await params
     if (!code || code.length < 4) {
@@ -63,6 +62,7 @@ export async function POST(
     if (sessionRow === 'not_found') {
       return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404 })
     }
+    user.id = await actingStudentUserId(user.id, sessionRow.class_id ? String(sessionRow.class_id) : null)
 
     const layout = await verifyExamLayoutToken(layoutToken)
     if (!layout || layout.sessionId !== String(sessionRow.id) || layout.userId !== user.id) {

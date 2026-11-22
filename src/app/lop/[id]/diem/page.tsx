@@ -2,7 +2,7 @@ import { BrowserBackTextButton } from '@/components/navigation/browser-back-cont
 import { ChevronRight } from 'lucide-react'
 import { notFound, redirect } from 'next/navigation'
 import { redirectToLogin } from '@/lib/auth/login-redirect'
-import { getUserOrBypass } from '@/lib/auth'
+import { getLopViewer } from '@/lib/lop/lop-viewer'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
@@ -41,7 +41,7 @@ export default async function StudentSubjectScoresPage({
   searchParams: Promise<{ subject?: string; teacher?: string }>
 }) {
   const { id: classId } = await params
-  const user = await getUserOrBypass()
+  const user = await getLopViewer(classId)
   if (!user) redirectToLogin()
   const focus = classSubjectScopeFromSearch(await searchParams)
   if (!focus) redirect(`/lop/${classId}`)
@@ -95,11 +95,8 @@ export default async function StudentSubjectScoresPage({
                 id: row.id,
                 title: row.title,
                 kindLabel: row.homework ? t.classes.studentMyScoresHomework : t.classes.studentMyScoresExam,
-                status: row.homework
-                  ? row.submitted
-                    ? t.classes.studentMyScoresSubmitted
-                    : t.classes.studentMyScoresNotSubmitted
-                  : row.score10 == null
+                status:
+                  row.score10 == null
                     ? t.classes.studentMyScoresNotSubmitted
                     : t.classes.studentMyScoresPoints.replace('{score}', formatScore10(row.score10)),
                 createdAt: row.createdAt,

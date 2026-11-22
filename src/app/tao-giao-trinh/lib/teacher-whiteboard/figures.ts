@@ -1,5 +1,7 @@
 import { evalMathExpr, parseMathExpr } from '../curriculum-math-expr'
 import { worldToScreen } from './geometry'
+import { drawDiffract, drawEyeLab, drawPrismSpectrum, drawSlab, drawSpectrum, drawTir, moveOpticsTune, opticsHandles, prismAngleFromPoint, prismHandle } from './optics-lab'
+import { drawSchoolBench, moveSchoolBench, SCHOOL_ANIM, schoolHandles } from './school-bench'
 import type { WhiteboardCamera } from './types'
 
 export type FigureSubject = 'math' | 'physics' | 'chemistry' | 'biology'
@@ -110,6 +112,11 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'convex', label: L('Thấu kính hội tụ', 'Convex lens', '凸透镜', '凸レンズ', '볼록 렌즈') },
     { id: 'concave', label: L('Thấu kính phân kỳ', 'Concave lens', '凹透镜', '凹レンズ', '오목 렌즈') },
   ] },
+  { id: 'mirror', subject: 'physics', w: 420, h: 240, fields: ['variant'], label: L('Gương', 'Mirrors', '镜子', '鏡', '거울'), variants: [
+    { id: 'concave', label: L('Gương cầu lõm', 'Concave mirror', '凹面镜', '凹面鏡', '오목 거울') },
+    { id: 'convex', label: L('Gương cầu lồi', 'Convex mirror', '凸面镜', '凸面鏡', '볼록 거울') },
+    { id: 'plane', label: L('Gương phẳng', 'Plane mirror', '平面镜', '平面鏡', '평면 거울') },
+  ] },
   { id: 'phys-graph', subject: 'physics', w: 360, h: 220, fields: ['variant'], label: L('Đồ thị vận tốc, li độ, gia tốc', 'Velocity, position, acceleration graphs', '速度、位移、加速度图', '速度・位置・加速度のグラフ', '속도·위치·가속도 그래프'), variants: [
     { id: 'vt', label: L('Vận tốc theo thời gian v–t', 'Velocity against time v–t', '速度–时间 v–t', '速度と時間 v–t', '속도-시간 v–t') },
     { id: 'xt', label: L('Li độ theo thời gian x–t', 'Position against time x–t', '位置–时间 x–t', '位置と時間 x–t', '위치-시간 x–t') },
@@ -130,9 +137,42 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'gas', label: L('Đẳng nhiệt chất khí p–V', 'Isotherm of a gas p–V', '气体等温线 p–V', '気体の等温線 p–V', '기체 등온선 p–V') },
     { id: 'motion', label: L('Quãng đường theo thời gian s–t', 'Distance against time s–t', '路程–时间 s–t', '道のりと時間 s–t', '이동거리-시간 s–t') },
   ] },
-  { id: 'refraction', subject: 'physics', w: 320, h: 220, fields: ['variant'], label: L('Khúc xạ ánh sáng', 'Refraction of light', '光的折射', '光の屈折', '빛의 굴절'), variants: [
+  { id: 'refraction', subject: 'physics', w: 420, h: 260, fields: ['variant'], label: L('Khúc xạ ánh sáng', 'Refraction of light', '光的折射', '光の屈折', '빛의 굴절'), variants: [
     { id: 'interface', label: L('Tia sáng qua mặt phân cách hai môi trường', 'Ray across a boundary', '光线经过两种介质的界面', '2つの媒質の境界面を通る光線', '두 매질 경계면을 지나는 빛') },
-    { id: 'prism', label: L('Lăng kính đổi hướng tia sáng', 'Prism bending a ray', '棱镜使光线转向', 'プリズムで光線が曲がる', '프리즘이 빛을 꺾음') },
+    { id: 'prism', label: L('Lăng kính tán sắc ánh sáng trắng', 'Prism dispersing white light', '棱镜色散白光', 'プリズムで白色光が分散', '프리즘이 백색광을 분산') },
+  ] },
+  { id: 'tir', subject: 'physics', w: 400, h: 240, fields: ['variant'], label: L('Phản xạ toàn phần', 'Total internal reflection', '全反射', '全反射', '전반사'), variants: [
+    { id: 'boundary', label: L('Mặt thuỷ tinh–không khí', 'Glass–air boundary', '玻璃–空气界面', 'ガラスと空気の境界面', '유리-공기 경계') },
+    { id: 'fiber', label: L('Cáp quang', 'Optical fibre', '光纤', '光ファイバー', '광섬유') },
+  ] },
+  { id: 'slab', subject: 'physics', w: 400, h: 230, fields: [], label: L('Bản mặt song song', 'Parallel slab', '平行玻璃板', '平行平板', '평행 평판') },
+  { id: 'eye', subject: 'physics', w: 500, h: 280, fields: ['variant'], label: L('Mắt và kính', 'Eye and optical instruments', '眼睛与光学仪器', '目と光学機器', '눈과 광학 기기'), variants: [
+    { id: 'normal', label: L('Mắt thường', 'Normal eye', '正常眼', '正常な目', '정상안') },
+    { id: 'myopia', label: L('Mắt cận', 'Myopia', '近视', '近視', '근시') },
+    { id: 'hyper', label: L('Mắt viễn', 'Hyperopia', '远视', '遠視', '원시') },
+    { id: 'loupe', label: L('Kính lúp', 'Magnifying glass', '放大镜', '虫眼鏡', '돋보기') },
+    { id: 'micro', label: L('Kính hiển vi', 'Microscope', '显微镜', '顕微鏡', '현미경') },
+    { id: 'tele', label: L('Kính thiên văn', 'Telescope', '望远镜', '望遠鏡', '망원경') },
+  ] },
+  { id: 'diffract', subject: 'physics', w: 460, h: 260, fields: ['variant'], label: L('Nhiễu xạ ánh sáng', 'Diffraction', '光的衍射', '光の回折', '빛의 회절'), variants: [
+    { id: 'slit', label: L('Khe hẹp', 'Single slit', '单缝', '単スリット', '단일 슬릿') },
+    { id: 'grating', label: L('Cách tử', 'Diffraction grating', '光栅', '回折格子', '회절 격자') },
+  ] },
+  { id: 'spectrum', subject: 'physics', w: 460, h: 200, fields: ['variant'], label: L('Quang phổ', 'Spectra', '光谱', 'スペクトル', '스펙트럼'), variants: [
+    { id: 'continuous', label: L('Quang phổ liên tục', 'Continuous spectrum', '连续光谱', '連続スペクトル', '연속 스펙트럼') },
+    { id: 'emission', label: L('Quang phổ vạch phát xạ', 'Emission spectrum', '发射光谱', '放出スペクトル', '방출 스펙트럼') },
+    { id: 'absorption', label: L('Quang phổ vạch hấp thụ', 'Absorption spectrum', '吸收光谱', '吸収スペクトル', '흡수 스펙트럼') },
+  ] },
+  { id: 'standing', subject: 'physics', w: 520, h: 250, fields: ['variant'], label: L('Sóng dừng', 'Standing wave', '驻波', '定常波', '정상파'), variants: [
+    { id: 'string', label: L('Dây hai đầu cố định', 'String fixed at both ends', '两端固定的弦', '両端固定の弦', '양쪽이 고정된 줄') },
+    { id: 'pipe', label: L('Ống kín một đầu', 'Pipe closed at one end', '一端封闭的管', '一端が閉じた管', '한쪽이 막힌 관') },
+  ] },
+  { id: 'meters', subject: 'physics', w: 560, h: 300, fields: [], label: L('Đo hiệu điện thế và dòng điện', 'Measuring voltage and current', '测量电压和电流', '電圧と電流の測定', '전압과 전류 측정') },
+  { id: 'radiation', subject: 'physics', w: 480, h: 270, fields: [], label: L('Tia phóng xạ trong từ trường', 'Radioactive rays in a magnetic field', '磁场中的放射线', '磁場の中の放射線', '자기장 속의 방사선') },
+  { id: 'transformer', subject: 'physics', w: 540, h: 280, fields: [], label: L('Máy biến áp', 'Transformer', '变压器', '変圧器', '변압기') },
+  { id: 'buoyancy', subject: 'physics', w: 460, h: 300, fields: ['variant'], label: L('Lực đẩy Acsimet', "Archimedes' force", '阿基米德浮力', 'アルキメデスの力', '아르키메데스 부력'), variants: [
+    { id: 'metal', label: L('Vật chìm', 'Sinking object', '下沉物体', '沈む物体', '가라앉는 물체') },
+    { id: 'wood', label: L('Vật nổi', 'Floating object', '漂浮物体', '浮かぶ物体', '뜨는 물체') },
   ] },
   { id: 'interfere', subject: 'physics', w: 720, h: 460, fields: [], label: L('Giao thoa sóng nước', 'Water-wave interference', '水波干涉', '水面波の干渉', '수면파 간섭') },
   { id: 'young', subject: 'physics', w: 740, h: 480, fields: [], label: L('Giao thoa ánh sáng Young', "Young's light interference", '杨氏光的干涉', 'ヤングの光の干渉', '영의 빛 간섭') },
@@ -220,6 +260,15 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'collect', label: L('Thu khí hiđro', 'Collect hydrogen', '收集氢气', '水素の捕集', '수소 포집') },
     { id: 'heat', label: L('Nhiệt phân đá vôi', 'Heat limestone', '加热石灰石', '石灰石の熱分解', '석회석 열분해') },
   ] },
+  { id: 'distill', subject: 'chemistry', w: 560, h: 280, fields: [], label: L('Chưng cất nước muối', 'Distilling salt water', '蒸馏盐水', '食塩水の蒸留', '소금물 증류') },
+  { id: 'gaslab', subject: 'chemistry', w: 500, h: 270, fields: ['variant'], label: L('Thu khí', 'Collecting a gas', '收集气体', '気体の捕集', '기체 포집'), variants: [
+    { id: 'water', label: L('Hiđro, đẩy nước', 'Hydrogen over water', '氢气，排水集气', '水素，水上置換', '수소, 물 위 포집') },
+    { id: 'up', label: L('Amoniac, đẩy không khí lên', 'Ammonia, upward displacement of air', '氨气，向上排空气', 'アンモニア，上方置換', '암모니아, 공기를 위로 밀어 포집') },
+    { id: 'down', label: L('Cacbon đioxit, đẩy không khí xuống', 'Carbon dioxide, downward displacement of air', '二氧化碳，向下排空气', '二酸化炭素，下方置換', '이산화 탄소, 공기를 아래로 밀어 포집') },
+  ] },
+  { id: 'filter', subject: 'chemistry', w: 440, h: 290, fields: [], label: L('Lọc', 'Filtration', '过滤', 'ろ過', '여과') },
+  { id: 'galvanic', subject: 'chemistry', w: 540, h: 280, fields: [], label: L('Pin Daniell', 'Daniell cell', '丹尼尔电池', 'ダニエル電池', '다니엘 전지') },
+  { id: 'rate', subject: 'chemistry', w: 480, h: 280, fields: [], label: L('Tốc độ phản ứng kẽm và axit', 'Rate of zinc with acid', '锌与酸的反应速率', '亜鉛と酸の反応速度', '아연과 산의 반응 속도') },
   { id: 'formula-chem', subject: 'chemistry', w: 480, h: 168, fields: ['variant'], label: L('Công thức hoá học', 'Chemistry formulas', '化学公式', '化学の公式', '화학 공식'), variants: [
     { id: 'mole', label: L('Lượng chất n = m/M', 'Amount of substance n = m/M', '物质的量 n = m/M', '物質量 n = m/M', '물질량 n = m/M') },
     { id: 'count', label: L('Số hạt n = N/Nₐ', 'Particle count n = N/Nₐ', '粒子数 n = N/Nₐ', '粒子数 n = N/Nₐ', '입자 수 n = N/Nₐ') },
@@ -273,6 +322,23 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'hardy', label: L('Hardy–Weinberg p² + 2pq + q² = 1', 'Hardy–Weinberg p² + 2pq + q² = 1', '哈迪-温伯格 p² + 2pq + q² = 1', 'ハーディ・ワインベルク p² + 2pq + q² = 1', '하디-바인베르크 p² + 2pq + q² = 1') },
     { id: 'growth', label: L('Tăng trưởng mũ quần thể Nₜ = N₀e^(rt)', 'Exponential population growth Nₜ = N₀e^(rt)', '种群指数增长 Nₜ = N₀e^(rt)', '個体群の指数成長 Nₜ = N₀e^(rt)', '개체군 지수 성장 Nₜ = N₀e^(rt)') },
   ] },
+  { id: 'osmosis', subject: 'biology', w: 460, h: 290, fields: [], label: L('Co nguyên sinh', 'Plasmolysis', '质壁分离', '原形質分離', '원형질 분리') },
+  { id: 'photo', subject: 'biology', w: 500, h: 280, fields: ['variant'], label: L('Quang hợp', 'Photosynthesis', '光合作用', '光合成', '광합성'), variants: [
+    { id: 'starch', label: L('Nhận biết tinh bột bằng iot', 'Starch test with iodine', '用碘液检验淀粉', 'ヨウ素液でデンプンを調べる', '아이오딘으로 녹말 확인') },
+    { id: 'elodea', label: L('Bọt khí oxi của rong', 'Oxygen bubbles from pondweed', '水草放出的氧气泡', '水草の酸素の泡', '수초의 산소 기포') },
+  ] },
+  { id: 'slide', subject: 'biology', w: 460, h: 310, fields: ['variant'], label: L('Tiêu bản kính hiển vi', 'Microscope slide', '显微镜标本', '顕微鏡のプレパラート', '현미경 표본'), variants: [
+    { id: 'onion', label: L('Biểu bì hành', 'Onion epidermis', '洋葱表皮', 'タマネギの表皮', '양파 표피') },
+    { id: 'stoma', label: L('Khí khổng', 'Stomata', '气孔', '気孔', '기공') },
+    { id: 'mitosis', label: L('Chóp rễ hành nguyên phân', 'Root tip mitosis', '根尖有丝分裂', '根端の体細胞分裂', '뿌리 끝 체세포 분열') },
+  ] },
+  { id: 'blood', subject: 'biology', w: 440, h: 250, fields: ['variant'], label: L('Ngưng kết nhóm máu', 'Blood agglutination', '血型凝集', '血液型の凝集', '혈액형 응집'), variants: [
+    { id: 'A', label: L('Nhóm A', 'Group A', 'A型', 'A型', 'A형') },
+    { id: 'B', label: L('Nhóm B', 'Group B', 'B型', 'B型', 'B형') },
+    { id: 'AB', label: L('Nhóm AB', 'Group AB', 'AB型', 'AB型', 'AB형') },
+    { id: 'O', label: L('Nhóm O', 'Group O', 'O型', 'O型', 'O형') },
+  ] },
+  { id: 'reflex', subject: 'biology', w: 540, h: 300, fields: [], label: L('Cung phản xạ', 'Reflex arc', '反射弧', '反射弓', '반사궁') },
 ]
 
 const itemMap = new Map(FIGURE_ITEMS.map((item) => [item.id, item]))
@@ -824,6 +890,100 @@ function lensMetrics(w: number, h: number, convex: boolean, tune?: number[]) {
   return { cx, cy, fAbs, ratio, objFrac, ox, oy, ix, iy, objH, ...image }
 }
 
+/** Chiều dương là chiều tia tới (về phía gương). f > 0 gương cầu lõm, f < 0 gương cầu lồi. */
+export type MirrorKind = 'concave' | 'convex' | 'plane'
+
+function mirrorLimits(kind: MirrorKind) {
+  if (kind === 'plane') return { min: 0.5, max: 2.15, d0: 1.15, h0: 0.14 }
+  if (kind === 'convex') return { min: 0.42, max: 2.75, d0: 1.35, h0: 0.15 }
+  return { min: 0.42, max: 2.75, d0: 1.55, h0: 0.12 }
+}
+
+export function mirrorKindOf(variant: string): MirrorKind {
+  if (variant === 'convex' || variant === 'plane') return variant
+  return 'concave'
+}
+
+/** 1/f = 1/d + 1/d′, k = −d′/d. Gương phẳng: d′ = −d, k = 1. */
+export function mirrorImage(kind: MirrorKind, ratio: number) {
+  const lim = mirrorLimits(kind)
+  const d = clampNum(ratio, lim.min, lim.max)
+  if (kind === 'plane') return { d, dPrime: -d, k: 1, virtual: true, finite: true }
+  const f = kind === 'concave' ? 1 : -1
+  const denom = 1 / f - 1 / d
+  const reach = Math.abs(denom) > 0.0012 ? Math.abs(1 / denom) : Number.POSITIVE_INFINITY
+  const finite = reach < 6
+  const dPrime = finite ? 1 / denom : 0
+  const k = finite ? -dPrime / d : 0
+  return { d, dPrime, k, virtual: finite && dPrime < 0, finite }
+}
+
+function mirrorFrame(w: number, h: number) {
+  return {
+    cy: h * 0.52,
+    unit: Math.max(36, Math.min(56, w * 0.125)),
+    mx: w * 0.58,
+  }
+}
+
+export function mirrorScene(w: number, h: number, kind: MirrorKind, tune?: number[]) {
+  const frame = mirrorFrame(w, h)
+  const lim = mirrorLimits(kind)
+  const ratio = clampNum(tuneAt(tune, 0, lim.d0), lim.min, lim.max)
+  const objFrac = clampNum(tuneAt(tune, 1, lim.h0), -0.32, 0.32)
+  const image = mirrorImage(kind, ratio)
+  const objH = objFrac * h
+  const ox = frame.mx - image.d * frame.unit
+  const oy = frame.cy - objH
+  const ix = frame.mx - image.dPrime * frame.unit
+  const iy = frame.cy - image.k * objH
+  const fSign = kind === 'convex' ? -1 : 1
+  return {
+    kind,
+    ...frame,
+    ...image,
+    objH,
+    ox,
+    oy,
+    ix,
+    iy,
+    fx: frame.mx - fSign * frame.unit,
+    ccx: frame.mx - 2 * fSign * frame.unit,
+  }
+}
+
+function planeStrikeY(cy: number, unit: number) {
+  return cy - Math.min(62, unit * 1.2)
+}
+
+function lineDist(x1: number, y1: number, x2: number, y2: number, px: number, py: number) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const len = Math.hypot(dx, dy) || 1
+  return Math.abs(dx * (y1 - py) - dy * (x1 - px)) / len
+}
+
+/** Ba tia dựng ảnh phải đi qua đúng ảnh của công thức gương. */
+export function mirrorRayError(kind: MirrorKind, ratio: number, objFrac: number) {
+  const s = mirrorScene(420, 240, kind, [ratio, objFrac])
+  if (!s.finite) return 0
+  const errors = [
+    lineDist(s.mx, s.cy, s.ox, 2 * s.cy - s.oy, s.ix, s.iy),
+  ]
+  if (kind === 'plane') {
+    errors.push(Math.abs(s.iy - s.oy))
+    const hy = planeStrikeY(s.cy, s.unit)
+    errors.push(lineDist(s.mx, hy, s.mx - (s.mx - s.ox), hy + (hy - s.oy), s.ix, s.iy))
+  } else {
+    errors.push(lineDist(s.mx, s.oy, s.fx, s.cy, s.ix, s.iy))
+    if (Math.abs(s.fx - s.ox) > 8) {
+      const hitY = s.oy + ((s.cy - s.oy) * (s.mx - s.ox)) / (s.fx - s.ox)
+      errors.push(Math.abs(hitY - s.iy))
+    }
+  }
+  return Math.max(...errors)
+}
+
 function springShift(rest: number, ampFrac: number, h: number, tune: number[] | undefined, time: number) {
   const amp = clampNum(tuneAt(tune, 0, ampFrac), -0.22, 0.22) * h
   const held = tuneAt(tune, 2, 0) > 0.5
@@ -986,7 +1146,7 @@ export function litmusWord(acidLeft: number, excess: number) {
   return 'tím'
 }
 
-const LAB_RUN = new Set(['ray', 'circuit', 'force', 'wave', 'field', 'refraction', 'experiment-phys', 'interfere', 'young', 'chem-experiment', 'titration', 'spatial'])
+const LAB_RUN = new Set(['ray', 'mirror', 'circuit', 'force', 'wave', 'field', 'refraction', 'tir', 'slab', 'experiment-phys', 'interfere', 'young', 'chem-experiment', 'titration', 'spatial', ...SCHOOL_ANIM])
 
 export function figureClock(params: { run?: boolean; clock?: number; shift?: number } | undefined, sim: number) {
   const clock = finiteOr(params?.clock)
@@ -1145,6 +1305,288 @@ function drawRay(ctx: Ctx, w: number, h: number, convex: boolean, tune?: number[
   textAt(ctx, kind, w * 0.34, h - 26, 11, s.virtual ? INK.violet : INK.image)
 }
 
+function mirrorGlass(ctx: Ctx, mx: number, cy: number, kind: MirrorKind, unit: number) {
+  const half = Math.min(70, unit * 1.28)
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineWidth = 2.2
+  ctx.strokeStyle = INK.sky
+  if (kind === 'plane') {
+    ctx.beginPath()
+    ctx.moveTo(mx, cy - half)
+    ctx.lineTo(mx, cy + half)
+    ctx.stroke()
+    ctx.lineWidth = 1.15
+    ctx.strokeStyle = INK.muted
+    ctx.beginPath()
+    for (let y = cy - half + 3; y <= cy + half - 6; y += 8) {
+      ctx.moveTo(mx + 1, y)
+      ctx.lineTo(mx + 8, y + 5)
+    }
+    ctx.stroke()
+    ctx.restore()
+    return
+  }
+  const radius = unit * 2
+  const concave = kind === 'concave'
+  const ccx = concave ? mx - radius : mx + radius
+  const spread = Math.asin(Math.min(0.9, half / radius))
+  const steps = 16
+  const pts: Array<[number, number]> = []
+  for (let i = 0; i <= steps; i += 1) {
+    const t = -spread + (2 * spread * i) / steps
+    const ang = concave ? t : Math.PI + t
+    pts.push([ccx + radius * Math.cos(ang), cy + radius * Math.sin(ang)])
+  }
+  ctx.beginPath()
+  const first = pts[0]
+  if (first) ctx.moveTo(first[0], first[1])
+  for (const pt of pts) ctx.lineTo(pt[0], pt[1])
+  ctx.stroke()
+  ctx.lineWidth = 1.1
+  ctx.strokeStyle = INK.muted
+  ctx.beginPath()
+  const back = concave ? 1 : -1
+  for (let i = 0; i <= steps; i += 2) {
+    const t = -spread + (2 * spread * i) / steps
+    const ang = concave ? t : Math.PI + t
+    const x = ccx + radius * Math.cos(ang)
+    const y = cy + radius * Math.sin(ang)
+    ctx.moveTo(x, y)
+    ctx.lineTo(x + back * Math.cos(ang) * 8, y + back * Math.sin(ang) * 8)
+  }
+  ctx.stroke()
+  ctx.restore()
+}
+
+function markFocus(ctx: Ctx, x: number, y: number, label: string, dy: number) {
+  ink(ctx, INK.amber)
+  ctx.beginPath()
+  ctx.arc(x, y, 2.3, 0, Math.PI * 2)
+  ctx.fill()
+  textAt(ctx, label, x, y + dy, 11, INK.amber)
+}
+
+function beam(ctx: Ctx, x1: number, y1: number, x2: number, y2: number, w: number, h: number, dashed = false) {
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(4, 28, Math.max(0, w - 8), Math.max(0, h - 64))
+  ctx.clip()
+  if (dashed) ctx.setLineDash([5, 3])
+  ctx.beginPath()
+  ctx.moveTo(x1, y1)
+  ctx.lineTo(x2, y2)
+  ctx.stroke()
+  ctx.restore()
+}
+
+function beyond(x1: number, y1: number, x2: number, y2: number, extra: number) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const len = Math.hypot(dx, dy) || 1
+  return [x2 + (dx / len) * extra, y2 + (dy / len) * extra] as const
+}
+
+/** Tia phản xạ dừng ở ảnh (thật) hoặc kéo dài nét đứt tới ảnh (ảo), không kéo tới mép thẻ. */
+function reflectedBeam(
+  ctx: Ctx,
+  hx: number,
+  hy: number,
+  dirX: number,
+  dirY: number,
+  w: number,
+  h: number,
+  scene: { ix: number; iy: number; finite: boolean; unit: number },
+  through?: { x: number; y: number },
+) {
+  const len = Math.hypot(dirX, dirY) || 1
+  const ux = dirX / len
+  const uy = dirY / len
+  const image = scene.finite ? { x: scene.ix, y: scene.iy } : null
+  const ahead = image ? (image.x - hx) * ux + (image.y - hy) * uy : -1
+  if (image && ahead > 6) {
+    const [ex, ey] = beyond(hx, hy, image.x, image.y, 16)
+    beam(ctx, hx, hy, ex, ey, w, h)
+    return
+  }
+  let sx = hx + ux * scene.unit * 1.45
+  let sy = hy + uy * scene.unit * 1.45
+  if (through) {
+    const focusAhead = (through.x - hx) * ux + (through.y - hy) * uy
+    if (focusAhead > 8) {
+      const pastFocus = beyond(hx, hy, through.x, through.y, 14)
+      sx = pastFocus[0]
+      sy = pastFocus[1]
+    }
+  }
+  beam(ctx, hx, hy, sx, sy, w, h)
+  if (!image) return
+  let end = image
+  if (through) {
+    const back = -1
+    const imageBack = (image.x - hx) * ux * back + (image.y - hy) * uy * back
+    const focusBack = (through.x - hx) * ux * back + (through.y - hy) * uy * back
+    if (focusBack > imageBack + 4) end = through
+  }
+  const [vx, vy] = beyond(hx, hy, end.x, end.y, 12)
+  beam(ctx, hx, hy, vx, vy, w, h, true)
+}
+
+function tipLabel(
+  ctx: Ctx,
+  text: string,
+  x: number,
+  y: number,
+  color: string,
+  w: number,
+  h: number,
+  above: boolean,
+  avoid: Array<[number, number]> = [],
+) {
+  const width = Math.max(20, text.length * 6.4)
+  const spots: Array<[number, number]> = above
+    ? [[0, -18], [24, -20], [-24, -20], [28, 0], [-28, 0], [0, 18]]
+    : [[0, 18], [-24, 20], [24, 20], [-28, 0], [28, 0], [0, -18]]
+  const free = (px: number, py: number) => {
+    if (py < 32 || py > h - 42 || px < 18 || px > w - 18) return false
+    if (px > w - 92 && py < 36) return false
+    return avoid.every(([ax, ay]) => Math.abs(px - ax) > width / 2 + 8 || Math.abs(py - ay) > 13)
+  }
+  for (const [dx, dy] of spots) {
+    if (!free(x + dx, y + dy)) continue
+    textAt(ctx, text, x + dx, y + dy, 11, color)
+    return
+  }
+  textAt(ctx, text, x, Math.min(h - 44, Math.max(34, y + (above ? -18 : 18))), 11, color)
+}
+
+function drawMirror(ctx: Ctx, w: number, h: number, kind: MirrorKind, tune?: number[], time = 0) {
+  const s = mirrorScene(w, h, kind, tune)
+  const focus = kind === 'plane' ? undefined : { x: s.fx, y: s.cy }
+  ctx.save()
+  ctx.lineWidth = 1.25
+  ink(ctx, INK.muted)
+  arrow(ctx, 12, s.cy, w - 14, s.cy)
+  ctx.restore()
+
+  ink(ctx, INK.blue)
+  beam(ctx, s.ox, s.oy, s.mx, s.oy, w, h)
+  if (kind === 'plane') {
+    if (s.finite) {
+      const [vx, vy] = beyond(s.mx, s.oy, s.ix, s.iy, 12)
+      beam(ctx, s.mx, s.oy, vx, vy, w, h, true)
+    }
+  } else {
+    const toFx = s.fx - s.mx
+    const toFy = s.cy - s.oy
+    const lightX = kind === 'concave' ? toFx : -toFx
+    const lightY = kind === 'concave' ? toFy : -toFy
+    reflectedBeam(ctx, s.mx, s.oy, lightX, lightY, w, h, s, focus)
+  }
+
+  ink(ctx, INK.green)
+  beam(ctx, s.ox, s.oy, s.mx, s.cy, w, h)
+  reflectedBeam(ctx, s.mx, s.cy, s.ox - s.mx, s.cy - s.oy, w, h, s)
+
+  ink(ctx, INK.amber)
+  if (kind === 'plane') {
+    const hy = planeStrikeY(s.cy, s.unit)
+    beam(ctx, s.ox, s.oy, s.mx, hy, w, h)
+    reflectedBeam(ctx, s.mx, hy, s.ox - s.mx, hy - s.oy, w, h, s)
+  } else if (Math.abs(s.fx - s.ox) > 8) {
+    const hitY = s.oy + ((s.cy - s.oy) * (s.mx - s.ox)) / (s.fx - s.ox)
+    beam(ctx, s.ox, s.oy, s.mx, hitY, w, h)
+    if (s.fx < s.ox) beam(ctx, s.fx, s.cy, s.ox, s.oy, w, h, true)
+    if (kind === 'convex') beam(ctx, s.mx, hitY, s.fx, s.cy, w, h, true)
+    reflectedBeam(ctx, s.mx, hitY, -1, 0, w, h, s)
+  }
+
+  mirrorGlass(ctx, s.mx, s.cy, kind, s.unit)
+  if (kind !== 'plane') {
+    const axisDy = (x: number) => {
+      const nearObject = Math.abs(x - s.ox) < 12
+      const nearImage = s.finite && Math.abs(x - s.ix) < 12
+      const objectAbove = s.oy < s.cy
+      const imageAbove = s.finite && s.iy < s.cy
+      let dy = -15
+      if ((nearObject && objectAbove) || (nearImage && imageAbove)) dy = 15
+      if ((nearObject && !objectAbove && dy > 0) || (nearImage && !imageAbove && dy > 0)) dy = -15
+      return dy
+    }
+    markFocus(ctx, s.fx, s.cy, 'F', axisDy(s.fx))
+    markFocus(ctx, s.ccx, s.cy, 'C', axisDy(s.ccx))
+  }
+
+  ink(ctx, INK.blue)
+  arrow(ctx, s.ox, s.cy, s.ox, s.oy)
+  const avoid: Array<[number, number]> = [[s.mx, s.cy], [s.mx, s.oy], [w - 52, 16]]
+  if (kind !== 'plane') avoid.push([s.fx, s.cy], [s.ccx, s.cy])
+  tipLabel(ctx, 'vật', s.ox, s.oy, INK.blue, w, h, s.oy < s.cy, avoid)
+  knob(ctx, s.ox, s.oy)
+
+  if (s.finite) {
+    const onCard = s.ix > 18 && s.ix < w - 18 && s.iy > 22 && s.iy < h - 36
+    ink(ctx, s.virtual ? INK.violet : INK.image)
+    if (onCard) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(2, 2, w - 4, h - 4)
+      ctx.clip()
+      if (s.virtual) ctx.setLineDash([5, 3])
+      arrow(ctx, s.ix, s.cy, s.ix, s.iy)
+      ctx.restore()
+      const closeVirtual = s.virtual && s.ix > s.mx && s.ix - s.mx < s.unit * 0.9
+      if (closeVirtual) textAt(ctx, 'ảnh ảo', Math.min(w - 100, s.ix + 26), 46, 11, INK.violet)
+      else tipLabel(ctx, s.virtual ? 'ảnh ảo' : 'ảnh', s.ix, s.iy, s.virtual ? INK.violet : INK.image, w, h, s.iy < s.cy, [...avoid, [s.ox, s.oy]])
+    } else {
+      textAt(ctx, s.virtual ? 'ảnh ảo' : 'ảnh', 214, 16, 12, s.virtual ? INK.violet : INK.image)
+    }
+  } else {
+    textAt(ctx, 'ảnh ở vô cực', 214, 16, 12, INK.image)
+  }
+
+  const pulse = wrap01(time * 0.32)
+  let dotX = s.ox
+  let dotY = s.oy
+  if (pulse < 0.45) {
+    const t = pulse / 0.45
+    dotX = s.ox + (s.mx - s.ox) * t
+    dotY = s.oy
+  } else if (kind === 'plane') {
+    const t = (pulse - 0.45) / 0.55
+    dotX = s.mx + (s.ox - s.mx) * t
+    dotY = s.oy
+  } else if (s.finite && !s.virtual) {
+    const t = (pulse - 0.45) / 0.55
+    dotX = s.mx + (s.ix - s.mx) * t
+    dotY = s.oy + (s.iy - s.oy) * t
+  } else {
+    const t = (pulse - 0.45) / 0.55
+    const toFx = s.fx - s.mx
+    const toFy = s.cy - s.oy
+    const lightX = kind === 'concave' ? toFx : -toFx
+    const lightY = kind === 'concave' ? toFy : -toFy
+    const len = Math.hypot(lightX, lightY) || 1
+    const travel = s.unit * 1.35 * t
+    dotX = s.mx + (lightX / len) * travel
+    dotY = s.oy + (lightY / len) * travel
+  }
+  ink(ctx, INK.amber)
+  ctx.beginPath()
+  ctx.arc(dotX, dotY, 3.5, 0, Math.PI * 2)
+  ctx.fill()
+
+  const title = kind === 'concave' ? 'Gương cầu lõm' : kind === 'convex' ? 'Gương cầu lồi' : 'Gương phẳng'
+  textAt(ctx, title, 78, 16, 12, INK.text)
+  const unitName = kind === 'plane' ? '' : 'f'
+  const dPrime = s.finite ? `d' ${s.dPrime.toFixed(1)}${unitName}` : "d' ∞"
+  const sizeWord = !s.finite || Math.abs(Math.abs(s.k) - 1) < 0.06 ? '' : Math.abs(s.k) > 1 ? ', lớn hơn vật' : ', nhỏ hơn vật'
+  const equalWord = s.finite && Math.abs(Math.abs(s.k) - 1) < 0.06 ? ', bằng vật' : ''
+  const caption = !s.finite ? 'ảnh ở vô cực' : `${s.virtual ? 'ảnh ảo' : 'ảnh thật'}, ${s.virtual ? 'cùng chiều' : 'ngược chiều'}${sizeWord}${equalWord}`
+  textAt(ctx, `d ${s.d.toFixed(1)}${unitName}   ${dPrime}   k ${s.finite ? s.k.toFixed(2) : '0'}`, w * 0.36, h - 12, 11, INK.text)
+  textAt(ctx, caption, w * 0.36, h - 26, 11, s.virtual ? INK.violet : INK.image)
+}
+
 function plotLine(ctx: Ctx, pts: Array<[number, number]>) {
   const first = pts[0]
   if (!first) return
@@ -1247,7 +1689,7 @@ function drawSpatial(ctx: Ctx, w: number, h: number, equation: string, time = 0)
 
 export function figureSimulates(id: string, variant = '', run = false): boolean {
   if (!run) return false
-  if (id === 'spatial' || id === 'experiment-phys' || id === 'interfere' || id === 'young' || id === 'wave' || id === 'field' || id === 'chem-experiment' || id === 'titration' || id === 'ray' || id === 'circuit' || id === 'refraction') return true
+  if (id === 'spatial' || id === 'experiment-phys' || id === 'interfere' || id === 'young' || id === 'wave' || id === 'field' || id === 'chem-experiment' || id === 'titration' || id === 'ray' || id === 'mirror' || id === 'circuit' || id === 'refraction' || id === 'tir' || id === 'slab' || SCHOOL_ANIM.has(id)) return true
   return variant === 'pendulum'
 }
 
@@ -1584,35 +2026,7 @@ function drawRefraction(ctx: Ctx, w: number, h: number, prism: boolean, tune?: n
     ctx.fill()
     return
   }
-  const cx = w * 0.48
-  const cy = h * 0.55
-  ctx.fillStyle = '#e0f2fe'
-  ctx.strokeStyle = INK.sky
-  poly(ctx, [[cx, cy - 70], [cx + 70, cy + 60], [cx - 70, cy + 60]], true)
-  ctx.fill()
-  poly(ctx, [[cx, cy - 70], [cx + 70, cy + 60], [cx - 70, cy + 60]], true)
-  const inX = cx + (cx - 70 - cx) * 0.42
-  const inY = cy - 70 + (cy + 60 - (cy - 70)) * 0.42
-  const outX = cx + (cx + 70 - cx) * 0.62
-  const outY = cy - 70 + (cy + 60 - (cy - 70)) * 0.62
-  ink(ctx, INK.amber)
-  arrow(ctx, inX - 78, inY - 16, inX, inY)
-  ink(ctx, INK.muted)
-  ctx.beginPath()
-  ctx.moveTo(inX, inY)
-  ctx.lineTo(outX, outY)
-  ctx.stroke()
-  const run = Math.max(24, w - 16 - outX)
-  const slope = (outY - inY) / Math.max(8, outX - inX)
-  const straight = outY + slope * run
-  ctx.strokeStyle = '#dc2626'
-  arrow(ctx, outX, outY, w - 16, straight + 10)
-  ctx.strokeStyle = '#2563eb'
-  arrow(ctx, outX, outY, w - 16, straight + 34)
-  ctx.strokeStyle = '#1e293b'
-  textAt(ctx, 'đỏ', w - 28, straight + 2, 11, '#dc2626')
-  textAt(ctx, 'tím', w - 28, straight + 42, 11, '#2563eb')
-  textAt(ctx, 'cả hai lệch về đáy, tím lệch hơn', w * 0.55, h - 12, 11, INK.text)
+  drawPrismSpectrum(ctx, w, h, tune, time)
 }
 
 export function waveTankLayout(w: number, h: number, tune?: number[]) {
@@ -4164,11 +4578,17 @@ export function drawFigureLocal(ctx: Ctx, id: string, params: FigureParams, w: n
   else if (id === 'circuit') drawCircuit(ctx, w, h, variant === 'parallel', params.tune, time)
   else if (id === 'force') drawForce(ctx, w, h, variant === 'incline', params.tune, params.run)
   else if (id === 'ray') drawRay(ctx, w, h, variant !== 'concave', params.tune, time)
+  else if (id === 'mirror') drawMirror(ctx, w, h, mirrorKindOf(variant), params.tune, time)
   else if (id === 'phys-graph') drawPhysGraph(ctx, w, h, variant || 'vt')
   else if (id === 'wave') drawWave(ctx, w, h, variant || 'wave', time, params.tune)
   else if (id === 'field') drawField(ctx, w, h, variant || 'electric', time, params.tune)
   else if (id === 'law-graph') drawLaw(ctx, w, h, variant || 'decay')
   else if (id === 'refraction') drawRefraction(ctx, w, h, variant === 'prism', params.tune, time)
+  else if (id === 'tir') drawTir(ctx, w, h, variant || 'boundary', params.tune, time)
+  else if (id === 'slab') drawSlab(ctx, w, h, params.tune, time)
+  else if (id === 'eye') drawEyeLab(ctx, w, h, variant || 'normal', params.tune)
+  else if (id === 'diffract') drawDiffract(ctx, w, h, variant || 'slit', params.tune)
+  else if (id === 'spectrum') drawSpectrum(ctx, w, h, variant || 'continuous')
   else if (id === 'experiment-phys') drawExperiment(ctx, w, h, variant || 'projectile', time, params.tune)
   else if (id === 'interfere') drawInterfere(ctx, w, h, time, params.tune)
   else if (id === 'young') drawYoung(ctx, w, h, time, params.tune)
@@ -4191,6 +4611,7 @@ export function drawFigureLocal(ctx: Ctx, id: string, params: FigureParams, w: n
   else if (id === 'pedigree') drawPedigree(ctx, w, h)
   else if (id === 'punnett') drawPunnett(ctx, w, h, variant === 'test')
   else if (id === 'formula-bio') drawBioFormula(ctx, w, h, variant === 'growth')
+  else if (id === 'standing' || id === 'meters' || id === 'radiation' || id === 'transformer' || id === 'buoyancy' || id === 'distill' || id === 'gaslab' || id === 'filter' || id === 'galvanic' || id === 'rate' || id === 'osmosis' || id === 'photo' || id === 'slide' || id === 'blood' || id === 'reflex') drawSchoolBench(ctx, id, w, h, variant, params.tune, time)
   else cardFormula(ctx, w, h, id, '')
   if (LAB_RUN.has(id)) playMark(ctx, w, params.run === true)
   ctx.restore()
@@ -4214,6 +4635,10 @@ function labHandles(figure: string, params: FigureParams, w: number, h: number, 
   const variant = params.variant
   if (figure === 'ray') {
     const scene = lensMetrics(w, h, variant !== 'concave', tune)
+    return [{ id: 'object', x: scene.ox, y: scene.oy }]
+  }
+  if (figure === 'mirror') {
+    const scene = mirrorScene(w, h, mirrorKindOf(variant), tune)
     return [{ id: 'object', x: scene.ox, y: scene.oy }]
   }
   if (figure === 'circuit') {
@@ -4253,10 +4678,16 @@ function labHandles(figure: string, params: FigureParams, w: number, h: number, 
     const charges = chargePose(w, h, tune)
     return [{ id: 'plus', x: charges.x1, y: charges.y1 }, { id: 'minus', x: charges.x2, y: charges.y2 }]
   }
-  if (figure === 'refraction' && variant !== 'prism') {
+  if (figure === 'refraction' && variant === 'prism') {
+    const handle = prismHandle(w, h, tune)
+    return [{ id: 'ray', x: handle.x, y: handle.y }]
+  }
+  if (figure === 'refraction') {
     const ray = snellPose(w, h, tune)
     return [{ id: 'ray', x: ray.x1, y: ray.y1 }]
   }
+  const optics = opticsHandles(figure, variant, tune, w, h)
+  if (optics.length) return optics
   if (figure === 'interfere') {
     const scene = waveTankLayout(w, h, tune)
     const handles: Array<{ id: string; x: number; y: number }> = [{ id: 's2', x: scene.s2.x, y: scene.s2.y }]
@@ -4304,6 +4735,8 @@ function labHandles(figure: string, params: FigureParams, w: number, h: number, 
     const cock = titrationCock(w, h)
     return [{ id: 'valve', x: cock.x, y: cock.y }, { id: 'valve', x: w - 36, y: cock.y }]
   }
+  const school = schoolHandles(figure, variant, tune, w, h)
+  if (school.length) return school
   return []
 }
 
@@ -4347,6 +4780,15 @@ export function moveFigureTune(
     tune[1] = clampNum((h * 0.56 - local.y) / h, -0.36, 0.38)
     return withTune(params, tune)
   }
+  if (figure === 'mirror' && handle === 'object') {
+    const kind = mirrorKindOf(variant)
+    const frame = mirrorFrame(w, h)
+    const lim = mirrorLimits(kind)
+    const tune = baseTune(params, 2, [lim.d0, lim.h0])
+    tune[0] = clampNum((frame.mx - local.x) / frame.unit, lim.min, lim.max)
+    tune[1] = clampNum((frame.cy - local.y) / h, -0.32, 0.32)
+    return withTune(params, tune)
+  }
   if (figure === 'circuit' && handle === 'switch') {
     const box = circuitLayout(w, h)
     return withTune(params, [local.y < box.yTop - 6 ? 0 : 1])
@@ -4379,12 +4821,17 @@ export function moveFigureTune(
     tune[index + 1] = clampNum(local.y / h, 0.28, 0.78)
     return withTune(params, tune)
   }
+  if (figure === 'refraction' && variant === 'prism' && handle === 'ray') {
+    return withTune(params, [prismAngleFromPoint(w, h, local.x, local.y)])
+  }
   if (figure === 'refraction' && handle === 'ray') {
     const dx = w * 0.48 - local.x
     const dy = h * 0.48 - local.y
     if (dy <= 8) return params
     return withTune(params, [clampNum((Math.atan2(dx, dy) * 180) / Math.PI, 8, 72)])
   }
+  const opticsTune = moveOpticsTune(figure, variant, params.tune, w, h, handle, local.x, local.y)
+  if (opticsTune) return withTune(params, opticsTune)
   if (figure === 'young' && handle === 'slit') {
     const scene = youngLayout(w, h, params.tune)
     const next = baseTune(params, 2, [0.18, 0.55])
@@ -4423,6 +4870,8 @@ export function moveFigureTune(
   if (figure === 'chem-experiment' && handle === 'flame') return withTune(params, [clampNum(local.x / w, 0.18, 0.72)])
   if (figure === 'chem-experiment' && (handle === 'switch' || handle === 'push')) return params
   if (figure === 'titration' && (handle === 'valve' || handle === 'cock')) return params
+  const schoolTune = moveSchoolBench(figure, variant, params.tune, w, h, handle, local.x, local.y)
+  if (schoolTune) return withTune(params, schoolTune)
   return params
 }
 

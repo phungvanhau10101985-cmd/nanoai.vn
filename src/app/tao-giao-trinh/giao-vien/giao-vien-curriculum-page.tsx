@@ -20,6 +20,8 @@ import { PresentationControlBar } from '../components/presentation-control-bar'
 import { TeacherPhoneSandTimerPicker } from '../components/teacher-phone-sand-timer-picker'
 import { TeacherPhoneAutoPlayPicker } from '../components/teacher-phone-autoplay-picker'
 import { TeacherPhoneRemoteDialog } from '../components/teacher-phone-remote-dialog'
+import { AnswerScanLaunch, scanQuestionsFromSlide } from '@/components/lop/answer-scan-launch'
+import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { TeacherWhiteboardCanvas, applyRemoteWhiteboard, emptyWhiteboardState, type WhiteboardLivePointer } from '../components/teacher-whiteboard-canvas'
 import {
   isTeacherLeftPaneWire,
@@ -30,7 +32,7 @@ import {
   clientPointForWhiteboardPointer,
   type WhiteboardState,
 } from '../lib/teacher-whiteboard'
-import { createPhoneCommandQueue, phoneRemoteLoginOrigin } from '../lib/phone-remote-client'
+import { createPhoneCommandQueue, phoneOpenableUrl, phoneRemoteLoginOrigin } from '../lib/phone-remote-client'
 import { AnimatedCharReveal } from '../components/animated-char-reveal'
 import { CurriculumBlockContentWithEmbeds } from '../components/curriculum-block-content-with-embeds'
 import { WorksheetAnswerTypedBody } from '../components/worksheet-answer-typed-body'
@@ -5092,6 +5094,28 @@ export default function CurriculumViewPage() {
     })()
   }, [worksheetId, lessonAlreadyReviewed, prepareLessonReview, openStudentViewNow, curriculumId, activeLessonNo])
 
+  const showAnswerBoard = useCallback(async (href: string) => {
+    if (phoneFollowerIdRef.current) {
+      const id = phoneFollowerIdRef.current
+      await fetch('/api/giao-trinh/phone-remote/command', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        keepalive: true,
+        body: JSON.stringify({ id, commands: [{ type: 'answer-card-show', href }] }),
+      }).catch(() => {})
+      return
+    }
+    const existing = studentViewWindowRef.current
+    if (existing && !existing.closed) {
+      existing.location.href = href
+      try { existing.focus() } catch { /* ignore */ }
+      return
+    }
+    const opened = openDetachedTeacherSlideWindow(href)
+    if (opened) studentViewWindowRef.current = opened
+  }, [])
+
   const startStudentProjector = useCallback(() => {
     const existing = studentViewWindowRef.current
     if (studentSlideWindowIsLive(existing)) {
@@ -6577,6 +6601,20 @@ export default function CurriculumViewPage() {
   }
   applyPhoneCommandRef.current = (msg) => {
     const type = typeof msg.type === 'string' ? msg.type : ''
+    if (type === 'answer-card-show') {
+      const href = typeof msg.href === 'string' ? msg.href : ''
+      if (!phoneFollowerIdRef.current && href.startsWith('/lop/') && !href.includes('://')) {
+        const existing = studentViewWindowRef.current
+        if (existing && !existing.closed) {
+          existing.location.href = href
+          try { existing.focus() } catch { /* ignore */ }
+        } else {
+          const opened = window.open(href, 'xem-slide')
+          if (opened) studentViewWindowRef.current = opened
+        }
+      }
+      return
+    }
     const source = typeof msg.typingSource === 'string' ? msg.typingSource : ''
     const fromSelf = source !== '' && source === typingClientIdRef.current
     const fromOther = source !== '' && source !== typingClientIdRef.current
@@ -6811,7 +6849,9 @@ export default function CurriculumViewPage() {
       if (!raw) return
       const saved = JSON.parse(raw) as { id?: string; loginUrl?: string }
       if (typeof saved.id === 'string' && /^[A-Za-z0-9_-]{6,40}$/.test(saved.id)) setPhoneSessionId(saved.id)
-      if (typeof saved.loginUrl === 'string' && saved.loginUrl.includes('/giao-trinh/dien-thoai?k=')) setPhoneLoginUrl(saved.loginUrl)
+      if (typeof saved.loginUrl === 'string' && saved.loginUrl.includes('/giao-trinh/dien-thoai?k=')) {
+        void phoneOpenableUrl(saved.loginUrl).then((url) => setPhoneLoginUrl(url))
+      }
     } catch {
       /* bỏ bản nhớ hỏng */
     }
@@ -6891,7 +6931,8 @@ export default function CurriculumViewPage() {
         key === 'set-auto-play-interval' ||
         key === 'student-curriculum-right-mode' ||
         key === 'student-curriculum-left-pane' ||
-        key === 'infographic-draw-sync'
+        key === 'infographic-draw-sync' ||
+        key === 'answer-card-show'
       ) primedState.set(key, record)
     }
     const tick = async () => {
@@ -7446,6 +7487,16 @@ export default function CurriculumViewPage() {
           appleMacBar={apple.mac}
         />
       </div>
+      {curriculumId && slides[currentIndex] && scanQuestionsFromSlide(slides[currentIndex]).length > 0 ? (
+        <AnswerScanLaunch
+          curriculumId={curriculumId}
+          questions={scanQuestionsFromSlide(slides[currentIndex])}
+          phoneMode={Boolean(phoneFollowerId)}
+          tone="dark"
+          onShowStudent={showAnswerBoard}
+          className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 px-3 py-1.5"
+        />
+      ) : null}
 
       <header className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex flex-col">
         {/* Hàng thông tin – mobile: wrap, desktop: flex-nowrap */}
@@ -9882,6 +9933,15 @@ export default function CurriculumViewPage() {
             setQuizSessionData((prev) => ({ ...prev, [key]: data }))
             sendToStudentView({ type: 'quiz-session-code', slideIndex: si, blockIndex: bi, sessionCode: code, quizDurationSeconds: data.quizDurationSeconds })
           }}
+          footer={slides[quizPopupSlideIndex] ? (
+            <AnswerScanLaunch
+              curriculumId={curriculumId ?? undefined}
+              questions={scanQuestionsFromSlide(slides[quizPopupSlideIndex])}
+              phoneMode={Boolean(phoneFollowerId)}
+              tone="light"
+              onShowStudent={showAnswerBoard}
+            />
+          ) : null}
         />
       )}
       <VirtualMouseOverlay variant="remote-student" controllerRef={studentMouseRef} />

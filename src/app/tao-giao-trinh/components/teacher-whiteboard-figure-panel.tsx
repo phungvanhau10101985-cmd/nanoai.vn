@@ -28,19 +28,23 @@ const MENU_GROUPS: Record<FigureSubject, { title: FigureLabel; ids: string[] }[]
     { title: ['Công thức toán', 'Math formulas', '数学公式', '数学の公式', '수학 공식'], ids: ['math-formula'] },
   ],
   physics: [
-    { title: ['Lực, mạch, ánh sáng', 'Force, circuits, light', '力、电路、光', '力・回路・光', '힘·회로·빛'], ids: ['force', 'circuit', 'ray', 'refraction', 'field'] },
+    { title: ['Lực, mạch, ánh sáng', 'Force, circuits, light', '力、电路、光', '力・回路・光', '힘·회로·빛'], ids: ['force', 'circuit', 'ray', 'mirror', 'refraction', 'field'] },
+    { title: ['Quang học', 'Optics', '光学', '光学', '광학'], ids: ['tir', 'slab', 'eye', 'diffract', 'spectrum', 'young'] },
     { title: ['Đồ thị chuyển động, sóng', 'Motion and wave graphs', '运动与波的图像', '運動・波のグラフ', '운동·파동 그래프'], ids: ['phys-graph', 'wave', 'law-graph'] },
-    { title: ['Thí nghiệm và công thức', 'Experiments and formulas', '实验与公式', '実験と公式', '실험과 공식'], ids: ['young', 'interfere', 'experiment-phys', 'formula-physics', 'constants'] },
+    { title: ['Thí nghiệm và công thức', 'Experiments and formulas', '实验与公式', '実験と公式', '실험과 공식'], ids: ['interfere', 'experiment-phys', 'formula-physics', 'constants'] },
+    { title: ['Bàn thí nghiệm', 'Lab bench', '实验台', '実験台', '실험대'], ids: ['standing', 'meters', 'radiation', 'transformer', 'buoyancy'] },
   ],
   chemistry: [
     { title: ['Phương trình và cấu tạo', 'Equations and structure', '方程式与结构', '反応式と構造', '반응식과 구조'], ids: ['equation', 'structure', 'atom'] },
     { title: ['Thí nghiệm', 'Lab', '实验', '実験', '실험'], ids: ['glass', 'titration', 'chem-experiment'] },
+    { title: ['Bộ thí nghiệm', 'Lab setups', '实验装置', '実験装置', '실험 장치'], ids: ['distill', 'gaslab', 'filter', 'galvanic', 'rate'] },
     { title: ['Tra cứu', 'Reference', '查阅', '資料', '자료'], ids: ['chem-scheme', 'periodic', 'formula-chem'] },
   ],
   biology: [
     { title: ['Tế bào', 'Cells', '细胞', '細胞', '세포'], ids: ['cell', 'division', 'genetic'] },
     { title: ['Di truyền', 'Genetics', '遗传', '遺伝', '유전'], ids: ['pedigree', 'punnett'] },
     { title: ['Quần thể', 'Populations', '种群', '個体群', '개체군'], ids: ['ecology', 'bio-graph', 'formula-bio'] },
+    { title: ['Thí nghiệm', 'Experiments', '实验', '実験', '실험'], ids: ['osmosis', 'photo', 'slide', 'blood', 'reflex'] },
   ],
 }
 

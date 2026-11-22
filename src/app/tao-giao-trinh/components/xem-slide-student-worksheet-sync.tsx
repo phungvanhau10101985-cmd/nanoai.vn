@@ -10,6 +10,8 @@ export type WorksheetStudentViewData = {
   topic: string
   currentIndex: number
   curriculumId: string | null
+  scanExamCode: string | null
+  scanWorksheetId: string | null
   slideMode: 'original' | 'shared' | 'personal' | null
   slides: Array<{
     title: string
@@ -27,6 +29,7 @@ export type WorksheetStudentViewData = {
   worksheetAnswerReveal: Record<string, number>
   worksheetAnswerTypingEnabled: Record<string, boolean>
   worksheetStemTypingEnabled: boolean
+  teacherSlideLeftPane?: 'visual' | 'infographic' | 'whiteboard'
 }
 
 type WirePayload = {
@@ -36,10 +39,13 @@ type WirePayload = {
   topic?: string
   currentIndex?: number
   curriculumId?: string
+  scanExamCode?: string
+  scanWorksheetId?: string
   slideMode?: string
   worksheetAnswerReveal?: Record<string, number>
   worksheetAnswerTypingEnabled?: Record<string, boolean>
   worksheetStemTypingEnabled?: boolean
+  teacherSlideLeftPane?: string
 }
 
 /**
@@ -72,6 +78,8 @@ export function useWorksheetStudentSlideSync(): {
           topic: e.topic ?? '',
           currentIndex: incomingIndex,
           curriculumId: typeof e.curriculumId === 'string' ? e.curriculumId : null,
+          scanExamCode: typeof e.scanExamCode === 'string' ? e.scanExamCode : null,
+          scanWorksheetId: typeof e.scanWorksheetId === 'string' ? e.scanWorksheetId : null,
           slideMode:
             e.slideMode === 'personal' || e.slideMode === 'shared' || e.slideMode === 'original' ? e.slideMode : null,
           slides: sl,
@@ -80,6 +88,10 @@ export function useWorksheetStudentSlideSync(): {
           worksheetAnswerTypingEnabled:
             wte != null && typeof wte === 'object' ? { ...wte } : (prev?.worksheetAnswerTypingEnabled ?? {}),
           worksheetStemTypingEnabled: typeof wStem === 'boolean' ? wStem : (prev?.worksheetStemTypingEnabled ?? true),
+          teacherSlideLeftPane:
+            e.teacherSlideLeftPane === 'whiteboard' || e.teacherSlideLeftPane === 'visual' || e.teacherSlideLeftPane === 'infographic'
+              ? e.teacherSlideLeftPane
+              : prev?.teacherSlideLeftPane,
         }
       })
     }

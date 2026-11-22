@@ -818,6 +818,24 @@ export async function getClassMemberExamIdentityFromPg(
   }
 }
 
+export async function fetchClassJoinCodeByIdPg(classId: string): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ join_code: string | null }>(
+      `select join_code from public.classes where id = $1::uuid and dissolved_at is null limit 1`,
+      [classId]
+    )
+    const code = String(row?.join_code ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+    return code.length >= 4 ? code : null
+  } catch (e) {
+    console.error('[classes-pg] fetchClassJoinCodeByIdPg', e)
+    return null
+  }
+}
+
 /** Tên lớp — SEO / `generateMetadata`. */
 export async function fetchClassNameByIdPg(classId: string): Promise<string | null> {
   if (!isPgConfigured()) return null
@@ -1025,8 +1043,15 @@ export async function fetchClassesAsMemberForUserPg(userId: string): Promise<Cla
        from public.class_members m
        join public.classes c on c.id = m.class_id
        left join public.schools sch on sch.id = c.school_id
-       where m.user_id = $1::uuid
-         and c.dissolved_at is null
+       where c.dissolved_at is null
+         and (
+           m.user_id = $1::uuid
+           or exists (
+             select 1 from auth.users u
+             where u.id = m.user_id
+               and u.raw_user_meta_data->>'linked_google_user_id' = $1::text
+           )
+         )
        order by c.created_at desc
        limit 200`,
       [userId]

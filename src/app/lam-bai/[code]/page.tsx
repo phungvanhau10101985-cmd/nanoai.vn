@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import LamBaiClientPage from './lam-bai-client-page'
-import { getUserForAction } from '@/lib/auth'
+import { fetchClassJoinCodeByIdPg } from '@/lib/db/classes-pg'
+import { fetchExamSessionActiveForGetRoutePg } from '@/lib/db/exam-session-pg'
+import { canTakeClassExam, resolveExamActor } from '@/lib/lop/lop-viewer'
 import { redirect } from 'next/navigation'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { resolveWebLocaleFromCookieStore, type WebLocale } from '@/lib/i18n/config'
@@ -71,11 +73,24 @@ export async function generateMetadata({
 
 export default async function LamBaiPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
-  const auth = await getUserForAction()
-  if ('error' in auth) {
-    redirect(`/auth/force-login?next=${encodeURIComponent(`/lam-bai/${code}`)}`)
+  const examCode = code.trim().toUpperCase()
+  const session = await fetchExamSessionActiveForGetRoutePg(examCode)
+  if (session && session !== 'not_found' && session.class_id) {
+    const actor = await resolveExamActor()
+    const allowed = await canTakeClassExam(session.class_id, actor?.id ?? null)
+    if (!allowed) {
+      const joinCode = await fetchClassJoinCodeByIdPg(session.class_id)
+      const next = `/lam-bai/${encodeURIComponent(examCode)}`
+      if (joinCode) {
+        redirect(`/lop/chon-vao?code=${encodeURIComponent(joinCode)}&next=${encodeURIComponent(next)}`)
+      }
+    }
+  }
+  const actor = await resolveExamActor()
+  if (!actor) {
+    redirect(`/auth/force-login?next=${encodeURIComponent(`/lam-bai/${examCode}`)}`)
   }
   const { t } = await getServerDictionary()
-  await markLamBaiOpenedForMember(auth.user.id, code)
+  await markLamBaiOpenedForMember(actor.id, code)
   return <LamBaiClientPage code={code} t={t.classes} />
 }

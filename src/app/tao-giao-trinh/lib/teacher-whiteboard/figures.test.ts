@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { balanceEquation, FIGURE_ITEMS, drawFigureLocal, figureClock, figureHandleAt, figureSimulates, freshFigureParams, lensImage, moveFigureTune, missingFormulaVariants, figureItem, litmusColor, litmusWord, phenolphthaleinColor, setWaveSources, toggleChemSwitch, toggleFigureRun, toggleTitrationValve, waveTankLayout, youngLayout } from './figures'
+import { balanceEquation, FIGURE_ITEMS, drawFigureLocal, figureClock, figureHandleAt, figureSimulates, freshFigureParams, lensImage, mirrorImage, mirrorRayError, mirrorScene, moveFigureTune, missingFormulaVariants, figureItem, litmusColor, litmusWord, phenolphthaleinColor, setWaveSources, toggleChemSwitch, toggleFigureRun, toggleTitrationValve, waveTankLayout, youngLayout } from './figures'
 
 test('cân bằng phương trình phổ thông', () => {
   assert.equal(balanceEquation('H2 + O2 -> H2O'), '2H2 + O2 → 2H2O')
@@ -55,6 +55,66 @@ test('thấu kính kéo vật thì ảnh đổi theo công thức', () => {
   const moved = moveFigureTune('ray', params, item.w, item.h, 'object', { x: 155, y: 70 }, 0)
   assert.ok(moved.tune[0] < 1.4)
   assert.equal(lensImage(true, moved.tune[0]).virtual, true)
+})
+
+test('gương kéo vật thì ảnh đổi theo công thức', () => {
+  const atC = mirrorImage('concave', 2)
+  assert.ok(Math.abs(atC.dPrime - 2) < 1e-6)
+  assert.ok(Math.abs(atC.k + 1) < 1e-6)
+  assert.equal(atC.virtual, false)
+  const inside = mirrorImage('concave', 0.55)
+  assert.equal(inside.virtual, true)
+  assert.ok(inside.k > 1)
+  const convex = mirrorImage('convex', 2)
+  assert.equal(convex.virtual, true)
+  assert.ok(convex.k > 0 && convex.k < 1)
+  const plane = mirrorImage('plane', 1.4)
+  assert.ok(Math.abs(plane.dPrime + 1.4) < 1e-6)
+  assert.ok(Math.abs(plane.k - 1) < 1e-6)
+  assert.equal(plane.virtual, true)
+  assert.equal(mirrorImage('concave', 1).finite, false)
+  for (const kind of ['concave', 'convex', 'plane'] as const) {
+    const ratios = kind === 'concave' ? [0.55, 0.85, 1.4, 2, 2.4] : [0.8, 1.4, 2.2]
+    for (const ratio of ratios) {
+      const err = mirrorRayError(kind, ratio, 0.16)
+      assert.ok(err < 1e-4, `${kind} d=${ratio} lệch ${err}`)
+    }
+  }
+  const item = figureItem('mirror')
+  if (!item) throw new Error('thiếu gương')
+  assert.equal(figureSimulates('mirror', 'concave', true), true)
+  const params = freshFigureParams(item)
+  const scene = mirrorScene(item.w, item.h, 'concave')
+  const handle = figureHandleAt('mirror', params, item.w, item.h, { x: scene.ox, y: scene.oy }, 12, 0)
+  assert.equal(handle, 'object')
+  const moved = moveFigureTune('mirror', params, item.w, item.h, 'object', { x: scene.mx - scene.unit * 0.6, y: scene.cy - 28 }, 0)
+  assert.equal(mirrorImage('concave', moved.tune[0]).virtual, true)
+  const planeMoved = moveFigureTune('mirror', { ...params, variant: 'plane' }, item.w, item.h, 'object', { x: scene.mx - scene.unit, y: scene.cy - 20 }, 0)
+  assert.ok(Math.abs(mirrorImage('plane', planeMoved.tune[0]).k - 1) < 1e-6)
+  const words: string[] = []
+  const ctx = new Proxy({} as CanvasRenderingContext2D, {
+    get: (_target, prop) => {
+      if (prop === 'fillText') return (value: string) => { if (typeof value === 'string') words.push(value) }
+      return () => undefined
+    },
+    set: () => true,
+  })
+  for (const variant of ['concave', 'convex', 'plane'] as const) {
+    words.length = 0
+    drawFigureLocal(ctx, 'mirror', { ...params, variant }, item.w, item.h, 0.4)
+  }
+  assert.ok(words.includes('Gương phẳng'))
+  assert.ok(words.includes('ảnh ảo'))
+  words.length = 0
+  drawFigureLocal(ctx, 'mirror', { ...params, variant: 'concave' }, item.w, item.h, 0.2)
+  assert.ok(words.includes('Gương cầu lõm'))
+  assert.ok(words.includes('F'))
+  assert.ok(words.includes('C'))
+  assert.ok(words.includes('vật'))
+  words.length = 0
+  drawFigureLocal(ctx, 'mirror', { ...params, variant: 'convex' }, item.w, item.h, 0.2)
+  assert.ok(words.includes('Gương cầu lồi'))
+  assert.ok(words.includes('ảnh ảo'))
 })
 
 test('góc alpha mặt nghiêng nằm giữa đáy và mặt nghiêng', () => {

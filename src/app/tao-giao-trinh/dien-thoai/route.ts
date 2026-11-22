@@ -7,7 +7,7 @@ import {
   readLanDevOrigin,
   readRunningNgrokOrigin,
 } from '@/lib/curriculum/phone-remote-public-origin'
-import { redeemPhoneRemoteLogin } from '@/lib/curriculum/phone-remote-store'
+import { phoneTeacherReturnPath, redeemPhoneRemoteLogin } from '@/lib/curriculum/phone-remote-store'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
       host: req.headers.get('host'),
       forwardedProto: req.headers.get('x-forwarded-proto'),
     }) || readLanDevOrigin(Number(url.port || 3000)) || (await readRunningNgrokOrigin()) || LOCAL_PHONE_NGROK_ORIGIN
-  const next = new URL(`/giao-trinh/giao-vien?phone=${encodeURIComponent(redeemed.id)}`, browserOrigin)
+  const next = new URL(phoneTeacherReturnPath(redeemed.snapshot, redeemed.id), browserOrigin)
   const res = NextResponse.redirect(next)
   const opts = getEmailSessionCookieOptions()
   res.cookies.set(EMAIL_SESSION_COOKIE, token, opts)

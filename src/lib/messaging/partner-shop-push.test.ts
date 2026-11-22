@@ -19,6 +19,9 @@ test('gudo.vn Host is a shop custom domain even without middleware header', () =
   assert.equal(isShopCustomDomainHost('nanoai.vn'), false)
   assert.equal(isShopCustomDomainHost('www.nanoai.vn'), false)
   assert.equal(isShopCustomDomainHost('localhost:3000'), false)
+  assert.equal(isShopCustomDomainHost('192.168.1.8:3000'), false)
+  assert.equal(isShopCustomDomainHost('amia-canelike-exhibitively.ngrok-free.dev'), false)
+  assert.equal(isShopCustomDomainHost('example.trycloudflare.com'), false)
   assert.equal(isShopCustomDomainHost(''), false)
 })
 

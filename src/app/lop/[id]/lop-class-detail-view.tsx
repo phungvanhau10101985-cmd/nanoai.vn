@@ -6,6 +6,7 @@ import { loadStudentSubjectInbox } from '@/lib/lop/class-subject-item-opens'
 import type { ClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
 import { ClassTuitionPanel } from './class-tuition-panel'
 import LopDetailClient from './lop-detail-client'
+import { AnswerCardSchemaError, ensureClassAnswerCardsPg, type AnswerCardStudent } from '@/lib/db/answer-card-pg'
 
 export type LopDetailPageMode =
   | 'hub'
@@ -48,6 +49,7 @@ export async function LopClassDetailView({
     viewerTeacherGender,
     classSubjects,
     members,
+    studentEntryPath,
     initialExamAttempts,
     initialExamSessions,
     schoolName,
@@ -79,6 +81,16 @@ export async function LopClassDetailView({
 
   if (isTeacher && focusSubject && focusSubject.teacherId !== viewerUserId) {
     redirect(`/lop/${cls.id}`)
+  }
+
+  let answerCards: AnswerCardStudent[] = []
+  if (pageMode === 'roster') {
+    try {
+      const all = (await ensureClassAnswerCardsPg(cls.id)) ?? []
+      answerCards = isTeacher ? all : all.filter((card) => card.userId === viewerUserId)
+    } catch (error) {
+      if (!(error instanceof AnswerCardSchemaError)) console.error('[hoc-sinh answer cards]', error)
+    }
   }
 
   const subjectInbox =
@@ -125,6 +137,7 @@ export async function LopClassDetailView({
             viewerTeacherGender={viewerTeacherGender}
             classSubjects={classSubjects}
             members={members}
+            studentEntryPath={studentEntryPath}
             initialExamAttempts={initialExamAttempts}
             initialExamSessions={initialExamSessions}
             pageMode={pageMode}
@@ -134,6 +147,7 @@ export async function LopClassDetailView({
             subjectInbox={subjectInbox}
             webLocale={locale}
             tuition={tuition}
+            answerCards={answerCards}
             t={t.classes}
           />
         </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserForAction } from '@/lib/auth'
+import { actingStudentUserId, resolveExamActor } from '@/lib/lop/lop-viewer'
 import { hasCompleteClassMemberProfileForExamPg } from '@/lib/db/classes-pg'
 import {
   fetchExamAttemptFullForUserGetRoutePg,
@@ -29,11 +29,10 @@ export async function POST(
   { params }: { params: Promise<{ code: string }> }
 ) {
   try {
-    const auth = await getUserForAction('Vui lòng đăng nhập.')
-    if ('error' in auth) {
-      return NextResponse.json({ error: auth.error }, { status: 401, headers: NO_STORE_HEADERS })
+    const user = await resolveExamActor()
+    if (!user) {
+      return NextResponse.json({ error: 'Vui lòng đăng nhập.' }, { status: 401, headers: NO_STORE_HEADERS })
     }
-    const user = auth.user
     const { code } = await params
     if (!code || code.length < 4) {
       return NextResponse.json({ error: 'Mã bài thi không hợp lệ.' }, { status: 400, headers: NO_STORE_HEADERS })
@@ -54,9 +53,7 @@ export async function POST(
     if (sessionRow === 'not_found') {
       return NextResponse.json({ error: 'Không tìm thấy bài thi.' }, { status: 404, headers: NO_STORE_HEADERS })
     }
-    if (sessionRow.is_practice_homework) {
-      return NextResponse.json({ ok: true, skipped: true }, { headers: NO_STORE_HEADERS })
-    }
+    user.id = await actingStudentUserId(user.id, sessionRow.class_id ? String(sessionRow.class_id) : null)
 
     const layout = await verifyExamLayoutToken(layoutToken)
     if (!layout || layout.sessionId !== String(sessionRow.id) || layout.userId !== user.id) {
@@ -83,7 +80,7 @@ export async function POST(
     if (attempt.submitted_at) {
       const saved = await fetchAlreadySubmittedPayloadForAttemptPg(
         attempt.id,
-        false,
+        Boolean(sessionRow.is_practice_homework),
         '',
         sessionRow.duration_minutes
       )
@@ -102,7 +99,7 @@ export async function POST(
         sessionId: String(sessionRow.id),
         sessionTitle: title,
         durationMinutes: sessionRow.duration_minutes,
-        practiceHomework: false,
+        practiceHomework: Boolean(sessionRow.is_practice_homework),
         attemptId: attempt.id,
         layoutSnapshot: attempt.layout_snapshot,
         answers: attempt.answers,
@@ -121,7 +118,7 @@ export async function POST(
         sessionId: String(sessionRow.id),
         sessionTitle: title,
         durationMinutes: sessionRow.duration_minutes,
-        practiceHomework: false,
+        practiceHomework: Boolean(sessionRow.is_practice_homework),
         attemptId: attempt.id,
         layoutSnapshot: attempt.layout_snapshot,
         answers: attempt.answers,
@@ -136,7 +133,7 @@ export async function POST(
       }
       const saved = await fetchAlreadySubmittedPayloadForAttemptPg(
         attempt.id,
-        false,
+        Boolean(sessionRow.is_practice_homework),
         title,
         sessionRow.duration_minutes
       )
@@ -157,7 +154,7 @@ export async function POST(
               sessionId: String(sessionRow.id),
               sessionTitle: title,
               durationMinutes: sessionRow.duration_minutes,
-              practiceHomework: false,
+              practiceHomework: Boolean(sessionRow.is_practice_homework),
               attemptId: attempt.id,
               layoutSnapshot: attempt.layout_snapshot,
               answers: attempt.answers,
@@ -173,7 +170,7 @@ export async function POST(
       }
       const saved = await fetchAlreadySubmittedPayloadForAttemptPg(
         attempt.id,
-        false,
+        Boolean(sessionRow.is_practice_homework),
         title,
         sessionRow.duration_minutes
       )

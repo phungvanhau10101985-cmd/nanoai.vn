@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import { fetchExamQuestionsForReviewPg, fetchExamSessionForTeacherReviewPg } from '@/lib/db/exam-session-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { scanQuestionFromParts } from '@/lib/lop/answer-card'
 
 type ExamQuestionRow = {
   question_text?: unknown
   options?: unknown
+  correct_index?: unknown
 }
 
 /** Đề giáo viên chiếu: chỉ nội dung câu, không lời giải. Chỉ giáo viên sở hữu phiên. */
@@ -47,6 +49,7 @@ export async function GET(
         index: idx + 1,
         questionText: String(q.question_text ?? ''),
         options: options.length >= 2 ? options : [],
+        canScan: scanQuestionFromParts(q.question_text, q.options, q.correct_index) != null,
       }
     })
 

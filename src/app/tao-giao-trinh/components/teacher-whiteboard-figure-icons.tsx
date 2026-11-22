@@ -67,6 +67,16 @@ export function FigureMenuIcon({ id }: { id: string }) {
           <path d="M3 8 H9 M3 16 H9 M15 9.5 L21 7 M15 14.5 L21 17" {...S} />
         </Glyph>
       )
+    case 'mirror':
+      return (
+        <Glyph tint="#0369a1">
+          <path d="M15 4 C18.6 8 18.6 16 15 20" {...S} />
+          <path d="M15.5 6.2 L18.2 8.2 M15.7 10 L18.4 12 M15.7 14 L18.4 16 M15.5 17.8 L18.2 19.8" {...S} />
+          <path d="M3.5 8 H12.2 M3.5 16 H11" {...S} />
+          <path d="M12.2 12.2 L6.5 16.4" {...S} />
+          {dot(12.3, 12.2, 1.15, '#0369a1')}
+        </Glyph>
+      )
     case 'refraction':
       return (
         <Glyph tint="#0369a1">
@@ -74,6 +84,48 @@ export function FigureMenuIcon({ id }: { id: string }) {
           <path d="M5 6 L12 14 L18 20" {...S} />
           {dot(12, 14, 1.4, '#0369a1')}
           <path d="M4 16 H20" {...S} stroke="#bae6fd" />
+        </Glyph>
+      )
+    case 'tir':
+      return (
+        <Glyph tint="#7c3aed">
+          <path d="M3 12 H21" {...S} />
+          <path d="M6 18 L12 12 L18 18" {...S} />
+          <path d="M14 8 H20" {...S} stroke="#c4b5fd" />
+        </Glyph>
+      )
+    case 'slab':
+      return (
+        <Glyph tint="#0284c7">
+          <path d="M9 4 V20 M15 4 V20" {...S} />
+          <path d="M3 8 L9 11 L15 13 L21 16" {...S} />
+          <path d="M3 8 L21 14" {...S} stroke="#bae6fd" />
+        </Glyph>
+      )
+    case 'eye':
+      return (
+        <Glyph tint="#0369a1">
+          <path d="M3 12 Q12 6 21 12 Q12 18 3 12" {...S} />
+          <circle cx="12" cy="12" r="2.2" {...S} fill="#dbeafe" />
+          <path d="M16 7 L19 5" {...S} />
+        </Glyph>
+      )
+    case 'diffract':
+      return (
+        <Glyph tint="#4f46e5">
+          <path d="M11 4 V20" {...S} />
+          <path d="M4 12 H11" {...S} />
+          <path d="M11 12 L20 7 M11 12 L20 12 M11 12 L20 17" {...S} />
+        </Glyph>
+      )
+    case 'spectrum':
+      return (
+        <Glyph tint="#dc2626">
+          <path d="M4 16 H20" {...S} />
+          <path d="M6 14 V8 M9 14 V7 M12 14 V6 M15 14 V7 M18 14 V8" {...S} />
+          {dot(6, 8, 1.1, '#7c3aed')}
+          {dot(12, 6, 1.1, '#16a34a')}
+          {dot(18, 8, 1.1, '#dc2626')}
         </Glyph>
       )
     case 'field':
@@ -279,6 +331,120 @@ export function FigureMenuIcon({ id }: { id: string }) {
         <Glyph tint="#15803d">
           <path d="M5 18 V5 M5 18 H20" {...S} />
           <path d="M6 16 C9 16 10 8 13 8 C16 8 17 7 19 6.5" {...S} />
+        </Glyph>
+      )
+    case 'standing':
+      return (
+        <Glyph tint="#2563eb">
+          <path d="M4 16 C7 8 10 8 12 16 C14 24 17 24 20 16" {...S} />
+          <path d="M4 6 V18 M20 6 V18" {...S} />
+        </Glyph>
+      )
+    case 'meters':
+      return (
+        <Glyph tint="#0369a1">
+          <circle cx="8" cy="12" r="4" {...S} />
+          <circle cx="16" cy="12" r="4" {...S} />
+          <path d="M8 12 L11 9 M16 12 L18 9" {...S} />
+        </Glyph>
+      )
+    case 'radiation':
+      return (
+        <Glyph tint="#dc2626">
+          <path d="M5 8 H9 V16 H5" {...S} />
+          <path d="M9 12 H14" {...S} />
+          <path d="M14 12 Q18 6 20 6" {...S} />
+          <path d="M14 12 H20" {...S} />
+          <path d="M14 12 Q18 18 20 18" {...S} />
+        </Glyph>
+      )
+    case 'transformer':
+      return (
+        <Glyph tint="#b45309">
+          <path d="M8 5 V19 M16 5 V19" {...S} />
+          <path d="M8 7 H5 M8 12 H5 M8 17 H5 M16 7 H19 M16 12 H19 M16 17 H19" {...S} />
+        </Glyph>
+      )
+    case 'buoyancy':
+      return (
+        <Glyph tint="#0284c7">
+          <path d="M5 14 H19" {...S} />
+          <rect x="9" y="8" width="6" height="8" {...S} />
+          <path d="M12 4 V8" {...S} />
+        </Glyph>
+      )
+    case 'distill':
+      return (
+        <Glyph tint="#0369a1">
+          <path d="M6 16 C6 12 10 12 10 8 H14 L18 16" {...S} />
+          <path d="M8 18 Q10 15 12 18" {...S} />
+        </Glyph>
+      )
+    case 'gaslab':
+      return (
+        <Glyph tint="#059669">
+          <path d="M5 16 H10 V8 H14 V16 H19" {...S} />
+          <path d="M12 8 V5" {...S} />
+        </Glyph>
+      )
+    case 'filter':
+      return (
+        <Glyph tint="#a16207">
+          <path d="M7 5 H17 L12 12 Z" {...S} />
+          <path d="M12 12 V19" {...S} />
+          <path d="M8 19 H16" {...S} />
+        </Glyph>
+      )
+    case 'galvanic':
+      return (
+        <Glyph tint="#c2410c">
+          <rect x="4" y="8" width="6" height="10" {...S} />
+          <rect x="14" y="8" width="6" height="10" {...S} />
+          <path d="M7 8 V5 H17 V8" {...S} />
+        </Glyph>
+      )
+    case 'rate':
+      return (
+        <Glyph tint="#dc2626">
+          <path d="M6 16 H18 L16 8 H8 Z" {...S} />
+          <path d="M10 8 Q10 5 12 5 Q14 5 14 8" {...S} />
+        </Glyph>
+      )
+    case 'osmosis':
+      return (
+        <Glyph tint="#166534">
+          <rect x="6" y="5" width="12" height="14" {...S} />
+          <rect x="8" y="8" width="8" height="8" {...S} />
+        </Glyph>
+      )
+    case 'photo':
+      return (
+        <Glyph tint="#15803d">
+          <path d="M12 19 V10" {...S} />
+          <path d="M12 12 C8 12 7 8 9 6 C11 8 12 8 12 8 C12 8 13 8 15 6 C17 8 16 12 12 12" {...S} />
+        </Glyph>
+      )
+    case 'slide':
+      return (
+        <Glyph tint="#0f172a">
+          <circle cx="12" cy="12" r="7" {...S} />
+          <circle cx="12" cy="12" r="2" {...S} />
+        </Glyph>
+      )
+    case 'blood':
+      return (
+        <Glyph tint="#b91c1c">
+          <circle cx="8" cy="12" r="4" {...S} />
+          <circle cx="16" cy="12" r="4" {...S} />
+          {dot(8, 12, 1.4, '#7f1d1d')}
+        </Glyph>
+      )
+    case 'reflex':
+      return (
+        <Glyph tint="#7c3aed">
+          <circle cx="16" cy="12" r="4" {...S} />
+          <path d="M4 16 C8 16 8 8 12 8" {...S} />
+          <path d="M4 16 C8 16 8 16 12 16" {...S} />
         </Glyph>
       )
     case 'formula-bio':

@@ -104,6 +104,42 @@ export function readLanDevOrigin(port = 3000): string | null {
   return ip ? lanDevOriginFromIp(ip, port) : null
 }
 
+async function httpsOriginServesApp(origin: string): Promise<boolean> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 4000)
+  try {
+    const res = await fetch(`${origin.replace(/\/$/, '')}/`, {
+      method: 'GET',
+      redirect: 'manual',
+      signal: ctrl.signal,
+      headers: { 'ngrok-skip-browser-warning': '1' },
+    })
+    if (res.status >= 400) {
+      const text = (await res.text()).slice(0, 800)
+      if (text.includes('ERR_NGROK')) return false
+      return false
+    }
+    return true
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** HTTPS đang mở và tải được trang. Tunnel hết băng thông thì bỏ. */
+export async function readWorkingHttpsOrigin(extra: Array<string | null | undefined> = []): Promise<string | null> {
+  const live = await readRunningNgrokOrigin()
+  const candidates = [...extra, live, LOCAL_PHONE_NGROK_ORIGIN].filter((item): item is string => Boolean(item))
+  const seen = new Set<string>()
+  for (const origin of candidates) {
+    if (seen.has(origin)) continue
+    seen.add(origin)
+    if (await httpsOriginServesApp(origin)) return origin
+  }
+  return null
+}
+
 /** Đọc URL https mà ngrok đang mở, ưu tiên tunnel trỏ cổng 3000. */
 export async function readRunningNgrokOrigin(): Promise<string | null> {
   const ctrl = new AbortController()
@@ -115,8 +151,7 @@ export async function readRunningNgrokOrigin(): Promise<string | null> {
     const tunnels = Array.isArray(data.tunnels) ? data.tunnels : []
     const https = tunnels.filter((t) => typeof t.public_url === 'string' && t.public_url.startsWith('https://'))
     const onDevPort = https.find((t) => /:3000\b/.test(String(t.config?.addr || '')))
-    const chosen = onDevPort ?? https[0]
-    return chosen?.public_url?.replace(/\/$/, '') || null
+    return onDevPort?.public_url?.replace(/\/$/, '') || null
   } catch {
     return null
   } finally {

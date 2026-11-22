@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Copy, QrCode } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { Toaster } from '@/components/ui/toaster'
 import {
   renameSavedSchool,
@@ -161,22 +162,25 @@ export default function EnterClassForm({
       setJoinQrFailed(true)
       return
     }
-    const url = `${window.location.origin}/lop/tham-gia?code=${encodeURIComponent(code)}`
     let cancelled = false
-    setJoinQrUrl(url)
+    setJoinQrUrl('')
     setJoinQrDataUrl(null)
     setJoinQrFailed(false)
-    void import('qrcode')
-      .then((QR) => QR.default.toDataURL(url, { width: 280, margin: 2 }))
-      .then((dataUrl) => {
+    void (async () => {
+      const url = await phoneOpenableUrl(`/lop/chon-vao?code=${encodeURIComponent(code)}`)
+      if (cancelled) return
+      setJoinQrUrl(url)
+      try {
+        const QR = await import('qrcode')
+        const dataUrl = await QR.default.toDataURL(url, { width: 280, margin: 2 })
         if (!cancelled) setJoinQrDataUrl(dataUrl)
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setJoinQrDataUrl(null)
           setJoinQrFailed(true)
         }
-      })
+      }
+    })()
     return () => {
       cancelled = true
     }

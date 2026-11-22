@@ -5,6 +5,18 @@ import { useRouter } from 'next/navigation'
 import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 import { Button } from '@/components/ui/button'
+import { RosterImportButtons } from './roster-import-buttons'
+import { RosterEntryLink, RosterReissueButton } from './roster-entry-controls'
+import {
+  AnswerCardClassFileButtons,
+  AnswerCardExportError,
+  AnswerCardExportHint,
+  AnswerCardExportProvider,
+  AnswerCardSelectBox,
+  AnswerCardStudentButton,
+} from './answer-card-downloads'
+import type { AnswerCardStudent } from '@/lib/db/answer-card-pg'
+import type { AnswerCardExportItem } from '@/lib/lop/answer-card-export'
 import { Input } from '@/components/ui/input'
 import {
   AlertDialog,
@@ -27,6 +39,7 @@ import { Label } from '@/components/ui/label'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { useToast } from '@/hooks/use-toast'
+import { phoneOpenableUrl, phoneRemoteLoginOrigin } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { classSubjectLabel } from '@/lib/lop/class-subject'
 import type { ClassTuitionView } from '@/lib/lop/class-tuition'
 import { ClassTuitionPanel } from './class-tuition-panel'
@@ -157,7 +170,11 @@ function listEnrolledNotSubmittedForSession(
     if (uid) submittedIds.add(uid)
   }
   const enrolled = membersList.filter(
-    (m) => m.kind === 'student' && !m.userId.startsWith('exam-attempt:')
+    (m) =>
+      m.kind === 'student' &&
+      !m.userId.startsWith('exam-attempt:') &&
+      !m.userId.startsWith('roster:') &&
+      m.accountLinked !== false
   )
   return enrolled
     .filter((m) => !submittedIds.has(m.userId))
@@ -187,6 +204,9 @@ type Member = {
   birthDate: string | null
   kind: 'student' | 'teacher_member'
   removable: boolean
+  studentCode?: string | null
+  accountLinked?: boolean
+  loginCode?: string | null
 }
 type ExamAttempt = {
   id: string
@@ -300,14 +320,13 @@ function StudentClassExamOrHomeworkSessionRow({
   const isClosed = String(session.status ?? 'active').toLowerCase() !== 'active'
   const canOpenLamBai = Boolean(session.code?.trim()) && (!isClosed || Boolean(attempt))
   const isHw = Boolean(session.practiceHomework)
-  const fb =
-    attempt && !isHw
-      ? getExamAttemptFeedbackWithMeta(
-          Number(attempt.score),
-          Number(attempt.maxScore),
-          attempt.gradingMeta ?? null
-        )
-      : null
+  const fb = attempt
+    ? getExamAttemptFeedbackWithMeta(
+        Number(attempt.score),
+        Number(attempt.maxScore),
+        attempt.gradingMeta ?? null
+      )
+    : null
   const timeStr = attempt ? formatSessionIsoDateTime(attempt.submittedAt, webLocale) : ''
   const sessionCreatedDisplay = formatSessionIsoDateTime(session.createdAt, webLocale)
   return (
@@ -346,16 +365,17 @@ function StudentClassExamOrHomeworkSessionRow({
             <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
               {t.studentClassExamSubmitted}
             </p>
-            {isHw ? (
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {t.studentClassHomeworkSubmittedCaption}
-              </p>
-            ) : fb ? (
+            {fb ? (
               <p className="text-xs text-muted-foreground tabular-nums">
                 {fillExamTeacherSummaryTemplate(t.studentClassExamProgressScores, {
                   score100: formatExamScaleShort(fb.scoreOn100),
                   grade10: formatExamScaleShort(fb.grade10),
                 })}
+              </p>
+            ) : null}
+            {isHw ? (
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {t.studentClassHomeworkSubmittedCaption}
               </p>
             ) : null}
             {timeStr ? (
@@ -409,6 +429,7 @@ function TeacherClassExamGroupListItem({
   setDeleteExamTarget,
   setAttachExamTarget,
   setNotSubmittedSessionId,
+  onOpenExam,
 }: {
   g: TeacherClassExamGroup
   classId: string
@@ -421,6 +442,7 @@ function TeacherClassExamGroupListItem({
   setDeleteExamTarget: (next: { sessionId: string; code: string; title: string } | null) => void
   setAttachExamTarget: (next: { sessionId: string; title: string } | null) => void
   setNotSubmittedSessionId: (id: string | null) => void
+  onOpenExam: (examCode: string, sessionId: string) => void
 }) {
   const roster = countClassExamSubmissionStats(g.attempts, enrolledStudentIds)
   const createdAtDisplay = formatSessionIsoDateTime(g.createdAt, webLocale)
@@ -469,14 +491,13 @@ function TeacherClassExamGroupListItem({
               >
                 {t.examReviewAction}
               </Button>
-              <Button type="button" size="sm" className="shrink-0" asChild>
-                <Link
-                  href={`/giao-trinh/giao-vien/mo-de/${encodeURIComponent(g.examCode)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t.examTeacherOpenExam}
-                </Link>
+              <Button
+                type="button"
+                size="sm"
+                className="shrink-0"
+                onClick={() => onOpenExam(g.examCode, g.sessionId)}
+              >
+                {t.examTeacherOpenExam}
               </Button>
               <Button
                 type="button"
@@ -571,6 +592,7 @@ export default function LopDetailClient({
   viewerTeacherGender = null,
   classSubjects = [],
   members = [],
+  studentEntryPath = null,
   initialExamAttempts = [],
   initialExamSessions = [],
   pageMode = 'hub',
@@ -580,6 +602,7 @@ export default function LopDetailClient({
   subjectInbox = null,
   tuition = null,
   webLocale,
+  answerCards = [],
   t,
 }: {
   cls: {
@@ -606,6 +629,7 @@ export default function LopDetailClient({
     teacherDisplayName: string | null
   }[]
   members?: Member[]
+  studentEntryPath?: string | null
   initialExamAttempts?: ExamAttempt[]
   /** Phiên đề thi gắn lớp (luôn hiển thị, kể cả chưa có bài nộp) */
   initialExamSessions?: ExamSessionRow[]
@@ -616,6 +640,7 @@ export default function LopDetailClient({
   subjectInbox?: StudentSubjectInbox | null
   tuition?: ClassTuitionView | null
   webLocale: WebLocale
+  answerCards?: AnswerCardStudent[]
   t: Dictionary['classes']
 }) {
   const subjectNames = cls.subjectNames ?? []
@@ -656,6 +681,7 @@ export default function LopDetailClient({
   /** GV: hộp thoại QR + link — không điều hướng sang /lam-bai */
   const [examShare, setExamShare] = useState<{ code: string; title: string } | null>(null)
   const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
+  const [shareUrl, setShareUrl] = useState('')
   const [joinQrOpen, setJoinQrOpen] = useState(false)
   const [joinQrUrl, setJoinQrUrl] = useState('')
   const [joinQrDataUrl, setJoinQrDataUrl] = useState<string | null>(null)
@@ -794,6 +820,37 @@ export default function LopDetailClient({
   }, [classSubjects, focusSubject, t.memberRoleTeacher, webLocale])
   const subjectScreenOpen =
     (pageMode !== 'hub' && Boolean(focusSubject)) || (pageMode === 'hub' && Boolean(openedClassSubject))
+  const rosterSubjectLines = useMemo(() => {
+    const subjects = focusSubject
+      ? classSubjects.filter(
+          (subject) =>
+            subject.subjectId === focusSubject.subjectId && subject.teacherId === focusSubject.teacherId
+        )
+      : classSubjects
+    const sessionById = new Map(examSessionsList.map((session) => [session.id, session]))
+    const byUser = new Map<string, { label: string; points: number | null }[]>()
+    for (const member of membersList) {
+      if (member.kind !== 'student') continue
+      byUser.set(
+        member.userId,
+        subjects.map((subject) => {
+          let score = 0
+          let max = 0
+          for (const attempt of examAttempts) {
+            if (attempt.userId !== member.userId || attempt.practiceHomework) continue
+            const session = sessionById.get(attempt.sessionId)
+            if (!session || session.practiceHomework) continue
+            if (session.subjectId !== subject.subjectId || session.teacherId !== subject.teacherId) continue
+            score += attempt.score
+            max += attempt.maxScore
+          }
+          const points = max > 0 ? Math.round((score / max) * 100) / 10 : null
+          return { label: classSubjectRowLabel(subject, webLocale), points }
+        })
+      )
+    }
+    return byUser
+  }, [classSubjects, examAttempts, examSessionsList, focusSubject, membersList, webLocale])
 
   const examGroups = useMemo(() => {
     const attemptsBySession = new Map<string, ExamAttempt[]>()
@@ -905,27 +962,31 @@ export default function LopDetailClient({
   useEffect(() => {
     if (!examShare?.code) {
       setShareQrDataUrl(null)
+      setShareUrl('')
       return
     }
     const code = examShare.code.trim()
     if (!code) {
       setShareQrDataUrl(null)
+      setShareUrl('')
       return
     }
-    const url =
-      typeof window === 'undefined' ? '' : `${window.location.origin}${examStudentDoPath(code)}`
     let cancelled = false
     setShareQrDataUrl(null)
-    void import('qrcode')
-      .then((QR) =>
-        QR.default.toDataURL(url, { width: 220, margin: 2 })
-      )
-      .then((dataUrl) => {
+    setShareUrl('')
+    void (async () => {
+      const origin = await phoneRemoteLoginOrigin()
+      const url = `${origin}${examStudentDoPath(code)}`
+      if (cancelled) return
+      setShareUrl(url)
+      try {
+        const QR = await import('qrcode')
+        const dataUrl = await QR.default.toDataURL(url, { width: 220, margin: 2 })
         if (!cancelled) setShareQrDataUrl(dataUrl)
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setShareQrDataUrl(null)
-      })
+      }
+    })()
     return () => {
       cancelled = true
     }
@@ -939,22 +1000,26 @@ export default function LopDetailClient({
       setJoinQrFailed(true)
       return
     }
-    const url = `${window.location.origin}/lop/tham-gia?code=${encodeURIComponent(code)}`
     let cancelled = false
-    setJoinQrUrl(url)
+    setJoinQrUrl('')
     setJoinQrDataUrl(null)
     setJoinQrFailed(false)
-    void import('qrcode')
-      .then((QR) => QR.default.toDataURL(url, { width: 280, margin: 2 }))
-      .then((dataUrl) => {
+    void (async () => {
+      const origin = await phoneRemoteLoginOrigin()
+      const url = `${origin}/lop/chon-vao?code=${encodeURIComponent(code)}`
+      if (cancelled) return
+      setJoinQrUrl(url)
+      try {
+        const QR = await import('qrcode')
+        const dataUrl = await QR.default.toDataURL(url, { width: 280, margin: 2 })
         if (!cancelled) setJoinQrDataUrl(dataUrl)
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setJoinQrDataUrl(null)
           setJoinQrFailed(true)
         }
-      })
+      }
+    })()
     return () => {
       cancelled = true
     }
@@ -969,6 +1034,15 @@ export default function LopDetailClient({
     if (!joinQrUrl) return
     void navigator.clipboard.writeText(joinQrUrl)
     toast({ description: t.copied })
+  }
+
+  function copySharedJoinLink() {
+    const code = cls.join_code.trim()
+    if (!code) return
+    void phoneOpenableUrl(`/lop/chon-vao?code=${encodeURIComponent(code)}`).then((url) => {
+      void navigator.clipboard.writeText(url)
+      toast({ description: t.copied })
+    })
   }
 
   function examStudentDoPath(examCode: string) {
@@ -995,17 +1069,27 @@ export default function LopDetailClient({
     })
   }
 
-  function examStudentDoAbsoluteUrl(examCode: string) {
+  async function examStudentPhoneUrl(examCode: string) {
     const path = examStudentDoPath(examCode)
-    if (typeof window === 'undefined') return path
-    return `${window.location.origin}${path}`
+    const origin = await phoneRemoteLoginOrigin()
+    return `${origin}${path}`
   }
 
   function copyExamStudentLink(examCode: string) {
     const c = examCode.trim()
     if (!c) return
-    void navigator.clipboard.writeText(examStudentDoAbsoluteUrl(c))
-    toast({ description: t.examStudentDoLinkCopied })
+    const ready = examShare?.code.trim() === c && shareUrl ? shareUrl : ''
+    void (ready ? Promise.resolve(ready) : examStudentPhoneUrl(c)).then((url) => {
+      void navigator.clipboard.writeText(url)
+      toast({ description: t.examStudentDoLinkCopied })
+    })
+  }
+
+  function openExamDesk(examCode: string, sessionId: string) {
+    const code = examCode.trim()
+    const source = sessionId.trim()
+    if (!code || !source) return
+    window.open(`/giao-trinh/giao-vien/mo-de/${encodeURIComponent(code)}`, '_blank', 'noopener')
   }
 
   const openGradeEssayDialog = useCallback(
@@ -1227,8 +1311,34 @@ export default function LopDetailClient({
   const pageHero =
     'overflow-hidden rounded-2xl border border-border/90 bg-gradient-to-br from-primary/[0.08] via-card to-muted/30 p-4 shadow-md ring-1 ring-black/[0.04] dark:from-primary/[0.12] dark:to-muted/20 dark:ring-white/[0.06] sm:p-5'
   const classHasStudents = membersList.some(
-    (m) => m.kind === 'student' && !m.userId.startsWith('exam-attempt:')
+    (m) =>
+      m.kind === 'student' &&
+      !m.userId.startsWith('exam-attempt:') &&
+      !m.userId.startsWith('roster:') &&
+      m.accountLinked !== false
   )
+  const answerCardByUser = useMemo(
+    () => new Map(answerCards.map((card) => [card.userId, card])),
+    [answerCards]
+  )
+  const printableByUser = useMemo(() => {
+    const map = new Map<string, AnswerCardExportItem>()
+    for (const member of membersList) {
+      if (member.kind !== 'student') continue
+      const card = answerCardByUser.get(member.userId)
+      if (!card) continue
+      const show = isTeacher || member.userId === viewerUserId
+      map.set(member.userId, {
+        cardNo: card.cardNo,
+        name: member.name,
+        token: card.token,
+        studentCodeLabel: show && member.studentCode ? `${t.studentIdentityCodeLabel} ${member.studentCode}` : undefined,
+        loginCodeLabel: show && member.loginCode ? t.entryLoginCodeOnCard.replace('{code}', member.loginCode) : undefined,
+      })
+    }
+    return map
+  }, [answerCardByUser, isTeacher, membersList, t.entryLoginCodeOnCard, t.studentIdentityCodeLabel, viewerUserId])
+  const printableCards = useMemo(() => Array.from(printableByUser.values()), [printableByUser])
 
   const identityLabels: TeacherIdentityLabels = {
     title: t.teacherIdentityTitle,
@@ -1428,6 +1538,17 @@ export default function LopDetailClient({
                 <QrCode className="h-3.5 w-3.5" aria-hidden />
                 {t.joinQrButton}
               </Button>
+              {isTeacher ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={copySharedJoinLink}
+                  className="h-6 gap-1 px-1.5 font-sans text-[11px] font-medium"
+                >
+                  {t.joinChoiceLink}
+                </Button>
+              ) : null}
             </span>
           </div>
           </>
@@ -1630,6 +1751,24 @@ export default function LopDetailClient({
                 .filter(Boolean)
                 .join(' — ')}
             </p>
+          ) : null}
+
+          {isTeacher && pageMode === 'hub' && !openedClassSubject ? (
+            <Link
+              href={`/lop/${cls.id}/hoc-sinh`}
+              className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-3 text-sm hover:bg-muted/40"
+            >
+              <span className="min-w-0">
+                <span className="flex items-center gap-2 font-medium text-foreground">
+                  <Users className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  {t.students}
+                </span>
+                <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                  {t.classRosterOverviewLead}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            </Link>
           ) : null}
 
           {isOwner && !subjectScreenOpen ? (
@@ -1888,7 +2027,7 @@ export default function LopDetailClient({
                 <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
               </div>
               <p className="text-sm text-muted-foreground leading-snug">
-                {isTeacher ? t.classHubCardStudentsDesc : t.classHubCardStudentsDescStudent}
+                {isTeacher ? t.classSubjectRosterDesc : t.classHubCardStudentsDescStudent}
               </p>
             </Link>
             {isTeacher ? (
@@ -1986,6 +2125,7 @@ export default function LopDetailClient({
                       setDeleteExamTarget={setDeleteExamTarget}
                       setAttachExamTarget={setAttachExamTarget}
                       setNotSubmittedSessionId={setNotSubmittedSessionId}
+                      onOpenExam={openExamDesk}
                     />
                   ))}
                 </ul>
@@ -2063,14 +2203,13 @@ export default function LopDetailClient({
                                 >
                                   {t.examReviewAction}
                                 </Button>
-                                <Button type="button" size="sm" className="shrink-0" asChild>
-                                  <Link
-                                    href={`/giao-trinh/giao-vien/mo-de/${encodeURIComponent(g.examCode)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    {t.examTeacherOpenExam}
-                                  </Link>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="shrink-0"
+                                  onClick={() => openExamDesk(g.examCode, g.sessionId)}
+                                >
+                                  {t.examTeacherOpenExam}
                                 </Button>
                                 <Button
                                   type="button"
@@ -2362,27 +2501,74 @@ export default function LopDetailClient({
       ) : null}
 
       {pageMode === 'roster' ? (
+      <AnswerCardExportProvider className={cls.name} schoolName={cls.schoolName} t={t}>
       <section className="mb-8" aria-labelledby="class-roster-heading">
         <div className={pageSectionCard}>
-          <div className={pageSectionHead}>
-            <Users className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-            <h2 id="class-roster-heading" className={pageSectionTitle}>
-              {t.students}
-            </h2>
-            {focusedSubjectLine ? (
-              <p className="text-sm text-muted-foreground">{focusedSubjectLine}</p>
-            ) : null}
+          <div className={cn(pageSectionHead, 'items-start')}>
+            <Users className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
+            <div className="min-w-0 flex-1 space-y-2">
+              <h2 id="class-roster-heading" className={pageSectionTitle}>
+                {t.students}
+              </h2>
+              {focusedSubjectLine ? (
+                <p className="text-sm text-muted-foreground">{focusedSubjectLine}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t.classRosterOverviewLead}</p>
+              )}
+              {isTeacher && studentEntryPath ? <RosterEntryLink path={studentEntryPath} t={t} /> : null}
+              {isTeacher ? <RosterImportButtons classId={cls.id} t={t} /> : null}
+              {isTeacher && answerCards.length > 0 ? (
+                <>
+                  <AnswerCardExportHint />
+                  <AnswerCardClassFileButtons cards={printableCards} />
+                </>
+              ) : null}
+              {!isTeacher && answerCards.length > 0 ? (
+                <p className="text-sm text-muted-foreground">{t.answerCardsStudentOwnHint}</p>
+              ) : null}
+              <AnswerCardExportError />
+            </div>
           </div>
           <div className="bg-muted/10 p-3 sm:p-4">
         {membersList.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t.noStudents}</p>
         ) : (
           <ul className="divide-y divide-border/80 overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
-            {membersList.map((m) => (
+            {membersList.map((m) => {
+              const answerCard = answerCardByUser.get(m.userId)
+              const printed = printableByUser.get(m.userId)
+              return (
               <li key={m.userId} className="px-4 py-2 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    {isTeacher && answerCard ? <AnswerCardSelectBox token={answerCard.token} name={m.name} /> : null}
                     <span className="font-medium">{m.name}</span>
+                    {m.kind === 'student' && (rosterSubjectLines.get(m.userId)?.length ?? 0) > 0 ? (
+                      <span className="basis-full text-xs text-muted-foreground">
+                        {(rosterSubjectLines.get(m.userId) ?? []).map((line) => (
+                          <span key={line.label} className="mr-3 inline-block">
+                            {line.label}
+                            {' — '}
+                            {line.points == null ? t.classRosterNoSubjectScore : `${line.points}/10`}
+                          </span>
+                        ))}
+                      </span>
+                    ) : null}
+                    {(isTeacher || m.userId === viewerUserId) && m.studentCode ? (
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                        {t.studentIdentityCodeLabel} {m.studentCode}
+                      </span>
+                    ) : null}
+                    {(isTeacher || m.userId === viewerUserId) && m.loginCode ? (
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
+                        {t.entryLoginCodeOnCard.replace('{code}', m.loginCode)}
+                      </span>
+                    ) : null}
+                    {m.accountLinked === false ? (
+                      <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-200">
+                        {t.rosterNotJoined}
+                      </span>
+                    ) : null}
                     {m.birthDate ? (
                       <span className="text-[11px] text-muted-foreground">
                         {t.memberBirthDateLabel}: {formatBirthDisplay(m.birthDate)}
@@ -2407,7 +2593,8 @@ export default function LopDetailClient({
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                     {isTeacher &&
                     m.kind === 'student' &&
-                    !m.userId.startsWith('exam-attempt:') ? (
+                    !m.userId.startsWith('exam-attempt:') &&
+                    !m.userId.startsWith('roster:') ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -2418,6 +2605,10 @@ export default function LopDetailClient({
                         <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden />
                         {t.teacherEditStudentNameButton}
                       </Button>
+                    ) : null}
+                    {printed ? <AnswerCardStudentButton card={printed} /> : null}
+                    {isTeacher && m.studentCode && m.kind === 'student' && !m.userId.startsWith('roster:') ? (
+                      <RosterReissueButton classId={cls.id} studentCode={m.studentCode} name={m.name} t={t} />
                     ) : null}
                     {!isTeacher && m.userId === viewerUserId && m.kind === 'student' ? (
                       <Button
@@ -2434,12 +2625,14 @@ export default function LopDetailClient({
                   </div>
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
           </div>
         </div>
       </section>
+      </AnswerCardExportProvider>
       ) : null}
 
       {pageMode === 'gradebook' && isTeacher ? (
@@ -2663,7 +2856,7 @@ export default function LopDetailClient({
               <p className="text-xs font-medium text-muted-foreground">{t.examStudentShareUrlLabel}</p>
               <div className="flex gap-2">
                 <div className="min-w-0 flex-1 rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs break-all text-foreground">
-                  {examShare ? examStudentDoAbsoluteUrl(examShare.code) : ''}
+                  {shareUrl}
                 </div>
                 <Button
                   type="button"

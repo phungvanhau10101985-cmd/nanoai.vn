@@ -8,7 +8,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-/** Local cùng Wi‑Fi: QR dùng IP máy tính. Không có IP mạng riêng thì mới dùng ngrok. */
+/** Local: QR điện thoại mở IP Wi‑Fi cùng mạng. */
 export async function GET(req: Request) {
   const url = new URL(req.url)
   if (!isLocalDevHost(url.hostname)) {
