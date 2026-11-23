@@ -12,6 +12,7 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { parseBillingDay, parseDueDays, parseTuitionAmount, readTutoringTuitionFields } from '@/lib/lop/class-tuition'
 import { TutoringTuitionFields, type TutoringTuitionFieldValues } from '../tutoring-tuition-fields'
 import { cn } from '@/lib/utils'
+import { upperClassNameLetters } from '@/lib/lop/stored-class-name'
 
 export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   const [name, setName] = useState('')
@@ -19,6 +20,7 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   const [result, setResult] = useState<{ classId: string; joinCode: string } | null>(null)
   const [taken, setTaken] = useState<{ classId: string; name: string; joinCode: string } | null>(null)
   const [schoolSearch, setSchoolSearch] = useState('')
+  const [schoolComposing, setSchoolComposing] = useState(false)
   const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false)
   const {
     items: schoolSearchItems,
@@ -26,7 +28,7 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
     loading: schoolSearchLoading,
     suggesting: schoolSuggestLoading,
     reload: reloadSchools,
-  } = useSchoolSearch(schoolSearch)
+  } = useSchoolSearch(schoolSearch, schoolComposing)
   const schoolPanelRef = useRef<HTMLDivElement>(null)
   const [selectedSchoolId, setSelectedSchoolId] = useState('')
   const [selectedSchoolName, setSelectedSchoolName] = useState('')
@@ -329,6 +331,8 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
                   setSelectedSchoolName('')
                 }
               }}
+              onCompositionStart={() => setSchoolComposing(true)}
+              onCompositionEnd={() => setSchoolComposing(false)}
               onFocus={() => setSchoolDropdownOpen(true)}
               onBlur={() => {
                 window.setTimeout(() => {
@@ -341,7 +345,9 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
               className="w-full"
               autoComplete="off"
             />
-            {schoolDropdownOpen && schoolSearch.trim().length >= 2 && (
+            {schoolDropdownOpen &&
+            schoolSearch.trim().length >= 2 &&
+            (schoolSearchLoading || schoolSuggestLoading || schoolSearchItems.length > 0 || schoolSuggestions.length > 0) && (
               <div
                 ref={schoolPanelRef}
                 className="absolute left-0 right-0 top-full z-20 mt-1 max-h-80 overflow-y-auto rounded-md border bg-background p-1 shadow-md"
@@ -404,7 +410,11 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
             id="name"
             name="name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              const native = e.nativeEvent as InputEvent
+              setName(native.isComposing ? e.target.value : upperClassNameLetters(e.target.value))
+            }}
+            onCompositionEnd={(e) => setName(upperClassNameLetters(e.currentTarget.value))}
             placeholder="VD: 12A6"
             required
             disabled={loading}

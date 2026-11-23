@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { goToPreviousPage } from '@/components/navigation/browser-back-control'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 import { Button } from '@/components/ui/button'
+import { ClassNameTag } from './class-name-tag'
 import { RosterImportButtons } from './roster-import-buttons'
 import { RosterEntryLink, RosterReissueButton } from './roster-entry-controls'
 import {
@@ -39,8 +40,9 @@ import { Label } from '@/components/ui/label'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { useToast } from '@/hooks/use-toast'
-import { phoneOpenableUrl, phoneRemoteLoginOrigin } from '@/app/tao-giao-trinh/lib/phone-remote-client'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { classSubjectLabel } from '@/lib/lop/class-subject'
+import { storedClassName, upperClassNameLetters } from '@/lib/lop/stored-class-name'
 import type { ClassTuitionView } from '@/lib/lop/class-tuition'
 import { ClassTuitionPanel } from './class-tuition-panel'
 import { createFromClassHref } from '@/lib/lop/create-from-class-href'
@@ -68,6 +70,12 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { classTapCard, classTapRow, classTapTone, type ClassTapTone } from '@/components/lop/class-tap-color'
+import { gradeLevelLabel } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
+
+function classHubLink(tone: ClassTapTone) {
+  return cn(classTapCard, classTapTone[tone])
+}
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
@@ -232,6 +240,37 @@ type ExamSessionRow = {
   practiceHomework?: boolean
   teacherId?: string
   subjectId?: string
+  gradeLevelId?: string
+  durationMinutes?: number
+}
+
+/** Cùng khối, cùng môn, cùng thời lượng thì dùng lại dòng môn · khối đã ghép. */
+const examCatalogLineCache = new Map<string, string>()
+
+function examCatalogSubjectGradeLine(input: {
+  subjectId: string
+  gradeLevelId: string
+  durationMinutes: number
+  subjects: Array<{ subjectId: string; subjectLabel: string }>
+  locale: WebLocale
+}): string {
+  const subjectId = input.subjectId.trim()
+  const gradeLevelId = input.gradeLevelId.trim()
+  const duration = Number.isFinite(input.durationMinutes) && input.durationMinutes > 0 ? input.durationMinutes : 0
+  const key = `${subjectId}|${gradeLevelId}|${duration}`
+  const hit = examCatalogLineCache.get(key)
+  if (hit !== undefined) return hit
+  const row = input.subjects.find((subject) => subject.subjectId === subjectId)
+  const subject = row
+    ? classSubjectRowLabel(row, input.locale)
+    : subjectId && classSubjectLabel(subjectId, input.locale) !== subjectId
+      ? classSubjectLabel(subjectId, input.locale)
+      : ''
+  const grade = gradeLevelId ? gradeLevelLabel(gradeLevelId, input.locale) : ''
+  const gradeText = grade && grade !== gradeLevelId ? grade : ''
+  const line = [subject, gradeText].filter(Boolean).join(' · ')
+  examCatalogLineCache.set(key, line)
+  return line
 }
 
 function subjectScopeSearch(subject: { subjectId: string; teacherId: string }) {
@@ -247,10 +286,6 @@ function createExamFromClassHref(classId: string, subjectId: string | null | und
 
 function createHomeworkFromClassHref(classId: string, subjectId: string | null | undefined, gradeLevelId?: string | null) {
   return createFromClassHref('/tao-bai-tap-ve-nha', { classId, subjectId, gradeLevelId })
-}
-
-function createCurriculumFromClassHref(classId: string, subjectId: string | null | undefined, gradeLevelId?: string | null) {
-  return createFromClassHref('/giao-trinh', { classId, subjectId, gradeLevelId })
 }
 
 function sessionMatchesSubject(
@@ -307,6 +342,7 @@ function StudentClassExamOrHomeworkSessionRow({
   unopened = false,
   newLabel,
   onMarkOpened,
+  catalogLine = '',
 }: {
   session: ExamSessionRow
   attempt: ExamAttempt | null
@@ -316,6 +352,7 @@ function StudentClassExamOrHomeworkSessionRow({
   unopened?: boolean
   newLabel?: string
   onMarkOpened?: () => void
+  catalogLine?: string
 }) {
   const isClosed = String(session.status ?? 'active').toLowerCase() !== 'active'
   const canOpenLamBai = Boolean(session.code?.trim()) && (!isClosed || Boolean(attempt))
@@ -341,7 +378,8 @@ function StudentClassExamOrHomeworkSessionRow({
       }}
     >
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
           <p className={cn('text-sm leading-snug', unopened ? 'font-semibold' : 'font-medium')}>{session.title}</p>
           {unopened && newLabel ? <SubjectNewTag label={newLabel} /> : null}
           {isHw ? (
@@ -354,6 +392,8 @@ function StudentClassExamOrHomeworkSessionRow({
               {t.studentClassExamBadgeClosed}
             </span>
           ) : null}
+          </div>
+          {catalogLine ? <p className="shrink-0 text-sm leading-snug text-muted-foreground">{catalogLine}</p> : null}
         </div>
         {sessionCreatedDisplay ? (
           <p className="text-xs text-muted-foreground">
@@ -395,8 +435,13 @@ function StudentClassExamOrHomeworkSessionRow({
           <Button type="button" size="sm" variant={attempt ? 'outline' : 'default'} asChild>
             <Link
               href={examStudentDoPath(session.code)}
-              onClick={() => {
+              onClick={(event) => {
+                event.preventDefault()
                 if (unopened) onMarkOpened?.()
+                const path = examStudentDoPath(session.code)
+                void phoneOpenableUrl(path).then((url) => {
+                  window.location.assign(url || path)
+                })
               }}
             >
               {attempt ? t.studentClassExamCtaViewResult : t.studentClassExamCtaStart}
@@ -415,6 +460,9 @@ type TeacherClassExamGroup = {
   attempts: ExamAttempt[]
   practiceHomework: boolean
   createdAt: string | null
+  subjectId: string
+  gradeLevelId: string
+  durationMinutes: number
 }
 
 function TeacherClassExamGroupListItem({
@@ -430,6 +478,7 @@ function TeacherClassExamGroupListItem({
   setAttachExamTarget,
   setNotSubmittedSessionId,
   onOpenExam,
+  catalogLine = '',
 }: {
   g: TeacherClassExamGroup
   classId: string
@@ -443,13 +492,17 @@ function TeacherClassExamGroupListItem({
   setAttachExamTarget: (next: { sessionId: string; title: string } | null) => void
   setNotSubmittedSessionId: (id: string | null) => void
   onOpenExam: (examCode: string, sessionId: string) => void
+  catalogLine?: string
 }) {
   const roster = countClassExamSubmissionStats(g.attempts, enrolledStudentIds)
   const createdAtDisplay = formatSessionIsoDateTime(g.createdAt, webLocale)
   return (
     <li className="px-4 py-3">
       <div className="flex flex-col gap-2.5">
-        <p className="font-medium text-sm leading-snug">{g.examTitle}</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 font-medium text-sm leading-snug">{g.examTitle}</p>
+          {catalogLine ? <p className="shrink-0 text-sm leading-snug text-muted-foreground">{catalogLine}</p> : null}
+        </div>
         {createdAtDisplay ? (
           <p className="text-xs text-muted-foreground">
             {fillExamTeacherSummaryTemplate(t.examSessionCreatedAt, { time: createdAtDisplay })}
@@ -540,6 +593,9 @@ function TeacherClassExamGroupListItem({
             >
               {t.classExamGoToSession}
             </Link>
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="shrink-0" asChild>
+            <Link href={`/lop/${classId}/bang-diem/${g.sessionId}`}>{t.answerCardsExamSummary}</Link>
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
@@ -883,6 +939,9 @@ export default function LopDetailClient({
         attempts: attemptsBySession.get(s.id) ?? [],
         practiceHomework: Boolean(s.practiceHomework),
         createdAt: s.createdAt ?? null,
+        subjectId: s.subjectId ?? '',
+        gradeLevelId: s.gradeLevelId ?? '',
+        durationMinutes: s.durationMinutes ?? 0,
       }))
       return groups.sort(
         (a, b) =>
@@ -897,6 +956,9 @@ export default function LopDetailClient({
       attempts,
       practiceHomework: Boolean(attempts[0]?.practiceHomework),
       createdAt: null as string | null,
+      subjectId: '',
+      gradeLevelId: '',
+      durationMinutes: 0,
     }))
     return fallback.sort(
       (a, b) => examSessionNewestFirst(b.sessionId, b.attempts) - examSessionNewestFirst(a.sessionId, a.attempts)
@@ -975,8 +1037,8 @@ export default function LopDetailClient({
     setShareQrDataUrl(null)
     setShareUrl('')
     void (async () => {
-      const origin = await phoneRemoteLoginOrigin()
-      const url = `${origin}${examStudentDoPath(code)}`
+      const url = await phoneOpenableUrl(examStudentDoPath(code))
+      if (!url.startsWith('https://')) return
       if (cancelled) return
       setShareUrl(url)
       try {
@@ -1005,8 +1067,11 @@ export default function LopDetailClient({
     setJoinQrDataUrl(null)
     setJoinQrFailed(false)
     void (async () => {
-      const origin = await phoneRemoteLoginOrigin()
-      const url = `${origin}/lop/chon-vao?code=${encodeURIComponent(code)}`
+      const url = await phoneOpenableUrl(`/lop/chon-vao?code=${encodeURIComponent(code)}`)
+      if (!url.startsWith('https://')) {
+        if (!cancelled) setJoinQrFailed(true)
+        return
+      }
       if (cancelled) return
       setJoinQrUrl(url)
       try {
@@ -1070,9 +1135,7 @@ export default function LopDetailClient({
   }
 
   async function examStudentPhoneUrl(examCode: string) {
-    const path = examStudentDoPath(examCode)
-    const origin = await phoneRemoteLoginOrigin()
-    return `${origin}${path}`
+    return phoneOpenableUrl(examStudentDoPath(examCode))
   }
 
   function copyExamStudentLink(examCode: string) {
@@ -1424,14 +1487,18 @@ export default function LopDetailClient({
                     <>
                       <input
                         value={className}
-                        onChange={(e) => setClassName(e.target.value)}
+                        onChange={(e) => {
+                          const native = e.nativeEvent as InputEvent
+                          setClassName(native.isComposing ? e.target.value : upperClassNameLetters(e.target.value))
+                        }}
+                        onCompositionEnd={(e) => setClassName(upperClassNameLetters(e.currentTarget.value))}
                         className="h-8 max-w-[12rem] rounded-md border border-input bg-background px-2 text-sm sm:max-w-xs"
                       />
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={async () => {
-                          const newName = className.trim()
+                          const newName = storedClassName(className)
                           if (!newName) return
                           setRenamingClass(true)
                           const res = await fetch(`/api/lop/${cls.id}/rename`, {
@@ -1506,7 +1573,7 @@ export default function LopDetailClient({
             ) : null}
             {cls.gradeLevelId ? (
               <span className="rounded-md bg-muted/80 px-2 py-0.5 text-muted-foreground">
-                {t.gradeLevelLabel}: <span className="text-foreground/90">{cls.gradeLevelId}</span>
+                {t.gradeLevelLabel}: <span className="text-foreground/90">{gradeLevelLabel(cls.gradeLevelId, webLocale)}</span>
               </span>
             ) : null}
             {subjectNames.length > 0 ? (
@@ -1562,14 +1629,17 @@ export default function LopDetailClient({
                 const openedTeacher = opened.teacherDisplayName?.trim() || t.memberRoleTeacher
                 return (
                   <section className="space-y-1">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-                      onClick={() => goToPreviousPage(`/lop/${cls.id}`)}
-                    >
-                      <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
-                      {t.classSubjectBack}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                        onClick={() => goToPreviousPage(`/lop/${cls.id}`)}
+                      >
+                        <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
+                        {t.classSubjectBack}
+                      </button>
+                      <ClassNameTag name={savedClassName} school={cls.schoolName} />
+                    </div>
                     <h2 className="text-base font-semibold text-foreground">{openedLabel}</h2>
                     <p className="text-sm text-muted-foreground">{openedTeacher}</p>
                   </section>
@@ -1581,14 +1651,17 @@ export default function LopDetailClient({
                 const openedTeacher = opened.teacherDisplayName?.trim() || t.memberRoleTeacher
                 return (
                   <section className="mt-3 space-y-3">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-                      onClick={() => goToPreviousPage(`/lop/${cls.id}`)}
-                    >
-                      <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
-                      {t.classSubjectBack}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                        onClick={() => goToPreviousPage(`/lop/${cls.id}`)}
+                      >
+                        <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
+                        {t.classSubjectBack}
+                      </button>
+                      <ClassNameTag name={savedClassName} school={cls.schoolName} />
+                    </div>
                     <div className="rounded-xl border border-border/70 bg-background/50 p-3">
                       <h2 className="text-base font-semibold text-foreground">{openedLabel}</h2>
                       <p className="mt-0.5 text-sm text-muted-foreground">{openedTeacher}</p>
@@ -1598,28 +1671,46 @@ export default function LopDetailClient({
                           label={t.classReviewTitle}
                           count={subjectUnread.review}
                           unreadLabel={t.subjectItemUnreadAria.replace('{n}', String(subjectUnread.review))}
+                          tone="sky"
                         />
                         <SubjectSectionLink
                           href={`/lop/${cls.id}/bai-thi?${scope}`}
                           label={t.studentClassExamsTitle}
                           count={subjectUnread.exam}
                           unreadLabel={t.subjectItemUnreadAria.replace('{n}', String(subjectUnread.exam))}
+                          tone="indigo"
                         />
                         <SubjectSectionLink
                           href={`/lop/${cls.id}/phieu-bai-tap?${scope}`}
                           label={t.assignWorksheet}
                           count={subjectUnread.homework}
                           unreadLabel={t.subjectItemUnreadAria.replace('{n}', String(subjectUnread.homework))}
+                          tone="amber"
                         />
+                        <Link
+                          href="/gia-su-ai"
+                          className={cn(classTapRow, classTapTone.violet)}
+                        >
+                          <span className="font-medium text-foreground">{t.classStudentAiTutor}</span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                        </Link>
+                        <Link
+                          href="/ho-tro-lam-bai"
+                          className={cn(classTapRow, classTapTone.rose)}
+                        >
+                          <span className="font-medium text-foreground">{t.classStudentHomeworkHelp}</span>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                        </Link>
                         <SubjectSectionLink
                           href={`/lop/${cls.id}/diem?${scope}`}
                           label={t.studentMyScoresTitle}
                           count={subjectUnread.score}
                           unreadLabel={t.subjectItemUnreadAria.replace('{n}', String(subjectUnread.score))}
+                          tone="emerald"
                         />
                         <Link
                           href={`/lop/${cls.id}/hoc-sinh?${scope}`}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-3 text-sm hover:bg-muted/40"
+                          className={cn(classTapRow, classTapTone.teal)}
                         >
                           <span className="font-medium text-foreground">{t.classHubCardRosterTitleStudent}</span>
                           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -1641,13 +1732,16 @@ export default function LopDetailClient({
               return (
                 <>
                 {!isTeacher ? (
-                  <button
-                    type="button"
-                    className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-                    onClick={() => goToPreviousPage('/lop')}
-                  >
-                    ← {t.classSubjectBack}
-                  </button>
+                  <div className="mb-4 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                      onClick={() => goToPreviousPage('/lop')}
+                    >
+                      ← {t.classSubjectBack}
+                    </button>
+                    <ClassNameTag name={savedClassName} school={cls.schoolName} />
+                  </div>
                 ) : null}
                 <section className="mt-3 rounded-xl border border-border/70 bg-background/50 p-3">
                   <h2 className="text-sm font-semibold text-foreground">{t.classSubjectsTitle}</h2>
@@ -1705,7 +1799,7 @@ export default function LopDetailClient({
                           <li key={rowKey}>
                             <Link
                               href={`/lop/${cls.id}?${subjectScopeSearch(s)}`}
-                              className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2.5 text-left text-sm hover:bg-muted/70"
+                              className={cn(classTapRow, classTapTone.indigo, 'w-full text-left')}
                             >
                               <span className="font-medium text-foreground">{classSubjectRowLabel(s, webLocale)}</span>
                               <span className="inline-flex items-center gap-1 text-muted-foreground">
@@ -1729,17 +1823,39 @@ export default function LopDetailClient({
                 <p className="mt-1 text-sm text-muted-foreground">{t.classSubjectsEmpty}</p>
               ) : (
                 <ul className="mt-2 space-y-1.5">
-                  {classSubjects.map((s) => (
-                    <li
-                      key={classSubjectRowKey(s)}
-                      className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 text-sm"
-                    >
-                      <span className="font-medium text-foreground">{classSubjectRowLabel(s, webLocale)}</span>
-                      <span className="text-muted-foreground">
-                        {s.teacherDisplayName?.trim() || t.memberRoleTeacher}
-                      </span>
-                    </li>
-                  ))}
+                  {classSubjects.map((s) => {
+                    const rowKey = classSubjectRowKey(s)
+                    const teacherName = s.teacherDisplayName?.trim() || t.memberRoleTeacher
+                    const canEnter = !isTeacher || s.teacherId === viewerUserId
+                    if (!canEnter) {
+                      return (
+                        <li key={rowKey}>
+                          <div
+                            aria-disabled="true"
+                            title={t.classSubjectOwnOnlyHint}
+                            className="flex w-full cursor-default items-center justify-between gap-2 rounded-lg px-2 py-2.5 text-left text-sm"
+                          >
+                            <span className="font-medium text-foreground">{classSubjectRowLabel(s, webLocale)}</span>
+                            <span className="text-muted-foreground">{teacherName}</span>
+                          </div>
+                        </li>
+                      )
+                    }
+                    return (
+                      <li key={rowKey}>
+                        <Link
+                          href={`/lop/${cls.id}?${subjectScopeSearch(s)}`}
+                          className={cn(classTapRow, classTapTone.indigo, 'w-full text-left')}
+                        >
+                          <span className="font-medium text-foreground">{classSubjectRowLabel(s, webLocale)}</span>
+                          <span className="inline-flex items-center gap-1 text-muted-foreground">
+                            {teacherName}
+                            <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
+                          </span>
+                        </Link>
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </section>
@@ -1756,7 +1872,7 @@ export default function LopDetailClient({
           {isTeacher && pageMode === 'hub' && !openedClassSubject ? (
             <Link
               href={`/lop/${cls.id}/hoc-sinh`}
-              className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-3 text-sm hover:bg-muted/40"
+              className={cn('mt-3', classTapRow, classTapTone.teal)}
             >
               <span className="min-w-0">
                 <span className="flex items-center gap-2 font-medium text-foreground">
@@ -1772,8 +1888,8 @@ export default function LopDetailClient({
           ) : null}
 
           {isOwner && !subjectScreenOpen ? (
-            <details className="mt-3 overflow-hidden rounded-xl border border-border/70 bg-background/40 shadow-sm dark:bg-background/25">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-left text-sm outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+            <details className={cn('mt-3 overflow-hidden rounded-xl border shadow-sm', classTapTone.amber)}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-left text-sm outline-none transition-colors hover:bg-amber-100 focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-amber-950/70 [&::-webkit-details-marker]:hidden">
                 <span className="min-w-0 flex-1">
                   <span className="font-medium text-foreground">{t.classPageStudentFacingTitle}</span>
                   <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
@@ -1853,7 +1969,7 @@ export default function LopDetailClient({
                 className="h-auto w-full touch-manipulation py-2.5 text-sm font-semibold shadow-sm"
                 asChild
               >
-                <Link href={createExamFromClassHref(cls.id, focusSubject?.subjectId)}>{t.mobileCreateExam}</Link>
+                <Link href={createExamFromClassHref(cls.id, focusSubject?.subjectId, cls.gradeLevelId)}>{t.mobileCreateExam}</Link>
               </Button>
               <Button
                 variant="outline"
@@ -1871,7 +1987,7 @@ export default function LopDetailClient({
       )}
 
       {showClassHomeLink ? (
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -1890,6 +2006,7 @@ export default function LopDetailClient({
             <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
             {focusSubject ? t.classSubjectBack : t.classPageBackToClass}
           </Button>
+          <ClassNameTag name={savedClassName} school={cls.schoolName} />
         </div>
       ) : null}
 
@@ -1910,34 +2027,24 @@ export default function LopDetailClient({
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {isTeacher && openedClassSubject ? (
-              <div className={cn(pageSectionCard, 'flex flex-col gap-3 p-4')}>
-                <Link
-                  href={`/lop/${cls.id}/giao-trinh?${subjectScopeSearch(openedClassSubject)}`}
-                  className="group flex flex-col gap-2 rounded-lg outline-none ring-offset-background transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden />
-                      <span className={pageSectionTitle}>{t.classHubCardCurriculaTitle}</span>
-                    </div>
-                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+              <Link
+                href={`/lop/${cls.id}/giao-trinh?${subjectScopeSearch(openedClassSubject)}`}
+                className={classHubLink('violet')}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden />
+                    <span className={pageSectionTitle}>{t.classHubCardCurriculaTitle}</span>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardCurriculaDesc}</p>
-                </Link>
-                <Button variant="secondary" size="sm" className="w-full touch-manipulation sm:w-auto" asChild>
-                  <Link href={createCurriculumFromClassHref(cls.id, openedClassSubject.subjectId, cls.gradeLevelId)}>
-                    {t.classCurriculaCreate}
-                  </Link>
-                </Button>
-              </div>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                </div>
+                <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardCurriculaDesc}</p>
+              </Link>
             ) : null}
             {isTeacher && openedClassSubject ? (
               <Link
                 href={`/lop/${cls.id}/on-bai?${subjectScopeSearch(openedClassSubject)}`}
-                className={cn(
-                  pageSectionCard,
-                  'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                )}
+                className={classHubLink('sky')}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -1950,33 +2057,23 @@ export default function LopDetailClient({
               </Link>
             ) : null}
             {isTeacher ? (
-              <div className={cn(pageSectionCard, 'flex flex-col gap-3 p-4')}>
-                <Link
-                  href={`/lop/${cls.id}/bai-thi?${subjectScopeSearch(openedClassSubject)}`}
-                  className="group flex flex-col gap-2 rounded-lg outline-none ring-offset-background transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <ScrollText className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-                      <span className={pageSectionTitle}>{t.classExamsIndexTitle}</span>
-                    </div>
-                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+              <Link
+                href={`/lop/${cls.id}/bai-thi?${subjectScopeSearch(openedClassSubject)}`}
+                className={classHubLink('indigo')}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ScrollText className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                    <span className={pageSectionTitle}>{t.classExamsIndexTitle}</span>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardExamsDesc}</p>
-                </Link>
-                <Button variant="secondary" size="sm" className="w-full touch-manipulation sm:w-auto" asChild>
-                  <Link href={createExamFromClassHref(cls.id, openedClassSubject.subjectId)}>
-                    {t.classHubCardCreateExamButton}
-                  </Link>
-                </Button>
-              </div>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                </div>
+                <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardExamsDesc}</p>
+              </Link>
             ) : (
               <Link
                 href={`/lop/${cls.id}/bai-thi`}
-                className={cn(
-                  pageSectionCard,
-                  'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                )}
+                className={classHubLink('indigo')}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -1991,10 +2088,7 @@ export default function LopDetailClient({
             {!isTeacher ? (
               <Link
                 href={`/lop/${cls.id}/phieu-bai-tap`}
-                className={cn(
-                  pageSectionCard,
-                  'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                )}
+                className={classHubLink('sky')}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -2012,10 +2106,7 @@ export default function LopDetailClient({
                   ? `/lop/${cls.id}/hoc-sinh?${subjectScopeSearch(openedClassSubject)}`
                   : `/lop/${cls.id}/hoc-sinh`
               }
-              className={cn(
-                pageSectionCard,
-                'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-              )}
+              className={classHubLink('teal')}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
@@ -2032,32 +2123,22 @@ export default function LopDetailClient({
             </Link>
             {isTeacher ? (
               <>
-                <div className={cn(pageSectionCard, 'flex flex-col gap-3 p-4')}>
-                  <Link
-                    href={`/lop/${cls.id}/gan-phieu?${subjectScopeSearch(openedClassSubject)}`}
-                    className="group flex flex-col gap-2 rounded-lg outline-none ring-offset-background transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <FilePlus2 className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden />
-                        <span className={pageSectionTitle}>{t.assignWorksheet}</span>
-                      </div>
-                      <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                <Link
+                  href={`/lop/${cls.id}/gan-phieu?${subjectScopeSearch(openedClassSubject)}`}
+                  className={classHubLink('amber')}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <FilePlus2 className="h-5 w-5 shrink-0 text-violet-600 dark:text-violet-400" aria-hidden />
+                      <span className={pageSectionTitle}>{t.assignWorksheet}</span>
                     </div>
-                    <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardAssignWorksheetDesc}</p>
-                  </Link>
-                  <Button variant="secondary" size="sm" className="w-full touch-manipulation sm:w-auto" asChild>
-                    <Link href={createHomeworkFromClassHref(cls.id, openedClassSubject.subjectId, cls.gradeLevelId)}>
-                      {t.classHubCardCreateHomeworkButton}
-                    </Link>
-                  </Button>
-                </div>
+                    <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-snug">{t.classHubCardAssignWorksheetDesc}</p>
+                </Link>
                 <Link
                   href={`/lop/${cls.id}/ket-qua?${subjectScopeSearch(openedClassSubject)}`}
-                  className={cn(
-                    pageSectionCard,
-                    'flex flex-col gap-2 p-4 transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-                  )}
+                  className={classHubLink('emerald')}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -2091,7 +2172,7 @@ export default function LopDetailClient({
             <>
               <p className="text-sm text-muted-foreground">{t.noExamsForClass}</p>
               <Button type="button" variant="secondary" asChild>
-                <Link href={createExamFromClassHref(cls.id, focusSubject?.subjectId)}>
+                <Link href={createExamFromClassHref(cls.id, focusSubject?.subjectId, cls.gradeLevelId)}>
                   {t.classHubCardCreateExamButton}
                 </Link>
               </Button>
@@ -2099,7 +2180,7 @@ export default function LopDetailClient({
           ) : (
             <>
               <Button type="button" variant="outline" size="sm" className="w-fit" asChild>
-                <Link href={createExamFromClassHref(cls.id, focusSubject?.subjectId)}>
+                <Link href={createExamFromClassHref(cls.id, focusSubject?.subjectId, cls.gradeLevelId)}>
                   {t.classHubCardCreateExamButton}
                 </Link>
               </Button>
@@ -2126,6 +2207,13 @@ export default function LopDetailClient({
                       setAttachExamTarget={setAttachExamTarget}
                       setNotSubmittedSessionId={setNotSubmittedSessionId}
                       onOpenExam={openExamDesk}
+                      catalogLine={examCatalogSubjectGradeLine({
+                        subjectId: g.subjectId,
+                        gradeLevelId: g.gradeLevelId || cls.gradeLevelId || '',
+                        durationMinutes: g.durationMinutes,
+                        subjects: classSubjects,
+                        locale: webLocale,
+                      })}
                     />
                   ))}
                 </ul>
@@ -2154,10 +2242,20 @@ export default function LopDetailClient({
                   {teacherExamSessionGroups.map((g) => {
                     const roster = countClassExamSubmissionStats(g.attempts, enrolledStudentIds)
                     const sessionCreatedAtDisplay = formatSessionIsoDateTime(g.createdAt, webLocale)
+                    const catalogLine = examCatalogSubjectGradeLine({
+                      subjectId: g.subjectId,
+                      gradeLevelId: g.gradeLevelId || cls.gradeLevelId || '',
+                      durationMinutes: g.durationMinutes,
+                      subjects: classSubjects,
+                      locale: webLocale,
+                    })
                     return (
                       <li key={g.sessionId} className="px-4 py-3">
                         <div className="flex flex-col gap-2.5">
-                          <p className="font-medium text-sm leading-snug">{g.examTitle}</p>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="min-w-0 font-medium text-sm leading-snug">{g.examTitle}</p>
+                            {catalogLine ? <p className="shrink-0 text-sm leading-snug text-muted-foreground">{catalogLine}</p> : null}
+                          </div>
                           {sessionCreatedAtDisplay ? (
                             <p className="text-xs text-muted-foreground">
                               {fillExamTeacherSummaryTemplate(t.examSessionCreatedAt, {
@@ -2202,6 +2300,9 @@ export default function LopDetailClient({
                                   }
                                 >
                                   {t.examReviewAction}
+                                </Button>
+                                <Button type="button" variant="outline" size="sm" className="shrink-0" asChild>
+                                  <Link href={`/lop/${cls.id}/bang-diem/${g.sessionId}`}>{t.answerCardsExamSummary}</Link>
                                 </Button>
                                 <Button
                                   type="button"
@@ -2449,6 +2550,13 @@ export default function LopDetailClient({
                   onMarkOpened={() =>
                     rememberSubjectItem('exam', session.id, session.subjectId, session.teacherId)
                   }
+                  catalogLine={examCatalogSubjectGradeLine({
+                    subjectId: session.subjectId ?? '',
+                    gradeLevelId: session.gradeLevelId || cls.gradeLevelId || '',
+                    durationMinutes: session.durationMinutes ?? 0,
+                    subjects: classSubjects,
+                    locale: webLocale,
+                  })}
                 />
               ))}
             </ul>
@@ -2491,6 +2599,13 @@ export default function LopDetailClient({
                       onMarkOpened={() =>
                         rememberSubjectItem('homework', session.id, session.subjectId, session.teacherId)
                       }
+                      catalogLine={examCatalogSubjectGradeLine({
+                        subjectId: session.subjectId ?? '',
+                        gradeLevelId: session.gradeLevelId || cls.gradeLevelId || '',
+                        durationMinutes: session.durationMinutes ?? 0,
+                        subjects: classSubjects,
+                        locale: webLocale,
+                      })}
                     />
                   ))}
                 </ul>

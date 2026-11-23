@@ -3587,6 +3587,10 @@ export type Dictionary = {
     memberRoleStudent: string
     memberRoleTeacher: string
     createClassSchoolRequired: string
+    createClassGradeLabel: string
+    createClassGradePlaceholder: string
+    createClassGradeRequired: string
+    createClassGradeMismatch: string
     createClassSchoolPlaceholder: string
     createClassSchoolHint: string
     createClassSchoolSearching: string
@@ -3772,6 +3776,11 @@ export type Dictionary = {
     /** {n} — số bài */
     classCurriculaLesson: string
     classReviewTitle: string
+    classStudentAiTutor: string
+    classStudentHomeworkHelp: string
+    consultExerciseButton: string
+    consultExerciseOpening: string
+    consultExerciseFailed: string
     classReviewLead: string
     classReviewEmpty: string
     classReviewOpen: string
@@ -3800,6 +3809,8 @@ export type Dictionary = {
     answerScanPickClass: string
     answerScanDialogTitle: string
     answerScanDialogLead: string
+    /** Quét thẻ còn khóa vì chưa hết giờ làm bài. */
+    answerScanWait: string
     answerCardsMcqCount: string
     answerCardsSourcesTitle: string
     answerCardsRoundsTitle: string
@@ -3817,6 +3828,15 @@ export type Dictionary = {
     answerCardsPhoneScan: string
     answerCardsExamSummary: string
     answerCardsExamSummaryLead: string
+    answerCardsScoreSpread: string
+    answerCardsScoreScale100: string
+    answerCardsScoreBand: string
+    answerCardsScoreStudents: string
+    answerCardsScoreShare: string
+    answerCardsStudentColumn: string
+    answerCardsNotDone: string
+    answerCardsScoreboardLead: string
+    answerCardsOpenQuestionStats: string
     answerCardsClose: string
     answerCardsResult: string
     answerCardsHideResult: string
@@ -3841,7 +3861,10 @@ export type Dictionary = {
     answerCardsHoldLeft: string
     answerCardsHoldRight: string
     answerCardsHoldHint: string
+    answerCardsNoLandscape: string
+    answerCardsScanName: string
     answerCardsSwitchCamera: string
+    answerCardsOpenPaper: string
     answerCardsCameraOff: string
     answerCardsCameraOn: string
     answerCardsCameraDenied: string
@@ -3856,10 +3879,23 @@ export type Dictionary = {
     answerCardsRaiseHint: string
     answerCardsReviewHint: string
     answerCardsScore: string
+    answerCardsRecord: string
+    answerCardsRecordAck: string
+    answerCardsResultTitle: string
+    answerCardsPeopleCorrect: string
+    answerCardsPeopleWrong: string
+    answerCardsDone: string
+    answerCardsRecordNext: string
+    answerCardsCapture: string
+    answerCardsCaptured: string
+    answerCardsCaptureFailed: string
+    answerCardsShots: string
     answerCardsAllScanned: string
     answerCardsSavedOf: string
+    answerCardsGathered: string
     answerCardsSchema: string
     answerCardsLoadError: string
+    answerCardsTunnelMissing: string
     studentMyScoresTitle: string
     studentMyScoresLead: string
     studentMyScoresEmpty: string
@@ -4936,6 +4972,12 @@ export type Dictionary = {
     teacherPaperLoadFailed: string
     teacherPaperEmpty: string
     teacherPaperQuestion: string
+    teacherPaperHint: string
+    teacherPaperHintClose: string
+    teacherPaperThinking: string
+    teacherPaperThinkingLoading: string
+    teacherPaperThinkingEmpty: string
+    teacherPaperThinkingFailed: string
     createNewClass: string
     selectSchoolAboveForClass: string
     newClassNamePlaceholder: string
@@ -8231,18 +8273,18 @@ export const VI_DICTIONARY: Dictionary = {
     teacherIdentityAccountNote: 'Tên lấy từ tài khoản, không nhập riêng khi tạo lớp.',
     studentIdentityTitle: 'Cập nhật thông tin học sinh',
     studentIdentityLead:
-      'Cần có họ tên, ngày sinh, giới tính và mã định danh trước khi tham gia lớp. Mã định danh khớp danh sách đã có, không tạo thêm học sinh.',
-    studentIdentityRequired: 'Nhập họ tên, ngày sinh, mã định danh và chọn giới tính.',
+      'Cần có họ tên, ngày sinh, giới tính và mã định danh cá nhân trước khi tham gia lớp. Mã định danh cá nhân khớp danh sách đã có, không tạo thêm học sinh.',
+    studentIdentityRequired: 'Nhập họ tên, ngày sinh, mã định danh cá nhân và chọn giới tính.',
     studentIdentitySaved: 'Đã lưu. Tài khoản đã khớp với danh sách lớp theo mã định danh.',
     studentIdentityEdit: 'Sửa thông tin học sinh',
     studentIdentityShownAs: 'Tên trong lớp: {name} · Sinh {birth} · {gender} · Mã {code}',
     studentIdentityAccountNote: 'Họ tên, ngày sinh, giới tính và mã định danh lấy từ tài khoản. Mã này là khóa đồng bộ với danh sách lớp.',
-    studentIdentityCodeLabel: 'Mã định danh',
+    studentIdentityCodeLabel: 'Mã định danh cá nhân',
     studentIdentityCodePlaceholder: 'Ví dụ HS0000000001',
     rosterTemplate: 'Tải file mẫu',
     rosterImport: 'Nhập danh sách',
     rosterImporting: 'Đang nhập…',
-    rosterImportHint: 'File có cột STT, họ tên, ngày sinh và mã định danh. Mã định danh là bắt buộc. Trùng mã thì ghi đè, không tạo học sinh mới.',
+    rosterImportHint: 'File có cột STT, họ tên, ngày sinh và mã định danh cá nhân. Mã định danh cá nhân là bắt buộc. Trùng mã thì ghi đè, không tạo học sinh mới.',
     rosterImportDone: 'Đã ghi đè {updated} học sinh, thêm {inserted} học sinh.',
     rosterImportFailed: 'Không nhập được danh sách.',
     rosterRowError: 'Dòng {row}: {message}',
@@ -8266,10 +8308,10 @@ export const VI_DICTIONARY: Dictionary = {
     entryReissueDone: 'Mật khẩu mới của {name}: {code}. In lại phiếu QR. Mã QR đáp án giữ nguyên.',
     entryReissueFailed: 'Không cấp lại được mật khẩu.',
     entryPageTitle: 'Vào lớp {name}',
-    entryPageLead: 'Gõ mã định danh và mật khẩu in trên phiếu. Lần sau máy này nhớ em.',
+    entryPageLead: 'Gõ mã định danh cá nhân và mật khẩu in trên phiếu. Lần sau máy này nhớ em.',
     entryContinue: 'Vào lớp — {name}',
     entryOtherStudent: 'Em khác',
-    entryCodeLabel: 'Mã định danh',
+    entryCodeLabel: 'Mã định danh cá nhân',
     entryPasswordLabel: 'Mật khẩu trên phiếu',
     entrySubmit: 'Vào lớp',
     entrySubmitting: 'Đang vào…',
@@ -8631,6 +8673,10 @@ export const VI_DICTIONARY: Dictionary = {
     memberRoleStudent: 'Học sinh',
     memberRoleTeacher: 'Giáo viên',
     createClassSchoolRequired: 'Vui lòng chọn trường trước khi tạo lớp.',
+    createClassGradeLabel: 'Khối lớp',
+    createClassGradePlaceholder: 'Chọn khối lớp',
+    createClassGradeRequired: 'Vui lòng chọn khối lớp.',
+    createClassGradeMismatch: 'Lớp đã chọn thuộc khối khác.',
     createClassSchoolPlaceholder: 'Gõ tên trường để tìm…',
     createClassSchoolHint: 'Lớp phải gắn với một trường. Chọn trường có sẵn hoặc thêm trường mới.',
     createClassSchoolSearching: 'Đang tìm trường…',
@@ -8790,6 +8836,11 @@ export const VI_DICTIONARY: Dictionary = {
     classCurriculaOther: 'Chưa lưu giáo trình môn này. Mở một giáo trình của cô để lưu vào lớp.',
     classCurriculaLesson: 'Bài {n}',
     classReviewTitle: 'Ôn bài',
+    classStudentAiTutor: 'Gia sư AI',
+    classStudentHomeworkHelp: 'Hỗ trợ làm bài',
+    consultExerciseButton: 'Tư vấn làm bài',
+    consultExerciseOpening: 'Đang mở hỗ trợ làm bài…',
+    consultExerciseFailed: 'Chưa mở được hỗ trợ làm bài. Thử lại.',
     classReviewLead: 'Các tiết cô đã lên lớp. Học sinh mở lại đúng tiết để ôn.',
     classReviewEmpty: 'Chưa có tiết nào được gắn vào môn này.',
     classReviewOpen: 'Ôn',
@@ -8818,6 +8869,7 @@ export const VI_DICTIONARY: Dictionary = {
     answerScanPickClass: 'Lớp',
     answerScanDialogTitle: 'Quét bằng điện thoại',
     answerScanDialogLead: 'Quét mã này. Điện thoại mở camera và nhận đáp án trên thẻ. Màn học sinh đang chiếu hiện câu và kết quả.',
+    answerScanWait: 'Hết giờ mới quét được',
     answerCardsMcqCount: '{n} câu A–D',
     answerCardsSourcesTitle: 'Bài để quét',
     answerCardsRoundsTitle: 'Kết quả đã thu',
@@ -8835,6 +8887,15 @@ export const VI_DICTIONARY: Dictionary = {
     answerCardsPhoneScan: 'Quét điện thoại',
     answerCardsExamSummary: 'Bảng điểm',
     answerCardsExamSummaryLead: 'Điểm từng học sinh sau khi quét hết đề.',
+    answerCardsScoreSpread: 'Phân bố điểm',
+    answerCardsScoreScale100: 'Thang 100',
+    answerCardsScoreBand: 'Khoảng',
+    answerCardsScoreStudents: 'Số HS',
+    answerCardsScoreShare: 'Tỷ lệ',
+    answerCardsStudentColumn: 'Họ tên',
+    answerCardsNotDone: 'Chưa làm',
+    answerCardsScoreboardLead: 'Có điểm khi học sinh nộp bài trên máy, hoặc khi cô quét thẻ trên lớp. Chưa nộp và chưa quét thì là chưa làm, không phải 0 điểm.',
+    answerCardsOpenQuestionStats: 'Mở thống kê câu {n}',
     answerCardsClose: 'Xong',
     answerCardsResult: 'Kết quả',
     answerCardsHideResult: 'Ẩn kết quả',
@@ -8859,7 +8920,10 @@ export const VI_DICTIONARY: Dictionary = {
     answerCardsHoldLeft: 'Quay ngang cam bên trái',
     answerCardsHoldRight: 'Quay ngang cam bên phải',
     answerCardsHoldHint: 'Cầm dọc khi chữ trên thẻ đã xoay đúng. Nếu quay ngang, chọn cam bên trái hoặc cam bên phải cho khớp chữ đang ở trên thẻ.',
+    answerCardsNoLandscape: 'Không quay ngang điện thoại',
+    answerCardsScanName: 'Em - {name}',
     answerCardsSwitchCamera: 'Đổi camera',
+    answerCardsOpenPaper: 'Mở đề',
     answerCardsCameraOff: 'Tắt camera',
     answerCardsCameraOn: 'Bật camera',
     answerCardsCameraDenied: 'Chưa mở được camera. Cho phép camera rồi thử lại.',
@@ -8874,10 +8938,23 @@ export const VI_DICTIONARY: Dictionary = {
     answerCardsRaiseHint: 'Giơ thẻ, xoay đáp án lên trên',
     answerCardsReviewHint: 'Xanh là đúng, đỏ là sai.',
     answerCardsScore: 'Điểm {points}/{total}',
+    answerCardsRecord: 'Ghi kết quả',
+    answerCardsRecordAck: 'Đã bấm',
+    answerCardsResultTitle: 'Kết quả câu {n}',
+    answerCardsPeopleCorrect: '{n} người đúng',
+    answerCardsPeopleWrong: '{n} người sai',
+    answerCardsDone: 'Đã xong',
+    answerCardsRecordNext: 'Tiếp',
+    answerCardsCapture: 'Chụp ảnh',
+    answerCardsCaptured: 'Đã lưu vào máy',
+    answerCardsCaptureFailed: 'Chưa lưu được ảnh trên máy',
+    answerCardsShots: 'Ảnh đã chụp',
     answerCardsAllScanned: 'Đã quét đủ cả lớp.',
     answerCardsSavedOf: 'Đã lưu {saved}/{total} em',
+    answerCardsGathered: 'Đã gom {saved}/{total} em',
     answerCardsSchema: 'Chưa có bảng thẻ trả lời. Chạy migration rồi mở lại trang.',
     answerCardsLoadError: 'Không tải được thẻ trả lời.',
+    answerCardsTunnelMissing: 'Chưa đọc được đường Cloudflare. Giữ tunnel đang chạy rồi bấm quét lại.',
     studentMyScoresTitle: 'Điểm của tôi',
     studentMyScoresLead: 'Bài thi và bài tập trong môn này đều có điểm. Điểm bài tập không tính vào điểm tổng kết.',
     studentMyScoresEmpty: 'Chưa có bài nào được giao trong môn này.',
@@ -9964,6 +10041,12 @@ export const VI_DICTIONARY: Dictionary = {
     teacherPaperLoadFailed: 'Không tải được đề.',
     teacherPaperEmpty: 'Đề chưa có câu hỏi.',
     teacherPaperQuestion: 'Câu',
+    teacherPaperHint: 'Gợi ý',
+    teacherPaperHintClose: 'Đóng gợi ý',
+    teacherPaperThinking: 'Hướng tư duy',
+    teacherPaperThinkingLoading: 'Đang mở hướng tư duy...',
+    teacherPaperThinkingEmpty: 'Câu này chưa có hướng tư duy.',
+    teacherPaperThinkingFailed: 'Không mở được hướng tư duy.',
     createNewClass: 'Tạo lớp mới',
     selectSchoolAboveForClass: 'Vui lòng chọn trường ở trên trước khi tạo lớp mới.',
     newClassNamePlaceholder: 'Nhập tên lớp mới (VD: 12A6)',

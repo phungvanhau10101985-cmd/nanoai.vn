@@ -3,7 +3,10 @@ import test from 'node:test'
 import {
   answerCardDownloadBase,
   answerCardPayload,
+  answerCardGivenName,
   answerCardShortName,
+  cameraHoldFromScreenAngle,
+  cameraHoldFromWindowOrientation,
   choiceFromQrTopEdge,
   parseAnswerCardPayload,
   raisedCardQuestionIndex,
@@ -16,6 +19,17 @@ test('upright card is A, clockwise quarters are B C D', () => {
   assert.equal(choiceFromQrTopEdge({ x: 0, y: 0 }, { x: 0, y: 10 }, 'portrait'), 'B')
   assert.equal(choiceFromQrTopEdge({ x: 10, y: 0 }, { x: 0, y: 0 }, 'portrait'), 'C')
   assert.equal(choiceFromQrTopEdge({ x: 0, y: 10 }, { x: 0, y: 0 }, 'portrait'), 'D')
+})
+
+test('phone rotation picks the camera side', () => {
+  assert.equal(cameraHoldFromScreenAngle(0), 'portrait')
+  assert.equal(cameraHoldFromScreenAngle(180), 'portrait')
+  assert.equal(cameraHoldFromScreenAngle(90), 'landscape-right')
+  assert.equal(cameraHoldFromScreenAngle(270), 'landscape-left')
+  assert.equal(cameraHoldFromScreenAngle(-90), 'landscape-left')
+  assert.equal(cameraHoldFromWindowOrientation(0), 'portrait')
+  assert.equal(cameraHoldFromWindowOrientation(90), 'landscape-left')
+  assert.equal(cameraHoldFromWindowOrientation(-90), 'landscape-right')
 })
 
 test('landscape hold keeps a ceiling-up A card as A', () => {
@@ -61,6 +75,13 @@ test('download name keeps letters and drops punctuation', () => {
 test('short name keeps the last two words', () => {
   assert.equal(answerCardShortName('Phạm Diệu Linh'), 'Diệu Linh')
   assert.equal(answerCardShortName('An'), 'An')
+})
+
+test('scan label uses the given name', () => {
+  assert.equal(answerCardGivenName('Nguyễn Thị Quỳnh'), 'Quỳnh')
+  assert.equal(answerCardGivenName('Phùng Văn Hậu'), 'Hậu')
+  assert.equal(answerCardGivenName('An'), 'An')
+  assert.equal(answerCardGivenName(''), '')
 })
 
 test('summary counts the latest pick per student', () => {

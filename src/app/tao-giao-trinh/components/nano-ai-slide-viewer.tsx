@@ -34,7 +34,6 @@ import {
 import { clientPointForPointerTextHit } from './slide-pointer-text-hit'
 import { bindLatestPointerFrame, VirtualMouseOverlay, type VirtualMouseController } from './virtual-mouse-overlay'
 import { QuizPopupDialog, extractQuizFromSlide } from './quiz-popup-dialog'
-import { AnswerScanLaunch, scanQuestionsFromSlide } from '@/components/lop/answer-scan-launch'
 import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
@@ -1338,7 +1337,7 @@ function slideProseClientPoint(data: {
   })
 }
 
-export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, scanExamCode = null, scanWorksheetId = null, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
+export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [memoryDebugEnabled, setMemoryDebugEnabled] = useState(false)
   const curriculumPayloadStatsRef = useRef<{
@@ -4918,16 +4917,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           ...Object.fromEntries(Object.entries(quizSessionData).map(([k, v]) => [k, v.quizDurationSeconds])),
         }}
         quizSessionAutoReveal={Object.fromEntries(Object.entries(quizSessionSettings).map(([k, v]) => [k, v.autoRevealOnTimerEnd]))}
-        renderScan={isTeacherView ? undefined : (questionIndex) => (
-          <AnswerScanLaunch
-            presentation="board"
-            examCode={scanExamCode || undefined}
-            worksheetId={scanExamCode ? undefined : scanWorksheetId || undefined}
-            curriculumId={!scanExamCode && !scanWorksheetId ? curriculumId ?? undefined : undefined}
-            questions={scanQuestionsFromSlide(slides[quizViewSlideIndex ?? currentIndex] ?? slide)}
-            questionIndex={questionIndex}
-          />
-        )}
       />
       {/* Fullscreen overlay cho visual slide – phần làm việc to hết khung hình */}
       {visualFullscreenOpen && (() => {

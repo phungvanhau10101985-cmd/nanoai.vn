@@ -1,7 +1,9 @@
+import { Suspense } from 'react'
 import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-public-offer'
 import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { getUserOrBypass } from '@/lib/auth'
 import TaoBaiThiClientPage from '@/app/tao-bai-thi/tao-bai-thi-client-page'
+import { examClassPresetFromPageSearch } from '@/lib/lop/create-from-class-href'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
@@ -18,7 +20,12 @@ export const metadata = buildMetadata({
   keywords: seo.keywords,
 })
 
-export default async function TaoBaiTapVeNhaPage() {
+export default async function TaoBaiTapVeNhaPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ classId?: string; subject?: string; grade?: string }>
+}) {
+  const sp = searchParams ? await searchParams : {}
   const user = await getUserOrBypass()
   if (!isCatalogShopper(user)) {
     return (
@@ -42,7 +49,13 @@ export default async function TaoBaiTapVeNhaPage() {
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
       <CreationToolPageShell currentHref={seo.path}>
-        <TaoBaiThiClientPage variant="homework" initialWebLocale={locale} />
+        <Suspense fallback={null}>
+          <TaoBaiThiClientPage
+            variant="homework"
+            initialWebLocale={locale}
+            presetFromClass={examClassPresetFromPageSearch(sp)}
+          />
+        </Suspense>
       </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />
     </div>

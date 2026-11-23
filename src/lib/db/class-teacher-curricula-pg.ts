@@ -34,6 +34,44 @@ function mapRow(row: {
   }
 }
 
+/** Gắn một giáo trình vào mọi lớp cô đang dạy, khi cùng môn và cùng khối. */
+export async function syncCurriculumIntoMatchingClasses(opts: {
+  teacherId: string
+  curriculumId: string
+}): Promise<void> {
+  if (!isPgConfigured()) return
+  const teacherId = opts.teacherId.trim()
+  const curriculumId = opts.curriculumId.trim()
+  if (!teacherId || !curriculumId) return
+  try {
+    await pgQuery(
+      `insert into public.class_teacher_curricula (class_id, teacher_id, subject_id, curriculum_id)
+       select cs.class_id, cs.teacher_id, cs.subject_id, c.id
+       from public.worksheet_curricula c
+       join public.class_subjects cs
+         on cs.teacher_id = $2::uuid
+        and cs.subject_id = c.subject_id
+       join public.classes cl
+         on cl.id = cs.class_id
+        and cl.grade_level_id = c.grade_level_id
+        and cl.dissolved_at is null
+       where c.id = $1::uuid
+         and (c.user_id = $2::uuid or exists (
+           select 1 from public.user_opened_curricula o
+           where o.curriculum_id = c.id and o.user_id = $2::uuid
+         ))
+         and not exists (
+           select 1 from public.user_hidden_curricula h
+           where h.user_id = $2::uuid and h.curriculum_id = c.id
+         )
+       on conflict (class_id, teacher_id, subject_id, curriculum_id) do nothing`,
+      [curriculumId, teacherId]
+    )
+  } catch (e) {
+    console.error('[class-teacher-curricula] syncCurriculumIntoMatchingClasses', e)
+  }
+}
+
 /** Ghi vào lớp các giáo trình cô đã tạo hoặc đã mở, đúng môn và đúng khối của lớp đó. */
 export async function syncTeacherSubjectCurriculaIntoClass(opts: {
   classId: string

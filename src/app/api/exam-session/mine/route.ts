@@ -7,6 +7,7 @@ import {
 } from '@/lib/db/exam-session-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { phonePublicHref } from '@/lib/curriculum/phone-remote-public-origin'
 
 function resolveBaseUrl(req: NextRequest): string {
   const envBaseRaw = String(
@@ -30,14 +31,14 @@ function resolveBaseUrl(req: NextRequest): string {
   if (forwardedHost) {
     const isLocal = forwardedHost.includes('localhost') || forwardedHost.includes('127.0.0.1')
     if (isLocal && envBase && !envIsLocal) return envBase
-    return `${isLocal ? 'http' : forwardedProto}://${forwardedHost}`
+    return phonePublicHref(`${isLocal ? 'http' : forwardedProto}://${forwardedHost}`)
   }
 
   const host = String(req.headers.get('host') || '').trim()
   if (host) {
     const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https'
     if ((host.includes('localhost') || host.includes('127.0.0.1')) && envBase && !envIsLocal) return envBase
-    return `${proto}://${host}`
+    return phonePublicHref(`${proto}://${host}`)
   }
 
   const requestOrigin = String(req.nextUrl.origin || '').trim()
@@ -46,9 +47,9 @@ function resolveBaseUrl(req: NextRequest): string {
     !requestOrigin.includes('localhost') &&
     !requestOrigin.includes('127.0.0.1')
   )
-    return requestOrigin
+    return phonePublicHref(requestOrigin)
   if (envBase) return envBase
-  return requestOrigin.startsWith('http') ? requestOrigin : defaultPublicOrigin()
+  return requestOrigin.startsWith('http') ? phonePublicHref(requestOrigin) : defaultPublicOrigin()
 }
 
 function buildExamUrl(baseUrl: string, code: string): string {

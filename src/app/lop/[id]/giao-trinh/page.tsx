@@ -17,6 +17,7 @@ import {
 import { loadClassDetailPayload } from '@/lib/lop/load-class-detail-payload'
 import { SUBJECTS, gradeLevelLabel } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { createFromClassHref } from '@/lib/lop/create-from-class-href'
+import { ClassNameTag } from '../class-name-tag'
 import { classSubjectScopeFromSearch } from '../lop-class-detail-view'
 
 export async function generateMetadata({
@@ -81,7 +82,7 @@ function CurriculumList({
           </div>
           <Link
             href={openHref(classId, subjectId, row.id)}
-            className="shrink-0 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/40"
+            className="shrink-0 rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-950 hover:bg-violet-100 dark:border-violet-400/45 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-950/70"
           >
             {openLabel}
           </Link>
@@ -144,13 +145,16 @@ export default async function ClassCurriculaPage({
     <div className="app-shell min-h-screen">
       <CreationToolPageShell currentHref={`/lop/${classId}/giao-trinh`} relatedLinks={GAN_PHIEU_RELATED}>
         <div className="mx-auto max-w-2xl px-4 py-8">
-          <BrowserBackTextButton
-            fallbackHref={backHref}
-            className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ChevronRight className="h-4 w-4 shrink-0 rotate-180" aria-hidden />
-            {focusSubject ? t.classes.classSubjectBack : t.classes.classPageBackToClass}
-          </BrowserBackTextButton>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <BrowserBackTextButton
+              fallbackHref={backHref}
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ChevronRight className="h-4 w-4 shrink-0 rotate-180" aria-hidden />
+              {focusSubject ? t.classes.classSubjectBack : t.classes.classPageBackToClass}
+            </BrowserBackTextButton>
+            <ClassNameTag name={payload.cls.name} school={payload.schoolName} />
+          </div>
           <h1 className="mb-2 text-xl font-bold text-foreground">{t.classes.classHubCardCurriculaTitle}</h1>
           <p className="mb-1 text-sm text-muted-foreground">{payload.cls.name}</p>
           <p className="mb-6 text-sm text-muted-foreground">{t.classes.classHubCardCurriculaDesc}</p>

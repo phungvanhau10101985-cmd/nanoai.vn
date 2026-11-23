@@ -16,32 +16,44 @@ function readSchoolHits(data: { items?: unknown }): SchoolSearchHit[] {
     .filter((item) => item.id.length > 0 && item.name.length > 0)
 }
 
+/** Ngừng gõ khoảng 1 giây rồi mới tìm trường và nhờ DeepSeek gợi ý. */
+const SCHOOL_NAME_IDLE_MS = 1000
+
 /** Tìm trường trong DB trước. Không có dòng nào thì hỏi DeepSeek, chưa ghi DB. */
-export function useSchoolSearch(query: string) {
+export function useSchoolSearch(query: string, suspended = false) {
   const [items, setItems] = useState<SchoolSearchHit[]>([])
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [canCreate, setCanCreate] = useState(false)
   const [loading, setLoading] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [reloadToken, setReloadToken] = useState(0)
+  const [trackedQuery, setTrackedQuery] = useState(query)
+  const [trackedSuspended, setTrackedSuspended] = useState(suspended)
+
+  if (query !== trackedQuery || suspended !== trackedSuspended) {
+    setTrackedQuery(query)
+    setTrackedSuspended(suspended)
+    setItems([])
+    setSuggestions([])
+    setCanCreate(false)
+    setLoading(false)
+    setSuggesting(false)
+  }
 
   useEffect(() => {
     const needle = query.trim()
-    if (needle.length < 2) {
-      setItems([])
-      setSuggestions([])
-      setCanCreate(false)
-      setLoading(false)
-      setSuggesting(false)
-      return
-    }
+    if (suspended || needle.length < 2) return
     let cancelled = false
+    const ac = new AbortController()
     const timer = window.setTimeout(async () => {
       setLoading(true)
       setSuggesting(false)
       setSuggestions([])
       try {
-        const res = await fetch(`/api/schools/search?q=${encodeURIComponent(needle)}`, { cache: 'no-store' })
+        const res = await fetch(`/api/schools/search?q=${encodeURIComponent(needle)}`, {
+          cache: 'no-store',
+          signal: ac.signal,
+        })
         const data = await res.json().catch(() => ({}))
         if (cancelled) return
         if (!res.ok) {
@@ -55,7 +67,10 @@ export function useSchoolSearch(query: string) {
         setLoading(false)
         if (found.length > 0 || needle.length < 3) return
         setSuggesting(true)
-        const sugRes = await fetch(`/api/schools/search?q=${encodeURIComponent(needle)}&suggest=1`, { cache: 'no-store' })
+        const sugRes = await fetch(`/api/schools/search?q=${encodeURIComponent(needle)}&suggest=1`, {
+          cache: 'no-store',
+          signal: ac.signal,
+        })
         const sug = await sugRes.json().catch(() => ({}))
         if (cancelled) return
         const again = readSchoolHits(sug)
@@ -82,12 +97,13 @@ export function useSchoolSearch(query: string) {
           setSuggesting(false)
         }
       }
-    }, 300)
+    }, SCHOOL_NAME_IDLE_MS)
     return () => {
       cancelled = true
+      ac.abort()
       window.clearTimeout(timer)
     }
-  }, [query, reloadToken])
+  }, [query, reloadToken, suspended])
 
   return { items, suggestions, canCreate, loading, suggesting, reload: () => setReloadToken((n) => n + 1) }
 }

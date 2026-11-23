@@ -33,6 +33,7 @@ export interface ContentEmbedProps {
     initialAutoRevealOnTimerEnd?: boolean
     onSessionCreated?: (slideIndex: number, blockIndex: number, sessionCode: string, quizDurationSeconds?: number) => void
     onSettingsChange?: (slideIndex: number, blockIndex: number, settings: { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }) => void
+    onClock?: (slideIndex: number, blockIndex: number, clock: { running: boolean; ended: boolean; remainingSeconds: number; durationSeconds: number }) => void
     /** Chỉ giáo viên mới được tạo phiên – học sinh chờ sync */
     teacherMode?: boolean
   }
@@ -140,6 +141,7 @@ function QuizContentWrapper({ urlOrId, liveQuizContext, tr }: { urlOrId: string;
         initialAutoRevealOnTimerEnd={liveQuizContext.initialAutoRevealOnTimerEnd}
         onSessionCreated={liveQuizContext.onSessionCreated}
         onSettingsChange={liveQuizContext.onSettingsChange}
+        onClock={liveQuizContext.onClock}
         teacherMode={liveQuizContext.teacherMode}
       />
     )
@@ -319,6 +321,7 @@ function LiveQuizEmbed({
   initialAutoRevealOnTimerEnd,
   onSessionCreated,
   onSettingsChange,
+  onClock,
   teacherMode = true,
 }: {
   quizData: { question: string; options: string[]; correctIndex: number }
@@ -332,6 +335,7 @@ function LiveQuizEmbed({
   initialAutoRevealOnTimerEnd?: boolean
   onSessionCreated?: (slideIndex: number, blockIndex: number, sessionCode: string, quizDurationSeconds?: number) => void
   onSettingsChange?: (slideIndex: number, blockIndex: number, settings: { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }) => void
+  onClock?: (slideIndex: number, blockIndex: number, clock: { running: boolean; ended: boolean; remainingSeconds: number; durationSeconds: number }) => void
   teacherMode?: boolean
 }) {
   const t = (vi: string, en: string, zh: string, ja: string, ko: string) => (typeof tr === 'function' ? tr(vi, en, zh, ja, ko) : vi)
@@ -422,6 +426,15 @@ function LiveQuizEmbed({
     lastSentSettingsRef.current = nextKey
     onSettingsChange?.(slideIndex, blockIndex, { quizDurationSeconds, autoRevealOnTimerEnd })
   }, [teacherMode, onSettingsChange, slideIndex, blockIndex, quizDurationSeconds, autoRevealOnTimerEnd])
+
+  useEffect(() => {
+    onClock?.(slideIndex, blockIndex, {
+      running: quizTimerRunning,
+      ended: quizTimerEnded,
+      remainingSeconds: quizTimerSeconds,
+      durationSeconds: quizDurationSeconds,
+    })
+  }, [onClock, slideIndex, blockIndex, quizTimerRunning, quizTimerEnded, quizTimerSeconds, quizDurationSeconds])
 
   const startSession = useCallback(async () => {
     if (!curriculumId) return
@@ -631,19 +644,21 @@ function LiveQuizEmbed({
       {sessionCode ? (
         <div className="space-y-3 print:hidden mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
           <div className="flex flex-wrap gap-4 items-start">
-            {qrDataUrl && (
+            {qrDataUrl ? (
               <div className="flex flex-col items-center">
                 <img src={qrDataUrl} alt="QR" className="w-[140px] h-[140px] rounded border" />
                 <p className="text-xs mt-1 text-slate-600 dark:text-slate-400">{t('Quét để làm bài', 'Scan to answer', '扫码作答', 'スキャンして回答', '스캔하여 답변')}</p>
               </div>
-            )}
+            ) : null}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md ring-2 ring-red-500 bg-red-50 dark:bg-red-950/40 dark:ring-red-400">
-                  {t('Mã', 'Code', '代码', 'コード', '코드')}: <span className="font-bold text-red-600 dark:text-red-400">{sessionCode}</span>
-                </span>
-              </p>
-              <p className="text-xs text-slate-500 mt-0.5 break-all">{joinUrl}</p>
+              <>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md ring-2 ring-red-500 bg-red-50 dark:bg-red-950/40 dark:ring-red-400">
+                    {t('Mã', 'Code', '代码', 'コード', '코드')}: <span className="font-bold text-red-600 dark:text-red-400">{sessionCode}</span>
+                  </span>
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5 break-all">{joinUrl}</p>
+              </>
               <p className="text-sm mt-2 font-medium">{t('Kết quả', 'Results', '结果', '結果', '결과')}: {total} {t('học sinh đã trả lời', 'students answered', '名学生已作答', '人が回答', '명 답변')}</p>
               <div className="flex flex-wrap gap-2 mt-1">
                 {(displayQuizData ?? quizData).options.map((opt, i) => {

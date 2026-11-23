@@ -179,7 +179,16 @@ export async function adoptStudentCodeForAccount(opts: {
       `select id::text as id from public.profiles where student_code = $1 limit 1`,
       [studentCode]
     )
-    const canonical = owner.rows[0]?.id ?? opts.accountUserId
+    const previousOwner = owner.rows[0]?.id ?? null
+    if (previousOwner && previousOwner !== opts.accountUserId) {
+      await client.query(
+        `update public.profiles
+         set student_code = null, updated_at = now()
+         where id = $1::uuid`,
+        [previousOwner]
+      )
+    }
+    const canonical = opts.accountUserId
     await client.query(
       `insert into public.profiles (id, full_name, gender, birth_date, student_code, updated_at)
        values ($1::uuid, $2, $3, $4::date, $5, now())

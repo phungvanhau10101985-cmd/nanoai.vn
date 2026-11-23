@@ -43,6 +43,9 @@ export async function PATCH(
     return NextResponse.json({ error: 'invalid' }, { status: 400 })
   }
   const action = body.action
+  const reviewIndex = action === 'review' && typeof body.questionIndex === 'number' && Number.isInteger(body.questionIndex)
+    ? body.questionIndex
+    : null
   const focusIndex = action === 'focus' && typeof body.questionIndex === 'number' && Number.isInteger(body.questionIndex)
     ? body.questionIndex
     : null
@@ -53,6 +56,7 @@ export async function PATCH(
     && action !== 'prev'
     && action !== 'end'
     && focusIndex == null
+    && reviewIndex == null
   ) {
     return NextResponse.json({ error: 'invalid' }, { status: 400 })
   }
@@ -62,9 +66,11 @@ export async function PATCH(
     const block = await tutoringClassFeatureBlock(existing.classId)
     if (block === 'grace') return NextResponse.json({ error: 'grace' }, { status: 403 })
     if (block === 'dissolved' || block === 'missing') return NextResponse.json({ error: 'missing' }, { status: 404 })
-    const view = focusIndex == null
-      ? await patchAnswerCardRoundPg(roundId, auth.userId, action as 'show' | 'hide' | 'next' | 'prev' | 'end')
-      : await patchAnswerCardRoundPg(roundId, auth.userId, 'focus', focusIndex)
+    const view = reviewIndex != null
+      ? await patchAnswerCardRoundPg(roundId, auth.userId, 'review', reviewIndex)
+      : focusIndex == null
+        ? await patchAnswerCardRoundPg(roundId, auth.userId, action as 'show' | 'hide' | 'next' | 'prev' | 'end')
+        : await patchAnswerCardRoundPg(roundId, auth.userId, 'focus', focusIndex)
     if (!view) return NextResponse.json({ error: 'not_found' }, { status: 404 })
     return NextResponse.json(view)
   } catch (error) {

@@ -13,6 +13,7 @@ import {
   fetchClassTeacherAndSchoolIdPg,
   fetchTeacherSchoolSettingsPrevMinePg,
   insertClassMemberPg,
+  fillClassGradeLevelIfEmptyPg,
   insertClassMinePg,
   insertClassSubjectPg,
   leaveClassAsStudentPg,
@@ -36,6 +37,8 @@ import { getServerDictionary } from '@/lib/i18n/server'
 import { isValidStudentDobIso } from '@/lib/student-dob'
 import { parseBillingDay, parseDueDays, parseTuitionAmount, readTutoringTuitionFields } from '@/lib/lop/class-tuition'
 import { resolveStoredTeachingSubject } from '@/lib/lop/normalize-teaching-subject'
+import { syncTeacherSubjectCurriculaIntoClass } from '@/lib/db/class-teacher-curricula-pg'
+import { isSelectableGradeLevelId } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import {
   beginTutoringTrial,
   readTutoringJoinBlock,
@@ -73,6 +76,8 @@ export async function createClass(formData: FormData) {
   if (!name) return { error: 'Vui lòng nhập tên lớp.' }
 
   const { t } = getServerDictionary()
+  const gradeLevelId = formData.get('gradeLevelId')?.toString()?.trim() ?? ''
+  if (!isSelectableGradeLevelId(gradeLevelId)) return { error: t.classes.createClassGradeRequired }
   const classKind = formData.get('classKind')?.toString() === 'tutoring' ? 'tutoring' : 'school'
   const schoolId = classKind === 'school' ? formData.get('schoolId')?.toString()?.trim() ?? '' : ''
   const tuition =
@@ -140,7 +145,7 @@ export async function createClass(formData: FormData) {
     name,
     joinCode,
     schoolId: classKind === 'school' ? schoolId : null,
-    gradeLevelId: null,
+    gradeLevelId,
     subjectLabel: subject?.label || subjectLabel || null,
     teacherDisplayName: teacherDisplayName || null,
     classKind,
@@ -162,6 +167,12 @@ export async function createClass(formData: FormData) {
         teacherDisplayName: teacherDisplayName || null,
       })
       if (attached === null) return { error: t.classes.enterClassFailed }
+      await attachSubjectCurricula({
+        classId: inserted.existing.id,
+        teacherId: user.id,
+        subjectId: subject.id,
+        gradeLevelId,
+      })
     }
     return {
       code: 'class_exists' as const,
@@ -184,6 +195,12 @@ export async function createClass(formData: FormData) {
       teacherDisplayName: teacherDisplayName || null,
     })
     if (attached === null) return { error: t.classes.enterClassFailed }
+    await attachSubjectCurricula({
+      classId: inserted.row.id,
+      teacherId: user.id,
+      subjectId: subject.id,
+      gradeLevelId,
+    })
   }
   if (startTutoringTrial) await beginTutoringTrial(user.id)
 
@@ -207,6 +224,20 @@ export async function createClass(formData: FormData) {
     text: t.classes.entryEmailText,
   })
   return { success: true, classId: inserted.row.id, joinCode }
+}
+
+async function attachSubjectCurricula(input: {
+  classId: string
+  teacherId: string
+  subjectId: string
+  gradeLevelId: string
+}) {
+  try {
+    await fillClassGradeLevelIfEmptyPg(input.classId, input.gradeLevelId)
+    await syncTeacherSubjectCurriculaIntoClass(input)
+  } catch (error) {
+    console.error('[createClass] sync curricula', error)
+  }
 }
 
 async function emailClassEntryLink(input: {

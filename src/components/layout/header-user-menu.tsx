@@ -61,6 +61,7 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
   const [guestTrialRemaining, setGuestTrialRemaining] = useState<number>(0)
   const [guestTrialBudget, setGuestTrialBudget] = useState<number>(3)
   const [trialForcedLogout, setTrialForcedLogout] = useState(false)
+  const [personalCode, setPersonalCode] = useState<string | null>(null)
 
   const accountName =
     typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : ''
@@ -78,6 +79,25 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
   useEffect(() => {
     setDisplayCredits(Number(credits || 0))
   }, [credits])
+
+  useEffect(() => {
+    if (isGuestTrial) return
+    let mounted = true
+    void fetch('/api/profile/student-identity', { credentials: 'same-origin', cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) return null
+        return res.json() as Promise<{ studentCode?: unknown }>
+      })
+      .then((data) => {
+        if (!mounted) return
+        const code = typeof data?.studentCode === 'string' ? data.studentCode.trim() : ''
+        setPersonalCode(code)
+      })
+      .catch(() => undefined)
+    return () => {
+      mounted = false
+    }
+  }, [user.id, isGuestTrial])
 
   useEffect(() => {
     let mounted = true
@@ -164,6 +184,11 @@ export function HeaderUserMenu({ user, credits, isAdmin, t }: HeaderUserMenuProp
               <p className="text-xs leading-none text-muted-foreground">
                 {user.email}
               </p>
+              {personalCode !== null ? (
+                <p className="text-xs leading-none text-muted-foreground">
+                  {t.classes.studentIdentityCodeLabel}: {personalCode || '—'}
+                </p>
+              ) : null}
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />

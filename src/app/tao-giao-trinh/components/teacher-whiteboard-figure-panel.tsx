@@ -32,7 +32,7 @@ const MENU_GROUPS: Record<FigureSubject, { title: FigureLabel; ids: string[] }[]
     { title: ['Quang học', 'Optics', '光学', '光学', '광학'], ids: ['tir', 'slab', 'eye', 'diffract', 'spectrum', 'young'] },
     { title: ['Đồ thị chuyển động, sóng', 'Motion and wave graphs', '运动与波的图像', '運動・波のグラフ', '운동·파동 그래프'], ids: ['phys-graph', 'wave', 'law-graph'] },
     { title: ['Thí nghiệm và công thức', 'Experiments and formulas', '实验与公式', '実験と公式', '실험과 공식'], ids: ['interfere', 'experiment-phys', 'formula-physics', 'constants'] },
-    { title: ['Bàn thí nghiệm', 'Lab bench', '实验台', '実験台', '실험대'], ids: ['standing', 'meters', 'radiation', 'transformer', 'buoyancy'] },
+    { title: ['Bàn thí nghiệm', 'Lab bench', '实验台', '実験台', '실험대'], ids: ['standing', 'meters', 'radiation', 'transformer', 'buoyancy', 'photoelectric'] },
   ],
   chemistry: [
     { title: ['Phương trình và cấu tạo', 'Equations and structure', '方程式与结构', '反応式と構造', '반응식과 구조'], ids: ['equation', 'structure', 'atom'] },

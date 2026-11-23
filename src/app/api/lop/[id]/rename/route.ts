@@ -44,7 +44,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Bạn không có quyền sửa lớp này.' }, { status: 403 })
   }
   if (owned.class_kind === 'tutoring') {
-    const taken = await fetchTutoringClassByNameForTeacherPg(auth.user.id, name, id)
+    const taken = await fetchTutoringClassByNameForTeacherPg(auth.user.id, name, id, owned.grade_level_id)
     if (taken) {
       return NextResponse.json(
         {
@@ -61,7 +61,7 @@ export async function PATCH(
       )
     }
   } else if (owned.school_id) {
-    const taken = await fetchClassAtSchoolByNamePg(owned.school_id, name, id)
+    const taken = await fetchClassAtSchoolByNamePg(owned.school_id, name, id, owned.grade_level_id)
     if (taken) {
       return NextResponse.json(
         {

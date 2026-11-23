@@ -157,6 +157,9 @@ async function clockTick(): Promise<void> {
   if (claimSlot('messaging-logo-cleanup', 3, 30, now)) {
     void step('messaging-logo-cleanup', () => jobs.runLogoCleanupCron())
   }
+  if (claimSlot('answer-card-shot-purge', 3, 40, now)) {
+    void step('answer-card-shot-purge', () => jobs.runAnswerCardShotPurgeCron())
+  }
   if (claimSlot('wedding-reminder', 8, 0, now)) {
     void step('wedding-reminder', () => jobs.runWeddingReminderCron())
   }

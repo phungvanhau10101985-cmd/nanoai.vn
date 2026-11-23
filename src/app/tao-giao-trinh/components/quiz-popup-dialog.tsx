@@ -56,7 +56,7 @@ interface QuizPopupDialogProps {
   onQuizSettingsChange?: (slideIndex: number, blockIndex: number, settings: { quizDurationSeconds: number; autoRevealOnTimerEnd: boolean }) => void
   /** Nút quét thẻ, hiện khi giáo viên mở câu trắc nghiệm. */
   footer?: ReactNode
-  /** Nút quét kết quả trên từng câu của bảng học sinh. Chỉ số là thứ tự câu A–D trên slide. */
+  /** Mã quét của từng câu trắc nghiệm trên slide giáo viên. */
   renderScan?: (questionIndex: number) => ReactNode
 }
 

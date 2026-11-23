@@ -163,6 +163,11 @@ export function isStoredGradeLevelId(id: string): boolean {
   return STORED_GRADE_LEVELS.some((g) => g.id === id)
 }
 
+/** Khối được chọn khi tạo lớp. Không nhận mã cũ `khac`. */
+export function isSelectableGradeLevelId(id: string): boolean {
+  return GRADE_LEVELS.some((g) => g.id === id)
+}
+
 /** Bộ sách giáo khoa GDPT 2018 (VN) + Khác (sách NXB khác, nước ngoài, v.v.) */
 export const TEXTBOOK_SETS = [
   { id: 'ket-noi-tri-thuc', labelVi: 'Kết nối tri thức với cuộc sống', labelEn: 'Kết nối tri thức' },

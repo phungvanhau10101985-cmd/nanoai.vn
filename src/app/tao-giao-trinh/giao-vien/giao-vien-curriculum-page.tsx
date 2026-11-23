@@ -32,7 +32,7 @@ import {
   clientPointForWhiteboardPointer,
   type WhiteboardState,
 } from '../lib/teacher-whiteboard'
-import { createPhoneCommandQueue, phoneOpenableUrl, phoneRemoteLoginOrigin } from '../lib/phone-remote-client'
+import { createPhoneCommandQueue, phoneOpenableUrl } from '../lib/phone-remote-client'
 import { AnimatedCharReveal } from '../components/animated-char-reveal'
 import { CurriculumBlockContentWithEmbeds } from '../components/curriculum-block-content-with-embeds'
 import { WorksheetAnswerTypedBody } from '../components/worksheet-answer-typed-body'
@@ -6891,9 +6891,13 @@ export default function CurriculumViewPage() {
           return
         }
         setPhoneSessionId(data.id)
-        const origin = await phoneRemoteLoginOrigin()
+        const loginUrl = await phoneOpenableUrl(`/giao-trinh/dien-thoai?k=${data.id}.${data.secret}`)
         if (cancel) return
-        setPhoneLoginUrl(`${origin}/giao-trinh/dien-thoai?k=${data.id}.${data.secret}`)
+        if (!loginUrl.startsWith('https://')) {
+          setPhoneRemoteError(tr('Chưa đọc được đường Cloudflare.', 'The Cloudflare tunnel is not available.', '还没读到 Cloudflare 通道。', 'Cloudflare のトンネルを読めません。', 'Cloudflare 터널을 읽지 못했습니다.'))
+          return
+        }
+        setPhoneLoginUrl(loginUrl)
       } catch {
         if (!cancel) {
           setPhoneRemoteError(tr('Không tạo được mã.', 'Could not create the code.', '无法生成二维码。', 'コードを作成できません。', '코드를 만들지 못했습니다.'))
@@ -7487,17 +7491,6 @@ export default function CurriculumViewPage() {
           appleMacBar={apple.mac}
         />
       </div>
-      {curriculumId && slides[currentIndex] && scanQuestionsFromSlide(slides[currentIndex]).length > 0 ? (
-        <AnswerScanLaunch
-          curriculumId={curriculumId}
-          questions={scanQuestionsFromSlide(slides[currentIndex])}
-          phoneMode={Boolean(phoneFollowerId)}
-          tone="dark"
-          onShowStudent={showAnswerBoard}
-          className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 px-3 py-1.5"
-        />
-      ) : null}
-
       <header className="shrink-0 border-b border-slate-700/80 bg-slate-900/80 backdrop-blur-sm flex flex-col">
         {/* Hàng thông tin – mobile: wrap, desktop: flex-nowrap */}
         <div className={cn('px-3 md:px-5 py-2 flex items-center gap-2 md:gap-3 min-w-0 overflow-x-auto', narrowTeacherLayout ? 'flex-nowrap justify-start py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'flex-wrap justify-end md:flex-nowrap landscape:flex-nowrap')}>
@@ -9933,15 +9926,16 @@ export default function CurriculumViewPage() {
             setQuizSessionData((prev) => ({ ...prev, [key]: data }))
             sendToStudentView({ type: 'quiz-session-code', slideIndex: si, blockIndex: bi, sessionCode: code, quizDurationSeconds: data.quizDurationSeconds })
           }}
-          footer={slides[quizPopupSlideIndex] ? (
+          renderScan={slides[quizPopupSlideIndex] ? (questionIndex) => (
             <AnswerScanLaunch
+              presentation="code"
               curriculumId={curriculumId ?? undefined}
               questions={scanQuestionsFromSlide(slides[quizPopupSlideIndex])}
+              questionIndex={questionIndex}
               phoneMode={Boolean(phoneFollowerId)}
-              tone="light"
               onShowStudent={showAnswerBoard}
             />
-          ) : null}
+          ) : undefined}
         />
       )}
       <VirtualMouseOverlay variant="remote-student" controllerRef={studentMouseRef} />

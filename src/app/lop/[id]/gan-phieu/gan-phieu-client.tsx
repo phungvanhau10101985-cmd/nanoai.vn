@@ -166,7 +166,7 @@ export default function GanPhieuClient({
           return (
             <li
               key={s.id}
-              className="rounded-lg border border-input bg-card px-4 py-3 space-y-2"
+              className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-400/45 dark:bg-amber-950/40"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -186,10 +186,21 @@ export default function GanPhieuClient({
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
                 <Button type="button" variant="secondary" size="sm" className="gap-1.5" asChild>
-                  <Link href={lamPath} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                    {t.classHomeworkOpenLamBai}
-                  </Link>
+                  <Link href={`/lop/${classId}/bang-diem/${s.id}`}>{t.answerCardsExamSummary}</Link>
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    void phoneOpenableUrl(lamPath).then((url) => {
+                      window.open(url || lamPath, '_blank', 'noopener,noreferrer')
+                    })
+                  }}
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                  {t.classHomeworkOpenLamBai}
                 </Button>
                 <Button
                   type="button"

@@ -52,7 +52,7 @@ export default async function LopPage() {
   const myClasses: ClassItem[] = (myRows ?? []).map(mapMineToClassItem)
   const memberClasses: ClassItem[] = (memberRows ?? []).map(mapMineToClassItem)
 
-  const { t } = await getServerDictionary()
+  const { locale, t } = await getServerDictionary()
 
   return (
     <div className="app-shell min-h-screen">
@@ -80,7 +80,7 @@ export default async function LopPage() {
             <div className="mb-6 grid gap-2 md:hidden sm:grid-cols-2">
               <Link
                 href="/tao-bai-thi"
-                className="flex w-full touch-manipulation items-center justify-center rounded-lg border border-input bg-secondary px-4 py-3 text-center text-sm font-semibold text-secondary-foreground shadow-sm transition-colors hover:bg-secondary/90 active:bg-secondary/80"
+                className="flex w-full touch-manipulation items-center justify-center rounded-lg border border-sky-300 bg-sky-100 px-4 py-3 text-center text-sm font-semibold text-sky-950 shadow-sm transition-colors hover:bg-sky-200 active:bg-sky-300 dark:border-sky-400/45 dark:bg-sky-950/50 dark:text-sky-50 dark:hover:bg-sky-950/70"
               >
                 {t.classes.mobileCreateExam}
               </Link>
@@ -117,6 +117,7 @@ export default async function LopPage() {
 
           <LopClientPage
             t={t.classes}
+            locale={locale}
             myClasses={myClasses}
             memberClasses={memberClasses}
             lockedClassIds={tutoringGrace.classIds}

@@ -1,12 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { StudentIdentityForm, studentIdentityLabels } from '@/components/lop/student-identity-form'
+import {
+  StudentIdentityForm,
+  saveStudentIdentityRequest,
+  studentIdentityLabels,
+  type StudentIdentityValue,
+} from '@/components/lop/student-identity-form'
+import { isStudentCode, normalizeStudentCode } from '@/lib/lop/class-roster'
 import { joinClass } from '../actions'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { TeacherGender } from '@/lib/lop/teacher-public-name'
@@ -29,18 +35,46 @@ export default function ThamGiaForm({
   returnPath?: string | null
 }) {
   const [code, setCode] = useState(initialCode)
-  const [profile, setProfile] = useState({
-    givenName,
-    birthDate,
-    gender,
-    studentCode,
-  })
   const [loading, setLoading] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewSummary, setPreviewSummary] = useState<string | null>(null)
   const [previewError, setPreviewError] = useState(false)
+  const [draft, setDraft] = useState<StudentIdentityValue>({
+    givenName,
+    gender,
+    birthDate,
+    studentCode: normalizeStudentCode(studentCode),
+  })
+  const [draftValid, setDraftValid] = useState(
+    givenName.trim().length >= 2 &&
+      gender != null &&
+      birthDate.length > 0 &&
+      isStudentCode(normalizeStudentCode(studentCode))
+  )
+  const savedKey = useRef('')
   const router = useRouter()
   const { toast } = useToast()
+
+  function profileKey(value: StudentIdentityValue) {
+    return `${value.givenName}|${value.gender ?? ''}|${value.birthDate}|${value.studentCode}`
+  }
+
+  useEffect(() => {
+    if (!draftValid || !draft.gender) return
+    const key = profileKey(draft)
+    if (savedKey.current === key) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      void saveStudentIdentityRequest(draft).then((saved) => {
+        if (cancelled || !saved.ok) return
+        savedKey.current = key
+      })
+    }, 500)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [draft, draftValid])
 
   useEffect(() => {
     const raw = code.trim().toUpperCase()
@@ -94,8 +128,19 @@ export default function ThamGiaForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!code.trim()) return
+    if (!code.trim() || loading) return
+    if (!draftValid || !draft.gender) {
+      toast({ variant: 'destructive', description: t.studentIdentityRequired })
+      return
+    }
     setLoading(true)
+    const saved = await saveStudentIdentityRequest(draft)
+    if (!saved.ok) {
+      setLoading(false)
+      toast({ variant: 'destructive', description: saved.error || t.studentIdentityRequired })
+      return
+    }
+    savedKey.current = profileKey(draft)
     const res = await joinClass({ joinCode: code.trim() })
     setLoading(false)
     if (res.error) {
@@ -103,7 +148,6 @@ export default function ThamGiaForm({
       return
     }
     if (res.success && res.classId) {
-      toast({ description: t.join })
       router.push(returnPath || `/lop/${res.classId}`)
       router.refresh()
     }
@@ -115,39 +159,15 @@ export default function ThamGiaForm({
       <p className="text-sm text-muted-foreground mb-4 leading-relaxed">{t.joinClassRoleHint}</p>
       <div className="mb-4">
         <StudentIdentityForm
-          initialName={profile.givenName}
-          initialGender={profile.gender}
-          initialBirthDate={profile.birthDate}
-          initialStudentCode={profile.studentCode}
+          initialName={givenName}
+          initialGender={gender}
+          initialBirthDate={birthDate}
+          initialStudentCode={studentCode}
           labels={studentIdentityLabels(t)}
-          onSaved={(value) => {
-            setProfile({
-              givenName: value.givenName,
-              gender: value.gender ?? profile.gender,
-              birthDate: value.birthDate,
-              studentCode: value.studentCode,
-            })
-            const raw = code.trim()
-            if (raw.length < 4) {
-              toast({ description: t.studentIdentitySaved })
-              router.refresh()
-              return
-            }
-            setLoading(true)
-            void joinClass({ joinCode: raw }).then((res) => {
-              setLoading(false)
-              if (res.error) {
-                toast({ variant: 'destructive', description: res.error })
-                return
-              }
-              if (res.success && res.classId) {
-                router.push(returnPath || `/lop/${res.classId}`)
-                router.refresh()
-                return
-              }
-              toast({ description: t.studentIdentitySaved })
-              router.refresh()
-            })
+          hideSaveButton
+          onDraftChange={(value, valid) => {
+            setDraft(value)
+            setDraftValid(valid)
           }}
         />
         <p className="mt-2 text-xs text-muted-foreground">{t.studentIdentityAccountNote}</p>

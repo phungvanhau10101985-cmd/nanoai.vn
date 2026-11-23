@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { classTapTone } from '@/components/lop/class-tap-color'
+import { gradeLevelLabel } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { cn } from '@/lib/utils'
 
 export type ClassItem = {
@@ -33,12 +35,14 @@ export default function LopClientPage({
   myClasses,
   memberClasses,
   t,
+  locale,
   lockedClassIds = [],
   unpaidByClassId = {},
 }: {
   myClasses: ClassItem[]
   memberClasses: ClassItem[]
   t: Dictionary['classes']
+  locale: string
   lockedClassIds?: string[]
   unpaidByClassId?: Record<string, number>
 }) {
@@ -66,7 +70,13 @@ export default function LopClientPage({
     <ul className="space-y-3">
       {allClasses.map((c) => {
         const viewOnly = c.isTeacher && locked.has(c.id)
-        const cardClass = 'block rounded-xl border border-input bg-card p-4'
+        const gradeName = c.grade_level_id ? gradeLevelLabel(c.grade_level_id, locale) : ''
+        const cardClass = viewOnly
+          ? 'block rounded-xl border border-input bg-card p-4'
+          : cn(
+              'block rounded-xl border p-4 shadow-sm transition-colors',
+              c.isTeacher ? classTapTone.sky : classTapTone.emerald
+            )
         const body = (
           <>
             <div className="flex items-center justify-between gap-2">
@@ -96,7 +106,7 @@ export default function LopClientPage({
                   : readSchoolName(c)
                     ? `${t.schoolLabel}: ${readSchoolName(c)}`
                     : `${t.schoolLabel}: —`}
-                {c.classKind !== 'tutoring' && c.grade_level_id ? ` • ${t.gradeLevelLabel}: ${c.grade_level_id}` : ''}
+                {c.classKind !== 'tutoring' && gradeName ? ` • ${t.gradeLevelLabel}: ${gradeName}` : ''}
               </p>
             )}
             {c.isTeacher && c.classKind === 'tutoring' && (unpaidByClassId[c.id] ?? 0) > 0 ? (
@@ -111,7 +121,7 @@ export default function LopClientPage({
             {viewOnly ? (
               <div className={cardClass}>{body}</div>
             ) : (
-              <Link href={`/lop/${c.id}`} className={`${cardClass} transition-colors hover:bg-accent/50`}>
+              <Link href={`/lop/${c.id}`} className={cardClass}>
                 {body}
               </Link>
             )}

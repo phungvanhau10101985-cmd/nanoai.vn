@@ -2,6 +2,8 @@
 
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { classTapRow, classTapTone, type ClassTapTone } from '@/components/lop/class-tap-color'
+import { cn } from '@/lib/utils'
 
 export function SubjectUnreadCount({ count, label }: { count: number; label: string }) {
   if (count <= 0) return null
@@ -32,17 +34,16 @@ export function SubjectSectionLink({
   label,
   count,
   unreadLabel,
+  tone = 'sky',
 }: {
   href: string
   label: string
   count: number
   unreadLabel: string
+  tone?: ClassTapTone
 }) {
   return (
-    <Link
-      href={href}
-      className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-background px-3 py-3 text-sm hover:bg-muted/40"
-    >
+    <Link href={href} className={cn(classTapRow, classTapTone[tone])}>
       <span className="flex min-w-0 items-center gap-2 font-medium text-foreground">
         <span className="truncate">{label}</span>
         <SubjectUnreadCount count={count} label={unreadLabel} />

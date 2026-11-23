@@ -54,14 +54,15 @@ export async function fetchStudentIdentity(userId: string): Promise<StudentIdent
     )
   }
   const linked = await linkedStudentIdentity(userId)
+  const accountCode =
+    codeColumn && isStudentCode(normalizeStudentCode(row?.student_code))
+      ? normalizeStudentCode(row?.student_code)
+      : ''
   const stored: StudentIdentity = {
     givenName: stripTeacherHonorific(String(row?.full_name ?? '')).slice(0, 120) || linked.givenName,
     gender: parseTeacherGender(row?.gender) ?? linked.gender,
     birthDate: normalizeBirthDate(row?.birth_date) || linked.birthDate,
-    studentCode:
-      (codeColumn && isStudentCode(normalizeStudentCode(row?.student_code))
-        ? normalizeStudentCode(row?.student_code)
-        : '') || linked.studentCode,
+    studentCode: accountCode || linked.studentCode,
     complete: false,
   }
   const hinted = await identityHints(userId)
@@ -70,7 +71,7 @@ export async function fetchStudentIdentity(userId: string): Promise<StudentIdent
   const studentCode = stored.studentCode || hinted.studentCode
   const gender = stored.gender
   if (codeColumn) {
-    await backfillAccountIdentity(userId, stored, { givenName, birthDate, studentCode })
+    await backfillAccountIdentity(userId, { ...stored, studentCode: accountCode }, { givenName, birthDate, studentCode })
   }
   return {
     givenName,
@@ -180,11 +181,12 @@ async function backfillAccountIdentity(
   if (!name && !birth && !code) return
   try {
     if (code) {
-      const taken = await pgQueryOne<{ ok: number }>(
-        `select 1 as ok from public.profiles where student_code = $1 and id <> $2::uuid limit 1`,
+      await pgQuery(
+        `update public.profiles
+         set student_code = null, updated_at = now()
+         where student_code = $1 and id <> $2::uuid`,
         [code, userId]
       )
-      if (taken) code = null
     }
     if (!name && !birth && !code) return
     await pgQuery(

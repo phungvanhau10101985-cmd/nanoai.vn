@@ -3,6 +3,7 @@ import { getUserForAction } from '@/lib/auth'
 import { fetchTeacherIdentity } from '@/lib/db/teacher-identity-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { getServerDictionary } from '@/lib/i18n/server'
+import { isSelectableGradeLevelId } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import {
   classExistsWithJoinCodePg,
   fetchClassesMineListForTeacherPg,
@@ -77,14 +78,17 @@ export async function POST(req: NextRequest) {
   const gradeLevelId = String(body?.gradeLevelId ?? '').trim()
   const subjectLabelRaw = String(body?.subjectLabel ?? '').replace(/\s+/g, ' ').trim()
   const subjectLabel = subjectLabelRaw.length > 120 ? subjectLabelRaw.slice(0, 120) : subjectLabelRaw
+  const { t } = getServerDictionary()
   if (!name) return NextResponse.json({ error: 'Vui lòng nhập tên lớp.' }, { status: 400 })
   if (!schoolId) return NextResponse.json({ error: 'Vui lòng chọn trường trước khi tạo lớp.' }, { status: 400 })
+  if (!isSelectableGradeLevelId(gradeLevelId)) {
+    return NextResponse.json({ error: t.classes.createClassGradeRequired }, { status: 400 })
+  }
 
   const schoolOk = await schoolExistsByIdPg(schoolId)
   if (schoolOk !== true) {
     return NextResponse.json({ error: 'Không tìm thấy trường đã chọn.' }, { status: 404 })
   }
-  const { t } = getServerDictionary()
   const identity = await fetchTeacherIdentity(user.id, 'vi')
   if (!identity.publicName) {
     return NextResponse.json(

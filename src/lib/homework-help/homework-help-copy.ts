@@ -8,6 +8,11 @@ export type HomeworkHelpCopy = {
   send: string
   showTools: string
   emoji: string
+  classHomeworkButton: string
+  classHomeworkTitle: string
+  classHomeworkEmpty: string
+  classHomeworkLoading: string
+  classHomeworkCount: string
   replying: string
   newThread: string
   history: string
@@ -68,6 +73,11 @@ const VI: HomeworkHelpCopy = {
   send: 'Gửi',
   showTools: 'Hiện nút',
   emoji: 'Biểu cảm',
+  classHomeworkButton: 'Bài tập về nhà',
+  classHomeworkTitle: 'Bài tập về nhà',
+  classHomeworkEmpty: 'Chưa có bài tập về nhà trong các lớp đã tham gia.',
+  classHomeworkLoading: 'Đang tải bài tập…',
+  classHomeworkCount: '{n} câu',
   replying: 'Giáo viên đang trả lời',
   newThread: 'Hội thoại mới',
   history: 'Lịch sử làm bài tập',
@@ -146,6 +156,11 @@ const EN: HomeworkHelpCopy = {
   send: 'Send',
   showTools: 'Show buttons',
   emoji: 'Emoji',
+  classHomeworkButton: 'Homework',
+  classHomeworkTitle: 'Homework',
+  classHomeworkEmpty: 'No homework in the classes you joined.',
+  classHomeworkLoading: 'Loading homework…',
+  classHomeworkCount: '{n} questions',
   replying: 'The teacher is answering',
   newThread: 'New chat',
   history: 'Homework history',
@@ -223,6 +238,11 @@ const ZH: HomeworkHelpCopy = {
   send: '发送',
   showTools: '显示按钮',
   emoji: '表情',
+  classHomeworkButton: '家庭作业',
+  classHomeworkTitle: '家庭作业',
+  classHomeworkEmpty: '已加入的班级还没有家庭作业。',
+  classHomeworkLoading: '正在加载作业…',
+  classHomeworkCount: '{n} 题',
   replying: '老师正在回答',
   newThread: '新对话',
   history: '作业记录',
@@ -298,6 +318,11 @@ const JA: HomeworkHelpCopy = {
   send: '送信',
   showTools: 'ボタンを表示',
   emoji: '絵文字',
+  classHomeworkButton: '宿題',
+  classHomeworkTitle: '宿題',
+  classHomeworkEmpty: '参加中のクラスに宿題はまだありません。',
+  classHomeworkLoading: '宿題を読み込み中…',
+  classHomeworkCount: '{n}問',
   replying: '先生が回答しています',
   newThread: '新しい会話',
   history: '宿題の履歴',
@@ -376,6 +401,11 @@ const KO: HomeworkHelpCopy = {
   send: '보내기',
   showTools: '버튼 표시',
   emoji: '이모티콘',
+  classHomeworkButton: '숙제',
+  classHomeworkTitle: '숙제',
+  classHomeworkEmpty: '참여한 수업에 숙제가 아직 없습니다.',
+  classHomeworkLoading: '숙제를 불러오는 중…',
+  classHomeworkCount: '{n}문제',
   replying: '선생님이 답하고 있습니다',
   newThread: '새 대화',
   history: '숙제 기록',

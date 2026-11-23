@@ -11,6 +11,7 @@ import { StudentSubjectScoreList } from '@/components/lop/student-subject-score-
 import { listSubjectItemOpenedAt } from '@/lib/lop/class-subject-item-opens'
 import { loadClassReviewAccess } from '@/lib/lop/class-review-access'
 import { listStudentSubjectScoresPg } from '@/lib/lop/student-subject-scores'
+import { ClassNameTag } from '../class-name-tag'
 import { classSubjectScopeFromSearch } from '../lop-class-detail-view'
 
 export async function generateMetadata({
@@ -70,13 +71,16 @@ export default async function StudentSubjectScoresPage({
     <div className="app-shell min-h-screen">
       <CreationToolPageShell currentHref={`/lop/${classId}/diem`} relatedLinks={GAN_PHIEU_RELATED}>
         <div className="mx-auto max-w-2xl px-4 py-8">
-          <BrowserBackTextButton
-            fallbackHref={backHref}
-            className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ChevronRight className="h-4 w-4 shrink-0 rotate-180" aria-hidden />
-            {t.classes.classSubjectBack}
-          </BrowserBackTextButton>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <BrowserBackTextButton
+              fallbackHref={backHref}
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ChevronRight className="h-4 w-4 shrink-0 rotate-180" aria-hidden />
+              {t.classes.classSubjectBack}
+            </BrowserBackTextButton>
+            <ClassNameTag name={access.payload.cls.name} school={access.payload.schoolName} />
+          </div>
           <h1 className="mb-2 text-xl font-bold text-foreground">{t.classes.studentMyScoresTitle}</h1>
           <p className="mb-1 text-sm text-muted-foreground">{access.payload.cls.name}</p>
           <p className="mb-6 text-sm text-muted-foreground">{t.classes.studentMyScoresLead}</p>

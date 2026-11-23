@@ -17,7 +17,7 @@ test('birth dates accept day-first and excel serial', () => {
 
 test('import keeps the last row for one code and skips a missing code', () => {
   const parsed = parseRosterMatrix([
-    ['STT', 'Họ và tên', 'Ngày tháng năm sinh', 'Mã định danh'],
+    ['STT', 'Họ và tên', 'Ngày tháng năm sinh', 'Mã định danh cá nhân'],
     [1, 'Nguyễn Văn An', '15/03/2012', 'HS0001'],
     [2, 'Trần Thị Bình', '01/01/2013', ''],
     [3, 'Nguyễn An Mới', '16/03/2012', 'hs0001'],
@@ -31,6 +31,14 @@ test('import keeps the last row for one code and skips a missing code', () => {
     parsed.errors.map((item) => item.code),
     ['missing_code', 'bad_code']
   )
+})
+
+test('the short identifier header still maps to the code column', () => {
+  const parsed = parseRosterMatrix([
+    ['STT', 'Họ và tên', 'Ngày sinh', 'Mã định danh'],
+    [1, 'Nguyễn Văn An', '15/03/2012', 'HS0001'],
+  ])
+  assert.equal(parsed.rows[0]?.studentCode, 'HS0001')
 })
 
 test('a sheet without the identifier column is rejected', () => {

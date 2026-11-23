@@ -3731,10 +3731,9 @@ export default function GiaoVienWorksheetPage() {
           appleMacBar={apple.mac}
         />
       </div>
-      {worksheetId || examCode ? (
+      {examCode ? (
         <AnswerScanLaunch
-          examCode={examCode || undefined}
-          worksheetId={examCode ? undefined : worksheetId || undefined}
+          examCode={examCode}
           phoneMode={Boolean(phoneFollowerId)}
           tone="dark"
           onShowStudent={showAnswerBoard}
@@ -5399,17 +5398,17 @@ export default function GiaoVienWorksheetPage() {
             setQuizSessionData((prev) => ({ ...prev, [key]: data }))
             sendToStudentView({ type: 'quiz-session-code', slideIndex: si, blockIndex: bi, sessionCode: code, quizDurationSeconds: data.quizDurationSeconds })
           }}
-          footer={slides[currentIndex] ? (
+          renderScan={!examCode && slides[currentIndex] ? (questionIndex) => (
             <AnswerScanLaunch
-              examCode={examCode || undefined}
-              worksheetId={examCode ? undefined : worksheetId || undefined}
-              curriculumId={!examCode && !worksheetId ? curriculumId ?? undefined : undefined}
+              presentation="code"
+              worksheetId={worksheetId || undefined}
+              curriculumId={!worksheetId ? curriculumId ?? undefined : undefined}
               questions={scanQuestionsFromSlide(slides[currentIndex])}
+              questionIndex={questionIndex}
               phoneMode={Boolean(phoneFollowerId)}
-              tone="light"
               onShowStudent={showAnswerBoard}
             />
-          ) : null}
+          ) : undefined}
         />
       )}
       <VirtualMouseOverlay variant="remote-student" controllerRef={studentMouseRef} />

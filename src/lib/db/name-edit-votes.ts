@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { foldSubjectLabel, listedClassSubjects, subjectIdFromFreeLabel } from '@/lib/lop/class-subject'
 import { CLASS_SUBJECT_NAME_VOTE_THRESHOLD, resolveSchoolNameVote } from '@/lib/school-name'
+import { storedClassName } from '@/lib/lop/stored-class-name'
 
 export type NameEditChoice = 'original' | 'edited'
 
@@ -33,7 +34,7 @@ export async function proposeClassNameEdit(input: {
   editedName: string
 }): Promise<NameEditResult> {
   if (!isPgConfigured()) return { ok: false, error: 'Chưa cấu hình cơ sở dữ liệu.' }
-  const editedName = input.editedName.replace(/\s+/g, ' ').trim()
+  const editedName = storedClassName(input.editedName)
   const editedNormalized = foldClassName(editedName)
   if (editedNormalized.length < 2) return { ok: false, error: 'Tên lớp quá ngắn.' }
 
@@ -41,8 +42,16 @@ export async function proposeClassNameEdit(input: {
   const client = await pool.connect()
   try {
     await client.query('begin')
-    const school = await client.query<{ id: string; name: string; school_id: string | null }>(
-      `select id::text, name, school_id::text
+    const school = await client.query<{
+      id: string
+      name: string
+      school_id: string | null
+      teacher_id: string
+      grade_level_id: string | null
+      class_kind: string | null
+    }>(
+      `select id::text, name, school_id::text, teacher_id::text, grade_level_id,
+              coalesce(class_kind, 'school') as class_kind
        from public.classes
        where id = $1::uuid
        for update`,
@@ -64,12 +73,29 @@ export async function proposeClassNameEdit(input: {
          where school_id = $1::uuid
            and id <> $2::uuid
            and lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) = $3
+           and coalesce(grade_level_id, '') = coalesce($4, '')
          limit 1`,
-        [row.school_id, input.classId, editedNormalized]
+        [row.school_id, input.classId, editedNormalized, row.grade_level_id ?? '']
       )
       if (clash.rows[0]) {
         await client.query('rollback')
         return { ok: false, error: 'Trường này đã có lớp trùng tên.' }
+      }
+    } else if (row.class_kind === 'tutoring') {
+      const clash = await client.query<{ id: string }>(
+        `select id::text from public.classes
+         where teacher_id = $1::uuid
+           and class_kind = 'tutoring'
+           and dissolved_at is null
+           and id <> $2::uuid
+           and lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) = $3
+           and coalesce(grade_level_id, '') = coalesce($4, '')
+         limit 1`,
+        [row.teacher_id, input.classId, editedNormalized, row.grade_level_id ?? '']
+      )
+      if (clash.rows[0]) {
+        await client.query('rollback')
+        return { ok: false, error: 'Bạn đã có lớp học thêm trùng tên.' }
       }
     }
     await client.query(
@@ -110,8 +136,16 @@ export async function voteClassName(input: {
   const client = await pool.connect()
   try {
     await client.query('begin')
-    const found = await client.query<{ id: string; name: string; school_id: string | null }>(
-      `select id::text, name, school_id::text
+    const found = await client.query<{
+      id: string
+      name: string
+      school_id: string | null
+      teacher_id: string
+      grade_level_id: string | null
+      class_kind: string | null
+    }>(
+      `select id::text, name, school_id::text, teacher_id::text, grade_level_id,
+              coalesce(class_kind, 'school') as class_kind
        from public.classes
        where id = $1::uuid
        for update`,
@@ -163,21 +197,39 @@ export async function voteClassName(input: {
            where school_id = $1::uuid
              and id <> $2::uuid
              and lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) = $3
+             and coalesce(grade_level_id, '') = coalesce($4, '')
            limit 1`,
-          [row.school_id, input.classId, pending.edited_normalized]
+          [row.school_id, input.classId, pending.edited_normalized, row.grade_level_id ?? '']
         )
         if (clash.rows[0]) {
           await client.query('rollback')
           return { ok: false, error: 'Trường này đã có lớp trùng tên.' }
         }
+      } else if (row.class_kind === 'tutoring') {
+        const clash = await client.query<{ id: string }>(
+          `select id::text from public.classes
+           where teacher_id = $1::uuid
+             and class_kind = 'tutoring'
+             and dissolved_at is null
+             and id <> $2::uuid
+             and lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) = $3
+             and coalesce(grade_level_id, '') = coalesce($4, '')
+           limit 1`,
+          [row.teacher_id, input.classId, pending.edited_normalized, row.grade_level_id ?? '']
+        )
+        if (clash.rows[0]) {
+          await client.query('rollback')
+          return { ok: false, error: 'Bạn đã có lớp học thêm trùng tên.' }
+        }
       }
+      const nextName = storedClassName(pending.edited_name)
       await client.query(`update public.classes set name = $2 where id = $1::uuid`, [
         input.classId,
-        pending.edited_name,
+        nextName,
       ])
       await client.query(`delete from public.class_name_edits where class_id = $1::uuid`, [input.classId])
       await client.query('commit')
-      return { ok: true, canonicalName: pending.edited_name, resolved: 'edited' }
+      return { ok: true, canonicalName: nextName, resolved: 'edited' }
     }
     if (resolved === 'original') {
       await client.query(`delete from public.class_name_edits where class_id = $1::uuid`, [input.classId])

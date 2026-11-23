@@ -365,6 +365,16 @@ export function FigureMenuIcon({ id }: { id: string }) {
           <path d="M8 7 H5 M8 12 H5 M8 17 H5 M16 7 H19 M16 12 H19 M16 17 H19" {...S} />
         </Glyph>
       )
+    case 'photoelectric':
+      return (
+        <Glyph tint="#7c3aed">
+          <path d="M3 12 H8" {...S} />
+          <path d="M5 10 L8 12 L5 14" {...S} />
+          <path d="M10 7 H15 Q20 7 20 12 Q20 17 15 17 H10" {...S} />
+          <path d="M12 9 V15" {...S} />
+          <path d="M16 10 V14" {...S} />
+        </Glyph>
+      )
     case 'buoyancy':
       return (
         <Glyph tint="#0284c7">

@@ -8,6 +8,7 @@ if exist "%LOCALAPPDATA%\Programs\nodejs\npm.cmd" (
 
 REM Next.js dev mac dinh 3000. Neu ban dat PORT trong .env.local khac — sua DEV_PORT cho trung.
 REM Dong moi cong LISTEN cua chinh du an nay, roi bat lai dung cong du an. Khong mo ngrok.
+REM Mo them Cloudflare Tunnel (cloudflared) de dien thoai online/4G vao duoc. Tunnel dang song thi giu ten mien.
 REM 188-com-vn local: backend 8001 + frontend 3001 — KHONG bi script nay kill (xem scripts/restart-server-stop-dev.ps1).
 set "DEV_PORT=3000"
 if exist ".env.local" (
@@ -21,7 +22,7 @@ echo   RESET - Thu-do-online (khong anh huong 188-com-vn)
 echo ========================================
 echo.
 
-echo [1/7] Dong moi cong dang chay trung cua du an ^(roi bat lai port %DEV_PORT%. 188 giu 8001/3001^)...
+echo [1/8] Dong moi cong dang chay trung cua du an ^(roi bat lai port %DEV_PORT%. 188 giu 8001/3001^)...
 REM Do not pass -ProjectRoot "%~dp0" — trailing \ before " breaks PowerShell quoting.
 REM Script defaults ProjectRoot to parent of scripts\ (this repo root).
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\restart-server-stop-dev.ps1" -DevPort %DEV_PORT%
@@ -36,7 +37,7 @@ if "%STOP_RC%"=="0" (
 timeout /t 2 /nobreak >nul
 echo.
 
-echo [2/7] Xoa cache Next.js (.next-dev + .next)...
+echo [2/8] Xoa cache Next.js (.next-dev + .next)...
 for %%D in (.next-dev .next) do (
     if exist "%%D" (
         attrib -r -s -h "%%D\*" /s /d >nul 2>&1
@@ -52,7 +53,7 @@ for %%D in (.next-dev .next) do (
 )
 echo.
 
-echo [3/7] Xoa node_modules\.cache...
+echo [3/8] Xoa node_modules\.cache...
 if exist "node_modules\.cache" (
     rmdir /s /q "node_modules\.cache"
     echo       Cache da xoa
@@ -61,7 +62,7 @@ if exist "node_modules\.cache" (
 )
 echo.
 
-echo [4/7] Xoa .turbo cache (neu co)...
+echo [4/8] Xoa .turbo cache (neu co)...
 if exist ".turbo" (
     rmdir /s /q ".turbo"
     echo       .turbo da xoa
@@ -70,7 +71,7 @@ if exist ".turbo" (
 )
 echo.
 
-echo [5/7] Chay migration DB (them/sua bang)...
+echo [5/8] Chay migration DB (them/sua bang)...
 call npm run db:migrate:push
 if errorlevel 1 (
     echo       [CANH BAO] Migration co loi. Van tiep tuc khoi dong server.
@@ -79,7 +80,7 @@ if errorlevel 1 (
 )
 echo.
 
-echo [6/7] Chay lai npm run dev + Worksheet Worker...
+echo [6/8] Chay lai npm run dev + Worksheet Worker...
 set "NODE_BIN=%LOCALAPPDATA%\Programs\nodejs"
 if not exist "%NODE_BIN%\npm.cmd" (
     echo       [LOI] Khong tim thay npm. Cai Node.js hoac them %%LOCALAPPDATA%%\Programs\nodejs vao PATH.
@@ -94,12 +95,17 @@ echo       Worker dang khoi dong...
 timeout /t 5 /nobreak >nul
 echo.
 
-echo [7/7] Dia chi Wi-Fi cho dien thoai...
+echo [7/8] Dia chi Wi-Fi cho dien thoai...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\print-lan-dev-url.ps1" -Port %DEV_PORT%
+echo.
+
+echo [8/8] Cloudflare Tunnel cho dien thoai online (4G)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-cloudflared-dev.ps1" -DevPort %DEV_PORT%
 echo.
 echo ========================================
 echo   Xong. Thu-do: Next.js va Worker tren cong %DEV_PORT%.
-echo   Dien thoai cung Wi-Fi quet ma QR.
+echo   Dien thoai online: dia chi https://....trycloudflare.com o buoc [8/8].
+echo   Dien thoai cung Wi-Fi van mo duoc IP o buoc [7/8]. Ma QR local dung Cloudflare.
 echo   188-com-vn (8001/3001) — khong bi anh huong boi script nay.
 echo ========================================
 pause

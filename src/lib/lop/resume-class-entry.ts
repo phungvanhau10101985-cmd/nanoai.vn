@@ -1,4 +1,4 @@
-import { getEmailSessionUser } from '@/lib/auth/email-session-user'
+import { getUserOrBypass } from '@/lib/auth'
 import { attachStudentToClassPg } from '@/lib/db/class-roster-pg'
 import { fetchStudentIdentity } from '@/lib/db/student-identity-pg'
 import { canTakeClassExam } from '@/lib/lop/lop-viewer'
@@ -6,7 +6,7 @@ import { canTakeClassExam } from '@/lib/lop/lop-viewer'
 /** Phiên đã có (Google hoặc mã định danh) thì vào lớp bằng thông tin đã lưu. */
 export async function resumeClassEntry(classId: string, nextPath: string | null): Promise<string | null> {
   const destination = nextPath || `/lop/${classId}`
-  const session = await getEmailSessionUser()
+  const session = await getUserOrBypass()
   if (await canTakeClassExam(classId, session?.id ?? null)) return destination
   if (!session) return null
   const identity = await fetchStudentIdentity(session.id)

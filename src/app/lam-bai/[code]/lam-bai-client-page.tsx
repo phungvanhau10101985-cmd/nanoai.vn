@@ -18,6 +18,7 @@ import { Toaster } from '@/components/ui/toaster'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { computeExamScoresOn100And10 } from '@/lib/exam-feedback'
 import { ImageRegionPicker } from '@/components/media/image-region-picker'
+import { HomeworkConsultButton } from '@/components/student-study/homework-consult-button'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { EXAM_ESSAY_IMAGE_RETENTION_DAYS, formatExamEssayImageExpireAtForUi } from '@/lib/exam-essay-config'
 import { SITE_HEADER_BACK_SLOT_ID } from '@/components/layout/site-header-back-slot'
@@ -340,9 +341,17 @@ function ExamReviewSolution({
 function SubmittedAnswersReadonly({
   work,
   t,
+  consult,
 }: {
   work: SubmittedWorkReview
   t: Dictionary['classes']
+  consult?: {
+    examCode: string
+    label: string
+    title: string
+    openingLabel: string
+    failedLabel: string
+  } | null
 }) {
   return (
     <div className="max-w-2xl w-full space-y-4">
@@ -472,6 +481,16 @@ function SubmittedAnswersReadonly({
                 </div>
               )}
               <ExamReviewSolution solution={q.solution} t={t} />
+              {consult ? (
+                <HomeworkConsultButton
+                  examCode={consult.examCode}
+                  questionId={q.id}
+                  label={consult.label}
+                  title={consult.title}
+                  openingLabel={consult.openingLabel}
+                  failedLabel={consult.failedLabel}
+                />
+              ) : null}
             </CardContent>
           </Card>
         )
@@ -1703,7 +1722,21 @@ export default function LamBaiClientPage({
     const reviewPanel =
       reviewOpen && submittedWork ? (
         <div ref={reviewPanelRef} className="w-full max-w-2xl">
-          <SubmittedAnswersReadonly work={submittedWork} t={t} />
+          <SubmittedAnswersReadonly
+            work={submittedWork}
+            t={t}
+            consult={
+              result.practiceHomework
+                ? {
+                    examCode: code,
+                    label: t.consultExerciseButton,
+                    title: t.classStudentHomeworkHelp,
+                    openingLabel: t.consultExerciseOpening,
+                    failedLabel: t.consultExerciseFailed,
+                  }
+                : null
+            }
+          />
         </div>
       ) : null
     const resultShellClass = `w-full min-h-[min(70dvh,32rem)] flex flex-col items-center gap-4 px-4 pb-6 ${
@@ -1874,17 +1907,6 @@ export default function LamBaiClientPage({
                 <p className="text-sm">
                   {t.joinStudentBirthDate}: <strong>{formatDobDisplay(studentDob)}</strong>
                 </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setIdentityFromClassRoster(false)
-                    setEditingProfile(true)
-                  }}
-                >
-                  {t.examChangeIdentityManual}
-                </Button>
               </div>
             ) : (
               <>
@@ -1935,20 +1957,6 @@ export default function LamBaiClientPage({
                   ? t.examStartHomeworkButton
                   : t.examStartTestButton}
             </Button>
-            {showCompactClassStart ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                onClick={() => {
-                  setIdentityFromClassRoster(false)
-                  setEditingProfile(true)
-                }}
-              >
-                {t.examChangeIdentityManual}
-              </Button>
-            ) : null}
           </CardContent>
         </Card>
       </div>

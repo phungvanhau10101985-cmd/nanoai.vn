@@ -2,9 +2,11 @@ import { randomBytes } from 'node:crypto'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { teacherCanTeachInClassPg } from '@/lib/db/classes-pg'
+import { classSubjectLabel } from '@/lib/lop/class-subject'
 import {
   answerCardSeatCode,
   answerCardShortName,
+  isAnswerCardPhoneToken,
   isAnswerChoice,
   scanQuestionFromParts,
   scanQuestionFromWorksheetContent,
@@ -13,6 +15,8 @@ import {
 } from '@/lib/lop/answer-card'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export const ANSWER_CARD_SHOT_RETENTION_DAYS = 7
 
 export class AnswerCardSchemaError extends Error {
   constructor() {
@@ -55,6 +59,7 @@ export type AnswerCardSource = {
   label: 'exam' | 'homework' | 'worksheet'
   mcqCount: number
   subjectId: string
+  code?: string
 }
 
 export type AnswerCardRoundSummary = {
@@ -82,12 +87,43 @@ export type AnswerCardRoundView = {
   questionIndex: number
   questionCount: number
   showResults: boolean
+  showSummary: boolean
+  revealedQuestionIndex: number | null
+  revealedAt: string | null
+  phoneSeenAt: string | null
+  openPaperAt: string | null
+  examCode: string | null
   phoneConnected: boolean
   phonePath: string
   sourceKind: 'exam' | 'worksheet'
   questions: ScanQuestion[]
   roster: AnswerCardRosterEntry[]
   picks: Array<{ questionIndex: number; userId: string; choice: AnswerChoice }>
+  /** Đã nộp bài trên máy. Không có lựa chọn vẫn là đã làm và được 0, không phải chưa làm. */
+  submittedUserIds: string[]
+  shots: AnswerCardShot[]
+}
+
+export type AnswerCardShot = {
+  id: string
+  questionIndex: number
+  takenAt: string
+  examTitle: string
+  subjectName: string
+}
+
+export type AnswerCardClassSummary = {
+  className: string
+  title: string
+  questionCount: number
+  students: Array<{
+    cardNo: number
+    name: string
+    marks: Array<'correct' | 'wrong' | 'miss'>
+    points: number
+    total: number
+    attempted: boolean
+  }>
 }
 
 export type AnswerCardPhoneView = {
@@ -95,10 +131,13 @@ export type AnswerCardPhoneView = {
   className: string
   schoolName: string
   title: string
+  subjectName: string
   questionIndex: number
   questionCount: number
   saved: number
   total: number
+  showSummary: boolean
+  summary: AnswerCardClassSummary | null
   roster: Array<{ token: string; cardNo: number; shortName: string }>
 }
 
@@ -224,6 +263,7 @@ export async function listAnswerCardSourcesPg(
   try {
     const exams = await pgQuery<{
       session_id: string
+      code: string | null
       title: string | null
       is_practice_homework: boolean | null
       subject_id: string | null
@@ -233,7 +273,7 @@ export async function listAnswerCardSourcesPg(
       ord: number | null
     }>(
       `with sessions as (
-         select id, title, is_practice_homework, subject_id, created_at
+         select id, code, title, is_practice_homework, subject_id, created_at
          from public.exam_sessions
          where class_id = $1::uuid
            and teacher_id = $2::uuid
@@ -241,7 +281,7 @@ export async function listAnswerCardSourcesPg(
          order by created_at desc
          limit 40
        )
-       select s.id::text as session_id, s.title, s.is_practice_homework, s.subject_id,
+       select s.id::text as session_id, s.code, s.title, s.is_practice_homework, s.subject_id,
               q.question_text, q.options, q.correct_index, q."order" as ord
        from sessions s
        join public.exam_questions q on q.session_id = s.id
@@ -257,6 +297,7 @@ export async function listAnswerCardSourcesPg(
           id: row.session_id,
           title: String(row.title ?? '').trim() || 'Bài thi',
           label: row.is_practice_homework ? 'homework' : 'exam',
+          code: String(row.code ?? '').trim().toUpperCase(),
           mcqCount: 0,
           subjectId: String(row.subject_id ?? ''),
           rows: [],
@@ -274,6 +315,7 @@ export async function listAnswerCardSourcesPg(
         id: group.id,
         title: group.title,
         label: group.label,
+        code: group.code,
         mcqCount,
         subjectId: group.subjectId,
       })
@@ -557,6 +599,144 @@ function asChoice(value: string): AnswerChoice | null {
   return isAnswerChoice(value) ? value : null
 }
 
+type SubmittedMcqPapers = {
+  userIds: string[]
+  mcqCount: number
+  choicesByUser: Map<string, Array<AnswerChoice | null>>
+}
+
+function choiceFromStoredAnswer(
+  questionId: string,
+  options: unknown,
+  answers: Record<string, unknown>,
+  perms: Record<string, number[]> | null,
+): AnswerChoice | null {
+  const optionCount = Array.isArray(options) ? options.length : 0
+  if (optionCount < 2) return null
+  const raw = answers[questionId]
+  const display = typeof raw === 'number' ? raw : Number.parseInt(String(raw ?? ''), 10)
+  if (!Number.isInteger(display)) return null
+  const perm = perms?.[questionId]
+  let original = display
+  if (perm && perm.length === optionCount) {
+    if (display < 0 || display >= perm.length) return null
+    original = perm[display] ?? display
+  }
+  if (original < 0 || original >= optionCount) return null
+  const letter = 'ABCD'[original]
+  return letter && isAnswerChoice(letter) ? letter : null
+}
+
+/** Bài đã nộp trên máy. Câu trắc nghiệm theo thứ tự đề, cùng thứ tự thẻ quét. */
+async function loadSubmittedMcqPapers(sessionId: string): Promise<SubmittedMcqPapers | null> {
+  if (!UUID_RE.test(sessionId)) return null
+  const questions = await pgQuery<{ id: string; question_text: string | null; options: unknown; correct_index: unknown }>(
+    `select id::text, question_text, options, correct_index
+     from public.exam_questions
+     where session_id = $1::uuid
+     order by "order" asc`,
+    [sessionId],
+  )
+  const mcq = questions.filter((row) => scanQuestionFromParts(row.question_text, row.options, row.correct_index))
+  const attempts = await pgQuery<{ user_id: string | null; answers: unknown; layout_snapshot: unknown }>(
+    `select user_id::text, answers, layout_snapshot
+     from public.exam_attempts
+     where session_id = $1::uuid and submitted_at is not null`,
+    [sessionId],
+  )
+  const choicesByUser = new Map<string, Array<AnswerChoice | null>>()
+  const userIds: string[] = []
+  for (const attempt of attempts) {
+    const userId = attempt.user_id ? String(attempt.user_id) : ''
+    if (!userId) continue
+    userIds.push(userId)
+    const answers = attempt.answers && typeof attempt.answers === 'object'
+      ? attempt.answers as Record<string, unknown>
+      : {}
+    const snapshot = attempt.layout_snapshot && typeof attempt.layout_snapshot === 'object'
+      ? attempt.layout_snapshot as { optionPerms?: unknown }
+      : null
+    const perms = snapshot?.optionPerms && typeof snapshot.optionPerms === 'object'
+      ? snapshot.optionPerms as Record<string, number[]>
+      : null
+    choicesByUser.set(userId, mcq.map((row) => choiceFromStoredAnswer(row.id, row.options, answers, perms)))
+  }
+  return { userIds, mcqCount: mcq.length, choicesByUser }
+}
+
+type MergedAnswerRow = {
+  userId: string
+  cardNo: number
+  name: string
+  shortName: string
+  attempted: boolean
+  choices: Array<AnswerChoice | null>
+}
+
+/** Một bảng: quét thẻ và nộp trên máy. Câu đã quét giữ nguyên, câu trống lấy từ bài nộp. */
+async function loadMergedAnswerRows(
+  classId: string,
+  sessionId: string,
+  questionCount: number,
+): Promise<{ submittedUserIds: string[]; students: MergedAnswerRow[] } | null> {
+  if (!UUID_RE.test(classId) || !UUID_RE.test(sessionId) || questionCount < 0) return null
+  const papers = await loadSubmittedMcqPapers(sessionId)
+  const useOnline = Boolean(papers && papers.mcqCount === questionCount)
+  const scanRows = await pgQuery<{ question_index: number; user_id: string; choice: string }>(
+    `select p.question_index, p.user_id::text, p.choice
+     from public.answer_card_picks p
+     join public.answer_card_rounds r on r.id = p.round_id
+     where r.class_id = $1::uuid
+       and r.source_kind = 'exam'
+       and r.source_id = $2::uuid
+     order by r.created_at asc, p.question_index asc`,
+    [classId, sessionId],
+  )
+  const scanByUser = new Map<string, Map<number, AnswerChoice>>()
+  for (const row of scanRows) {
+    if (row.question_index < 0 || row.question_index >= questionCount) continue
+    if (!isAnswerChoice(row.choice)) continue
+    const choices = scanByUser.get(row.user_id) ?? new Map<number, AnswerChoice>()
+    choices.set(row.question_index, row.choice)
+    scanByUser.set(row.user_id, choices)
+  }
+  const [members, cards] = await Promise.all([
+    listClassStudents(classId),
+    listClassAnswerCardsPg(classId),
+  ])
+  const cardByUser = new Map((cards ?? []).map((card) => [card.userId, card]))
+  const submitted = new Set(papers?.userIds ?? [])
+  const students: MergedAnswerRow[] = members.map((member, index) => {
+    const card = cardByUser.get(member.userId)
+    const scan = scanByUser.get(member.userId)
+    const online = useOnline ? papers?.choicesByUser.get(member.userId) : undefined
+    const choices = Array.from({ length: questionCount }, (_, questionIndex) => (
+      scan?.get(questionIndex) ?? online?.[questionIndex] ?? null
+    ))
+    const attempted = submitted.has(member.userId) || choices.some((choice) => choice != null)
+    return {
+      userId: member.userId,
+      cardNo: card?.cardNo ?? index + 1,
+      name: card?.name || member.name,
+      shortName: answerCardShortName(card?.name || member.name),
+      attempted,
+      choices,
+    }
+  })
+  return { submittedUserIds: papers?.userIds ?? [], students }
+}
+
+function picksFromMergedRows(students: MergedAnswerRow[]): AnswerCardRoundView['picks'] {
+  const picks: AnswerCardRoundView['picks'] = []
+  for (const student of students) {
+    student.choices.forEach((choice, questionIndex) => {
+      if (!choice) return
+      picks.push({ questionIndex, userId: student.userId, choice })
+    })
+  }
+  return picks
+}
+
 export async function loadAnswerCardRoundForTeacherPg(
   roundId: string,
   teacherId: string
@@ -572,15 +752,25 @@ export async function loadAnswerCardRoundForTeacherPg(
       question_index: number
       question_count: number
       show_results: boolean
+      show_summary: boolean
+      revealed_question_index: number | null
+      revealed_at: string | null
+      phone_seen_at: string | null
+      open_paper_at: string | null
+      exam_code: string | null
       phone_token: string
       phone_connected: boolean
       source_kind: string
+      source_id: string | null
     }>(
       `select r.id::text, r.class_id::text, c.name as class_name, r.title, r.status,
-              r.question_index, r.question_count, r.show_results, r.phone_token, r.source_kind,
+              r.question_index, r.question_count, r.show_results, r.show_summary,
+              r.revealed_question_index, r.revealed_at, r.phone_seen_at, r.open_paper_at,
+              r.phone_token, r.source_kind, r.source_id::text as source_id, es.code as exam_code,
               (r.phone_seen_at is not null and r.phone_seen_at > now() - interval '8 seconds') as phone_connected
        from public.answer_card_rounds r
        join public.classes c on c.id = r.class_id
+       left join public.exam_sessions es on r.source_kind = 'exam' and es.id = r.source_id
        where r.id = $1::uuid and r.teacher_id = $2::uuid
        limit 1`,
       [roundId, teacherId]
@@ -615,12 +805,26 @@ export async function loadAnswerCardRoundForTeacherPg(
       if (!choice) continue
       picks.push({ questionIndex: row.question_index, userId: row.user_id, choice })
     }
-    const roster = (cards ?? []).map((card) => ({
+    let submittedUserIds: string[] = []
+    let roster = (cards ?? []).map((card) => ({
       userId: card.userId,
       cardNo: card.cardNo,
       name: card.name,
       shortName: answerCardShortName(card.name),
     }))
+    if (round.source_kind === 'exam' && round.source_id) {
+      const merged = await loadMergedAnswerRows(round.class_id, round.source_id, questions.length)
+      if (merged) {
+        submittedUserIds = merged.submittedUserIds
+        picks.splice(0, picks.length, ...picksFromMergedRows(merged.students))
+        roster = merged.students.map((student) => ({
+          userId: student.userId,
+          cardNo: student.cardNo,
+          name: student.name,
+          shortName: student.shortName,
+        }))
+      }
+    }
     const closed = round.status === 'closed'
     return {
       id: round.id,
@@ -631,12 +835,22 @@ export async function loadAnswerCardRoundForTeacherPg(
       questionIndex: round.question_index,
       questionCount: round.question_count,
       showResults: closed ? true : round.show_results,
+      showSummary: Boolean(round.show_summary),
+      revealedQuestionIndex: Number.isInteger(Number(round.revealed_question_index))
+        ? Number(round.revealed_question_index)
+        : null,
+      revealedAt: round.revealed_at ? new Date(round.revealed_at).toISOString() : null,
+      phoneSeenAt: round.phone_seen_at ? new Date(round.phone_seen_at).toISOString() : null,
+      openPaperAt: round.open_paper_at ? new Date(round.open_paper_at).toISOString() : null,
+      examCode: round.exam_code ? String(round.exam_code) : null,
       phoneConnected: Boolean(round.phone_connected),
       phonePath: `/lop/quet-the/${round.phone_token}`,
       sourceKind: round.source_kind === 'exam' ? 'exam' : 'worksheet',
       questions,
       roster,
       picks,
+      submittedUserIds,
+      shots: await listAnswerCardShotsPg(round.id),
     }
   } catch (error) {
     throwSchema(error)
@@ -646,21 +860,33 @@ export async function loadAnswerCardRoundForTeacherPg(
 export async function patchAnswerCardRoundPg(
   roundId: string,
   teacherId: string,
-  action: 'show' | 'hide' | 'next' | 'prev' | 'end' | 'focus',
+  action: 'show' | 'hide' | 'next' | 'prev' | 'end' | 'focus' | 'review',
   questionIndex?: number
 ): Promise<AnswerCardRoundView | null> {
   if (!isPgConfigured() || !UUID_RE.test(roundId)) return null
   try {
-    if (action === 'focus') {
+    if (action === 'focus' || action === 'review') {
       const index = Number.isInteger(questionIndex) ? Number(questionIndex) : -1
       if (index < 0) return null
-      await pgQuery(
-        `update public.answer_card_rounds
-         set question_index = least(greatest($3::int, 0), question_count - 1),
-             show_results = (status = 'closed')
-         where id = $1::uuid and teacher_id = $2::uuid`,
-        [roundId, teacherId, index]
-      )
+      if (action === 'review') {
+        await pgQuery(
+          `update public.answer_card_rounds
+           set revealed_question_index = least(greatest($3::int, 0), question_count - 1),
+               revealed_at = now(),
+               show_summary = false,
+               show_results = true
+           where id = $1::uuid and teacher_id = $2::uuid`,
+          [roundId, teacherId, index]
+        )
+      } else {
+        await pgQuery(
+          `update public.answer_card_rounds
+           set question_index = least(greatest($3::int, 0), question_count - 1),
+               show_results = (status = 'closed')
+           where id = $1::uuid and teacher_id = $2::uuid`,
+          [roundId, teacherId, index]
+        )
+      }
     } else if (action === 'show') {
       await pgQuery(
         `update public.answer_card_rounds set show_results = true where id = $1::uuid and teacher_id = $2::uuid`,
@@ -680,7 +906,8 @@ export async function patchAnswerCardRoundPg(
                greatest(question_index + $3, 0),
                question_count - 1
              ),
-             show_results = false
+             show_results = false,
+             show_summary = false
          where id = $1::uuid and teacher_id = $2::uuid`,
         [roundId, teacherId, action === 'next' ? 1 : -1]
       )
@@ -698,6 +925,27 @@ export async function patchAnswerCardRoundPg(
   }
 }
 
+/** Điện thoại mở mã của một câu trên slide thì buổi quét nhảy tới câu đó. */
+export async function focusAnswerCardByPhoneTokenPg(token: string, questionIndex: number): Promise<boolean> {
+  if (!isPgConfigured() || !isAnswerCardPhoneToken(token) || !Number.isInteger(questionIndex) || questionIndex < 0) {
+    return false
+  }
+  try {
+    const updated = await pgQuery<{ id: string }>(
+      `update public.answer_card_rounds
+       set question_index = least(greatest($2::int, 0), question_count - 1),
+           show_results = (status = 'closed'),
+           show_summary = false
+       where phone_token = $1
+       returning id::text`,
+      [token, questionIndex]
+    )
+    return updated.length > 0
+  } catch (error) {
+    throwSchema(error)
+  }
+}
+
 async function loadPhoneRound(token: string): Promise<{
   id: string
   classId: string
@@ -705,9 +953,11 @@ async function loadPhoneRound(token: string): Promise<{
   className: string
   schoolName: string
   title: string
+  subjectName: string
   status: 'live' | 'closed'
   questionIndex: number
   questionCount: number
+  showSummary: boolean
 } | null> {
   const row = await pgQueryOne<{
     id: string
@@ -716,12 +966,14 @@ async function loadPhoneRound(token: string): Promise<{
     class_name: string | null
     school_name: string | null
     title: string
+    subject_id: string | null
     status: string
     question_index: number
     question_count: number
+    show_summary: boolean
   }>(
     `select r.id::text, r.class_id::text, c.school_id::text, c.name as class_name, sch.name as school_name,
-            r.title, r.status, r.question_index, r.question_count
+            r.title, r.subject_id, r.status, r.question_index, r.question_count, r.show_summary
      from public.answer_card_rounds r
      join public.classes c on c.id = r.class_id
      left join public.schools sch on sch.id = c.school_id
@@ -737,9 +989,11 @@ async function loadPhoneRound(token: string): Promise<{
     className: String(row.class_name ?? ''),
     schoolName: String(row.school_name ?? ''),
     title: row.title,
+    subjectName: await subjectNamePg(String(row.subject_id ?? '')),
     status: row.status === 'closed' ? 'closed' : 'live',
     questionIndex: row.question_index,
     questionCount: row.question_count,
+    showSummary: Boolean(row.show_summary),
   }
 }
 
@@ -786,10 +1040,13 @@ export async function loadAnswerCardPhoneViewPg(token: string): Promise<AnswerCa
       className: round.className,
       schoolName: round.schoolName,
       title: round.title,
+      subjectName: round.subjectName,
       questionIndex: round.questionIndex,
       questionCount: round.questionCount,
       saved: savedRow?.n ?? 0,
       total: cards?.length ?? 0,
+      showSummary: round.showSummary,
+      summary: round.showSummary ? await loadAnswerCardClassSummaryPg(round.id) : null,
       roster: (cards ?? []).flatMap((card) => {
         const seat = answerCardSeatCode(card.cardNo)
         if (!seat) return []
@@ -801,11 +1058,116 @@ export async function loadAnswerCardPhoneViewPg(token: string): Promise<AnswerCa
   }
 }
 
+async function loadAnswerCardClassSummaryPg(roundId: string): Promise<AnswerCardClassSummary | null> {
+  const round = await pgQueryOne<{
+    class_name: string | null
+    title: string
+    question_count: number
+    class_id: string
+    source_kind: string
+    source_id: string | null
+  }>(
+    `select c.name as class_name, r.title, r.question_count, r.class_id::text,
+            r.source_kind, r.source_id::text as source_id
+     from public.answer_card_rounds r
+     join public.classes c on c.id = r.class_id
+     where r.id = $1::uuid
+     limit 1`,
+    [roundId]
+  )
+  if (!round) return null
+  const [questions, picks, cards] = await Promise.all([
+    pgQuery<{ question_index: number; correct_choice: string }>(
+      `select question_index, correct_choice
+       from public.answer_card_questions
+       where round_id = $1::uuid
+       order by question_index asc`,
+      [roundId]
+    ),
+    pgQuery<{ question_index: number; user_id: string; choice: string }>(
+      `select question_index, user_id::text, choice
+       from public.answer_card_picks
+       where round_id = $1::uuid`,
+      [roundId]
+    ),
+    listClassAnswerCardsPg(round.class_id),
+  ])
+  const total = questions.length
+  let studentRows = (cards ?? []).map((card) => {
+    const choices = new Map<number, string>()
+    for (const pick of picks) {
+      if (pick.user_id !== card.userId) continue
+      choices.set(pick.question_index, pick.choice)
+    }
+    const attempted = choices.size > 0
+    const marks = questions.map((question) => {
+      const choice = choices.get(question.question_index)
+      if (!choice) return 'miss' as const
+      return choice === question.correct_choice ? 'correct' as const : 'wrong' as const
+    })
+    return {
+      cardNo: card.cardNo,
+      name: card.name,
+      marks,
+      points: attempted ? marks.filter((mark) => mark === 'correct').length : 0,
+      total,
+      attempted,
+    }
+  })
+  if (round.source_kind === 'exam' && round.source_id) {
+    const merged = await loadMergedAnswerRows(round.class_id, round.source_id, questions.length)
+    if (merged) {
+      studentRows = merged.students.map((student) => {
+        const marks = questions.map((question, index) => {
+          const choice = student.choices[question.question_index] ?? student.choices[index]
+          if (!choice) return 'miss' as const
+          return choice === question.correct_choice ? 'correct' as const : 'wrong' as const
+        })
+        return {
+          cardNo: student.cardNo,
+          name: student.name,
+          marks,
+          points: student.attempted ? marks.filter((mark) => mark === 'correct').length : 0,
+          total,
+          attempted: student.attempted,
+        }
+      })
+    }
+  }
+  const students = studentRows.sort((a, b) => Number(b.attempted) - Number(a.attempted) || b.points - a.points || a.cardNo - b.cardNo)
+  return {
+    className: String(round.class_name ?? ''),
+    title: round.title,
+    questionCount: round.question_count,
+    students,
+  }
+}
+
+async function questionScorePg(roundId: string, questionIndex: number): Promise<{ correct: number; wrong: number }> {
+  const rows = await pgQuery<{ choice: string | null; correct_choice: string }>(
+    `select p.choice, q.correct_choice
+     from public.answer_card_questions q
+     left join public.answer_card_picks p
+       on p.round_id = q.round_id and p.question_index = q.question_index
+     where q.round_id = $1::uuid and q.question_index = $2`,
+    [roundId, questionIndex]
+  )
+  let correct = 0
+  let wrong = 0
+  for (const row of rows) {
+    if (!row.choice) continue
+    if (row.choice === row.correct_choice) correct += 1
+    else wrong += 1
+  }
+  return { correct, wrong }
+}
+
 export async function saveAnswerCardPicksPg(
   token: string,
   picks: Array<{ token: string; choice: AnswerChoice }>,
-  questionIndex?: number
-): Promise<{ saved: number; total: number; changed: number; status: 'live' | 'closed' } | 'closed' | null> {
+  questionIndex?: number,
+  replace = false
+): Promise<{ saved: number; total: number; changed: number; correct: number; wrong: number; status: 'live' | 'closed' } | 'closed' | null> {
   if (!isPgConfigured()) return null
   try {
     const round = await loadPhoneRound(token)
@@ -813,7 +1175,7 @@ export async function saveAnswerCardPicksPg(
     if (round.status === 'closed') return 'closed'
     const cards = await listScanCardsPg(round.classId, round.schoolId)
     if (Number.isInteger(questionIndex) && questionIndex !== round.questionIndex) {
-      return { saved: 0, total: cards?.length ?? 0, changed: 0, status: 'live' }
+      return { saved: 0, total: cards?.length ?? 0, changed: 0, correct: 0, wrong: 0, status: 'live' }
     }
     const bySeat = new Map<string, string>()
     for (const card of cards ?? []) {
@@ -821,13 +1183,21 @@ export async function saveAnswerCardPicksPg(
       if (seat) bySeat.set(seat, card.userId)
     }
     const unique = new Map<string, AnswerChoice>()
-    for (const pick of picks.slice(0, 40)) {
+    for (const pick of picks.slice(0, 99)) {
       const userId = bySeat.get(pick.token)
       if (!userId || !isAnswerChoice(pick.choice)) continue
       unique.set(userId, pick.choice)
     }
     const userIds = [...unique.keys()]
     let changed = 0
+    if (replace && userIds.length > 0) {
+      await pgQuery(
+        `delete from public.answer_card_picks
+         where round_id = $1::uuid and question_index = $2
+           and not (user_id = any($3::uuid[]))`,
+        [round.id, round.questionIndex, userIds]
+      )
+    }
     if (userIds.length > 0) {
       const previous = await pgQuery<{ user_id: string; choice: string }>(
         `select user_id::text, choice
@@ -856,20 +1226,65 @@ export async function saveAnswerCardPicksPg(
     )
     const saved = savedRow?.n ?? 0
     const total = cards?.length ?? 0
-    const complete = total > 0 && saved >= total
-    await pgQuery(
-      `update public.answer_card_rounds
-       set phone_seen_at = now(),
-           show_results = case when $2::boolean then true else show_results end
-       where id = $1::uuid`,
-      [round.id, complete]
-    )
+    const score = await questionScorePg(round.id, round.questionIndex)
+    if (saved > 0) {
+      await pgQuery(
+        `update public.answer_card_rounds
+         set phone_seen_at = now(),
+             show_results = true,
+             show_summary = false,
+             revealed_question_index = $2,
+             revealed_at = now()
+         where id = $1::uuid`,
+        [round.id, round.questionIndex]
+      )
+    } else {
+      await pgQuery(
+        `update public.answer_card_rounds
+         set phone_seen_at = now()
+         where id = $1::uuid`,
+        [round.id]
+      )
+    }
     return {
       saved,
       total,
       changed,
+      correct: score.correct,
+      wrong: score.wrong,
       status: 'live',
     }
+  } catch (error) {
+    throwSchema(error)
+  }
+}
+
+export async function revealAnswerCardQuestionPg(
+  token: string,
+  questionIndex: number,
+  step: 'next' | 'stay'
+): Promise<AnswerCardPhoneView | 'closed' | null> {
+  if (!isPgConfigured() || !isAnswerCardPhoneToken(token)) return null
+  if (!Number.isInteger(questionIndex) || questionIndex < 0) return null
+  try {
+    const round = await loadPhoneRound(token)
+    if (!round) return null
+    if (round.status === 'closed') return 'closed'
+    await pgQuery(
+      `update public.answer_card_rounds
+       set revealed_question_index = least(greatest($2::int, 0), question_count - 1),
+           revealed_at = now(),
+           show_results = true,
+           show_summary = false,
+           question_index = case
+             when $3::boolean then least(question_index + 1, question_count - 1)
+             else question_index
+           end,
+           phone_seen_at = now()
+       where id = $1::uuid and status = 'live'`,
+      [round.id, questionIndex, step === 'next']
+    )
+    return loadAnswerCardPhoneViewPg(token)
   } catch (error) {
     throwSchema(error)
   }
@@ -887,7 +1302,7 @@ export async function stepAnswerCardPhonePg(
     await pgQuery(
       `update public.answer_card_rounds
        set question_index = least(greatest(question_index + $2, 0), question_count - 1),
-           show_results = false,
+           show_summary = false,
            phone_seen_at = now()
        where id = $1::uuid and status = 'live'`,
       [round.id, action === 'next' ? 1 : -1]
@@ -898,6 +1313,264 @@ export async function stepAnswerCardPhonePg(
   }
 }
 
+export async function publishAnswerCardSummaryPg(token: string): Promise<AnswerCardPhoneView | 'closed' | null> {
+  if (!isPgConfigured() || !isAnswerCardPhoneToken(token)) return null
+  try {
+    const round = await loadPhoneRound(token)
+    if (!round) return null
+    if (round.status === 'closed') return 'closed'
+    await pgQuery(
+      `update public.answer_card_rounds
+       set show_summary = true, phone_seen_at = now()
+       where id = $1::uuid and status = 'live'`,
+      [round.id]
+    )
+    return loadAnswerCardPhoneViewPg(token)
+  } catch (error) {
+    throwSchema(error)
+  }
+}
+
+export async function openAnswerCardPaperPg(token: string): Promise<AnswerCardPhoneView | 'closed' | null> {
+  if (!isPgConfigured() || !isAnswerCardPhoneToken(token)) return null
+  try {
+    const round = await loadPhoneRound(token)
+    if (!round) return null
+    if (round.status === 'closed') return 'closed'
+    await pgQuery(
+      `update public.answer_card_rounds
+       set open_paper_at = now(), phone_seen_at = now()
+       where id = $1::uuid and status = 'live'`,
+      [round.id]
+    )
+    return loadAnswerCardPhoneViewPg(token)
+  } catch (error) {
+    throwSchema(error)
+  }
+}
+
 export async function teacherMayScanClassPg(classId: string, teacherId: string): Promise<boolean | null> {
   return teacherCanTeachInClassPg(classId, teacherId)
+}
+
+async function subjectNamePg(subjectId: string): Promise<string> {
+  const id = subjectId.trim()
+  if (!id) return ''
+  const known = classSubjectLabel(id, 'vi')
+  if (known !== id) return known
+  try {
+    const row = await pgQueryOne<{ label: string | null }>(
+      `select label from public.teaching_subjects where id = $1 limit 1`,
+      [id]
+    )
+    return String(row?.label ?? '').trim() || id
+  } catch {
+    return id
+  }
+}
+
+const SHOT_EXPIRED_SQL = `taken_at < now() - ($1::int * interval '1 day')`
+let lastShotPurgeAt = 0
+
+export async function purgeExpiredAnswerCardShotsPg(): Promise<number> {
+  if (!isPgConfigured()) return 0
+  const rows = await pgQuery<{ id: string }>(
+    `delete from public.answer_card_shots
+     where ${SHOT_EXPIRED_SQL}
+     returning id::text`,
+    [ANSWER_CARD_SHOT_RETENTION_DAYS]
+  )
+  return rows.length
+}
+
+function purgeExpiredAnswerCardShotsSoon() {
+  const now = Date.now()
+  if (now - lastShotPurgeAt < 15 * 60 * 1000) return
+  lastShotPurgeAt = now
+  void purgeExpiredAnswerCardShotsPg().catch((error) => {
+    lastShotPurgeAt = 0
+    console.error('[answer-card-shots] purge', error)
+  })
+}
+
+function armLocalAnswerCardShotPurge() {
+  if (process.env.NODE_ENV === 'production' || process.env.NANOAI_SHOP_CRON_WORKER === '1') return
+  const holder = globalThis as typeof globalThis & { __answerCardShotPurge?: ReturnType<typeof setInterval> }
+  if (holder.__answerCardShotPurge) return
+  purgeExpiredAnswerCardShotsSoon()
+  const timer = setInterval(() => purgeExpiredAnswerCardShotsSoon(), 60 * 60 * 1000)
+  timer.unref?.()
+  holder.__answerCardShotPurge = timer
+}
+
+async function listAnswerCardShotsPg(roundId: string): Promise<AnswerCardShot[]> {
+  armLocalAnswerCardShotPurge()
+  purgeExpiredAnswerCardShotsSoon()
+  const rows = await pgQuery<{
+    id: string
+    question_index: number
+    taken_at: Date | string
+    exam_title: string
+    subject_name: string
+  }>(
+    `select id::text, question_index, taken_at, exam_title, subject_name
+     from public.answer_card_shots
+     where round_id = $1::uuid
+       and taken_at >= now() - ($2::int * interval '1 day')
+     order by taken_at desc
+     limit 80`,
+    [roundId, ANSWER_CARD_SHOT_RETENTION_DAYS]
+  )
+  return rows.map((row) => ({
+    id: row.id,
+    questionIndex: row.question_index,
+    takenAt: row.taken_at instanceof Date ? row.taken_at.toISOString() : String(row.taken_at),
+    examTitle: row.exam_title,
+    subjectName: row.subject_name,
+  }))
+}
+
+export async function saveAnswerCardShotPg(
+  token: string,
+  image: Buffer,
+  questionIndex?: number
+): Promise<{ id: string; takenAt: string } | null> {
+  if (!isPgConfigured() || !isAnswerCardPhoneToken(token)) return null
+  if (image.length < 32 || image.length > 2_000_000 || image[0] !== 0xff || image[1] !== 0xd8) return null
+  try {
+    const round = await loadPhoneRound(token)
+    if (!round) return null
+    const index = Number.isInteger(questionIndex) ? Number(questionIndex) : round.questionIndex
+    if (index < 0 || index >= round.questionCount) return null
+    const inserted = await pgQueryOne<{ id: string; taken_at: Date | string }>(
+      `insert into public.answer_card_shots (round_id, question_index, exam_title, subject_name, image)
+       values ($1::uuid, $2, $3, $4, $5)
+       returning id::text, taken_at`,
+      [round.id, index, round.title.slice(0, 180), round.subjectName.slice(0, 120), image]
+    )
+    if (!inserted) return null
+    await purgeExpiredAnswerCardShotsPg().catch((error) => {
+      console.error('[answer-card-shots] purge', error)
+    })
+    await pgQuery(
+      `delete from public.answer_card_shots
+       where id in (
+         select id from public.answer_card_shots
+         where round_id = $1::uuid
+         order by taken_at desc
+         offset 80
+       )`,
+      [round.id]
+    )
+    return {
+      id: inserted.id,
+      takenAt: inserted.taken_at instanceof Date ? inserted.taken_at.toISOString() : String(inserted.taken_at),
+    }
+  } catch (error) {
+    throwSchema(error)
+  }
+}
+
+export async function findAnswerCardShotClassPg(roundId: string, shotId: string): Promise<string | null> {
+  if (!isPgConfigured() || !UUID_RE.test(roundId) || !UUID_RE.test(shotId)) return null
+  try {
+    const row = await pgQueryOne<{ class_id: string }>(
+      `select r.class_id::text
+       from public.answer_card_shots s
+       join public.answer_card_rounds r on r.id = s.round_id
+       where s.id = $1::uuid and r.id = $2::uuid
+         and s.taken_at >= now() - ($3::int * interval '1 day')
+       limit 1`,
+      [shotId, roundId, ANSWER_CARD_SHOT_RETENTION_DAYS]
+    )
+    return row?.class_id ?? null
+  } catch (error) {
+    throwSchema(error)
+  }
+}
+
+export async function loadAnswerCardShotImagePg(
+  roundId: string,
+  teacherId: string,
+  shotId: string
+): Promise<{ classId: string; image: Buffer } | null> {
+  if (!isPgConfigured() || !UUID_RE.test(roundId) || !UUID_RE.test(shotId)) return null
+  try {
+    const row = await pgQueryOne<{ class_id: string; image: Buffer | Uint8Array | string }>(
+      `select r.class_id::text, s.image
+       from public.answer_card_shots s
+       join public.answer_card_rounds r on r.id = s.round_id
+       where s.id = $1::uuid and r.id = $2::uuid and r.teacher_id = $3::uuid
+         and s.taken_at >= now() - ($4::int * interval '1 day')
+       limit 1`,
+      [shotId, roundId, teacherId, ANSWER_CARD_SHOT_RETENTION_DAYS]
+    )
+    if (!row?.image) return null
+    const image = Buffer.isBuffer(row.image) ? row.image : Buffer.from(row.image)
+    return { classId: row.class_id, image }
+  } catch (error) {
+    throwSchema(error)
+  }
+}
+
+export type ClassScoreboard = {
+  className: string
+  title: string
+  questions: Array<{ correct: AnswerChoice; prompt: string; choices: string[] }>
+  students: Array<{
+    userId: string
+    cardNo: number
+    name: string
+    attempted: boolean
+    choices: Array<AnswerChoice | null>
+    points: number
+  }>
+}
+
+/** Bảng điểm một bài: nộp trên máy hoặc quét thẻ. Chưa có cả hai thì chưa làm. */
+export async function loadClassScoreboardPg(
+  classId: string,
+  sessionId: string,
+  teacherId: string,
+): Promise<ClassScoreboard | null> {
+  if (!isPgConfigured() || !UUID_RE.test(classId) || !UUID_RE.test(sessionId)) return null
+  const allowed = await teacherCanTeachInClassPg(classId, teacherId)
+  if (!allowed) return null
+  const session = await pgQueryOne<{ title: string | null; class_name: string | null }>(
+    `select s.title, c.name as class_name
+     from public.exam_sessions s
+     join public.classes c on c.id = s.class_id
+     where s.id = $1::uuid and s.class_id = $2::uuid
+     limit 1`,
+    [sessionId, classId],
+  )
+  if (!session) return null
+  const questionRows = await pgQuery<{ id: string; question_text: string | null; options: unknown; correct_index: unknown }>(
+    `select id::text, question_text, options, correct_index
+     from public.exam_questions
+     where session_id = $1::uuid
+     order by "order" asc`,
+    [sessionId],
+  )
+  const questions = questionRows.flatMap((row) => {
+    const question = scanQuestionFromParts(row.question_text, row.options, row.correct_index)
+    return question ? [{ correct: question.correct, prompt: question.prompt, choices: question.choices }] : []
+  })
+  const merged = await loadMergedAnswerRows(classId, sessionId, questions.length)
+  const students = (merged?.students ?? []).map((student) => ({
+    userId: student.userId,
+    cardNo: student.cardNo,
+    name: student.name,
+    attempted: student.attempted,
+    choices: student.choices,
+    points: student.attempted
+      ? student.choices.filter((choice, index) => choice != null && choice === questions[index]?.correct).length
+      : 0,
+  }))
+  return {
+    className: String(session.class_name ?? ''),
+    title: String(session.title ?? '').trim() || 'Bài',
+    questions,
+    students,
+  }
 }

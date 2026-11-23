@@ -1,6 +1,7 @@
 'use server'
 
 import { getUserForAction } from '@/lib/auth'
+import { resolveExamActor } from '@/lib/lop/lop-viewer'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { hasStudentStudyAccess } from '@/lib/student-study-access'
@@ -22,7 +23,13 @@ import {
   type HomeworkHelpErrorCode,
   type HomeworkImagePart,
 } from '@/lib/homework-help/homework-help-ai'
-import type { HomeworkGuide } from '@/lib/homework-help/homework-help-guide'
+import {
+  listJoinedClassHomework,
+  openExerciseConsult,
+  openJoinedClassHomework,
+  type JoinedHomeworkItem,
+} from '@/lib/homework-help/homework-help-consult'
+import type { HomeworkGuide, HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
 import {
   appendHomeworkExchange,
   ensureHomeworkSession,
@@ -383,4 +390,50 @@ export async function openHomeworkKnowledgeTag(input: {
   })
   if (!answer) return { ok: false, code: 'ai_unavailable' }
   return { ok: true, data: answer }
+}
+
+/** Mở hỗ trợ làm bài cho một câu bài tập. Dùng hướng tư duy và lời giải đã có, AI chỉ điền phần thiếu. */
+export async function consultExerciseQuestion(input: {
+  locale: string
+  examCode: string
+  questionId: string
+}): Promise<HomeworkHelpActionResult<HomeworkProblem>> {
+  const actor = await resolveExamActor()
+  if (!actor) return { ok: false, code: 'unauthorized' }
+  await beginFeatureTrial(actor.id, 'student')
+  if (!(await hasStudentStudyAccess({ userId: actor.id }))) {
+    return { ok: false, code: 'payment_required' }
+  }
+  const opened = await openExerciseConsult({
+    locale: localeOf(input.locale),
+    examCode: input.examCode,
+    questionId: input.questionId,
+  })
+  if (!opened.ok) return { ok: false, code: opened.code }
+  return { ok: true, data: opened.problem }
+}
+
+export async function listClassHomework(): Promise<HomeworkHelpActionResult<JoinedHomeworkItem[]>> {
+  const actor = await resolveExamActor()
+  if (!actor) return { ok: false, code: 'unauthorized' }
+  return { ok: true, data: await listJoinedClassHomework(actor.id) }
+}
+
+export async function consultClassHomework(input: {
+  locale: string
+  sessionId: string
+}): Promise<HomeworkHelpActionResult<HomeworkGuide>> {
+  const actor = await resolveExamActor()
+  if (!actor) return { ok: false, code: 'unauthorized' }
+  await beginFeatureTrial(actor.id, 'student')
+  if (!(await hasStudentStudyAccess({ userId: actor.id }))) {
+    return { ok: false, code: 'payment_required' }
+  }
+  const opened = await openJoinedClassHomework({
+    locale: localeOf(input.locale),
+    sessionId: input.sessionId,
+  })
+  if (!opened.ok) return { ok: false, code: opened.code }
+  if (!opened.guide) return { ok: false, code: 'ai_unavailable' }
+  return { ok: true, data: opened.guide }
 }

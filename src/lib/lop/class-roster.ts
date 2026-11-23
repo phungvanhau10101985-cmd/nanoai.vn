@@ -43,7 +43,15 @@ function headerKind(cell: unknown): 'stt' | 'name' | 'birth' | 'code' | '' {
   if (text === 'stt' || text === 'so thu tu') return 'stt'
   if (text === 'ho ten' || text === 'ho va ten' || text === 'ten') return 'name'
   if (text === 'ngay sinh' || text === 'ngay thang nam sinh') return 'birth'
-  if (text === 'ma dinh danh' || text === 'ma hs' || text === 'student code' || text === 'ma so') return 'code'
+  if (
+    text === 'ma dinh danh' ||
+    text === 'ma dinh danh ca nhan' ||
+    text === 'ma hs' ||
+    text === 'student code' ||
+    text === 'ma so'
+  ) {
+    return 'code'
+  }
   return ''
 }
 
@@ -119,7 +127,7 @@ export function parseRosterMatrix(matrix: unknown[][]): {
 
 export function rosterTemplateRows(): string[][] {
   return [
-    ['STT', 'Họ và tên', 'Ngày sinh', 'Mã định danh'],
+    ['STT', 'Họ và tên', 'Ngày sinh', 'Mã định danh cá nhân'],
     ['1', 'Nguyễn Văn An', '15/03/2012', 'HS0000000001'],
   ]
 }

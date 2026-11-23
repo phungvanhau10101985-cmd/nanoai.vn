@@ -21,6 +21,21 @@ import {
   transformerCircuit,
 } from './bench-physics'
 import { figureItem, figureSimulates, freshFigureParams, moveFigureTune } from './figures'
+import {
+  GLASS_CUTOFF_NM,
+  PE_C,
+  PE_E,
+  PE_H,
+  PE_HC_EV_NM,
+  PE_LAMBDA_MAX,
+  PE_LAMBDA_MIN,
+  PE_M,
+  PE_U_MIN,
+  SCOPE_Q_EQ,
+  cellCurrent,
+  electroscopeState,
+  photoelectricState,
+} from './photoelectric-lab'
 import { schoolHandles } from './school-bench'
 
 function kept(id: string, variant: string, handle: string, tune: number[] = []) {
@@ -205,4 +220,101 @@ test('bàn thí nghiệm chỉ chạy khi có thứ đang chuyển động', () 
   assert.equal(figureSimulates('slide', 'mitosis', true), false)
   assert.equal(figureSimulates('blood', 'O', true), false)
   assert.equal(figureSimulates('standing', 'string', false), false)
+  assert.equal(figureSimulates('photoelectric', 'cs', true), true)
+  assert.equal(figureSimulates('photoelectric', 'scope', true), true)
+  assert.equal(figureSimulates('photoelectric', 'scope', false), false)
+})
+
+test('quang điện: Einstein, ngưỡng, dòng bão hòa và điện nghiệm kẽm', () => {
+  assert.ok(Math.abs(PE_HC_EV_NM - 1242.1875) < 1e-9)
+  const metals = ['cs', 'k', 'na', 'zn'] as const
+  let previous = Infinity
+  for (const id of metals) {
+    const state = photoelectricState(id, 300, 1, 1)
+    assert.ok(state.thresholdNm < previous)
+    previous = state.thresholdNm
+    assert.ok(Math.abs(state.thresholdHz - (state.workEv * PE_E) / PE_H) < 1e-3)
+    assert.ok(Math.abs(PE_C / (state.thresholdNm * 1e-9) - state.thresholdHz) / state.thresholdHz < 1e-9)
+  }
+  const sodium = photoelectricState('na', 400, 0.5, 0)
+  assert.ok(Math.abs(sodium.photonEv - (PE_H * sodium.frequency) / PE_E) < 1e-9)
+  assert.ok(Math.abs(sodium.stopping - sodium.kineticEv) < 1e-12)
+  assert.ok(Math.abs(sodium.stopping - (sodium.photonEv - sodium.workEv)) < 1e-12)
+  assert.ok(Math.abs(sodium.speed - Math.sqrt((2 * sodium.kineticEv * PE_E) / PE_M)) < 1e-6)
+  const dim = photoelectricState('na', 400, 0.1, -0.2)
+  assert.ok(Math.abs(dim.stopping - sodium.stopping) < 1e-12)
+  assert.ok(Math.abs(dim.speed - sodium.speed) < 1e-9)
+  assert.ok(Math.abs(photoelectricState('na', 400, 1, 2).saturation / sodium.saturation - 2) < 1e-12)
+  const blue = photoelectricState('cs', 450, 0.5, 4)
+  const green = photoelectricState('cs', 520, 0.5, 4)
+  assert.equal(blue.above, true)
+  assert.equal(green.above, true)
+  assert.ok(Math.abs(blue.saturation - green.saturation) < 1e-12)
+  assert.ok(green.stopping < blue.stopping)
+  const slope = (blue.stopping - green.stopping) / (blue.frequency - green.frequency)
+  assert.ok(Math.abs(slope - PE_H / PE_E) / (PE_H / PE_E) < 1e-9)
+  const red = photoelectricState('cs', 650, 1, 4)
+  assert.equal(red.above, false)
+  assert.equal(red.current, 0)
+  assert.equal(red.saturation, 0)
+  assert.equal(red.stopping, 0)
+  assert.equal(photoelectricState('zn', 400, 1, 3).above, false)
+  assert.equal(photoelectricState('zn', 250, 1, 3).above, true)
+  assert.ok(photoelectricState('zn', 250, 1, 0).thresholdNm < GLASS_CUTOFF_NM)
+  const stop = blue.stopping
+  assert.equal(cellCurrent(-stop, stop, blue.saturation), 0)
+  assert.equal(cellCurrent(-stop - 0.2, stop, blue.saturation), 0)
+  assert.ok(cellCurrent(-stop / 2, stop, blue.saturation) > 0)
+  assert.ok(Math.abs(cellCurrent(0, stop, 8) - cellCurrent(-1e-8, stop, 8)) < 1e-4)
+  assert.ok(cellCurrent(4.6, stop, 8) / 8 > 0.99)
+  let previousCurrent = -1
+  for (let i = 0; i <= 40; i += 1) {
+    const voltage = PE_U_MIN + (i / 40) * 9.2
+    const current = cellCurrent(voltage, 1.2, 8)
+    assert.ok(current >= previousCurrent - 1e-9)
+    previousCurrent = current
+  }
+  for (const voltage of [-1.2, -0.4, 0, 1.5]) {
+    const low = cellCurrent(voltage, 1.2, 3)
+    const high = cellCurrent(voltage, 1.2, 6)
+    if (low === 0) assert.equal(high, 0)
+    else assert.ok(Math.abs(high / low - 2) < 1e-9)
+  }
+  const dark = photoelectricState('cs', 450, 0, 1)
+  assert.equal(dark.current, 0)
+  assert.ok(dark.stopping > 0.5)
+  assert.equal(dark.regime, 'dark')
+  assert.ok(Math.abs(kept('photoelectric', 'cs', 'lambda')[0] - 450) < 1e-6)
+  assert.ok(Math.abs(kept('photoelectric', 'cs', 'intensity')[1] - 0.75) < 1e-6)
+  assert.ok(Math.abs(kept('photoelectric', 'cs', 'voltage')[2] - 1) < 1e-6)
+  const item = figureItem('photoelectric')
+  assert.ok(item)
+  const layoutTune = [450, 1, 1]
+  const left = moveFigureTune('photoelectric', { ...freshFigureParams(item), variant: 'zn', tune: layoutTune }, item.w, item.h, 'lambda', { x: 0, y: 0 }, 0)
+  assert.ok(Math.abs(left.tune[0] - PE_LAMBDA_MIN) < 1e-6)
+  assert.equal(photoelectricState('zn', left.tune[0], 1, 1).above, true)
+  const right = moveFigureTune('photoelectric', { ...freshFigureParams(item), variant: 'cs', tune: layoutTune }, item.w, item.h, 'lambda', { x: item.w, y: 0 }, 0)
+  assert.ok(Math.abs(right.tune[0] - PE_LAMBDA_MAX) < 1e-6)
+  assert.equal(photoelectricState('cs', right.tune[0], 1, 1).above, false)
+  const shut = moveFigureTune('photoelectric', { ...freshFigureParams(item), variant: 'cs', tune: [450, 1, 1] }, item.w, item.h, 'voltage', { x: 0, y: 0 }, 0)
+  assert.ok(shut.tune[2] <= PE_U_MIN + 1e-9)
+  assert.equal(photoelectricState('cs', 450, 1, shut.tune[2]).current, 0)
+  const open = electroscopeState(250, 0, -1, 0)
+  assert.equal(open.mode, 'leave')
+  assert.ok(open.q < -0.9)
+  const later = electroscopeState(250, 0, -1, 8)
+  assert.ok(Math.abs(later.q - SCOPE_Q_EQ) < 0.02)
+  const glass = electroscopeState(250, 1, -1, 8)
+  assert.equal(glass.mode, 'glass')
+  assert.ok(glass.q < -0.9)
+  const visible = electroscopeState(500, 0, -1, 8)
+  assert.equal(visible.mode, 'below')
+  assert.ok(visible.q < -0.9)
+  const positive = electroscopeState(250, 0, 1, 8)
+  assert.equal(positive.mode, 'held')
+  assert.ok(positive.q > 0.9)
+  assert.equal(kept('photoelectric', 'scope', 'glass', [250, 0, -1])[1], 0)
+  assert.equal(kept('photoelectric', 'scope', 'glass', [250, 1, -1])[1], 1)
+  assert.ok(Math.abs(kept('photoelectric', 'scope', 'charge', [250, 0, -1])[2] + 1) < 1e-6)
+  assert.ok(Math.abs(kept('photoelectric', 'scope', 'lambda', [250, 0, -1])[0] - 250) < 1e-6)
 })

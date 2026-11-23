@@ -5,6 +5,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { scanQuestionFromParts } from '@/lib/lop/answer-card'
 
 type ExamQuestionRow = {
+  id?: string
   question_text?: unknown
   options?: unknown
   correct_index?: unknown
@@ -50,6 +51,7 @@ export async function GET(
         questionText: String(q.question_text ?? ''),
         options: options.length >= 2 ? options : [],
         canScan: scanQuestionFromParts(q.question_text, q.options, q.correct_index) != null,
+        ...(sessionRes.is_practice_homework && q.id ? { id: q.id } : {}),
       }
     })
 

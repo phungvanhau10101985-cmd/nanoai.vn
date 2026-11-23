@@ -2,10 +2,8 @@ import { NextResponse } from 'next/server'
 import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import {
-  LOCAL_PHONE_NGROK_ORIGIN,
   phoneRemoteBrowserOrigin,
-  readLanDevOrigin,
-  readRunningNgrokOrigin,
+  readLocalPhonePublicOrigin,
 } from '@/lib/curriculum/phone-remote-public-origin'
 import { phoneTeacherReturnPath, redeemPhoneRemoteLogin } from '@/lib/curriculum/phone-remote-store'
 
@@ -32,7 +30,7 @@ export async function GET(req: Request) {
       forwardedHost: req.headers.get('x-forwarded-host'),
       host: req.headers.get('host'),
       forwardedProto: req.headers.get('x-forwarded-proto'),
-    }) || readLanDevOrigin(Number(url.port || 3000)) || (await readRunningNgrokOrigin()) || LOCAL_PHONE_NGROK_ORIGIN
+    }) || (await readLocalPhonePublicOrigin()) || url.origin
   const next = new URL(phoneTeacherReturnPath(redeemed.snapshot, redeemed.id), browserOrigin)
   const res = NextResponse.redirect(next)
   const opts = getEmailSessionCookieOptions()

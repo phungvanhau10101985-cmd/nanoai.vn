@@ -13,6 +13,7 @@ import {
 } from '@/lib/db/exam-session-admin-pg'
 import { fetchExamPresetSourcePg, findTeacherExamCopyPg } from '@/lib/db/exam-preset-pg'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { phonePublicHref } from '@/lib/curriculum/phone-remote-public-origin'
 import { notifyClassStudentsOfAssignment } from '@/lib/lop/notify-class-assignment'
 import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 
@@ -37,7 +38,7 @@ function resolveBaseUrl(req: NextRequest): string {
   if (!host) return defaultPublicOrigin()
   const local = host.includes('localhost') || host.startsWith('127.')
   const proto = local ? 'http' : String(req.headers.get('x-forwarded-proto') || 'https').split(',')[0]?.trim() || 'https'
-  return `${proto}://${host}`
+  return phonePublicHref(`${proto}://${host}`)
 }
 
 export async function POST(req: NextRequest) {

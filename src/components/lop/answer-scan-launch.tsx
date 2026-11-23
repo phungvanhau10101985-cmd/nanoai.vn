@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Camera, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TeacherPhoneRemoteDialog } from '@/app/tao-giao-trinh/components/teacher-phone-remote-dialog'
 import { extractQuizFromSlide } from '@/app/tao-giao-trinh/components/quiz-popup-dialog'
 import { detectAppleSlideDevice } from '@/app/tao-giao-trinh/lib/apple-slide-shell'
-import { phoneRemoteLoginOrigin } from '@/app/tao-giao-trinh/lib/phone-remote-client'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
@@ -20,6 +20,16 @@ type ReadySource = {
 }
 
 type RoundReady = ReadySource & { id: string; phonePath: string; questionCount: number }
+
+type RoundResult = { round: RoundReady | null; error: '' | 'no_mcq' | 'schema' | 'load' }
+
+const roundInflight = new Map<string, Promise<RoundResult>>()
+
+function scanPhonePath(phonePath: string, questionIndex?: number): string {
+  if (questionIndex == null || questionIndex < 0) return phonePath
+  const joiner = phonePath.includes('?') ? '&' : '?'
+  return `${phonePath}${joiner}q=${questionIndex}`
+}
 
 export function scannerOpensOnThisDevice(): boolean {
   if (typeof window === 'undefined') return false
@@ -68,8 +78,8 @@ export function AnswerScanLaunch({
   tone?: 'light' | 'dark'
   onShowStudent?: (href: string) => void | Promise<void>
   className?: string
-  /** toolbar: hai nút trên máy giáo viên. board: một nút trên bảng đề học sinh. */
-  presentation?: 'toolbar' | 'board'
+  /** toolbar: hai nút. board: một nút. code: mã quét sẵn của một câu trên slide giáo viên. */
+  presentation?: 'toolbar' | 'board' | 'code'
   questionIndex?: number
 }) {
   const [locale, setLocale] = useState<WebLocale>('vi')
@@ -82,7 +92,13 @@ export function AnswerScanLaunch({
   const [error, setError] = useState('')
   const [qrOpen, setQrOpen] = useState(false)
   const [loginUrl, setLoginUrl] = useState<string | null>(null)
+  const [codeQr, setCodeQr] = useState('')
   const lookup = [examCode ?? '', worksheetId ?? '', curriculumId ?? ''].join('|')
+  const questionsRef = useRef(questions)
+  questionsRef.current = questions
+  const questionsKey = (questions ?? [])
+    .map((item) => `${item.correctIndex}|${item.prompt}|${item.choices.join('\u0001')}`)
+    .join('\u0002')
 
   useEffect(() => {
     setLocale(readWebLocaleFromDocumentCookie())
@@ -131,43 +147,73 @@ export function AnswerScanLaunch({
     if (!picked?.classId || !picked.sourceId) return null
     const sourceKind = picked.sourceKind === 'exam' ? 'exam' : picked.sourceKind === 'worksheet' ? 'worksheet' : null
     if (!sourceKind) return null
-    setBusy(true)
-    setError('')
-    try {
+    const inlineQuestions = questionsRef.current
+    const key = [
+      picked.classId,
+      sourceKind,
+      picked.sourceId,
+      questionsKey,
+    ].join('|')
+    const pending = roundInflight.get(key)
+    const job = pending ?? (async (): Promise<RoundResult> => {
       const res = await fetch(`/api/lop/${picked.classId}/answer-cards/rounds`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           sourceKind,
           sourceId: picked.sourceId,
-          questions: questions && questions.length > 0 ? questions : undefined,
+          questions: inlineQuestions && inlineQuestions.length > 0 ? inlineQuestions : undefined,
         }),
       })
       const data = await res.json().catch(() => null)
       const questionCount = Array.isArray(data?.questions) ? data.questions.length : Number(data?.questionCount)
       if (!res.ok || !data?.id || typeof data.phonePath !== 'string' || !Number.isInteger(questionCount) || questionCount < 1) {
-        setError(data?.error === 'no_mcq'
+        const error = data?.error === 'no_mcq' ? 'no_mcq' : data?.error === 'schema' ? 'schema' : 'load'
+        return { round: null, error }
+      }
+      return {
+        round: {
+          classId: picked.classId,
+          sourceKind,
+          sourceId: picked.sourceId,
+          id: String(data.id),
+          phonePath: String(data.phonePath),
+          questionCount,
+        },
+        error: '',
+      }
+    })()
+    if (!pending) roundInflight.set(key, job)
+    setBusy(true)
+    setError('')
+    try {
+      const result = await job
+      if (!result.round) {
+        roundInflight.delete(key)
+        setError(result.error === 'no_mcq'
           ? t.answerCardsNoMcq
-          : data?.error === 'schema'
+          : result.error === 'schema'
             ? t.answerCardsSchema
             : t.answerCardsLoadError)
         return null
       }
-      return {
-        classId: picked.classId,
-        sourceKind,
-        sourceId: picked.sourceId,
-        id: String(data.id),
-        phonePath: String(data.phonePath),
-        questionCount,
-      }
+      return result.round
     } catch {
+      roundInflight.delete(key)
       setError(t.answerCardsLoadError)
       return null
     } finally {
       setBusy(false)
     }
-  }, [classes.length, classId, source, questions, t.answerCardsLoadError, t.answerCardsNoMcq, t.answerCardsSchema])
+  }, [
+    classes.length,
+    classId,
+    questionsKey,
+    source,
+    t.answerCardsLoadError,
+    t.answerCardsNoMcq,
+    t.answerCardsSchema,
+  ])
 
   const showStudent = useCallback(async (round: RoundReady) => {
     const href = `/lop/${round.classId}/the-tra-loi/chieu/${round.id}`
@@ -212,6 +258,35 @@ export function AnswerScanLaunch({
     return round
   }, [ensureRound, t.answerCardsLoadError, t.answerCardsNoMcq])
 
+  useEffect(() => {
+    if (presentation !== 'code' || hidden || !source || questionIndex == null) return
+    let cancel = false
+    setCodeQr('')
+    void (async () => {
+      const round = await ensureRound()
+      if (cancel || !round || questionIndex < 0 || questionIndex >= round.questionCount) {
+        if (!cancel && round && questionIndex != null && questionIndex >= round.questionCount) {
+          setError(t.answerCardsNoMcq)
+        }
+        return
+      }
+      const url = await phoneOpenableUrl(scanPhonePath(round.phonePath, questionIndex))
+      if (!url.startsWith('https://')) {
+        if (!cancel) setError(t.answerCardsTunnelMissing)
+        return
+      }
+      const QRCode = (await import('qrcode')).default
+      const image = await QRCode.toDataURL(url, {
+        margin: 1,
+        width: 280,
+      })
+      if (!cancel) setCodeQr(image)
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [ensureRound, hidden, presentation, questionIndex, source, t.answerCardsNoMcq, t.answerCardsTunnelMissing])
+
   const openOnBoard = useCallback(async () => {
     const round = await connectQuestion(questionIndex)
     if (!round) return
@@ -219,8 +294,12 @@ export function AnswerScanLaunch({
       window.location.assign(round.phonePath)
       return
     }
-    const origin = await phoneRemoteLoginOrigin()
-    setLoginUrl(`${origin}${round.phonePath}`)
+    const url = await phoneOpenableUrl(scanPhonePath(round.phonePath, questionIndex))
+    if (!url.startsWith('https://')) {
+      setError(t.answerCardsTunnelMissing)
+      return
+    }
+    setLoginUrl(url)
     setQrOpen(true)
   }, [connectQuestion, questionIndex])
 
@@ -228,12 +307,47 @@ export function AnswerScanLaunch({
     const round = await ensureRound()
     if (!round) return
     await showStudent(round)
-    const origin = await phoneRemoteLoginOrigin()
-    setLoginUrl(`${origin}${round.phonePath}`)
+    const url = await phoneOpenableUrl(round.phonePath)
+    if (!url.startsWith('https://')) {
+      setError(t.answerCardsTunnelMissing)
+      return
+    }
+    setLoginUrl(url)
     setQrOpen(true)
   }, [ensureRound, showStudent])
 
   if (hidden || !source) return null
+
+  if (presentation === 'code') {
+    return (
+      <div className={className ? `${className} mt-3 flex flex-wrap items-center gap-3` : 'mt-3 flex flex-wrap items-center gap-3'}>
+        {classes.length > 1 ? (
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{t.answerScanPickClass}</span>
+            <select
+              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+              value={classId}
+              onChange={(event) => setClassId(event.target.value)}
+            >
+              {classes.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {codeQr ? (
+          // eslint-disable-next-line @next/next/no-img-element -- mã quét tạo trên máy giáo viên
+          <img src={codeQr} alt="" className="h-28 w-28 rounded-lg bg-white" />
+        ) : (
+          <div className="flex h-28 w-28 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-500">
+            {busy ? '…' : ''}
+          </div>
+        )}
+        <p className="max-w-xs text-sm text-slate-600">{t.answerScanDialogLead}</p>
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      </div>
+    )
+  }
 
   const dark = tone === 'dark'
   const buttonTone = dark

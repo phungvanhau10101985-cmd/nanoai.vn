@@ -4,11 +4,14 @@ import {
   classExistsWithJoinCodePg,
   fetchClassAtSchoolByIdPg,
   fetchClassAtSchoolByNamePg,
+  fillClassGradeLevelIfEmptyPg,
   insertClassMinePg,
   insertClassSubjectPg,
   schoolExistsByIdPg,
   upsertTeacherSchoolSettingsMinePg,
 } from '@/lib/db/classes-pg'
+import { syncTeacherSubjectCurriculaIntoClass } from '@/lib/db/class-teacher-curricula-pg'
+import { isSelectableGradeLevelId } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { fetchTeacherIdentity } from '@/lib/db/teacher-identity-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { getServerDictionary } from '@/lib/i18n/server'
@@ -47,6 +50,9 @@ export async function POST(req: NextRequest) {
   const displayName = identity.publicName
 
   if (!schoolId) return NextResponse.json({ error: 'Vui lòng chọn trường.' }, { status: 400 })
+  if (!isSelectableGradeLevelId(gradeLevelId)) {
+    return NextResponse.json({ error: t.classes.createClassGradeRequired }, { status: 400 })
+  }
   if (!className) return NextResponse.json({ error: 'Vui lòng chọn hoặc nhập tên lớp.' }, { status: 400 })
   const subject = await resolveStoredTeachingSubject(subjectId)
   if (!subject) {
@@ -60,7 +66,10 @@ export async function POST(req: NextRequest) {
   }
 
   const byId = requestedClassId ? await fetchClassAtSchoolByIdPg(schoolId, requestedClassId) : null
-  const existing = byId ?? (await fetchClassAtSchoolByNamePg(schoolId, className))
+  if (byId?.grade_level_id && byId.grade_level_id !== gradeLevelId) {
+    return NextResponse.json({ error: t.classes.createClassGradeMismatch }, { status: 409 })
+  }
+  const existing = byId ?? (await fetchClassAtSchoolByNamePg(schoolId, className, undefined, gradeLevelId))
 
   let classId = ''
   let classJoin = ''
@@ -125,6 +134,18 @@ export async function POST(req: NextRequest) {
   })
   if (subjectResult === null) {
     return NextResponse.json({ error: 'Không gắn được môn vào lớp.' }, { status: 500 })
+  }
+
+  if (!createdClass) await fillClassGradeLevelIfEmptyPg(classId, gradeLevelId)
+  try {
+    await syncTeacherSubjectCurriculaIntoClass({
+      classId,
+      teacherId: user.id,
+      subjectId,
+      gradeLevelId,
+    })
+  } catch (e) {
+    console.error('[classes/enter] sync curricula', e)
   }
 
   const status = createdClass ? 'created' : subjectResult === 'inserted' ? 'attached' : 'already'

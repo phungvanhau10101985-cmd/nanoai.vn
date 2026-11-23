@@ -29,11 +29,11 @@ function isSameOriginUrl(url: string): boolean {
   }
 }
 
-/** URL fetch same-origin (proxy server khi ảnh nằm trên CDN khác). */
+/** URL fetch same-origin (proxy server khi ảnh nằm trên CDN khác). `dl=1` cho phép file CDN của mình lớn hơn trần 2.5MB của ảnh shop. */
 export function resolveImageDownloadFetchUrl(imageUrl: string): string {
   const rewritten = rewriteLegacyBunnyCdnUrl(imageUrl)
   if (!rewritten || isBlobOrDataUrl(rewritten) || isSameOriginUrl(rewritten)) return rewritten
-  return `/api/fetch-image?url=${encodeURIComponent(rewritten)}`
+  return `/api/fetch-image?url=${encodeURIComponent(rewritten)}&dl=1`
 }
 
 function triggerBlobDownload(blob: Blob, filename: string): void {

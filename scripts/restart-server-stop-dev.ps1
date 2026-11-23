@@ -5,6 +5,7 @@
   Closes every LISTEN port owned by this project's dev server, worker, esbuild,
   or a leftover Thu-do ngrok window, including a second Next that moved off PORT.
   The caller starts the project port again and does not start ngrok.
+  Cloudflare quick tunnel is started by start-cloudflared-dev.ps1 and is left running.
 
   Usage:
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-server-stop-dev.ps1

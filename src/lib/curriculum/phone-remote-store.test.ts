@@ -8,6 +8,8 @@ import {
   phoneRemoteBrowserOrigin,
   phoneRemoteFacebookShareUrl,
   phoneRemoteMessengerAppShareUrl,
+  cloudflareOriginFromMetrics,
+  phonePublicHref,
   phoneRemoteQrPayload,
   phoneRemoteZaloShareUrl,
 } from './phone-remote-public-origin'
@@ -55,6 +57,27 @@ describe('phone remote public origin', () => {
     assert.equal(
       phoneRemoteBrowserOrigin({ host: '192.168.1.20:3000', forwardedProto: 'http' }),
       'http://192.168.1.20:3000'
+    )
+    assert.equal(
+      phoneRemoteBrowserOrigin({
+        host: 'adjusted-politics-phentermine-phi.trycloudflare.com:3000',
+        forwardedProto: 'http',
+      }),
+      'https://adjusted-politics-phentermine-phi.trycloudflare.com'
+    )
+  })
+
+  it('reads the Cloudflare tunnel hostname from local metrics', () => {
+    const text =
+      'cloudflared_tunnel_user_hostnames_counts{userHostname="https://benefit-administrative-artificial-fraction.trycloudflare.com"} 1\n'
+    assert.equal(
+      cloudflareOriginFromMetrics(text),
+      'https://benefit-administrative-artificial-fraction.trycloudflare.com'
+    )
+    assert.equal(cloudflareOriginFromMetrics('no hostname'), null)
+    assert.equal(
+      phonePublicHref('https://adjusted-politics-phentermine-phi.trycloudflare.com:3000/lam-bai/CZR9K8'),
+      'https://adjusted-politics-phentermine-phi.trycloudflare.com/lam-bai/CZR9K8'
     )
   })
 

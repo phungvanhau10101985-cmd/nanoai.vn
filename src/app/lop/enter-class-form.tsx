@@ -27,12 +27,28 @@ import { SchoolNameOptions } from '@/components/school/school-name-options'
 import ClassSubjectField from './class-subject-field'
 import { subjectIdFromFreeLabel } from '@/lib/lop/class-subject'
 import { parseBillingDay, parseDueDays, parseTuitionAmount, readTutoringTuitionFields } from '@/lib/lop/class-tuition'
+import { storedClassName, upperClassNameLetters } from '@/lib/lop/stored-class-name'
+import { GradeLevelOptions } from '@/app/tao-giao-trinh/lib/grade-level-options'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { cn } from '@/lib/utils'
 import { createClass } from './actions'
 import { TutoringTuitionFields, type TutoringTuitionFieldValues } from './tutoring-tuition-fields'
 
-type SchoolClassOption = { id: string; name: string; choice: 'original' | 'edited' | null }
+type SchoolClassOption = {
+  id: string
+  name: string
+  choice: 'original' | 'edited' | null
+  gradeLevelId: string
+}
+
+function mapSchoolClass(item: { id?: string; name?: string; choice?: string; gradeLevelId?: string }): SchoolClassOption {
+  return {
+    id: String(item?.id ?? ''),
+    name: String(item?.name ?? '').trim(),
+    choice: item?.choice === 'original' || item?.choice === 'edited' ? item.choice : null,
+    gradeLevelId: String(item?.gradeLevelId ?? '').trim(),
+  }
+}
 
 function foldClassKey(raw: string) {
   return raw.toLowerCase().replace(/\s+/g, '')
@@ -43,10 +59,11 @@ function classNameKey(raw: string) {
   return raw.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-function findSchoolClass(name: string, classes: SchoolClassOption[]) {
+function findSchoolClass(name: string, gradeLevelId: string, classes: SchoolClassOption[]) {
   const key = classNameKey(name)
-  if (!key) return null
-  return classes.find((item) => classNameKey(item.name) === key) ?? null
+  const grade = gradeLevelId.trim()
+  if (!key || !grade) return null
+  return classes.find((item) => item.gradeLevelId === grade && classNameKey(item.name) === key) ?? null
 }
 
 type EnterResult = {
@@ -71,6 +88,7 @@ export default function EnterClassForm({
   const [classDropdownOpen, setClassDropdownOpen] = useState(false)
   const [renamingClass, setRenamingClass] = useState(false)
   const classPanelRef = useRef<HTMLDivElement>(null)
+  const classComposingRef = useRef(false)
   const [subjectId, setSubjectId] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<EnterResult | null>(null)
@@ -79,6 +97,7 @@ export default function EnterClassForm({
   const [joinQrDataUrl, setJoinQrDataUrl] = useState<string | null>(null)
   const [joinQrFailed, setJoinQrFailed] = useState(false)
   const [schoolSearch, setSchoolSearch] = useState('')
+  const [schoolComposing, setSchoolComposing] = useState(false)
   const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false)
   const {
     items: schoolSearchItems,
@@ -86,13 +105,14 @@ export default function EnterClassForm({
     loading: schoolSearchLoading,
     suggesting: schoolSuggestLoading,
     reload: reloadSchools,
-  } = useSchoolSearch(schoolSearch)
+  } = useSchoolSearch(schoolSearch, schoolComposing)
   const schoolPanelRef = useRef<HTMLDivElement>(null)
   const [selectedSchoolId, setSelectedSchoolId] = useState('')
   const [selectedSchoolName, setSelectedSchoolName] = useState('')
   const [addingSchool, setAddingSchool] = useState(false)
   const [schoolClasses, setSchoolClasses] = useState<SchoolClassOption[]>([])
   const [classesLoading, setClassesLoading] = useState(false)
+  const [gradeLevelId, setGradeLevelId] = useState('')
   const [classKind, setClassKind] = useState<'school' | 'tutoring'>('school')
   const [tutoringName, setTutoringName] = useState('')
   const [tuitionFields, setTuitionFields] = useState<TutoringTuitionFieldValues>({
@@ -169,6 +189,10 @@ export default function EnterClassForm({
     void (async () => {
       const url = await phoneOpenableUrl(`/lop/chon-vao?code=${encodeURIComponent(code)}`)
       if (cancelled) return
+      if (!url.startsWith('https://')) {
+        setJoinQrFailed(true)
+        return
+      }
       setJoinQrUrl(url)
       try {
         const QR = await import('qrcode')
@@ -204,11 +228,7 @@ export default function EnterClassForm({
         const items = Array.isArray(data?.items) ? data.items : []
         setSchoolClasses(
           items
-            .map((item: { id?: string; name?: string; choice?: string }) => ({
-              id: String(item?.id ?? ''),
-              name: String(item?.name ?? '').trim(),
-              choice: item?.choice === 'original' || item?.choice === 'edited' ? item.choice : null,
-            }))
+            .map((item: { id?: string; name?: string; choice?: string; gradeLevelId?: string }) => mapSchoolClass(item))
             .filter((item: SchoolClassOption) => item.id && item.name)
         )
       })
@@ -226,13 +246,17 @@ export default function EnterClassForm({
   const classHits = useMemo(() => {
     const needle = foldClassKey(classSearch)
     if (needle.length < 2) return []
+    const grade = gradeLevelId.trim()
+    if (!grade) return []
     const matchedIds = new Set(
-      schoolClasses.filter((item) => foldClassKey(item.name).includes(needle)).map((item) => item.id)
+      schoolClasses
+        .filter((item) => item.gradeLevelId === grade && foldClassKey(item.name).includes(needle))
+        .map((item) => item.id)
     )
     return schoolClasses
       .filter((item) => matchedIds.has(item.id))
       .map((item): SchoolSearchHit => ({ id: item.id, name: item.name, choice: item.choice }))
-  }, [classSearch, schoolClasses])
+  }, [classSearch, gradeLevelId, schoolClasses])
 
   const chooseSavedSchool = useCallback(
     async (item: SchoolSearchHit) => {
@@ -329,11 +353,7 @@ export default function EnterClassForm({
     const items = Array.isArray(data?.items) ? data.items : []
     setSchoolClasses(
       items
-        .map((item: { id?: string; name?: string; choice?: string }) => ({
-          id: String(item?.id ?? ''),
-          name: String(item?.name ?? '').trim(),
-          choice: item?.choice === 'original' || item?.choice === 'edited' ? item.choice : null,
-        }))
+        .map((item: { id?: string; name?: string; choice?: string; gradeLevelId?: string }) => mapSchoolClass(item))
         .filter((item: SchoolClassOption) => item.id && item.name)
     )
   }
@@ -367,7 +387,7 @@ export default function EnterClassForm({
   }
 
   function typeOwnClass(rawName: string) {
-    const raw = rawName.trim()
+    const raw = storedClassName(rawName)
     if (raw.length < 2) return
     const existing = schoolClasses.find((item) => foldClassKey(item.name) === foldClassKey(raw))
     if (existing) {
@@ -411,8 +431,12 @@ export default function EnterClassForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (loading) return
+    if (!gradeLevelId.trim()) {
+      toast({ variant: 'destructive', description: t.createClassGradeRequired })
+      return
+    }
     if (classKind === 'tutoring') {
-      const name = tutoringName.trim().replace(/\s+/g, ' ')
+      const name = storedClassName(tutoringName)
       if (!name) return
       const tuition = readTutoringTuitionFields(tuitionFields)
       if (!subjectId.trim()) {
@@ -438,6 +462,7 @@ export default function EnterClassForm({
         const formData = new FormData()
         formData.set('name', name)
         formData.set('classKind', 'tutoring')
+        formData.set('gradeLevelId', gradeLevelId.trim())
         formData.set('subjectId', subjectId.trim())
         formData.set('tuitionMonthlyVnd', String(tuition.monthlyVnd))
         formData.set('tuitionDueAfterDays', String(tuition.dueAfterDays))
@@ -484,12 +509,12 @@ export default function EnterClassForm({
       toast({ variant: 'destructive', description: t.createClassSchoolRequired })
       return
     }
-    const typedName = (className || classSearch).trim().replace(/\s+/g, ' ')
+    const typedName = storedClassName(className || classSearch)
     if (!typedName) {
       toast({ variant: 'destructive', description: t.enterClassPickClassPlaceholder })
       return
     }
-    const existingAtSchool = findSchoolClass(typedName, schoolClasses)
+    const existingAtSchool = findSchoolClass(typedName, gradeLevelId, schoolClasses)
     const classIdToSend =
       existingAtSchool?.id ||
       (pickedClassId && classNameKey(className) === classNameKey(typedName) ? pickedClassId : '')
@@ -506,6 +531,7 @@ export default function EnterClassForm({
           className: existingAtSchool?.name || typedName,
           classId: classIdToSend,
           schoolId: selectedSchoolId,
+          gradeLevelId: gradeLevelId.trim(),
           subjectId,
         }),
       })
@@ -650,7 +676,7 @@ export default function EnterClassForm({
       (tutoringPack.phase === 'none' && tutoringPack.classCount > 0))
   const typedClassName = (className || classSearch).trim()
   const classAlreadyAtSchool = Boolean(
-    findSchoolClass(typedClassName, schoolClasses) ||
+    findSchoolClass(typedClassName, gradeLevelId, schoolClasses) ||
       (pickedClassId && classNameKey(className) === classNameKey(typedClassName))
   )
 
@@ -706,6 +732,8 @@ export default function EnterClassForm({
                   setSelectedSchoolName('')
                 }
               }}
+              onCompositionStart={() => setSchoolComposing(true)}
+              onCompositionEnd={() => setSchoolComposing(false)}
               onFocus={() => setSchoolDropdownOpen(true)}
               onBlur={() => {
                 window.setTimeout(() => {
@@ -718,7 +746,9 @@ export default function EnterClassForm({
               className="w-full"
               autoComplete="off"
             />
-            {schoolDropdownOpen && schoolSearch.trim().length >= 2 && (
+            {schoolDropdownOpen &&
+            schoolSearch.trim().length >= 2 &&
+            (schoolSearchLoading || schoolSuggestLoading || schoolSearchItems.length > 0 || schoolSuggestions.length > 0) && (
               <div
                 ref={schoolPanelRef}
                 className="absolute left-0 right-0 top-full z-20 mt-1 max-h-80 overflow-y-auto rounded-md border bg-background p-1 shadow-md"
@@ -763,6 +793,26 @@ export default function EnterClassForm({
         </div>
 
         <div className="space-y-2">
+          <label htmlFor="enter-grade" className="block text-sm font-medium text-foreground">
+            {t.createClassGradeLabel} <span className="text-destructive">*</span>
+          </label>
+          <select
+            id="enter-grade"
+            value={gradeLevelId}
+            disabled={loading || !selectedSchoolId}
+            onChange={(e) => {
+              setGradeLevelId(e.target.value)
+              setClassName('')
+              setPickedClassId('')
+            }}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">{t.createClassGradePlaceholder}</option>
+            <GradeLevelOptions locale={locale} currentId={gradeLevelId} />
+          </select>
+        </div>
+
+        <div className="space-y-2">
           <label htmlFor="enter-class" className="block text-sm font-medium text-foreground">
             {t.enterClassPickClass}
           </label>
@@ -770,11 +820,25 @@ export default function EnterClassForm({
             <Input
               id="enter-class"
               value={classSearch}
+              onCompositionStart={() => {
+                classComposingRef.current = true
+              }}
+              onCompositionEnd={(e) => {
+                classComposingRef.current = false
+                const next = upperClassNameLetters(e.currentTarget.value)
+                setClassSearch(next)
+                if (className && storedClassName(next) !== storedClassName(className)) {
+                  setClassName('')
+                  setPickedClassId('')
+                }
+              }}
               onChange={(e) => {
-                const next = e.target.value
+                const native = e.nativeEvent as InputEvent
+                const composing = classComposingRef.current || native.isComposing
+                const next = composing ? e.target.value : upperClassNameLetters(e.target.value)
                 setClassSearch(next)
                 setClassDropdownOpen(true)
-                if (className && next.trim() !== className.trim()) {
+                if (className && storedClassName(next) !== storedClassName(className)) {
                   setClassName('')
                   setPickedClassId('')
                 }
@@ -787,7 +851,7 @@ export default function EnterClassForm({
                 }, 180)
               }}
               placeholder={t.enterClassSearchPlaceholder}
-              disabled={loading || !selectedSchoolId}
+              disabled={loading || !selectedSchoolId || !gradeLevelId}
               className="w-full"
               autoComplete="off"
             />
@@ -875,15 +939,41 @@ export default function EnterClassForm({
               </p>
             ) : null}
             <div className="space-y-2">
+              <label htmlFor="tutoring-grade" className="block text-sm font-medium text-foreground">
+                {t.createClassGradeLabel} <span className="text-destructive">*</span>
+              </label>
+              <select
+                id="tutoring-grade"
+                value={gradeLevelId}
+                disabled={loading || tutoringNeedsPlan}
+                onChange={(e) => setGradeLevelId(e.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">{t.createClassGradePlaceholder}</option>
+                <GradeLevelOptions locale={locale} currentId={gradeLevelId} />
+              </select>
+            </div>
+            <div className="space-y-2">
               <label htmlFor="tutoring-class-name" className="block text-sm font-medium text-foreground">
                 {t.className}
               </label>
               <Input
                 id="tutoring-class-name"
                 value={tutoringName}
-                onChange={(e) => setTutoringName(e.target.value)}
+                onCompositionStart={() => {
+                  classComposingRef.current = true
+                }}
+                onCompositionEnd={(e) => {
+                  classComposingRef.current = false
+                  setTutoringName(upperClassNameLetters(e.currentTarget.value))
+                }}
+                onChange={(e) => {
+                  const native = e.nativeEvent as InputEvent
+                  const composing = classComposingRef.current || native.isComposing
+                  setTutoringName(composing ? e.target.value : upperClassNameLetters(e.target.value))
+                }}
                 placeholder={t.enterClassTypeOwnPlaceholder}
-                disabled={loading || tutoringNeedsPlan}
+                disabled={loading || tutoringNeedsPlan || !gradeLevelId}
                 className="w-full"
               />
             </div>
@@ -916,6 +1006,7 @@ export default function EnterClassForm({
           type="submit"
           disabled={
             loading ||
+            !gradeLevelId ||
             (classKind === 'school'
               ? !selectedSchoolId
               : tutoringNeedsPlan || !tutoringName.trim() || !subjectId.trim() || !readTutoringTuitionFields(tuitionFields))

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isPlatformImageCdnUrl } from '@/lib/bunny-cdn-url'
 import { fetchImageWith1688Bypass, sniffImageContentType } from '@/lib/fetch-image-1688'
 import { clampShopImageRetryEdge } from '@/lib/partner-website/shop/inventory-shop-detail'
 
@@ -65,11 +66,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'URL không hợp lệ' }, { status: 400 })
   }
   const edge = clampShopImageRetryEdge(request.nextUrl.searchParams.get('w'))
+  // Tải kết quả AI (PNG 2K/GPT thường >2.5MB). Shop không gửi `dl=1`. Trần 2.5MB giữ cho ảnh thẻ.
+  const downloadOriginal = request.nextUrl.searchParams.get('dl') === '1' && isPlatformImageCdnUrl(url)
 
   try {
     const buf = await fetchImageWith1688Bypass(url, {
-      maxBytes: edge ? DISPLAY_RETRY_INPUT_MAX_BYTES : STOREFRONT_IMAGE_MAX_BYTES,
-      timeoutMs: STOREFRONT_IMAGE_TIMEOUT_MS,
+      maxBytes: edge || downloadOriginal ? DISPLAY_RETRY_INPUT_MAX_BYTES : STOREFRONT_IMAGE_MAX_BYTES,
+      timeoutMs: downloadOriginal ? 60_000 : STOREFRONT_IMAGE_TIMEOUT_MS,
     })
     if (!edge) {
       const ext = url.match(/\.(jpe?g|png|gif|webp)/i)?.[1]?.toLowerCase() || 'png'

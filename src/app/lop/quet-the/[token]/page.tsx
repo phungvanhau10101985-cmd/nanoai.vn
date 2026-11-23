@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { AnswerCardSchemaError, loadAnswerCardPhoneViewPg } from '@/lib/db/answer-card-pg'
+import { AnswerCardSchemaError, focusAnswerCardByPhoneTokenPg, loadAnswerCardPhoneViewPg } from '@/lib/db/answer-card-pg'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { isAnswerCardPhoneToken } from '@/lib/lop/answer-card'
@@ -19,13 +19,20 @@ export async function generateMetadata(): Promise<ReturnType<typeof buildMetadat
 
 export default async function QuetThePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>
+  searchParams: Promise<{ q?: string }>
 }) {
   const { token } = await params
+  const { q } = await searchParams
   if (!isAnswerCardPhoneToken(token)) notFound()
-  const { t } = getServerDictionary()
+  const { t } = await getServerDictionary()
+  const questionIndex = Number(q)
   try {
+    if (q != null && q !== '' && Number.isInteger(questionIndex) && questionIndex >= 0) {
+      await focusAnswerCardByPhoneTokenPg(token, questionIndex)
+    }
     const view = await loadAnswerCardPhoneViewPg(token)
     if (!view) notFound()
     return <QuetTheClient token={token} initial={view} t={t.classes} />

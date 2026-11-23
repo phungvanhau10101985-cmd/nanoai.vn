@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import {
   ChevronRight,
@@ -38,6 +39,7 @@ import { isStoredGradeLevelId } from '../tao-giao-trinh/lib/curriculum-subjects'
 import { GradeLevelOptions } from '../tao-giao-trinh/lib/grade-level-options'
 import ClassSubjectField from '../lop/class-subject-field'
 import { isClassSubjectId, subjectIdFromFreeLabel } from '@/lib/lop/class-subject'
+import { pickClassIdForExamForm, resolveExamClassPreset } from '@/lib/lop/create-from-class-href'
 import { listCurriculaForExam, listExamTeacherReview } from '../tao-giao-trinh/actions'
 import { latexToReadable } from '../tao-giao-trinh/lib/latex-to-readable'
 import { exportWorksheetToPdf, exportWorksheetToWord } from '../tao-giao-trinh/lib/worksheet-export'
@@ -361,7 +363,13 @@ function CreatedExamsListRows({
 export default function TaoBaiThiClientPage({
   variant = 'exam',
   initialWebLocale = DEFAULT_WEB_LOCALE,
-}: { variant?: 'exam' | 'homework'; initialWebLocale?: WebLocale } = {}) {
+  presetFromClass = null,
+}: {
+  variant?: 'exam' | 'homework'
+  initialWebLocale?: WebLocale
+  /** Lớp đang mở khi bấm tạo bài từ trong lớp. */
+  presetFromClass?: { classId?: string; subjectId?: string; gradeLevelId?: string } | null
+} = {}) {
   const isHomework = variant === 'homework'
   const formDefaultsPrimary = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK : EXAM_FORM_DEFAULTS_KEY_EXAM
   const formDefaultsLegacy = isHomework ? EXAM_FORM_DEFAULTS_KEY_HOMEWORK_LEGACY : EXAM_FORM_DEFAULTS_KEY_EXAM_LEGACY
@@ -437,19 +445,17 @@ export default function TaoBaiThiClientPage({
     classKind: 'school' | 'tutoring'
   }>>([])
   const [selectedClassId, setSelectedClassId] = useState('')
-  /** Từ nút Tạo đề thi trong lớp: ?classId=&subject= */
-  const classExamPresetRef = useRef<{ classId: string; subjectId: string } | null>(null)
-  const classExamPresetSeenRef = useRef(false)
-  const classExamPresetAppliedRef = useRef(false)
-  if (typeof window !== 'undefined' && !classExamPresetSeenRef.current) {
-    const params = new URLSearchParams(window.location.search)
-    const classId = (params.get('classId') ?? '').trim()
-    classExamPresetRef.current = classId
-      ? { classId, subjectId: (params.get('subject') ?? '').trim() }
-      : null
-    classExamPresetSeenRef.current = true
-    if (!classExamPresetRef.current) classExamPresetAppliedRef.current = true
-  }
+  const searchParams = useSearchParams()
+  /** Đọc lại mỗi lần render. Trang tạo bài giữ state cũ khi chỉ đổi ?classId=. */
+  const urlClassPreset = resolveExamClassPreset({
+    searchParams,
+    windowSearch: typeof window === 'undefined' ? null : window.location.search,
+    fromProps: presetFromClass,
+  })
+  const urlClassPresetRef = useRef(urlClassPreset)
+  urlClassPresetRef.current = urlClassPreset
+  const urlClassId = urlClassPreset?.classId ?? ''
+  const appliedUrlClassIdRef = useRef('')
   const [newClassName, setNewClassName] = useState('')
   const [newClassSubject, setNewClassSubject] = useState('')
   const [newClassTeacher, setNewClassTeacher] = useState('')
@@ -542,34 +548,44 @@ export default function TaoBaiThiClientPage({
 
   useLayoutEffect(() => {
     const d = readExamFormDefaults(formDefaultsPrimary, formDefaultsLegacy)
-    if (!d) {
-      examFormHydratedRef.current = true
-      return
-    }
-    if (d.examType && EXAM_TYPE_ID_SET.has(d.examType)) setExamType(d.examType)
-    if (typeof d.subjectId === 'string' && d.subjectId && d.subjectId !== 'khac' && d.subjectId.length <= 40) {
-      setSubjectId(d.subjectId)
-    }
-    if (d.gradeLevelId && isStoredGradeLevelId(d.gradeLevelId)) {
-      setGradeLevelId(d.gradeLevelId)
-    }
-    if (typeof d.title === 'string') setTitle(d.title)
-    if (typeof d.schoolSearch === 'string') setSchoolSearch(d.schoolSearch)
-    if (typeof d.selectedSchoolId === 'string') setSelectedSchoolId(d.selectedSchoolId)
-    if (typeof d.selectedSchoolName === 'string') setSelectedSchoolName(d.selectedSchoolName)
-    const cid = typeof d.selectedClassId === 'string' ? d.selectedClassId : ''
-    setSelectedClassId(cid)
-    if (typeof d.newClassSubject === 'string') {
-      const raw = d.newClassSubject.trim()
-      if (raw && raw !== 'khac' && (isClassSubjectId(raw) || !raw.includes(' '))) setNewClassSubject(raw)
-      else {
-        const mapped = subjectIdFromFreeLabel(raw)
-        setNewClassSubject(mapped === 'khac' ? '' : mapped)
+    const fromClass = urlClassPresetRef.current
+    if (!examFormHydratedRef.current) {
+      if (d?.examType && EXAM_TYPE_ID_SET.has(d.examType)) setExamType(d.examType)
+      if (d && typeof d.title === 'string') setTitle(d.title)
+      if (!fromClass && d) {
+        if (typeof d.subjectId === 'string' && d.subjectId && d.subjectId !== 'khac' && d.subjectId.length <= 40) {
+          setSubjectId(d.subjectId)
+        }
+        if (d.gradeLevelId && isStoredGradeLevelId(d.gradeLevelId)) {
+          setGradeLevelId(d.gradeLevelId)
+        }
+        if (typeof d.schoolSearch === 'string') setSchoolSearch(d.schoolSearch)
+        if (typeof d.selectedSchoolId === 'string') setSelectedSchoolId(d.selectedSchoolId)
+        if (typeof d.selectedSchoolName === 'string') setSelectedSchoolName(d.selectedSchoolName)
+        const cid = typeof d.selectedClassId === 'string' ? d.selectedClassId : ''
+        setSelectedClassId(cid)
       }
+      if (d && typeof d.newClassSubject === 'string') {
+        const raw = d.newClassSubject.trim()
+        if (raw && raw !== 'khac' && (isClassSubjectId(raw) || !raw.includes(' '))) setNewClassSubject(raw)
+        else {
+          const mapped = subjectIdFromFreeLabel(raw)
+          setNewClassSubject(mapped === 'khac' ? '' : mapped)
+        }
+      }
+      if (d && typeof d.newClassTeacher === 'string') setNewClassTeacher(d.newClassTeacher)
+      examFormHydratedRef.current = true
     }
-    if (typeof d.newClassTeacher === 'string') setNewClassTeacher(d.newClassTeacher)
-    examFormHydratedRef.current = true
-  }, [formDefaultsPrimary, formDefaultsLegacy, isHomework])
+    if (fromClass) {
+      if (fromClass.subjectId && fromClass.subjectId !== 'khac' && fromClass.subjectId.length <= 40) {
+        setSubjectId(fromClass.subjectId)
+      }
+      if (fromClass.gradeLevelId && isStoredGradeLevelId(fromClass.gradeLevelId)) {
+        setGradeLevelId(fromClass.gradeLevelId)
+      }
+      setSelectedClassId(fromClass.classId)
+    }
+  }, [formDefaultsPrimary, formDefaultsLegacy, isHomework, urlClassId])
 
   useEffect(() => {
     if (!examFormHydratedRef.current) return
@@ -637,11 +653,13 @@ export default function TaoBaiThiClientPage({
         classKind: c.classKind === 'tutoring' ? 'tutoring' : 'school',
       }))
       setTeacherClasses(classes)
-      setSelectedClassId((prev) => {
-        const p = String(prev ?? '').trim()
-        if (p && classes.some((row) => row.id === p)) return p
-        return classes.length ? String(classes[0].id) : ''
-      })
+      setSelectedClassId((prev) =>
+        pickClassIdForExamForm({
+          urlClassId: urlClassPresetRef.current?.classId ?? '',
+          previousClassId: prev,
+          classIds: classes.map((row) => row.id),
+        })
+      )
       const ds = data?.defaultSchool
       if (ds) {
         setDefaultsForNewClass({
@@ -1126,47 +1144,45 @@ export default function TaoBaiThiClientPage({
   const classOptions = teacherClasses
   const selectedExamClass = teacherClasses.find((row) => row.id === selectedClassId) ?? null
   useEffect(() => {
-    if (classExamPresetAppliedRef.current || classesLoading) return
-    const preset = classExamPresetRef.current
-    if (!preset) {
-      classExamPresetAppliedRef.current = true
-      return
-    }
-    const row = teacherClasses.find((c) => c.id === preset.classId)
-    if (!row) {
-      classExamPresetAppliedRef.current = true
-      return
-    }
-    const schoolName = row.schoolName.trim()
-    const schoolId = row.schoolId.trim()
-    if (schoolId) {
-      setSelectedSchoolId(schoolId)
-      setSelectedSchoolName(schoolName)
-      setSchoolSearch(schoolName)
-    } else if (schoolName) {
-      setSchoolSearch(schoolName)
-    }
-    if (row.gradeLevelId && isStoredGradeLevelId(row.gradeLevelId)) {
-      setGradeLevelId(row.gradeLevelId)
-    }
-    const subjectFromClass = preset.subjectId
-    if (subjectFromClass && subjectFromClass !== 'khac' && subjectFromClass.length <= 40) {
-      setSubjectId(subjectFromClass)
-    }
-    setSelectedClassId(row.id)
-    classExamPresetAppliedRef.current = true
-  }, [classesLoading, teacherClasses])
-  useEffect(() => {
     if (classesLoading) return
-    if (classExamPresetRef.current && !classExamPresetAppliedRef.current) return
-    if (classOptions.length === 0) {
+    const preset = urlClassPresetRef.current
+    if (!preset?.classId) appliedUrlClassIdRef.current = ''
+    if (preset?.classId) {
+      const presetId = preset.classId
+      if (appliedUrlClassIdRef.current === presetId) return
+      const row = teacherClasses.find((c) => c.id === presetId)
+      if (!row) return
+      appliedUrlClassIdRef.current = presetId
+      const schoolName = row.schoolName.trim()
+      const schoolId = row.schoolId.trim()
+      if (row.classKind === 'tutoring' || !schoolId) {
+        setSelectedSchoolId('')
+        setSelectedSchoolName('')
+        setSchoolSearch('')
+      } else {
+        setSelectedSchoolId(schoolId)
+        setSelectedSchoolName(schoolName)
+        setSchoolSearch(schoolName)
+      }
+      if (row.gradeLevelId && isStoredGradeLevelId(row.gradeLevelId)) {
+        setGradeLevelId(row.gradeLevelId)
+      } else if (preset.gradeLevelId && isStoredGradeLevelId(preset.gradeLevelId)) {
+        setGradeLevelId(preset.gradeLevelId)
+      }
+      if (preset.subjectId && preset.subjectId !== 'khac' && preset.subjectId.length <= 40) {
+        setSubjectId(preset.subjectId)
+      }
+      setSelectedClassId(row.id)
+      return
+    }
+    if (teacherClasses.length === 0) {
       setSelectedClassId('')
       return
     }
-    if (!classOptions.some((c) => c.id === selectedClassId)) {
-      setSelectedClassId(classOptions[0].id)
+    if (!teacherClasses.some((c) => c.id === selectedClassId)) {
+      setSelectedClassId(teacherClasses[0].id)
     }
-  }, [classOptions, selectedClassId, classesLoading])
+  }, [classesLoading, teacherClasses, urlClassId])
   const handleSubmit = async () => {
     if (!subjectId.trim()) {
       toast({ title: tx.subject, description: dict.classes.enterClassSubjectRequired, variant: 'destructive' })
@@ -1745,13 +1761,20 @@ export default function TaoBaiThiClientPage({
                             : tx.noClassClickNew}
                         </option>
                       ) : (
-                        classOptions.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.classKind === 'tutoring'
+                        classOptions.map((item) => {
+                          const school = item.schoolName.trim()
+                          const label =
+                            item.classKind === 'tutoring'
                               ? `${item.name} · ${dict.classes.classKindTutoringBadge}`
-                              : item.name}
-                          </option>
-                        ))
+                              : school
+                                ? `${item.name} · ${school}`
+                                : item.name
+                          return (
+                            <option key={item.id} value={item.id}>
+                              {label}
+                            </option>
+                          )
+                        })
                       )}
                     </select>
                     <Button type="button" variant="outline" asChild>

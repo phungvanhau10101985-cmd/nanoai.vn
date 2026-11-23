@@ -53,6 +53,11 @@ import {
 } from '@/lib/homework-help/homework-help-fingerprint'
 import { parseHomeworkSolution, type HomeworkGuide, type HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
 import {
+  exerciseGuideGaps,
+  parseExerciseGuideFill,
+  type ExerciseGuideParts,
+} from '@/lib/homework-help/homework-help-from-exercise'
+import {
   HOMEWORK_HELP_DRAFT_MAX_TOKENS,
   HOMEWORK_HELP_DRAFT_MODEL,
   HOMEWORK_HELP_FALLBACK_MAX_TOKENS,
@@ -1373,4 +1378,62 @@ Rules:
   const stored = await fetchHomeworkSolution(fingerprint, input.locale)
   if (stored && stored !== solution) return { solution: stored, cached: true }
   return { solution, cached: false }
+}
+
+/** Chỉ điền ô còn trống. Hướng tư duy và đáp án đã có thì không viết lại. */
+export async function fillHomeworkExerciseGaps(input: {
+  userId: string
+  locale: WebLocale
+  statement: string
+  known: ExerciseGuideParts
+  solution: string
+}): Promise<ExerciseGuideParts | null> {
+  const gaps = exerciseGuideGaps(input.known)
+  if (gaps.length === 0) return input.known
+  const knownThinking = input.known.thinking.length ? input.known.thinking.join('\n') : '(empty)'
+  const knownAnswer = input.known.answer.trim() || '(empty)'
+  const solution = input.solution.trim()
+  const solutionBlock = solution
+    ? `Worked solution already stored. Stay consistent with it. Do not copy it into thinking or hints.\n${solution.slice(0, 4000)}\n`
+    : ''
+  const prompt = `Fill only the missing study-guide fields for this homework question. Write entirely in ${languageName(input.locale)}.
+Question:
+${input.statement}
+
+Already known. Repeat these unchanged and do not replace them:
+thinking:
+${knownThinking}
+answer: ${knownAnswer}
+${solutionBlock}
+Missing fields: ${gaps.join(', ')}
+Return ONLY JSON:
+{"knowledge":[],"thinking":[],"hints":[],"answer":"","tags":[{"key":"","title":""}]}
+Rules:
+- For a field that is not missing, return the known value. For a missing field, write it.
+- knowledge: 2 to 4 short facts or rules. No final result.
+- thinking: ordered steps that show how to start. No final result and no option letter.
+- hints: up to 4 shorter nudges. No final result and no option letter.
+- answer: the final result only, one line. When a worked solution is stored, the answer is that solution's final result.
+- tags: 2 or 3. key is English kebab-case. title is in ${languageName(input.locale)}, at most 8 words.
+- Do not put the final number, option letter, or completed result inside knowledge, thinking, hints, or tag titles.`
+  const startedAt = Date.now()
+  const call = () =>
+    generateReasonerJson({
+      userId: input.userId,
+      feature: 'homework-help-exercise-gap',
+      model: HOMEWORK_HELP_DRAFT_MODEL,
+      prompt,
+      startedAt,
+      preferredMs: HOMEWORK_DRAFT_CALL_MS,
+      maxOutputTokens: HOMEWORK_HELP_DRAFT_MAX_TOKENS,
+      reasoningEffort: gaps.includes('answer') ? 'medium' : 'low',
+    })
+  let raw = await call()
+  let filled = raw.status === 'ok' && raw.value != null ? parseExerciseGuideFill(raw.value, input.statement) : null
+  if (!filled && raw.status !== 'transport' && raw.status !== 'budget') {
+    console.warn('[homework-help] exercise gap parse failed, retry')
+    raw = await call()
+    filled = raw.status === 'ok' && raw.value != null ? parseExerciseGuideFill(raw.value, input.statement) : null
+  }
+  return filled
 }

@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { ChieuTheTraLoiClient } from '@/app/lop/[id]/the-tra-loi/chieu/[roundId]/chieu-client'
 import { fillAnswerCardText } from '@/lib/lop/answer-card'
-import type { AnswerCardRoundSummary, AnswerCardSource, AnswerCardStudent } from '@/lib/db/answer-card-pg'
+import type { AnswerCardRoundSummary, AnswerCardRoundView, AnswerCardSource, AnswerCardStudent } from '@/lib/db/answer-card-pg'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { Button } from '@/components/ui/button'
+import { ClassNameTag } from '../class-name-tag'
 import {
   AnswerCardClassFileButtons,
   AnswerCardExportError,
@@ -39,11 +41,11 @@ export function TheTraLoiClient({
   loadError: boolean
   t: Dictionary['classes']
 }) {
-  const router = useRouter()
   const [startingId, setStartingId] = useState('')
+  const [openingId, setOpeningId] = useState('')
+  const [board, setBoard] = useState<AnswerCardRoundView | null>(null)
   const [error, setError] = useState('')
   const backHref = subjectQuery ? `/lop/${classId}?${subjectQuery}` : `/lop/${classId}`
-  const scope = subjectQuery ? `?${subjectQuery}` : ''
 
   async function start(source: AnswerCardSource) {
     setStartingId(source.id)
@@ -59,11 +61,29 @@ export function TheTraLoiClient({
         setError(data?.error === 'no_mcq' ? t.answerCardsNoMcq : data?.error === 'schema' ? t.answerCardsSchema : t.answerCardsLoadError)
         return
       }
-      router.push(`/lop/${classId}/the-tra-loi/chieu/${data.id}${scope}`)
+      await openBoard(String(data.id))
     } catch {
       setError(t.answerCardsLoadError)
     } finally {
       setStartingId('')
+    }
+  }
+
+  async function openBoard(id: string) {
+    setOpeningId(id)
+    setError('')
+    try {
+      const res = await fetch(`/api/lop/answer-cards/rounds/${id}`, { cache: 'no-store' })
+      const data = await res.json().catch(() => null) as AnswerCardRoundView | null
+      if (!res.ok || !data?.id) {
+        setError(t.answerCardsLoadError)
+        return
+      }
+      setBoard(data)
+    } catch {
+      setError(t.answerCardsLoadError)
+    } finally {
+      setOpeningId('')
     }
   }
 
@@ -84,9 +104,12 @@ export function TheTraLoiClient({
   return (
     <div>
       <div className="mb-6 space-y-4">
-        <Link href={backHref} className="inline-flex text-sm text-muted-foreground hover:text-foreground">
-          ← {t.classPageBackToClass}
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={backHref} className="inline-flex text-sm text-muted-foreground hover:text-foreground">
+            ← {t.classPageBackToClass}
+          </Link>
+          <ClassNameTag name={className} school={schoolName} />
+        </div>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">{t.answerCardsTitle}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{className}</p>
@@ -130,9 +153,11 @@ export function TheTraLoiClient({
             <ul className="mt-3 space-y-2">
               {rounds.map((round) => (
                 <li key={round.id}>
-                  <Link
-                    href={`/lop/${classId}/the-tra-loi/chieu/${round.id}${scope}`}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-border/70 px-3 py-2 text-sm hover:bg-muted/40"
+                  <button
+                    type="button"
+                    disabled={openingId === round.id}
+                    onClick={() => void openBoard(round.id)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg border border-teal-300 bg-teal-50 px-3 py-2 text-left text-sm transition-colors hover:bg-teal-100 disabled:opacity-60 dark:border-teal-400/45 dark:bg-teal-950/45 dark:hover:bg-teal-950/70"
                   >
                     <span>
                       <span className="font-medium">{round.title}</span>
@@ -142,8 +167,8 @@ export function TheTraLoiClient({
                         {round.status === 'live' ? t.answerCardsLive : t.answerCardsEnded}
                       </span>
                     </span>
-                    <span className="text-xs text-muted-foreground">{t.answerCardsRoundOpen}</span>
-                  </Link>
+                    <span className="text-xs text-muted-foreground">{openingId === round.id ? '…' : t.answerCardsRoundOpen}</span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -185,6 +210,19 @@ export function TheTraLoiClient({
         </>
         )}
       </div>
+      {board && typeof document !== 'undefined'
+        ? createPortal(
+            <div className="fixed inset-0 z-[220]">
+              <ChieuTheTraLoiClient
+                initial={board}
+                subjectQuery={subjectQuery}
+                t={t}
+                onClose={() => setBoard(null)}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

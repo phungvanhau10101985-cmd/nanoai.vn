@@ -71,6 +71,8 @@ export async function generateMetadata({
   })
 }
 
+export const maxDuration = 300
+
 export default async function LamBaiPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
   const examCode = code.trim().toUpperCase()

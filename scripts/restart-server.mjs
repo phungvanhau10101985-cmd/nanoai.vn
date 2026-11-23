@@ -9,6 +9,7 @@ const root = resolve(__dirname, '..')
 const envDest = resolve(root, '.env.local')
 const envSrc = resolve(root, '.env.local.dev')
 const stopPs1 = resolve(__dirname, 'restart-server-stop-dev.ps1')
+const cloudflarePs1 = resolve(__dirname, 'start-cloudflared-dev.ps1')
 
 function readDevPort() {
   for (const file of [envDest, envSrc]) {
@@ -23,7 +24,8 @@ const devPort = readDevPort()
 
 // 1. Close every listen port owned by this project (duplicate Next included).
 // Does not kill 188-com-vn on 8001/3001. Does not start ngrok.
-console.log(`[restart-server] Closing project ports, then restarting ${devPort} on Wi-Fi (188-com-vn safe)...`)
+// A live Cloudflare quick tunnel is left running so the phone hostname stays put.
+console.log(`[restart-server] Closing project ports, then restarting ${devPort} (188-com-vn safe)...`)
 try {
   execSync(
     `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${stopPs1}" -DevPort ${devPort} -ProjectRoot "${root}"`,
@@ -74,9 +76,20 @@ function printLanUrl(port) {
   console.log(`[restart-server] This PC:    http://localhost:${port}`)
   if (ip) console.log(`[restart-server] Phone Wi-Fi: http://${ip}:${port}`)
   else console.log('[restart-server] No 192.168 Wi-Fi address.')
-  console.log('[restart-server] QR uses the Wi-Fi address. ngrok is not started.')
+  console.log('[restart-server] Same Wi-Fi can open the IP above. Phone QR uses Cloudflare.')
 }
 
-// 4. Start the project port on the LAN. npm run dev listens on 0.0.0.0.
+// 4. Public HTTPS for a phone on mobile data. Reuses a live tunnel when metrics already answer.
+console.log('[restart-server] Starting Cloudflare Tunnel for online phone testing...')
+try {
+  execSync(
+    `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${cloudflarePs1}" -DevPort ${devPort}`,
+    { stdio: 'inherit', cwd: root }
+  )
+} catch {
+  console.log('[restart-server] Cloudflare Tunnel did not start. Phone QR stays empty until cloudflared is running.')
+}
+
+// 5. Start the project port on the LAN. npm run dev listens on 0.0.0.0.
 printLanUrl(devPort)
 execSync('npm run dev', { stdio: 'inherit', cwd: root })

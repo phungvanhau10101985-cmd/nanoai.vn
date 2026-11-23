@@ -24,6 +24,19 @@ export function bunnyCdnUrl(path: string): string {
  * Đổi host legacy `nanoai.b-cdn.net` sang CDN custom (NEXT_PUBLIC_BUNNY_STORAGE_PUBLIC_BASE_URL).
  * Pull zone shop `{slug}.b-cdn.net` giữ nguyên — không gộp về CDN nền tảng.
  */
+/** CDN nền tảng và pull zone shop. Ảnh công cụ AI lưu ở đây, không phải URL ngoài. */
+export function isPlatformImageCdnUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (host === 'cdn.nanoai.vn' || host.endsWith('.b-cdn.net')) return true
+    const base = getBunnyPublicBase()
+    if (!base) return false
+    return new URL(base).hostname.toLowerCase() === host
+  } catch {
+    return false
+  }
+}
+
 export function rewriteLegacyBunnyCdnUrl(url: string | null | undefined): string {
   const t = String(url ?? '').trim()
   if (!t) return ''

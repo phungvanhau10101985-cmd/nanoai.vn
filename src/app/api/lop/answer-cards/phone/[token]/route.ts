@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { answerCardErrorResponse } from '@/app/api/lop/answer-cards/guard'
-import { loadAnswerCardPhoneViewPg, saveAnswerCardPicksPg, stepAnswerCardPhonePg } from '@/lib/db/answer-card-pg'
+import { loadAnswerCardPhoneViewPg, openAnswerCardPaperPg, publishAnswerCardSummaryPg, revealAnswerCardQuestionPg, saveAnswerCardPicksPg, stepAnswerCardPhonePg } from '@/lib/db/answer-card-pg'
 import { isAnswerCardPhoneToken, isAnswerChoice } from '@/lib/lop/answer-card'
 
 export async function GET(
@@ -24,11 +24,45 @@ export async function POST(
 ) {
   const { token } = await params
   if (!isAnswerCardPhoneToken(token)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
-  let body: { picks?: unknown; action?: unknown; questionIndex?: unknown }
+  let body: { picks?: unknown; action?: unknown; questionIndex?: unknown; replace?: unknown; step?: unknown }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'invalid' }, { status: 400 })
+  }
+  if (body.action === 'reveal') {
+    const postedIndex = typeof body.questionIndex === 'number' && Number.isInteger(body.questionIndex)
+      ? body.questionIndex
+      : -1
+    const step = body.step === 'next' ? 'next' : 'stay'
+    try {
+      const revealed = await revealAnswerCardQuestionPg(token, postedIndex, step)
+      if (revealed === 'closed') return NextResponse.json({ error: 'closed' }, { status: 409 })
+      if (!revealed) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+      return NextResponse.json(revealed)
+    } catch (error) {
+      return answerCardErrorResponse(error)
+    }
+  }
+  if (body.action === 'paper') {
+    try {
+      const opened = await openAnswerCardPaperPg(token)
+      if (opened === 'closed') return NextResponse.json({ error: 'closed' }, { status: 409 })
+      if (!opened) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+      return NextResponse.json(opened)
+    } catch (error) {
+      return answerCardErrorResponse(error)
+    }
+  }
+  if (body.action === 'summary') {
+    try {
+      const published = await publishAnswerCardSummaryPg(token)
+      if (published === 'closed') return NextResponse.json({ error: 'closed' }, { status: 409 })
+      if (!published) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+      return NextResponse.json(published)
+    } catch (error) {
+      return answerCardErrorResponse(error)
+    }
   }
   if (body.action === 'next' || body.action === 'prev') {
     try {
@@ -42,7 +76,7 @@ export async function POST(
   }
   if (!Array.isArray(body.picks)) return NextResponse.json({ error: 'invalid' }, { status: 400 })
   const picks: Array<{ token: string; choice: 'A' | 'B' | 'C' | 'D' }> = []
-  for (const item of body.picks.slice(0, 40)) {
+  for (const item of body.picks.slice(0, 99)) {
     if (!item || typeof item !== 'object') continue
     const row = item as { token?: unknown; choice?: unknown }
     const cardToken = typeof row.token === 'string' ? row.token : ''
@@ -54,7 +88,7 @@ export async function POST(
     const postedIndex = typeof body.questionIndex === 'number' && Number.isInteger(body.questionIndex)
       ? body.questionIndex
       : undefined
-    const saved = await saveAnswerCardPicksPg(token, picks, postedIndex)
+    const saved = await saveAnswerCardPicksPg(token, picks, postedIndex, body.replace === true)
     if (saved === 'closed') return NextResponse.json({ error: 'closed' }, { status: 409 })
     if (!saved) return NextResponse.json({ error: 'not_found' }, { status: 404 })
     return NextResponse.json(saved)

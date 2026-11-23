@@ -174,6 +174,13 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'metal', label: L('Vật chìm', 'Sinking object', '下沉物体', '沈む物体', '가라앉는 물체') },
     { id: 'wood', label: L('Vật nổi', 'Floating object', '漂浮物体', '浮かぶ物体', '뜨는 물체') },
   ] },
+  { id: 'photoelectric', subject: 'physics', w: 780, h: 560, fields: ['variant'], label: L('Thí nghiệm quang điện', 'Photoelectric experiment', '光电效应实验', '光電効果の実験', '광전 효과 실험'), variants: [
+    { id: 'cs', label: L('Tế bào quang điện, catôt xesi', 'Photocell, caesium cathode', '光电管，铯阴极', '光電管、セシウム陰極', '광전관, 세슘 음극') },
+    { id: 'k', label: L('Tế bào quang điện, catôt kali', 'Photocell, potassium cathode', '光电管，钾阴极', '光電管、カリウム陰極', '광전관, 칼륨 음극') },
+    { id: 'na', label: L('Tế bào quang điện, catôt natri', 'Photocell, sodium cathode', '光电管，钠阴极', '光電管、ナトリウム陰極', '광전관, 나트륨 음극') },
+    { id: 'zn', label: L('Tế bào quang điện, catôt kẽm', 'Photocell, zinc cathode', '光电管，锌阴极', '光電管、亜鉛陰極', '광전관, 아연 음극') },
+    { id: 'scope', label: L('Tấm kẽm và điện nghiệm', 'Zinc plate and electroscope', '锌板与验电器', '亜鉛板と検電器', '아연판과 검전기') },
+  ] },
   { id: 'interfere', subject: 'physics', w: 720, h: 460, fields: [], label: L('Giao thoa sóng nước', 'Water-wave interference', '水波干涉', '水面波の干渉', '수면파 간섭') },
   { id: 'young', subject: 'physics', w: 740, h: 480, fields: [], label: L('Giao thoa ánh sáng Young', "Young's light interference", '杨氏光的干涉', 'ヤングの光の干渉', '영의 빛 간섭') },
   { id: 'experiment-phys', subject: 'physics', w: 360, h: 240, fields: ['variant'], label: L('Ném xiên, con lắc, rơi tự do', 'Projectile, pendulum, free fall', '斜抛、单摆、自由落体', '斜方投射・振り子・自由落下', '포물선·진자·자유낙하'), variants: [
@@ -4611,7 +4618,7 @@ export function drawFigureLocal(ctx: Ctx, id: string, params: FigureParams, w: n
   else if (id === 'pedigree') drawPedigree(ctx, w, h)
   else if (id === 'punnett') drawPunnett(ctx, w, h, variant === 'test')
   else if (id === 'formula-bio') drawBioFormula(ctx, w, h, variant === 'growth')
-  else if (id === 'standing' || id === 'meters' || id === 'radiation' || id === 'transformer' || id === 'buoyancy' || id === 'distill' || id === 'gaslab' || id === 'filter' || id === 'galvanic' || id === 'rate' || id === 'osmosis' || id === 'photo' || id === 'slide' || id === 'blood' || id === 'reflex') drawSchoolBench(ctx, id, w, h, variant, params.tune, time)
+  else if (id === 'standing' || id === 'meters' || id === 'radiation' || id === 'transformer' || id === 'buoyancy' || id === 'photoelectric' || id === 'distill' || id === 'gaslab' || id === 'filter' || id === 'galvanic' || id === 'rate' || id === 'osmosis' || id === 'photo' || id === 'slide' || id === 'blood' || id === 'reflex') drawSchoolBench(ctx, id, w, h, variant, params.tune, time)
   else cardFormula(ctx, w, h, id, '')
   if (LAB_RUN.has(id)) playMark(ctx, w, params.run === true)
   ctx.restore()

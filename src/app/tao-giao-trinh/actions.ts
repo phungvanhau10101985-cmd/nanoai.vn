@@ -21,6 +21,7 @@ import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
 import { isPgConfigured } from '@/lib/db/pool'
+import { syncCurriculumIntoMatchingClasses } from '@/lib/db/class-teacher-curricula-pg'
 import {
   deleteWorksheetSlideEditHistoryOlderThanPg,
   runClearCurriculumDerivedDataPg,
@@ -650,6 +651,13 @@ Chỉ trả về JSON, không markdown.`
 
 /** Tạo giáo trình bằng AI cho mọi môn học. Hỗ trợ 2 mode: textbook (gửi ảnh sách), topic.
  * Chuẩn hóa đầu vào trước khi tra DB / tạo. */
+async function syncCurriculumToTeacherClasses(userId: string, curriculumId: string | null | undefined) {
+  const id = String(curriculumId ?? '').trim()
+  const teacherId = String(userId ?? '').trim()
+  if (!id || !teacherId) return
+  await syncCurriculumIntoMatchingClasses({ teacherId, curriculumId: id })
+}
+
 export async function createCurriculum(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ. Vui lòng thử lại.' }
@@ -706,6 +714,7 @@ export async function createCurriculum(formData: FormData) {
       lessonDurationMinutes: thoiLuong,
     })
     if (cached.hit) {
+      await syncCurriculumToTeacherClasses(user.id, cached.hit.id)
       return {
         success: true,
         curriculumMarkdown: cached.hit.curriculumMarkdown,
@@ -780,6 +789,7 @@ export async function createCurriculum(formData: FormData) {
   }
 
   if (match) {
+    await syncCurriculumToTeacherClasses(user.id, match.id)
     return {
       success: true,
       curriculumMarkdown: stripCurriculumOriginalBodyMarker(match.content_markdown),
@@ -1083,6 +1093,7 @@ export async function saveCurriculum(formData: FormData) {
     if (u.error) return { error: u.error }
     await upsertCurriculumLessonRows(newCurriculumId, markedOutline)
   }
+  await syncCurriculumToTeacherClasses(user.id, newCurriculumId)
   return { success: true, curriculumId: newCurriculumId }
 }
 
@@ -1397,6 +1408,7 @@ export async function recordCurriculumOpen(curriculumId: string, buyerSource?: u
   const source = await buyerSourceForForm(buyerSource)
   const r = await upsertUserOpenedCurriculumPg(user.id, curriculumId, openedAt, source)
   if (r.error) return { error: r.error }
+  await syncCurriculumToTeacherClasses(user.id, curriculumId)
   return { success: true }
 }
 

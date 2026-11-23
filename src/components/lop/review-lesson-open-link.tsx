@@ -29,7 +29,7 @@ export function ReviewLessonRow({
       </div>
       <Link
         href={href}
-        className="shrink-0 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/40"
+        className="shrink-0 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-950 hover:bg-sky-100 dark:border-sky-400/45 dark:bg-sky-950/45 dark:text-sky-50 dark:hover:bg-sky-950/70"
         onClick={() => {
           if (mark) markSubjectItemOpened(mark)
         }}

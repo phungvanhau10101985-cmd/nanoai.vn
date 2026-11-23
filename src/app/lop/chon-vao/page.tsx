@@ -74,7 +74,7 @@ export default async function ChonVaoPage({
             {identityPath ? (
               <Link
                 href={`${identityPath}?way=identity${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ''}`}
-                className="block rounded-xl border border-border bg-background px-4 py-4 hover:bg-muted/40"
+                className="block rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-4 transition-colors hover:bg-emerald-100 dark:border-emerald-400/45 dark:bg-emerald-950/45 dark:hover:bg-emerald-950/70"
               >
                 <span className="block text-base font-semibold text-foreground">{t.classes.joinChoiceIdentity}</span>
                 <span className="mt-1 block text-sm text-muted-foreground">{t.classes.joinChoiceIdentityHint}</span>

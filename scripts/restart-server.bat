@@ -15,7 +15,7 @@ echo   An toan voi 188-com-vn (8001/3001)
 echo ========================================
 echo.
 
-echo [1/4] Dong moi cong dang chay trung cua du an, roi bat lai port %DEV_PORT%...
+echo [1/5] Dong moi cong dang chay trung cua du an, roi bat lai port %DEV_PORT%...
 REM ProjectRoot defaults to parent of this scripts\ folder (repo root).
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0restart-server-stop-dev.ps1" -DevPort %DEV_PORT%
 if "%ERRORLEVEL%"=="0" (
@@ -24,7 +24,7 @@ if "%ERRORLEVEL%"=="0" (
     echo        [CANH BAO] Giai phong cong tra ma %ERRORLEVEL%.
 )
 
-echo [2/4] Kiem tra .env.local...
+echo [2/5] Kiem tra .env.local...
 if not exist ".env.local" (
     if exist ".env.local.dev" (
         copy ".env.local.dev" ".env.local" >nul
@@ -34,15 +34,18 @@ if not exist ".env.local" (
     echo        .env.local da ton tai
 )
 
-echo [3/4] Xoa cache Next.js...
+echo [3/5] Xoa cache Next.js...
 if exist ".next-dev" rmdir /s /q ".next-dev" >nul 2>&1
 if exist ".next" rmdir /s /q ".next" >nul 2>&1
 
-echo [4/4] Khoi dong dev server tren Wi-Fi...
+echo [4/5] Dia chi Wi-Fi...
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0print-lan-dev-url.ps1" -Port %DEV_PORT%
 echo   Che do: Dev (auto-bypass login)
 echo.
+
+echo [5/5] Cloudflare Tunnel cho dien thoai online (4G)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-cloudflared-dev.ps1" -DevPort %DEV_PORT%
 echo ========================================
 echo.
 

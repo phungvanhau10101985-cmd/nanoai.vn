@@ -1,8 +1,5 @@
 import os from 'os'
 
-/** Domain ngrok cố định của máy local (cổng 3000). */
-export const LOCAL_PHONE_NGROK_ORIGIN = 'https://amia-canelike-exhibitively.ngrok-free.dev'
-
 /** Link mở ô chia sẻ Zalo với địa chỉ điều khiển điện thoại. */
 export function phoneRemoteZaloShareUrl(pageUrl: string): string {
   return `https://zalo.me/share?url=${encodeURIComponent(pageUrl)}`
@@ -44,6 +41,7 @@ export function phoneRemoteBrowserOrigin(input: {
   const rawHost = (input.forwardedHost || input.host || '').split(',')[0]?.trim() || ''
   const hostname = rawHost.replace(/^\[|\]$/g, '').split(':')[0]?.trim().toLowerCase() || ''
   if (!hostname) return null
+  if (isPublicTunnelHost(hostname)) return `https://${hostname}`
   const proto = (input.forwardedProto || '').split(',')[0]?.trim().toLowerCase()
   if (isPrivateLanHost(hostname)) {
     const scheme = proto === 'https' ? 'https' : 'http'
@@ -83,13 +81,35 @@ export function isLocalDevHost(hostname: string): boolean {
   return false
 }
 
-type NgrokTunnel = {
-  public_url?: string
-  proto?: string
-  config?: { addr?: string }
+export function isPublicTunnelHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/^\[|\]$/g, '')
+  return (
+    host.endsWith('.trycloudflare.com')
+    || host.endsWith('.ngrok-free.dev')
+    || host.endsWith('.ngrok.io')
+    || host.endsWith('.ngrok.app')
+    || host.endsWith('.ngrok.dev')
+  )
 }
 
-/** Địa chỉ http://IP:3000 của máy này trên Wi‑Fi, để điện thoại cùng mạng quét mã. */
+/** Tunnel Cloudflare chỉ mở https cổng 443. Cổng 3000 của máy dev làm link học sinh hết giờ. */
+export function phonePublicHref(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  try {
+    const url = new URL(trimmed)
+    if (!isPublicTunnelHost(url.hostname)) return trimmed
+    url.protocol = 'https:'
+    url.port = ''
+    const path = `${url.pathname}${url.search}${url.hash}`
+    if (!path || path === '/') return url.origin
+    return `${url.origin}${url.pathname}${url.search}${url.hash}`
+  } catch {
+    return trimmed
+  }
+}
+
+/** Địa chỉ http://IP:3000 của máy này trên Wi‑Fi. Mã quét điện thoại local không dùng địa chỉ này. */
 export function readLanDevOrigin(port = 3000): string | null {
   const addresses: string[] = []
   const nets = os.networkInterfaces()
@@ -127,10 +147,10 @@ async function httpsOriginServesApp(origin: string): Promise<boolean> {
   }
 }
 
-/** HTTPS đang mở và tải được trang. Tunnel hết băng thông thì bỏ. */
+/** HTTPS đang mở và tải được trang. Local chỉ nhận tunnel Cloudflare. */
 export async function readWorkingHttpsOrigin(extra: Array<string | null | undefined> = []): Promise<string | null> {
-  const live = await readRunningNgrokOrigin()
-  const candidates = [...extra, live, LOCAL_PHONE_NGROK_ORIGIN].filter((item): item is string => Boolean(item))
+  const cloudflare = await readRunningCloudflareOrigin()
+  const candidates = [...extra, cloudflare].filter((item): item is string => Boolean(item))
   const seen = new Set<string>()
   for (const origin of candidates) {
     if (seen.has(origin)) continue
@@ -140,21 +160,43 @@ export async function readWorkingHttpsOrigin(extra: Array<string | null | undefi
   return null
 }
 
-/** Đọc URL https mà ngrok đang mở, ưu tiên tunnel trỏ cổng 3000. */
-export async function readRunningNgrokOrigin(): Promise<string | null> {
+const CLOUDFLARED_METRICS_URL = 'http://127.0.0.1:20241/metrics'
+
+/** Lấy hostname HTTPS mà cloudflared đang phục vụ, từ metric local. */
+export function cloudflareOriginFromMetrics(text: string): string | null {
+  const matches = text.matchAll(/userHostname="([^"]+)"/g)
+  const origins: string[] = []
+  for (const match of matches) {
+    const raw = String(match[1] ?? '').trim()
+    if (!raw) continue
+    const withScheme = raw.startsWith('http://') || raw.startsWith('https://') ? raw : `https://${raw}`
+    try {
+      const url = new URL(withScheme)
+      if (url.protocol === 'https:' || url.protocol === 'http:') origins.push(url.origin)
+    } catch {
+      /* nhãn metric không phải URL */
+    }
+  }
+  const found = origins.find((item) => item.startsWith('https://')) ?? origins[0] ?? null
+  return found ? phonePublicHref(found) : null
+}
+
+/** URL công khai của quick tunnel Cloudflare đang mở trên máy này. */
+export async function readRunningCloudflareOrigin(): Promise<string | null> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 800)
   try {
-    const res = await fetch('http://127.0.0.1:4040/api/tunnels', { signal: ctrl.signal, cache: 'no-store' })
+    const res = await fetch(CLOUDFLARED_METRICS_URL, { signal: ctrl.signal, cache: 'no-store' })
     if (!res.ok) return null
-    const data = (await res.json()) as { tunnels?: NgrokTunnel[] }
-    const tunnels = Array.isArray(data.tunnels) ? data.tunnels : []
-    const https = tunnels.filter((t) => typeof t.public_url === 'string' && t.public_url.startsWith('https://'))
-    const onDevPort = https.find((t) => /:3000\b/.test(String(t.config?.addr || '')))
-    return onDevPort?.public_url?.replace(/\/$/, '') || null
+    return cloudflareOriginFromMetrics(await res.text())
   } catch {
     return null
   } finally {
     clearTimeout(timer)
   }
+}
+
+/** QR test local chỉ dùng tunnel Cloudflare đang chạy. */
+export async function readLocalPhonePublicOrigin(): Promise<string> {
+  return (await readRunningCloudflareOrigin()) || (await readRunningCloudflareOrigin()) || ''
 }

@@ -63,6 +63,8 @@ type Props = {
   /** Đánh dấu ô khách để khung chat không kéo thêm khi bàn phím mở. */
   guestComposerInput?: boolean
   formClassName?: string
+  /** Thay cụm biểu cảm và nút gửi bên phải. Enter vẫn gửi chữ đã gõ. */
+  trailing?: ReactNode
 }
 
 export function StudyComposerTool({
@@ -127,6 +129,7 @@ export function StudyMessengerComposer({
   onBlur,
   guestComposerInput = false,
   formClassName,
+  trailing,
 }: Props) {
   const pinnedOpen = useRef(false)
   const emojiRootRef = useRef<HTMLDivElement | null>(null)
@@ -292,6 +295,9 @@ export function StudyMessengerComposer({
             }
           }}
         />
+        {trailing ? (
+          <div className="flex shrink-0 items-center pr-1">{trailing}</div>
+        ) : (
         <div ref={emojiRootRef} className="relative flex shrink-0 items-center pr-1">
           {emojiOpen ? (
             <div className="absolute bottom-11 right-0 z-20 grid w-[13.5rem] grid-cols-5 gap-1 rounded-2xl border bg-background p-2 shadow-lg">
@@ -334,6 +340,7 @@ export function StudyMessengerComposer({
             </span>
           )}
         </div>
+        )}
       </div>
     </form>
   )

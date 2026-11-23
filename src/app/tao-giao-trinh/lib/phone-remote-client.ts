@@ -1,6 +1,11 @@
-import { isLocalDevHost, isPrivateLanHost, LOCAL_PHONE_NGROK_ORIGIN } from '@/lib/curriculum/phone-remote-public-origin'
+import { isLocalDevHost, isPrivateLanHost, phonePublicHref } from '@/lib/curriculum/phone-remote-public-origin'
 
 type PhoneCommand = Record<string, unknown>
+
+function isNgrokHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase()
+  return host.endsWith('.ngrok-free.dev') || host.endsWith('.ngrok.io') || host.endsWith('.ngrok.app') || host.endsWith('.ngrok.dev')
+}
 
 function phoneCanOpenOrigin(origin: string): boolean {
   try {
@@ -13,30 +18,44 @@ function phoneCanOpenOrigin(origin: string): boolean {
   }
 }
 
-/** Link điện thoại quét. Máy giáo viên đang mở localhost thì đổi sang IP Wi‑Fi. */
+function withOrigin(raw: string, origin: string): string {
+  if (raw.startsWith('/')) return `${origin}${raw}`
+  const url = new URL(raw)
+  const next = new URL(origin)
+  url.protocol = next.protocol
+  url.host = next.host
+  return url.href
+}
+
+/** Link điện thoại quét. Máy giáo viên đang test local thì mọi mã đều mở tunnel Cloudflare đang chạy. */
 export async function phoneOpenableUrl(input: string): Promise<string> {
   const raw = input.trim()
-  if (!raw) return raw
-  const origin = await phoneRemoteLoginOrigin()
-  if (raw.startsWith('/')) return `${origin}${raw}`
-  try {
-    const url = new URL(raw)
-    const host = url.hostname.toLowerCase()
-    if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host === '::1') {
-      const next = new URL(origin)
-      url.protocol = next.protocol
-      url.host = next.host
-      return url.href
+  if (!raw) return ''
+  const pageIsLocal = typeof window !== 'undefined' && isLocalDevHost(window.location.hostname)
+  if (!pageIsLocal) {
+    if (raw.startsWith('/')) return typeof window === 'undefined' ? '' : phonePublicHref(`${window.location.origin}${raw}`)
+    try {
+      const url = new URL(raw)
+      if (typeof window !== 'undefined' && (isLocalDevHost(url.hostname) || isNgrokHost(url.hostname))) {
+        return phonePublicHref(withOrigin(raw, window.location.origin))
+      }
+      return phonePublicHref(url.href)
+    } catch {
+      return ''
     }
-    return url.href
+  }
+  const origin = await phoneRemoteLoginOrigin()
+  if (!origin) return ''
+  try {
+    return phonePublicHref(withOrigin(raw, origin))
   } catch {
-    return raw
+    return ''
   }
 }
 
-/** Máy giáo viên mở local thì QR điện thoại là IP Wi‑Fi cùng mạng. */
+/** Máy giáo viên mở local thì QR điện thoại là tunnel Cloudflare đang chạy. */
 export async function phoneRemoteLoginOrigin(): Promise<string> {
-  if (typeof window === 'undefined') return LOCAL_PHONE_NGROK_ORIGIN
+  if (typeof window === 'undefined') return ''
   if (!isLocalDevHost(window.location.hostname)) return window.location.origin
   try {
     const res = await fetch('/api/giao-trinh/phone-remote/public-origin', {
@@ -45,11 +64,12 @@ export async function phoneRemoteLoginOrigin(): Promise<string> {
     })
     const data = await res.json().catch(() => null)
     const origin = typeof data?.origin === 'string' ? data.origin.replace(/\/$/, '') : ''
-    if (res.ok && phoneCanOpenOrigin(origin)) return origin
+    if (!res.ok || !phoneCanOpenOrigin(origin)) return ''
+    if (isNgrokHost(new URL(origin).hostname)) return ''
+    return phonePublicHref(origin)
   } catch {
-    /* không đọc được IP mạng thì dùng domain ngrok cố định */
+    return ''
   }
-  return LOCAL_PHONE_NGROK_ORIGIN
 }
 
 /** Xếp lệnh điện thoại, gộp chuột di chuyển, gửi theo cụm ngắn. */

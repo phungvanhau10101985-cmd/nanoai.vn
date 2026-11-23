@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyRemoteWhiteboard } from '../components/teacher-whiteboard-canvas'
-import { createPhoneCommandQueue, phoneOpenableUrl, phoneRemoteLoginOrigin } from '../lib/phone-remote-client'
+import { createPhoneCommandQueue, phoneOpenableUrl } from '../lib/phone-remote-client'
 import {
   emptyWhiteboardState,
   isWhiteboardWireType,
@@ -291,9 +291,13 @@ export function useReviewSlidePhoneBoard(input: {
           return
         }
         setPhoneSessionId(data.id)
-        const origin = await phoneRemoteLoginOrigin()
+        const loginUrl = await phoneOpenableUrl(`/giao-trinh/dien-thoai?k=${data.id}.${data.secret}`)
         if (cancel) return
-        setPhoneLoginUrl(`${origin}/giao-trinh/dien-thoai?k=${data.id}.${data.secret}`)
+        if (!loginUrl.startsWith('https://')) {
+          setPhoneRemoteError(tr('Chưa đọc được đường Cloudflare.', 'The Cloudflare tunnel is not available.', '还没读到 Cloudflare 通道。', 'Cloudflare のトンネルを読めません。', 'Cloudflare 터널을 읽지 못했습니다.'))
+          return
+        }
+        setPhoneLoginUrl(loginUrl)
       } catch {
         if (!cancel) {
           setPhoneRemoteError(tr('Không tạo được mã.', 'Could not create the code.', '无法生成二维码。', 'コードを作成できません。', '코드를 만들지 못했습니다.'))

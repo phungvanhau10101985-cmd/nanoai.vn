@@ -1,3 +1,4 @@
+import { ANSWER_CARD_SHOT_RETENTION_DAYS, purgeExpiredAnswerCardShotsPg } from '@/lib/db/answer-card-pg'
 import { purgeStaleWidgetAutoOpeningConversationsPg } from '@/lib/db/customer-care-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { emailUnsolvedHomeworkDigest } from '@/lib/homework-help/homework-help-unsolved'
@@ -145,6 +146,18 @@ export async function runEmailDailyCron() {
   const birthday = await runPartnerBirthdayPromoBatchAll()
   const promotions = await runPartnerPromotionMaintenance()
   return { birthday, promotions }
+}
+
+export async function runAnswerCardShotPurgeCron() {
+  if (!isPgConfigured()) return dbSkipped()
+  try {
+    const deleted = await purgeExpiredAnswerCardShotsPg()
+    return { deleted, retentionDays: ANSWER_CARD_SHOT_RETENTION_DAYS }
+  } catch (e) {
+    const code = e && typeof e === 'object' && 'code' in e ? String((e as { code?: string }).code) : ''
+    if (code === '42P01') return { skipped: true, reason: 'table_missing' }
+    throw e
+  }
 }
 
 export async function runHomeworkDigestCron() {

@@ -48,6 +48,25 @@ export function isAnswerChoice(value: string): value is AnswerChoice {
  * 0° mã đứng thẳng → A. 90° theo chiều kim đồng hồ → B.
  * Máy nằm ngang: mép trên máy không còn là trần lớp, nên cộng bù.
  */
+/**
+ * Góc màn hình theo chiều kim đồng hồ so với chiều dọc tự nhiên.
+ * 90°: camera nằm bên phải. 270°: camera nằm bên trái.
+ */
+export function cameraHoldFromScreenAngle(angle: number): CameraHold {
+  const norm = ((Math.round(angle) % 360) + 360) % 360
+  if (norm === 90) return 'landscape-right'
+  if (norm === 270) return 'landscape-left'
+  return 'portrait'
+}
+
+/** iOS `window.orientation`: số dương là quay ngược chiều kim đồng hồ. */
+export function cameraHoldFromWindowOrientation(orientation: number): CameraHold {
+  const norm = ((Math.round(orientation) % 360) + 360) % 360
+  if (norm === 90) return 'landscape-left'
+  if (norm === 270) return 'landscape-right'
+  return 'portrait'
+}
+
 export function choiceFromQrTopEdge(
   topLeft: { x: number; y: number },
   topRight: { x: number; y: number },
@@ -68,6 +87,12 @@ export function answerCardShortName(full: string): string {
   if (parts.length === 0) return '—'
   if (parts.length <= 2) return parts.join(' ')
   return parts.slice(-2).join(' ')
+}
+
+/** Tên gọi trên khung quét. «Nguyễn Thị Quỳnh» → «Quỳnh». */
+export function answerCardGivenName(full: string): string {
+  const parts = full.replace(/\s+/g, ' ').trim().split(' ').filter((part) => part && part !== '—')
+  return parts[parts.length - 1] ?? ''
 }
 
 export function answerCardDownloadBase(className: string): string {

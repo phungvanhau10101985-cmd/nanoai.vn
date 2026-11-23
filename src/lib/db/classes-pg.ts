@@ -1,5 +1,6 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { storedClassName } from '@/lib/lop/stored-class-name'
 
 export type ClassJoinPreviewPgRow = {
   id: string
@@ -59,7 +60,7 @@ export async function updateClassNameForTeacherPg(
        set name = $3
        where id = $1::uuid and teacher_id = $2::uuid
        returning id::text as id`,
-      [classId, teacherUserId, name]
+      [classId, teacherUserId, storedClassName(name)]
     )
     return row != null
   } catch (e) {
@@ -254,12 +255,13 @@ export async function fetchTeacherSchoolSettingsPrevMinePg(teacherId: string): P
   }
 }
 
-/** Lớp đã có cùng trường và cùng tên (không phân biệt hoa thường, gộp khoảng trắng). */
+/** Lớp đã có cùng trường, cùng khối và cùng tên (không phân biệt hoa thường, gộp khoảng trắng). */
 export type ClassNameTakenRow = {
   id: string
   name: string
   join_code: string
   school_name: string
+  grade_level_id: string | null
 }
 
 export type InsertClassMineResult =
@@ -274,11 +276,13 @@ function classNameKeySql(column: string): string {
 }
 
 function mapClassNameTakenRow(row: Record<string, unknown>): ClassNameTakenRow {
+  const grade = row.grade_level_id != null ? String(row.grade_level_id).trim() : ''
   return {
     id: String(row.id),
     name: String(row.name ?? ''),
     join_code: String(row.join_code ?? ''),
     school_name: row.school_name != null ? String(row.school_name) : '',
+    grade_level_id: grade || null,
   }
 }
 
@@ -289,7 +293,7 @@ export async function fetchClassAtSchoolByIdPg(
   if (!isPgConfigured()) return null
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
-      `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name
+      `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name, c.grade_level_id
        from public.classes c
        left join public.schools sch on sch.id = c.school_id
        where c.school_id = $1::uuid and c.id = $2::uuid
@@ -306,19 +310,22 @@ export async function fetchClassAtSchoolByIdPg(
 export async function fetchClassAtSchoolByNamePg(
   schoolId: string,
   name: string,
-  exceptClassId?: string
+  exceptClassId?: string,
+  gradeLevelId?: string | null
 ): Promise<ClassNameTakenRow | null> {
   if (!isPgConfigured()) return null
+  const grade = String(gradeLevelId ?? '').trim()
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
-      `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name
+      `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name, c.grade_level_id
        from public.classes c
        left join public.schools sch on sch.id = c.school_id
        where c.school_id = $1::uuid
          and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
          and ($3::uuid is null or c.id <> $3::uuid)
+         and coalesce(c.grade_level_id, '') = $4
        limit 1`,
-      [schoolId, name, exceptClassId ?? null]
+      [schoolId, name, exceptClassId ?? null, grade]
     )
     return row ? mapClassNameTakenRow(row) : null
   } catch (e) {
@@ -331,20 +338,23 @@ export async function fetchClassAtSchoolByNamePg(
 export async function fetchTutoringClassByNameForTeacherPg(
   teacherId: string,
   name: string,
-  exceptClassId?: string
+  exceptClassId?: string,
+  gradeLevelId?: string | null
 ): Promise<ClassNameTakenRow | null> {
   if (!isPgConfigured()) return null
+  const grade = String(gradeLevelId ?? '').trim()
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
-      `select c.id::text, c.name, c.join_code, '' as school_name
+      `select c.id::text, c.name, c.join_code, '' as school_name, c.grade_level_id
        from public.classes c
        where c.teacher_id = $1::uuid
          and c.class_kind = 'tutoring'
          and c.dissolved_at is null
          and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
          and ($3::uuid is null or c.id <> $3::uuid)
+         and coalesce(c.grade_level_id, '') = $4
        limit 1`,
-      [teacherId, name, exceptClassId ?? null]
+      [teacherId, name, exceptClassId ?? null, grade]
     )
     return row ? mapClassNameTakenRow(row) : null
   } catch (e) {
@@ -595,6 +605,9 @@ export async function insertClassMinePg(params: {
   tuitionAccountName?: string | null
 }): Promise<InsertClassMineResult> {
   if (!isPgConfigured()) return { status: 'failed' }
+  const name = storedClassName(params.name)
+  const grade = String(params.gradeLevelId ?? '').trim()
+  if (!name || !grade) return { status: 'failed' }
   const classKind = params.classKind === 'tutoring' ? 'tutoring' : 'school'
   const schoolId = classKind === 'tutoring' ? null : params.schoolId
   if (classKind === 'school' && !schoolId) return { status: 'failed' }
@@ -604,33 +617,35 @@ export async function insertClassMinePg(params: {
     const existing = classKind === 'tutoring'
       ? await (async () => {
           await client.query(
-            `select pg_advisory_xact_lock(hashtext($1::text || '|' || ${classNameKeySql('$2::text')})::bigint)`,
-            [`tutoring:${params.teacherId}`, params.name]
+            `select pg_advisory_xact_lock(hashtext($1::text || '|' || ${classNameKeySql('$2::text')} || '|' || $3::text)::bigint)`,
+            [`tutoring:${params.teacherId}`, name, grade]
           )
           return client.query<Record<string, unknown>>(
-            `select c.id::text, c.name, c.join_code, '' as school_name
+            `select c.id::text, c.name, c.join_code, '' as school_name, c.grade_level_id
              from public.classes c
              where c.teacher_id = $1::uuid
                and c.class_kind = 'tutoring'
                and c.dissolved_at is null
                and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
+               and c.grade_level_id = $3
              limit 1`,
-            [params.teacherId, params.name]
+            [params.teacherId, name, grade]
           )
         })()
       : await (async () => {
           await client.query(
-            `select pg_advisory_xact_lock(hashtext($1::text || '|' || ${classNameKeySql('$2::text')})::bigint)`,
-            [schoolId, params.name]
+            `select pg_advisory_xact_lock(hashtext($1::text || '|' || ${classNameKeySql('$2::text')} || '|' || $3::text)::bigint)`,
+            [schoolId, name, grade]
           )
           return client.query<Record<string, unknown>>(
-            `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name
+            `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name, c.grade_level_id
              from public.classes c
              left join public.schools sch on sch.id = c.school_id
              where c.school_id = $1::uuid
                and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
+               and c.grade_level_id = $3
              limit 1`,
-            [schoolId, params.name]
+            [schoolId, name, grade]
           )
         })()
     const taken = existing.rows[0]
@@ -661,10 +676,10 @@ export async function insertClassMinePg(params: {
        left join public.schools sch on sch.id = c.school_id`,
       [
         params.teacherId,
-        params.name,
+        name,
         params.joinCode,
         schoolId,
-        params.gradeLevelId ?? '',
+        grade,
         params.subjectLabel ?? '',
         params.teacherDisplayName ?? '',
         classKind,
@@ -856,15 +871,20 @@ export async function fetchClassGateForGanPhieuPg(classId: string): Promise<{
   id: string
   name: string
   teacher_id: string
+  school_name: string
 } | null> {
   if (!isPgConfigured()) return null
   try {
-    const r = await pgQueryOne<{ id: string; name: string | null; teacher_id: string }>(
-      `select id::text, name, teacher_id::text from public.classes where id = $1::uuid limit 1`,
+    const r = await pgQueryOne<{ id: string; name: string | null; teacher_id: string; school_name: string | null }>(
+      `select c.id::text, c.name, c.teacher_id::text, sch.name as school_name
+       from public.classes c
+       left join public.schools sch on sch.id = c.school_id
+       where c.id = $1::uuid
+       limit 1`,
       [classId]
     )
     if (!r) return null
-    return { id: r.id, name: String(r.name ?? ''), teacher_id: r.teacher_id }
+    return { id: r.id, name: String(r.name ?? ''), teacher_id: r.teacher_id, school_name: String(r.school_name ?? '') }
   } catch (e) {
     console.error('[classes-pg] fetchClassGateForGanPhieuPg', e)
     return null
@@ -981,6 +1001,24 @@ export async function updateClassSchoolAndGradeIfUnsetPg(
   } catch (e) {
     console.error('[classes-pg] updateClassSchoolAndGradeIfUnsetPg', e)
     return null
+  }
+}
+
+/** Chỉ điền khối khi lớp chưa có. Không đổi khối đã lưu. */
+export async function fillClassGradeLevelIfEmptyPg(classId: string, gradeLevelId: string): Promise<void> {
+  if (!isPgConfigured()) return
+  const grade = gradeLevelId.trim()
+  if (!classId.trim() || !grade) return
+  try {
+    await pgQuery(
+      `update public.classes
+       set grade_level_id = $2
+       where id = $1::uuid
+         and (grade_level_id is null or btrim(grade_level_id) = '')`,
+      [classId, grade]
+    )
+  } catch (e) {
+    console.error('[classes-pg] fillClassGradeLevelIfEmptyPg', e)
   }
 }
 
@@ -1246,19 +1284,31 @@ export async function updateClassStudentFacingLabelsPg(params: {
 
 export async function fetchClassTeacherAndSchoolIdPg(
   classId: string
-): Promise<{ teacher_id: string; school_id: string | null; class_kind: 'school' | 'tutoring' } | null> {
+): Promise<{
+  teacher_id: string
+  school_id: string | null
+  class_kind: 'school' | 'tutoring'
+  grade_level_id: string | null
+} | null> {
   if (!isPgConfigured()) return null
   try {
-    const row = await pgQueryOne<{ teacher_id: string; school_id: string | null; class_kind: string | null }>(
-      `select teacher_id::text, school_id::text, coalesce(class_kind, 'school') as class_kind
+    const row = await pgQueryOne<{
+      teacher_id: string
+      school_id: string | null
+      class_kind: string | null
+      grade_level_id: string | null
+    }>(
+      `select teacher_id::text, school_id::text, coalesce(class_kind, 'school') as class_kind, grade_level_id
        from public.classes where id = $1::uuid limit 1`,
       [classId]
     )
     if (!row) return null
+    const grade = row.grade_level_id != null ? String(row.grade_level_id).trim() : ''
     return {
       teacher_id: row.teacher_id,
       school_id: row.school_id,
       class_kind: row.class_kind === 'tutoring' ? 'tutoring' : 'school',
+      grade_level_id: grade || null,
     }
   } catch (e) {
     console.error('[classes-pg] fetchClassTeacherAndSchoolIdPg', e)

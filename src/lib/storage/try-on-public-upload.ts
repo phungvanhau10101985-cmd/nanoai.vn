@@ -171,6 +171,19 @@ function preferredStorageHost(auth: BunnyStorageAuth): string {
 
 type BunnyStorageResult = { status: number; hint: string; ok: boolean; bytes?: Buffer }
 
+/** File nhỏ (probe) giữ 60s. Ảnh kết quả GPT/Gemini thường >1MB và upload CDN vượt 60s thì AbortSignal cắt cả request. */
+export function bunnyStoragePutTimeoutMs(byteLength: number): number {
+  if (byteLength < 256 * 1024) return 60_000
+  const megabytes = Math.ceil(byteLength / (1024 * 1024))
+  return Math.min(180_000, 120_000 + Math.max(0, megabytes - 1) * 10_000)
+}
+
+function isBunnyStorageTimeout(error: unknown): boolean {
+  const name = error instanceof Error ? error.name : ''
+  const message = error instanceof Error ? error.message : String(error)
+  return name === 'TimeoutError' || /aborted due to timeout/i.test(message)
+}
+
 async function bunnyStorageRequest(
   auth: BunnyStorageAuth,
   method: 'PUT' | 'DELETE' | 'HEAD' | 'GET',
@@ -180,17 +193,27 @@ async function bunnyStorageRequest(
   options?: { range?: string; discardBody?: boolean }
 ): Promise<BunnyStorageResult> {
   const accessKey = auth.accessKey.trim()
+  const requestTimeoutMs = method === 'PUT' ? bunnyStoragePutTimeoutMs(body?.byteLength ?? 0) : 60_000
   const send = async (host: string): Promise<BunnyStorageResult> => {
-    const res = await fetch(bunnyStorageObjectUrl(host, auth.zone, remotePath), {
-      method,
-      headers: {
-        AccessKey: accessKey,
-        ...(contentType ? { 'Content-Type': contentType } : {}),
-        ...(options?.range ? { Range: options.range } : {}),
-      },
-      body: method === 'PUT' && body ? Buffer.from(body) : undefined,
-      signal: AbortSignal.timeout(60_000),
-    })
+    let res: Response
+    try {
+      res = await fetch(bunnyStorageObjectUrl(host, auth.zone, remotePath), {
+        method,
+        headers: {
+          AccessKey: accessKey,
+          ...(contentType ? { 'Content-Type': contentType } : {}),
+          ...(options?.range ? { Range: options.range } : {}),
+        },
+        body: method === 'PUT' && body ? Buffer.from(body) : undefined,
+        signal: AbortSignal.timeout(requestTimeoutMs),
+      })
+    } catch (error) {
+      if (method === 'PUT' && isBunnyStorageTimeout(error)) {
+        console.warn('[bunny-storage] PUT timeout', { bytes: body?.byteLength ?? 0, timeoutMs: requestTimeoutMs })
+        throw new Error('Lưu ảnh lên CDN quá thời gian. Thử lại sau ít phút.')
+      }
+      throw error
+    }
     if (method === 'GET' && (res.ok || res.status === 206)) {
       if (options?.discardBody) {
         await res.body?.cancel().catch(() => undefined)

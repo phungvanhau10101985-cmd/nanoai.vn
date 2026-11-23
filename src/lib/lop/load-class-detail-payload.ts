@@ -50,6 +50,8 @@ export type ExamSessionPayload = {
   practiceHomework: boolean
   teacherId: string
   subjectId: string
+  gradeLevelId: string
+  durationMinutes: number
 }
 
 export type ClassDetailPayload = {
@@ -270,8 +272,11 @@ export async function loadClassDetailPayload(
         is_practice_homework: boolean | null
         teacher_id: string | null
         subject_id: string | null
+        grade_level_id: string | null
+        duration_minutes: number | null
       }>(
-        `select id::text, code, title, created_at, is_practice_homework, teacher_id::text, subject_id
+        `select id::text, code, title, created_at, is_practice_homework, teacher_id::text, subject_id,
+                grade_level_id, duration_minutes
          from public.exam_sessions
          where class_id = $1::uuid and teacher_id = $2::uuid
          order by created_at desc
@@ -287,6 +292,8 @@ export async function loadClassDetailPayload(
         practiceHomework: Boolean(x.is_practice_homework),
         teacherId: String(x.teacher_id ?? ''),
         subjectId: String(x.subject_id ?? ''),
+        gradeLevelId: String(x.grade_level_id ?? ''),
+        durationMinutes: Number(x.duration_minutes) > 0 ? Number(x.duration_minutes) : 0,
       }))
 
       const sessionIds = examSessions.map((x) => x.id)
@@ -395,9 +402,11 @@ export async function loadClassDetailPayload(
         is_practice_homework: boolean | null
         teacher_id: string | null
         subject_id: string | null
+        grade_level_id: string | null
+        duration_minutes: number | null
       }>(
         `select id::text, code, title, created_at, status::text, is_practice_homework,
-                teacher_id::text, subject_id
+                teacher_id::text, subject_id, grade_level_id, duration_minutes
          from public.exam_sessions
          where class_id = $1::uuid
          order by created_at desc
@@ -414,6 +423,8 @@ export async function loadClassDetailPayload(
         practiceHomework: Boolean(x.is_practice_homework),
         teacherId: String(x.teacher_id ?? ''),
         subjectId: String(x.subject_id ?? ''),
+        gradeLevelId: String(x.grade_level_id ?? ''),
+        durationMinutes: Number(x.duration_minutes) > 0 ? Number(x.duration_minutes) : 0,
       }))
 
       const sessionIds = sessionsForStudent.map((x) => x.id)

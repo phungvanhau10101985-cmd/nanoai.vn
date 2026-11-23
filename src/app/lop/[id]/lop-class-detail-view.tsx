@@ -1,4 +1,5 @@
 import { BrowserBackTextButton } from '@/components/navigation/browser-back-control'
+import { ClassNameTag } from './class-name-tag'
 import { redirect } from 'next/navigation'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { getServerDictionary } from '@/lib/i18n/server'
@@ -65,12 +66,15 @@ export async function LopClassDetailView({
       <div className="app-shell min-h-screen">
         <CreationToolPageShell currentHref={currentHref}>
           <div className="mx-auto w-full max-w-2xl pb-8 lg:max-w-3xl lg:pb-10">
-            <BrowserBackTextButton
-              fallbackHref="/lop"
-              className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-            >
-              ← {t.creationSidebar.back}
-            </BrowserBackTextButton>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <BrowserBackTextButton
+                fallbackHref="/lop"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← {t.creationSidebar.back}
+              </BrowserBackTextButton>
+              <ClassNameTag name={cls.name} school={schoolName} />
+            </div>
             <h1 className="mb-4 text-xl font-semibold text-foreground">{cls.name}</h1>
             <ClassTuitionPanel classId={cls.id} view={tuition} isOwner={false} pageMode="hub" t={t.classes} />
           </div>
@@ -110,12 +114,15 @@ export async function LopClassDetailView({
       <CreationToolPageShell currentHref={currentHref}>
         <div className="mx-auto w-full max-w-2xl pb-8 lg:max-w-3xl lg:pb-10">
           {pageMode === 'hub' && isTeacher && !focusSubject ? (
-            <BrowserBackTextButton
-              fallbackHref="/lop"
-              className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-            >
-              ← {t.creationSidebar.back}
-            </BrowserBackTextButton>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <BrowserBackTextButton
+                fallbackHref="/lop"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← {t.creationSidebar.back}
+              </BrowserBackTextButton>
+              <ClassNameTag name={cls.name} school={schoolName} />
+            </div>
           ) : null}
           <LopDetailClient
             cls={{
