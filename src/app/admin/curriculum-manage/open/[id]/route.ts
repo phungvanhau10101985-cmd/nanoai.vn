@@ -16,6 +16,18 @@ function failText(locale: string): string {
   return 'Không gắn được giáo trình vào tài khoản quản trị.'
 }
 
+/**
+ * Location tương đối. `request.url` sau proxy thường là `https://localhost:3000`,
+ * trình duyệt mở nhầm máy local và báo ERR_SSL_PROTOCOL_ERROR.
+ */
+function redirectOnSameHost(path: string): NextResponse {
+  const location = path.startsWith('/') ? path : `/${path}`
+  const res = NextResponse.redirect(`http://127.0.0.1${location}`, 303)
+  res.headers.set('Location', location)
+  res.headers.set('Cache-Control', 'no-store')
+  return res
+}
+
 /** Mở tab mới: gắn giáo trình vào tài khoản quản trị đang đăng nhập, rồi mở trang giáo trình. */
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getUserOrBypass()
@@ -23,7 +35,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
   const role = await getProfileRoleWithFallback(user.id)
   if (role !== 'admin') {
-    return NextResponse.redirect(new URL('/', _request.url))
+    return redirectOnSameHost('/')
   }
 
   const { id } = await context.params
@@ -38,7 +50,6 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     return new NextResponse(`${failText(locale)} ${attached.error}`, { status: 500 })
   }
 
-  const dest = new URL('/giao-trinh', _request.url)
-  dest.searchParams.set('openCurriculum', curriculumId)
-  return NextResponse.redirect(dest, 303)
+  const q = new URLSearchParams({ openCurriculum: curriculumId })
+  return redirectOnSameHost(`/giao-trinh?${q.toString()}`)
 }
