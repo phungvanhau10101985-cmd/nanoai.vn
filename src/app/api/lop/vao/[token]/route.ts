@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server'
-import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
-import { createEmailSessionTokenString, getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
+import { EMAIL_SESSION_COOKIE, EMAIL_SESSION_COOKIE_LEGACY } from '@/lib/auth/email-auth-config'
 import { loginRosterStudentPg } from '@/lib/db/class-entry-pg'
-import {
-  CLASS_BROWSER_COOKIE,
-  classBrowserCookieOptions,
-  signClassBrowserSession,
-} from '@/lib/lop/class-browser-session'
+import { CLASS_BROWSER_COOKIE } from '@/lib/lop/class-browser-session'
+import { rosterLoginJson } from '@/lib/lop/roster-login-response'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,30 +31,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
     return res
   }
 
-  const result = await loginRosterStudentPg(token, String(body?.studentCode ?? ''), String(body?.password ?? ''))
-  if (!result.ok) {
-    const status = result.error === 'schema' ? 503 : result.error === 'locked' ? 429 : 401
-    return NextResponse.json({ error: result.error }, { status })
-  }
-  const browser = await signClassBrowserSession({
-    classId: result.classId,
-    userId: result.userId,
-    studentCode: String(body?.studentCode ?? ''),
-    email: result.email,
-  })
-  if (!browser) return NextResponse.json({ error: 'schema' }, { status: 503 })
-  const res = NextResponse.json({ ok: true, classId: result.classId })
-  res.cookies.set(CLASS_BROWSER_COOKIE, browser, classBrowserCookieOptions())
-
-  const current = await getEmailSessionUser()
-  const rosterOnly = result.email.toLowerCase().endsWith(ROSTER_EMAIL_SUFFIX)
-  if (!current && rosterOnly) {
-    const session = await createEmailSessionTokenString(result.userId, result.email)
-    if (session) {
-      const opts = getEmailSessionCookieOptions()
-      res.cookies.set(EMAIL_SESSION_COOKIE, session, opts)
-      res.cookies.set(EMAIL_SESSION_COOKIE_LEGACY, session, opts)
-    }
-  }
-  return res
+  const studentCode = String(body?.studentCode ?? '')
+  const result = await loginRosterStudentPg(token, studentCode, String(body?.password ?? ''))
+  return rosterLoginJson(result, studentCode)
 }

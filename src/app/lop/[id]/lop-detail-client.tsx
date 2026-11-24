@@ -2616,7 +2616,7 @@ export default function LopDetailClient({
       ) : null}
 
       {pageMode === 'roster' ? (
-      <AnswerCardExportProvider className={cls.name} schoolName={cls.schoolName} t={t}>
+      <AnswerCardExportProvider className={cls.name} schoolName={cls.schoolName} joinCode={cls.join_code} t={t}>
       <section className="mb-8" aria-labelledby="class-roster-heading">
         <div className={pageSectionCard}>
           <div className={cn(pageSectionHead, 'items-start')}>
@@ -2900,10 +2900,6 @@ export default function LopDetailClient({
             <DialogDescription>{t.joinQrHint}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center gap-3 py-1">
-            <p className="text-sm font-medium text-foreground">
-              {className}
-              <span className="ml-2 font-mono tracking-wide text-muted-foreground">{cls.join_code}</span>
-            </p>
             {joinQrDataUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- data URL từ thư viện qrcode
               <img
@@ -2918,6 +2914,12 @@ export default function LopDetailClient({
             ) : (
               <div className="h-[280px] w-[280px] animate-pulse rounded-lg bg-muted" aria-hidden />
             )}
+            <p className="text-center text-sm font-medium text-foreground">
+              {className}
+              <span className="ml-3 font-mono tracking-[0.12em] text-muted-foreground">
+                {t.answerCardJoinCodeLabel} {cls.join_code}
+              </span>
+            </p>
             <div className="flex w-full gap-2">
               <div className="min-w-0 flex-1 rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-xs break-all text-foreground">
                 {joinQrUrl}

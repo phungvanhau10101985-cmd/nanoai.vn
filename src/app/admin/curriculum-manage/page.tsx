@@ -165,6 +165,15 @@ export default async function AdminCurriculumManagePage({
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
           {tr(
+            'Nút Mở mở giáo trình ở một trang mới và gắn giáo trình đó vào danh sách giáo trình của tài khoản quản trị đang đăng nhập.',
+            'Open loads the curriculum in a new page and adds it to the signed-in admin account’s curriculum list.',
+            '打开会在新页面打开该课程，并把它挂到当前登录的管理账号的课程列表。',
+            '開くは新しいページで教材を開き、ログイン中の管理アカウントの教材一覧に付けます。',
+            '열기는 새 페이지에서 교육과정을 열고, 로그인한 관리 계정의 교육과정 목록에 붙입니다.',
+          )}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {tr(
             'Giáo trình tạo trước khi gắn mã chi phí được ước theo cùng tài khoản và thời điểm, đến khi tài khoản tạo giáo trình kế tiếp. Giáo trình mới cộng đúng từng lượt gọi.',
             'Curricula saved before calls were tagged are estimated by the same account and time, until that account creates the next curriculum. Newer curricula add each tagged call.',
             '开始标记调用之前保存的课程，按同一账号和时间估算，直到该账号创建下一份课程。新课程按每次已标记的调用累加。',
@@ -269,6 +278,7 @@ export default async function AdminCurriculumManagePage({
               <Table containerClassName="w-max min-w-full overflow-visible" className="w-max min-w-full [&_td]:whitespace-nowrap [&_td]:align-middle [&_th]:whitespace-nowrap">
                 <TableHeader>
                   <TableRow>
+                    <TableHead>{tr('Mở', 'Open', '打开', '開く', '열기')}</TableHead>
                     <TableHead>{tr('Tạo lúc', 'Created', '创建时间', '作成', '만든 시각')}</TableHead>
                     <TableHead>{tr('Chủ đề', 'Topic', '主题', '主題', '주제')}</TableHead>
                     <TableHead>{tr('Môn', 'Subject', '科目', '教科', '과목')}</TableHead>
@@ -293,7 +303,7 @@ export default async function AdminCurriculumManagePage({
                 <TableBody>
                   {result.rows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={19} className="py-8 text-center text-muted-foreground">
+                      <TableCell colSpan={20} className="py-8 text-center text-muted-foreground">
                         {tr(
                           'Chưa có giáo trình trong khoảng này.',
                           'No curricula in this range.',
@@ -318,6 +328,13 @@ export default async function AdminCurriculumManagePage({
                       const costLine = brief(detail, 42)
                       return (
                         <TableRow key={row.id}>
+                          <TableCell>
+                            <form method="post" action={`/admin/curriculum-manage/open/${row.id}`} target="_blank">
+                              <Button type="submit" size="sm" variant="outline">
+                                {tr('Mở', 'Open', '打开', '開く', '열기')}
+                              </Button>
+                            </form>
+                          </TableCell>
                           <TableCell className="tabular-nums">{formatDateTime(row.createdAt)}</TableCell>
                           <TableCell>
                             <div className="max-w-[16rem] truncate font-medium" title={topic.full || undefined}>{topic.shown}</div>

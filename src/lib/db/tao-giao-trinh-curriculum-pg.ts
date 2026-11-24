@@ -710,6 +710,21 @@ export async function upsertUserHiddenCurriculumPg(userId: string, curriculumId:
   }
 }
 
+/** Bỏ ẩn để giáo trình hiện lại trong danh sách của tài khoản. */
+export async function deleteUserHiddenCurriculumPg(userId: string, curriculumId: string): Promise<{ error?: string }> {
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set' }
+  try {
+    await pgQuery(
+      `delete from public.user_hidden_curricula
+       where user_id = $1::uuid and curriculum_id = $2::uuid`,
+      [userId, curriculumId]
+    )
+    return {}
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 const CURRICULUM_LIST_SELECT = `id::text,
   topic,
   subject_id,

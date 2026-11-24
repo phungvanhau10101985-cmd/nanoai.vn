@@ -11,6 +11,7 @@ import { downloadAnswerCardsDocx, downloadAnswerCardsPdf, type AnswerCardExportI
 type ExportContextValue = {
   className: string
   schoolName: string
+  joinCode: string
   t: Dictionary['classes']
   exporting: string
   error: string
@@ -31,11 +32,13 @@ function useExportContext() {
 export function AnswerCardExportProvider({
   className,
   schoolName = '',
+  joinCode = '',
   t,
   children,
 }: {
   className: string
   schoolName?: string
+  joinCode?: string
   t: Dictionary['classes']
   children: ReactNode
 }) {
@@ -66,7 +69,7 @@ export function AnswerCardExportProvider({
   }
 
   return (
-    <ExportContext.Provider value={{ className, schoolName, t, exporting, error, selected, selectedCount: selected.size, toggle, run }}>
+    <ExportContext.Provider value={{ className, schoolName, joinCode, t, exporting, error, selected, selectedCount: selected.size, toggle, run }}>
       {children}
     </ExportContext.Provider>
   )
@@ -104,15 +107,20 @@ export function AnswerCardSelectBox({ token, name }: { token: string; name: stri
   )
 }
 
-function placeLinesFor(className: string, schoolName: string, t: Dictionary['classes']) {
-  return [className.trim() ? `${t.answerCardClassLabel} ${className.trim()}` : '', schoolName.trim() ? `${t.schoolLabel} ${schoolName.trim()}` : ''].filter(Boolean)
+function placeLinesFor(className: string, schoolName: string, joinCode: string, t: Dictionary['classes']) {
+  const code = joinCode.trim().toUpperCase()
+  const classLine = [
+    className.trim() ? `${t.answerCardClassLabel} ${className.trim()}` : '',
+    code ? `${t.answerCardJoinCodeLabel} ${code}` : '',
+  ].filter(Boolean).join(' · ')
+  return [classLine, schoolName.trim() ? `${t.schoolLabel} ${schoolName.trim()}` : ''].filter(Boolean)
 }
 
 export function AnswerCardClassFileButtons({ cards }: { cards: AnswerCardExportItem[] }) {
-  const { className, schoolName, t, exporting, selected, run } = useExportContext()
+  const { className, schoolName, joinCode, t, exporting, selected, run } = useExportContext()
   const disabled = cards.length === 0 || exporting !== ''
   const exportCards = () => cardsToExport(cards, selected)
-  const places = placeLinesFor(className, schoolName, t)
+  const places = placeLinesFor(className, schoolName, joinCode, t)
   return (
     <div className="flex flex-wrap gap-2">
       <Button
@@ -135,8 +143,8 @@ export function AnswerCardClassFileButtons({ cards }: { cards: AnswerCardExportI
 }
 
 export function AnswerCardStudentButton({ card }: { card: AnswerCardExportItem }) {
-  const { className, schoolName, t, exporting, run } = useExportContext()
-  const places = placeLinesFor(className, schoolName, t)
+  const { className, schoolName, joinCode, t, exporting, run } = useExportContext()
+  const places = placeLinesFor(className, schoolName, joinCode, t)
   const key = `card-${card.cardNo}`
   return (
     <Button

@@ -22,6 +22,7 @@ export function TheTraLoiClient({
   classId,
   className,
   schoolName = '',
+  joinCode = '',
   subjectQuery,
   cards,
   sources,
@@ -33,6 +34,7 @@ export function TheTraLoiClient({
   classId: string
   className: string
   schoolName?: string
+  joinCode?: string
   subjectQuery: string
   cards: AnswerCardStudent[]
   sources: AnswerCardSource[]
@@ -175,7 +177,7 @@ export function TheTraLoiClient({
           )}
         </section>
 
-        <AnswerCardExportProvider className={className} schoolName={schoolName} t={t}>
+        <AnswerCardExportProvider className={className} schoolName={schoolName} joinCode={joinCode} t={t}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-base font-semibold">{t.answerCardsPrint}</h2>

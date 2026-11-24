@@ -1,7 +1,10 @@
 import { randomBytes, randomInt } from 'node:crypto'
 import type { PoolClient } from 'pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import { fetchClassIdByJoinCodePg } from '@/lib/db/classes-pg'
+import { readTutoringJoinBlock } from '@/lib/db/tutoring-package-pg'
 import { entryCodesMatch, isStudentLoginCode, studentEntryEmail } from '@/lib/lop/class-entry'
+import { normalizeClassJoinCode } from '@/lib/lop/join-code'
 import { isStudentCode, normalizeStudentCode } from '@/lib/lop/class-roster'
 
 const FAIL_LIMIT = 8
@@ -291,13 +294,14 @@ export type EntryLoginResult =
   | { ok: true; classId: string; userId: string; email: string }
   | { ok: false; error: 'bad' | 'locked' | 'not_ready' | 'schema' }
 
-export async function loginRosterStudentPg(token: string, studentCodeRaw: string, passwordRaw: string): Promise<EntryLoginResult> {
+async function loginRosterInClass(
+  classId: string,
+  studentCodeRaw: string,
+  passwordRaw: string
+): Promise<EntryLoginResult> {
   const studentCode = normalizeStudentCode(studentCodeRaw)
   const password = String(passwordRaw ?? '').replace(/\D/g, '').slice(0, 6)
   if (!isStudentCode(studentCode)) return { ok: false, error: 'bad' }
-  const found = await lookupClassByEntryTokenPg(token)
-  if (found === 'schema') return { ok: false, error: 'schema' }
-  if (!found) return { ok: false, error: 'bad' }
 
   const pool = getPgPool()
   const client = await pool.connect()
@@ -316,7 +320,7 @@ export async function loginRosterStudentPg(token: string, studentCodeRaw: string
        where class_id = $1::uuid and student_code = $2
        limit 1
        for update`,
-      [found.classId, studentCode]
+      [classId, studentCode]
     )
     const entry = row.rows[0]
     if (!entry) {
@@ -339,16 +343,16 @@ export async function loginRosterStudentPg(token: string, studentCodeRaw: string
              login_locked_until = case when $3 >= $4 then now() + ($5::int * interval '1 minute') else null end,
              updated_at = now()
          where class_id = $1::uuid and student_code = $2`,
-        [found.classId, studentCode, fails, FAIL_LIMIT, LOCK_MINUTES]
+        [classId, studentCode, fails, FAIL_LIMIT, LOCK_MINUTES]
       )
       await client.query('commit')
       return { ok: false, error: fails >= FAIL_LIMIT ? 'locked' : 'bad' }
     }
 
-    const teachers = await teacherIds(client, found.classId)
+    const teachers = await teacherIds(client, classId)
     if (!entry.user_id) {
       await ensureRosterAccount(client, {
-        classId: found.classId,
+        classId,
         studentCode,
         displayName: entry.display_name,
         birthDate: String(entry.birth_date ?? '').slice(0, 10),
@@ -360,7 +364,7 @@ export async function loginRosterStudentPg(token: string, studentCodeRaw: string
        from public.class_roster_entries
        where class_id = $1::uuid and student_code = $2
        limit 1`,
-      [found.classId, studentCode]
+      [classId, studentCode]
     )
     const userId = linked.rows[0]?.user_id ?? null
     if (!userId) {
@@ -380,10 +384,10 @@ export async function loginRosterStudentPg(token: string, studentCodeRaw: string
       `update public.class_roster_entries
        set login_fail_count = 0, login_locked_until = null, updated_at = now()
        where class_id = $1::uuid and student_code = $2`,
-      [found.classId, studentCode]
+      [classId, studentCode]
     )
     await client.query('commit')
-    return { ok: true, classId: found.classId, userId, email }
+    return { ok: true, classId, userId, email }
   } catch (error) {
     await client.query('rollback').catch(() => undefined)
     if (isSchemaError(error)) return { ok: false, error: 'schema' }
@@ -392,4 +396,34 @@ export async function loginRosterStudentPg(token: string, studentCodeRaw: string
   } finally {
     client.release()
   }
+}
+
+export async function loginRosterStudentPg(token: string, studentCodeRaw: string, passwordRaw: string): Promise<EntryLoginResult> {
+  const found = await lookupClassByEntryTokenPg(token)
+  if (found === 'schema') return { ok: false, error: 'schema' }
+  if (!found) return { ok: false, error: 'bad' }
+  return loginRosterInClass(found.classId, studentCodeRaw, passwordRaw)
+}
+
+/** Vào lớp từ nút học sinh: mã lớp trên bảng QR, mã định danh và mật khẩu. */
+export async function loginRosterStudentByJoinCodePg(
+  joinCodeRaw: string,
+  studentCodeRaw: string,
+  passwordRaw: string
+): Promise<EntryLoginResult> {
+  const joinCode = normalizeClassJoinCode(joinCodeRaw)
+  if (joinCode.length < 4 || !isStudentCode(normalizeStudentCode(studentCodeRaw))) {
+    return { ok: false, error: 'bad' }
+  }
+  const classId = await fetchClassIdByJoinCodePg(joinCode)
+  if (!classId) return { ok: false, error: 'bad' }
+  try {
+    const block = await readTutoringJoinBlock(classId)
+    if (block === 'closed' || block === 'dissolved') return { ok: false, error: 'bad' }
+  } catch (error) {
+    if (isSchemaError(error)) return { ok: false, error: 'schema' }
+    console.error('[class-entry] join block', error)
+    return { ok: false, error: 'bad' }
+  }
+  return loginRosterInClass(classId, studentCodeRaw, passwordRaw)
 }

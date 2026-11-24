@@ -94,6 +94,7 @@ export default async function TheTraLoiPage({
             classId={id}
             className={payload.cls.name}
             schoolName={payload.schoolName}
+            joinCode={payload.cls.join_code}
             subjectQuery={subjectQuery}
             cards={cards ?? []}
             sources={sources ?? []}

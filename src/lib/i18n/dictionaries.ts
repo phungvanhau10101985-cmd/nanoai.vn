@@ -3166,6 +3166,7 @@ export type Dictionary = {
     entryLoginCodeOnCard: string
     answerCardFoldHint: string
     answerCardClassLabel: string
+    answerCardJoinCodeLabel: string
     entryReissue: string
     entryReissuing: string
     entryReissueDone: string
@@ -3209,6 +3210,9 @@ export type Dictionary = {
     joinChoiceNotFound: string
     joinChoiceRecommended: string
     joinChoiceExamLead: string
+    joinWayLead: string
+    joinWayIdentityHint: string
+    joinByCodeLead: string
     students: string
     worksheets: string
     noStudents: string
@@ -8303,6 +8307,7 @@ export const VI_DICTIONARY: Dictionary = {
     entryLoginCodeOnCard: 'Mật khẩu {code}',
     answerCardFoldHint: 'Giáo viên hãy gấp ngược phần dưới này ra đằng sau mã quét.',
     answerCardClassLabel: 'Lớp',
+    answerCardJoinCodeLabel: 'Mã lớp',
     entryReissue: 'Cấp lại mật khẩu',
     entryReissuing: 'Đang cấp…',
     entryReissueDone: 'Mật khẩu mới của {name}: {code}. In lại phiếu QR. Mã QR đáp án giữ nguyên.',
@@ -8347,6 +8352,9 @@ export const VI_DICTIONARY: Dictionary = {
     joinChoiceNotFound: 'Không có lớp với mã này.',
     joinChoiceRecommended: 'Đề xuất',
     joinChoiceExamLead: 'Cần vào lớp trước khi làm bài. Cách đề xuất là Google. Cách còn lại dùng mã định danh và mật khẩu trên phiếu QR.',
+    joinWayLead: 'Có hai cách vào lớp. Google dùng tài khoản. Mã định danh dùng mã lớp, mã định danh và mật khẩu cô giáo in trên bảng QR.',
+    joinWayIdentityHint: 'Nhập mã lớp, mã định danh và mật khẩu cô giáo in trên bảng QR.',
+    joinByCodeLead: 'Lấy ba dòng trên bảng QR cô giáo đã in: mã lớp, mã định danh và mật khẩu.',
     students: 'Học sinh',
     worksheets: 'Phiếu bài tập',
     noClasses: 'Chưa có lớp nào',
