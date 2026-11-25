@@ -15,6 +15,8 @@ export type CurriculumStudentViewData = {
   content: string
   topic: string
   currentIndex: number
+  /** Đoạn đang chiếu trong slide hiện tại. */
+  activeBlockIndex?: number
   curriculumId: string | null
   slideMode: 'original' | 'shared' | 'personal' | null
   slides: Array<{
@@ -49,6 +51,7 @@ type WirePayload = {
   content?: string
   topic?: string
   currentIndex?: number
+  blockIndex?: number
   curriculumId?: string
   slideMode?: string
   worksheetAnswerReveal?: Record<string, number>
@@ -202,6 +205,9 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
           content: compactedSlides.length > 0 ? '' : (e.content ?? ''),
           topic: e.topic ?? '',
           currentIndex: incomingIndex,
+          activeBlockIndex: typeof e.blockIndex === 'number' && Number.isFinite(e.blockIndex)
+            ? Math.max(0, Math.floor(e.blockIndex))
+            : (prev?.activeBlockIndex ?? 0),
           curriculumId: typeof e.curriculumId === 'string' ? e.curriculumId : null,
           slideMode:
             e.slideMode === 'personal' || e.slideMode === 'shared' || e.slideMode === 'original' ? e.slideMode : null,
@@ -292,8 +298,15 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
       if (ev.origin !== window.location.origin) return
       if (ev.data?.type === 'slide-go' && typeof ev.data.index === 'number') {
         const index = ev.data.index
+        const hasBlock = typeof ev.data.blockIndex === 'number' && Number.isFinite(ev.data.blockIndex)
+        const blockIndex = hasBlock ? Math.max(0, Math.floor(ev.data.blockIndex)) : null
         slideHoldRef.current = { index, until: Date.now() + 1500 }
-        setData((d) => (d && d.currentIndex !== index ? { ...d, currentIndex: index } : d))
+        setData((d) => {
+          if (!d) return d
+          const nextBlock = blockIndex == null ? (d.currentIndex === index ? (d.activeBlockIndex ?? 0) : 0) : blockIndex
+          if (d.currentIndex === index && (d.activeBlockIndex ?? 0) === nextBlock) return d
+          return { ...d, currentIndex: index, activeBlockIndex: nextBlock }
+        })
         return
       }
       if (ev.data?.type === 'worksheet-answer-reveal') {
@@ -313,8 +326,15 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
       channel.addEventListener('message', (event) => {
         if (event.data?.type === 'slide-go' && typeof event.data.index === 'number') {
           const index = event.data.index
+          const hasBlock = typeof event.data.blockIndex === 'number' && Number.isFinite(event.data.blockIndex)
+          const blockIndex = hasBlock ? Math.max(0, Math.floor(event.data.blockIndex)) : null
           slideHoldRef.current = { index, until: Date.now() + 1500 }
-          setData((d) => (d && d.currentIndex !== index ? { ...d, currentIndex: index } : d))
+          setData((d) => {
+            if (!d) return d
+            const nextBlock = blockIndex == null ? (d.currentIndex === index ? (d.activeBlockIndex ?? 0) : 0) : blockIndex
+            if (d.currentIndex === index && (d.activeBlockIndex ?? 0) === nextBlock) return d
+            return { ...d, currentIndex: index, activeBlockIndex: nextBlock }
+          })
         } else if (event.data?.type === 'worksheet-answer-reveal') applyAnswerRevealOnly(event.data)
         else applyCurriculumPayload(event)
       })
@@ -343,6 +363,7 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
           typingEnabled: d.answerTypingEnabled,
           typingPaused: clock.paused,
           answerVisibility: clock.visibility,
+          activeBlockIndex: d.activeBlockIndex ?? 0,
         })
         if (next === d.answerRevealProgress) return d
         return { ...d, answerRevealProgress: next }

@@ -45,7 +45,7 @@ BÀI HỌC / GIÁO TRÌNH (ngữ cảnh):
 - Các slide trong bài: ${(lessonContext?.allSlideTitles ?? []).map((t, i) => `${i + 1}. ${t}`).join(' | ')}
 - Slide hiện tại: ${(lessonContext?.currentSlideIndex ?? 0) + 1}/${lessonContext?.totalSlides ?? 1}
 
-QUAN TRỌNG: Câu hỏi phải BÁM SÁT NỘI DUNG BÀI HỌC, không chỉ hỏi ý nhỏ của 1 slide. Nếu slide chỉ là mục con/tiêu đề phụ, câu hỏi nên kiểm tra kiến thức tổng hợp của bài (công thức chính, định nghĩa quan trọng, quy tắc cốt lõi). Tránh câu hỏi quá ngắn, quá hẹp, không phản ánh mục tiêu bài học.
+QUAN TRỌNG: Nếu slide có ví dụ, câu hỏi phải dùng tình huống hoặc số của ví dụ đó. Nếu có "Ngã rẽ" hoặc "Vì sao", một đáp án sai là lỗi đó và đáp án đúng khớp câu vì sao. Slide đã có ví dụ thì không hỏi lại định nghĩa suông của cả bài.
 `
       : ''
 
@@ -56,7 +56,7 @@ ${diffHint}
 
 ${contextBlock}
 QUY TRÌNH BẮT BUỘC:
-1. ĐỌC KỸ slide hiện tại VÀ ngữ cảnh bài học. Xác định kiến thức CỐT LÕI cần kiểm tra (công thức/định nghĩa/quy tắc quan trọng của bài).
+1. ĐỌC KỸ slide hiện tại. Nếu có ví dụ, câu hỏi dùng đúng tình huống hoặc số của ví dụ đó. Nếu có "Ngã rẽ" hoặc "Vì sao", một đáp án sai là lỗi đó và đáp án đúng khớp câu vì sao. Chỉ khi slide không có ví dụ mới hỏi kiến thức cốt lõi của cả bài.
 2. Tạo đáp án ĐÚNG trước – phải khớp 100% với nội dung slide/bài, không thiếu ký hiệu.
 3. Tạo 3 đáp án SAI – plausible nhưng rõ ràng sai (thiếu dấu, sai công thức, nhầm khái niệm).
 
@@ -217,11 +217,16 @@ export async function POST(req: NextRequest) {
           }
         : undefined
 
+    const teacherNotes = String(body?.teacherNotes ?? '').trim().slice(0, 400)
     const slideText = blocks.length > 0
       ? blocks.map((b) => `${b.header || ''}: ${b.content || ''}`).join('\n\n')
       : content
 
-    const fullContent = title ? `## ${title}\n\n${slideText}` : slideText
+    const fullContent = [
+      title ? `## ${title}` : '',
+      slideText,
+      teacherNotes ? `Ghi chú để ra câu hỏi (không chiếu):\n${teacherNotes}` : '',
+    ].filter(Boolean).join('\n\n')
     if (!fullContent.trim()) {
       return NextResponse.json({ error: 'Thiếu nội dung slide.' }, { status: 400 })
     }

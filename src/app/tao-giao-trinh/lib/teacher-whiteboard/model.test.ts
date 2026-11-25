@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { applyWhiteboardMessage, emptyWhiteboardState, hitTestDraft, hitTestTop, overviewCamera, pickObjectsInMarquee, placeWhiteboardImage, sanitizeWhiteboardObject, topFigureHandle, translateObject, whiteboardOverviewBounds } from './model'
+import { applyWhiteboardMessage, deleteWhiteboardSelection, emptyWhiteboardState, hitTestDraft, hitTestTop, overviewCamera, pickObjectsInMarquee, placeWhiteboardImage, sanitizeWhiteboardObject, topFigureHandle, translateObject, whiteboardMarqueeIsSelection, whiteboardOverviewBounds } from './model'
 import { figureItem, freshFigureParams } from './figures'
 import { screenToWorld } from './geometry'
 import type { WhiteboardObject } from './types'
@@ -212,4 +212,25 @@ test('bấm giữa bản đồ con là tâm vùng đang có nét', () => {
   const mid = screenToWorld(84, 56, cam, 168, 112)
   assert.ok(Math.abs(mid.x - (bounds.minX + bounds.maxX) / 2) < 1)
   assert.ok(Math.abs(mid.y - (bounds.minY + bounds.maxY) / 2) < 1)
+})
+
+test('xóa chỉ bỏ phần tử được chọn', () => {
+  const objects: WhiteboardObject[] = [
+    { kind: 'stroke', id: 'keep', tool: 'pen', color: '#111', size: 3, points: [{ x: 0, y: 0 }, { x: 10, y: 0 }] },
+    { kind: 'stroke', id: 'drop', tool: 'pen', color: '#111', size: 3, points: [{ x: 20, y: 0 }, { x: 30, y: 0 }] },
+    { kind: 'graph', id: 'axis', color: '#111', axis: 'y', expr: 'x', origin: { x: 0, y: 0 }, unit: 40, frameId: 'frame-a' },
+    { kind: 'graph', id: 'curve', color: '#111', axis: 'y', expr: 'x^2', origin: { x: 0, y: 0 }, unit: 40, frameId: 'frame-a' },
+  ]
+  const gone = deleteWhiteboardSelection(objects, ['drop', 'missing', 'drop'])
+  assert.deepEqual(gone.removedIds, ['drop'])
+  assert.deepEqual(gone.objects.map((item) => item.id), ['keep', 'axis', 'curve'])
+  const curve = deleteWhiteboardSelection(gone.objects, ['curve'])
+  assert.deepEqual(curve.removedIds, ['curve'])
+  assert.deepEqual(curve.objects.map((item) => item.id), ['keep', 'axis'])
+  const none = deleteWhiteboardSelection(curve.objects, [])
+  assert.equal(none.objects, curve.objects)
+  assert.deepEqual(none.removedIds, [])
+  assert.equal(whiteboardMarqueeIsSelection('touch', 80), false)
+  assert.equal(whiteboardMarqueeIsSelection('mouse', 12), false)
+  assert.equal(whiteboardMarqueeIsSelection('mouse', 28), true)
 })

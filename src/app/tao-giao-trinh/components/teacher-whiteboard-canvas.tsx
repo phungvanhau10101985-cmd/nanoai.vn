@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, Cuboid, Eraser, Grid3x3, Hand, MousePointer2, PaintBucket, PenLine, Ruler, RulerDimensionLine, Shapes, Trash2, Type, Undo2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronDown, Cuboid, Eraser, Grid3x3, Hand, MousePointer2, Move, PaintBucket, PenLine, Ruler, RulerDimensionLine, Shapes, Trash2, Type, Undo2, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { WhiteboardRulerGraphic, type RulerDragMode } from './teacher-whiteboard-ruler'
 import { FigureEditor, FigureMenu, GraphPreview } from './teacher-whiteboard-figure-panel'
+import { defaultFigureScope, figureBandOf, type FigureScope } from '../lib/teacher-whiteboard/figure-grade'
+import { captionIndexFromProbe, setFigureCaptionLocale } from '../lib/teacher-whiteboard/figure-caption'
 import { cn } from '@/lib/utils'
 import { keepEntryFieldInCard, useMobileVisibleFrame } from './use-mobile-visible-frame'
 import {
@@ -35,13 +37,16 @@ import {
   newWhiteboardId,
   pathLength,
   paintWhiteboard,
+  selectionFrame,
   setWhiteboardImageRepaint,
   compressWhiteboardImage,
   placeWhiteboardImage,
   drawDraft,
   parsePlotInput,
   parseSpatialInput,
+  deleteWhiteboardSelection,
   pickObjectsInMarquee,
+  whiteboardMarqueeIsSelection,
   joinThreeStrokeArrow,
   joinThreeStrokeTriangle,
   recognizeStroke,
@@ -153,6 +158,39 @@ import {
 } from '../lib/teacher-whiteboard'
 
 type Tr = (vi: string, en: string, zh: string, ja: string, ko: string) => string
+
+function drawNamed(tr: Tr, label: readonly [string, string, string, string, string]) {
+  const vi = label[0].charAt(0).toLowerCase() + label[0].slice(1)
+  const en = label[1].charAt(0).toLowerCase() + label[1].slice(1)
+  return tr(`Vẽ ${vi}`, `Draw ${en}`, `画${label[2]}`, `${label[3]}を描く`, `${label[4]} 그리기`)
+}
+
+const MOVE_HANDLE = 24
+
+function moveHandleSpots(
+  ctx: CanvasRenderingContext2D,
+  objects: WhiteboardObject[],
+  ids: string[],
+  camera: WhiteboardCamera,
+  w: number,
+  h: number,
+  skipId: string | null,
+) {
+  const spots: { id: string; x: number; y: number; frameId?: string }[] = []
+  for (const id of ids) {
+    if (skipId && id === skipId) continue
+    const obj = objects.find((item) => item.id === id)
+    if (!obj) continue
+    const box = selectionFrame(ctx, obj, camera, w, h)
+    if (!box) continue
+    let x = box.x - MOVE_HANDLE
+    let y = box.y - MOVE_HANDLE
+    if (x < 2) x = Math.min(Math.max(2, box.x), Math.max(2, w - MOVE_HANDLE - 2))
+    if (y < 2) y = Math.min(Math.max(2, box.y), Math.max(2, h - MOVE_HANDLE - 2))
+    spots.push({ id, x, y, frameId: obj.kind === 'graph' ? obj.frameId : undefined })
+  }
+  return spots
+}
 
 const DIM_LABEL: Record<WhiteboardDimTool, { vi: string; en: string; zh: string; ja: string; ko: string }> = {
   quick: { vi: 'Nhanh', en: 'Quick', zh: '快速', ja: 'クイック', ko: '빠른' },
@@ -497,6 +535,7 @@ export type TeacherWhiteboardCanvasProps = {
   readOnly?: boolean
   tr: Tr
   className?: string
+  gradeLevelId?: string | null
 }
 
 export function TeacherWhiteboardCanvas({
@@ -511,6 +550,7 @@ export function TeacherWhiteboardCanvas({
   readOnly = false,
   tr,
   className,
+  gradeLevelId = null,
 }: TeacherWhiteboardCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -548,6 +588,12 @@ export function TeacherWhiteboardCanvas({
   solidKindRef.current = solidKind
   const [solidAsk, setSolidAsk] = useState<SolidKind | null>(null)
   const [figureMenu, setFigureMenu] = useState(false)
+  const figureBand = figureBandOf(gradeLevelId || '')
+  const [figureScope, setFigureScope] = useState<FigureScope>(() => defaultFigureScope(figureBandOf(gradeLevelId || '')))
+  useEffect(() => {
+    setFigureScope(defaultFigureScope(figureBandOf(gradeLevelId || '')))
+  }, [gradeLevelId])
+  setFigureCaptionLocale(captionIndexFromProbe(tr('vi', 'en', 'zh', 'ja', 'ko')))
   const imageFileRef = useRef<HTMLInputElement | null>(null)
   const [imageError, setImageError] = useState('')
   const [imageTick, setImageTick] = useState(0)
@@ -588,6 +634,10 @@ export function TeacherWhiteboardCanvas({
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const selectedIdsRef = useRef(selectedIds)
   selectedIdsRef.current = selectedIds
+  const selectOnly = (id: string) => {
+    selectedIdsRef.current = [id]
+    setSelectedIds([id])
+  }
   const marqueeRef = useRef<{ x0: number; y0: number; x1: number; y1: number; additive: boolean; pointer: string } | null>(null)
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number; crossing: boolean } | null>(null)
   const toolRef = useRef(tool)
@@ -1685,6 +1735,7 @@ export function TeacherWhiteboardCanvas({
         setStraightLength(formatWholeGrid(measured.length))
         setStraightAngle(formatWholeAngle(measured.angleDeg))
         setStraightError('')
+        selectOnly(labeled.id)
         setStraightAsk({ id: labeled.id, color: labeled.color, size: labeled.size, start, end, lineType: labeled.lineType ?? 'continuous' })
         return
       }
@@ -1694,6 +1745,7 @@ export function TeacherWhiteboardCanvas({
         setEllipseMajor(formatWholeGrid(labeled.r * 2))
         setEllipseMinor(formatWholeGrid(labeled.r * 2))
         setCircleError('')
+        selectOnly(labeled.id)
         setCircleAsk({
           id: labeled.id,
           color: labeled.color,
@@ -1765,6 +1817,45 @@ export function TeacherWhiteboardCanvas({
     flushDraft({ id, tool: tool === 'eraser' ? 'eraser' : 'pen', color, size: brush, lineType: tool === 'eraser' || lineType === 'continuous' ? undefined : lineType, points: [start] })
   }
 
+  const applyDrag = (world: WhiteboardPoint) => {
+    const drag = dragRef.current
+    if (!drag) return
+    const cur = stateRef.current.objects.find((item) => item.id === drag.id)
+    if (!cur) return
+    let target = world
+    if (stateRef.current.grid && drag.mode === 'move') target = snapToGrid(world, WHITEBOARD_GRID)
+    const dx = target.x - drag.last.x
+    const dy = target.y - drag.last.y
+    let next = cur
+    if (drag.mode === 'move') next = translateObject(cur, dx, dy)
+    else if (drag.mode === 'scale') {
+      const origin = { x: cur.kind === 'graph' ? cur.origin.x : world.x - dx, y: cur.kind === 'graph' ? cur.origin.y : world.y - dy }
+      next = scaleObject(cur, origin, 1 + (dx + dy) / 220)
+    } else {
+      next = rotateObject(cur, { x: world.x - dx, y: world.y - dy }, dx / 80)
+    }
+    drag.last = target
+    const frameId = drag.frameId
+    const movingMany = drag.mode === 'move'
+    const selected = new Set(movingMany && selectedIdsRef.current.includes(cur.id) ? selectedIdsRef.current : [cur.id])
+    if (frameId && (drag.mode === 'move' || drag.mode === 'scale')) {
+      for (const item of stateRef.current.objects) {
+        if (item.kind === 'graph' && item.frameId === frameId) selected.add(item.id)
+      }
+    }
+    const objects = stateRef.current.objects.map((item) => {
+      if (item.id === next.id) return next
+      if (!selected.has(item.id)) return item
+      if (drag.mode === 'move') return translateObject(item, dx, dy)
+      if (drag.mode !== 'scale') return item
+      const origin = { x: cur.kind === 'graph' ? cur.origin.x : world.x - dx, y: cur.kind === 'graph' ? cur.origin.y : world.y - dy }
+      return scaleObject(item, origin, 1 + (dx + dy) / 220)
+    })
+    const nextState = { ...stateRef.current, objects }
+    stateRef.current = nextState
+    onStateChange(nextState)
+  }
+
   const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (readOnly) return
     if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
@@ -1789,9 +1880,11 @@ export function TeacherWhiteboardCanvas({
       const m = marqueeRef.current
       m.x1 = e.clientX - (wrapRef.current?.getBoundingClientRect().left ?? 0)
       m.y1 = e.clientY - (wrapRef.current?.getBoundingClientRect().top ?? 0)
-      const slop = m.pointer === 'touch' ? 36 : 6
-      if (Math.hypot(m.x1 - m.x0, m.y1 - m.y0) >= slop) {
+      const dist = Math.hypot(m.x1 - m.x0, m.y1 - m.y0)
+      if (whiteboardMarqueeIsSelection(m.pointer, dist)) {
         setMarquee({ x0: m.x0, y0: m.y0, x1: m.x1, y1: m.y1, crossing: m.x1 < m.x0 })
+      } else {
+        setMarquee(null)
       }
       return
     }
@@ -1828,41 +1921,7 @@ export function TeacherWhiteboardCanvas({
       fillPickRef.current = null
     }
     if (dragRef.current) {
-      const cur = stateRef.current.objects.find((item) => item.id === dragRef.current?.id)
-      if (!cur) return
-      let target = world
-      if (stateRef.current.grid && dragRef.current.mode === 'move') target = snapToGrid(world, WHITEBOARD_GRID)
-      const dx = target.x - dragRef.current.last.x
-      const dy = target.y - dragRef.current.last.y
-      let next = cur
-      if (dragRef.current.mode === 'move') next = translateObject(cur, dx, dy)
-      else if (dragRef.current.mode === 'scale') {
-        const origin = { x: cur.kind === 'graph' ? cur.origin.x : world.x - dx, y: cur.kind === 'graph' ? cur.origin.y : world.y - dy }
-        const factor = 1 + (dx + dy) / 220
-        next = scaleObject(cur, origin, factor)
-      } else {
-        next = rotateObject(cur, { x: world.x - dx, y: world.y - dy }, dx / 80)
-      }
-      dragRef.current.last = target
-      const frameId = dragRef.current.frameId
-      const movingMany = dragRef.current.mode === 'move'
-      const selected = new Set(movingMany && selectedIdsRef.current.includes(cur.id) ? selectedIdsRef.current : [cur.id])
-      if (frameId && (dragRef.current.mode === 'move' || dragRef.current.mode === 'scale')) {
-        for (const item of stateRef.current.objects) {
-          if (item.kind === 'graph' && item.frameId === frameId) selected.add(item.id)
-        }
-      }
-      const objects = stateRef.current.objects.map((item) => {
-        if (item.id === next.id) return next
-        if (!selected.has(item.id)) return item
-        if (dragRef.current?.mode === 'move') return translateObject(item, dx, dy)
-        if (dragRef.current?.mode !== 'scale') return item
-        const origin = { x: cur.kind === 'graph' ? cur.origin.x : world.x - dx, y: cur.kind === 'graph' ? cur.origin.y : world.y - dy }
-        return scaleObject(item, origin, 1 + (dx + dy) / 220)
-      })
-      const nextState = { ...stateRef.current, objects }
-      stateRef.current = nextState
-      onStateChange(nextState)
+      applyDrag(world)
       return
     }
     const drawing = drawRef.current
@@ -1890,6 +1949,21 @@ export function TeacherWhiteboardCanvas({
     flushDraft({ id: drawing.id, tool: tool === 'eraser' ? 'eraser' : 'pen', color, size: brush, lineType: tool === 'eraser' || lineType === 'continuous' ? undefined : lineType, points: drawing.points.slice() })
   }
 
+  const finishDrag = () => {
+    const drag = dragRef.current
+    if (!drag) return
+    dragRef.current = null
+    const selected = new Set(drag.mode === 'move' && selectedIdsRef.current.includes(drag.id) ? selectedIdsRef.current : [drag.id])
+    if (drag.frameId) {
+      for (const item of stateRef.current.objects) {
+        if (item.kind === 'graph' && item.frameId === drag.frameId) selected.add(item.id)
+      }
+    }
+    for (const obj of stateRef.current.objects) {
+      if (selected.has(obj.id)) emit({ type: 'whiteboard-upsert', object: obj })
+    }
+  }
+
   const onPointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     pointersRef.current.delete(e.pointerId)
     if (pointersRef.current.size < 2) pinchRef.current = null
@@ -1899,46 +1973,36 @@ export function TeacherWhiteboardCanvas({
       const m = marqueeRef.current
       marqueeRef.current = null
       setMarquee(null)
-      const slop = m.pointer === 'touch' ? 36 : 6
-      const moved = Math.hypot(m.x1 - m.x0, m.y1 - m.y0) >= slop
-      if (m.pointer === 'touch') {
+      const dist = Math.hypot(m.x1 - m.x0, m.y1 - m.y0)
+      if (!whiteboardMarqueeIsSelection(m.pointer, dist)) {
         const scale = stateRef.current.camera.scale || 1
-        const reach = 22 / scale
-        const world0 = screenToWorld(
-          m.x0,
-          m.y0,
-          stateRef.current.camera,
-          wrapRef.current?.getBoundingClientRect().width ?? 1,
-          wrapRef.current?.getBoundingClientRect().height ?? 1,
-        )
+        const reach = (m.pointer === 'touch' ? 22 : 10) / scale
+        const worldUp = m.pointer === 'touch'
+          ? screenToWorld(
+              m.x0,
+              m.y0,
+              stateRef.current.camera,
+              wrapRef.current?.getBoundingClientRect().width ?? 1,
+              wrapRef.current?.getBoundingClientRect().height ?? 1,
+            )
+          : localPoint(e).world
         const draft = stateRef.current.draft
-        const draftHit = !m.additive && draft && hitTestDraft(draft, world0, reach)
-        const hit = draftHit ? null : hitTestTop(stateRef.current.objects, world0, reach)
-        const id = draftHit && draft ? draft.id : hit?.id
-        const nextIds = id ? [id] : []
-        selectedIdsRef.current = nextIds
-        setSelectedIds(nextIds)
-        return
-      }
-      if (!moved) {
-        const scale = stateRef.current.camera.scale || 1
-        const reach = (m.pointer === 'touch' ? 18 : 10) / scale
-        const worldUp = localPoint(e).world
-        const draft = stateRef.current.draft
-        if (!m.additive && draft && hitTestDraft(draft, worldUp, reach)) {
-          selectedIdsRef.current = [draft.id]
-          setSelectedIds([draft.id])
+        const draftHit = !m.additive && draft && hitTestDraft(draft, worldUp, reach)
+        if (draftHit && draft) {
+          selectOnly(draft.id)
           return
         }
         const hit = hitTestTop(stateRef.current.objects, worldUp, reach)
         const prev = selectedIdsRef.current
-        const nextIds = m.additive
-          ? hit
-            ? prev.includes(hit.id) ? prev.filter((id) => id !== hit.id) : [...prev, hit.id]
-            : prev
-          : hit
-            ? [hit.id]
-            : []
+        const nextIds = m.pointer === 'touch'
+          ? (hit ? [hit.id] : [])
+          : m.additive
+            ? hit
+              ? prev.includes(hit.id) ? prev.filter((id) => id !== hit.id) : [...prev, hit.id]
+              : prev
+            : hit
+              ? prev.includes(hit.id) ? prev : [hit.id]
+              : []
         selectedIdsRef.current = nextIds
         setSelectedIds(nextIds)
         return
@@ -1970,24 +2034,9 @@ export function TeacherWhiteboardCanvas({
     }
     const fillPick = fillPickRef.current
     fillPickRef.current = null
-    if (fillPick && !dragRef.current) {
-      applyRegionFill(fillPick.id)
-      return
-    }
+    if (fillPick && !dragRef.current) return
     if (dragRef.current) {
-      const frameId = dragRef.current.frameId
-      const id = dragRef.current.id
-      const mode = dragRef.current.mode
-      dragRef.current = null
-      const selected = new Set(mode === 'move' && selectedIdsRef.current.includes(id) ? selectedIdsRef.current : [id])
-      if (frameId) {
-        for (const item of stateRef.current.objects) {
-          if (item.kind === 'graph' && item.frameId === frameId) selected.add(item.id)
-        }
-      }
-      for (const obj of stateRef.current.objects) {
-        if (selected.has(obj.id)) emit({ type: 'whiteboard-upsert', object: obj })
-      }
+      finishDrag()
       return
     }
     const drawing = drawRef.current
@@ -2019,6 +2068,7 @@ export function TeacherWhiteboardCanvas({
     }
     if (entered) {
       flushDraft(sketchDraft)
+      selectOnly(drawing.id)
       setLineAsk({
         id: drawing.id,
         color,
@@ -2040,6 +2090,7 @@ export function TeacherWhiteboardCanvas({
       const ca = parseSideLength(measured.ca) ?? 1
       const kind = guessTriangleKind(ab, bc, ca)
       flushDraft(sketchDraft)
+      selectOnly(drawing.id)
       setTriKind(kind)
       setTriSides(settleTriangleSides(kind, gridSides(measured), 'bc'))
       setTriError('')
@@ -2060,6 +2111,7 @@ export function TeacherWhiteboardCanvas({
       const kind = guessQuadKind(quadCorners)
       const cornerAngle = String(angleAtCorner(quadCorners, 0))
       flushDraft(sketchDraft)
+      selectOnly(drawing.id)
       setQuadKind(kind)
       setQuadSides(gridQuad(fillQuadSides(kind, measured, 'ab')))
       setQuadAngle(kind === 'square' || kind === 'rectangle' ? '90' : kind === 'trapezoid' ? formatWholeGrid(trapezoidHeight(quadCorners)) : cornerAngle)
@@ -2087,6 +2139,7 @@ export function TeacherWhiteboardCanvas({
       const drop = new Set(triJoined.removeIds)
       const restore = stateRef.current.objects.filter((item) => drop.has(item.id))
       flushDraft(sketchDraft)
+      selectOnly(drawing.id)
       const measured = sidesFromSketch(triJoined.corners)
       const ab = parseSideLength(measured.ab) ?? 1
       const bc = parseSideLength(measured.bc) ?? 1
@@ -2150,6 +2203,7 @@ export function TeacherWhiteboardCanvas({
       setStraightLength(formatWholeGrid(measured.length))
       setStraightAngle(formatWholeAngle(measured.angleDeg))
       setStraightError('')
+      selectOnly(drawing.id)
       setStraightAsk({
         id: drawing.id,
         color,
@@ -2178,6 +2232,7 @@ export function TeacherWhiteboardCanvas({
       setEllipseMajor(formatWholeGrid((longOnRx ? rx : ry) * 2))
       setEllipseMinor(formatWholeGrid((longOnRx ? ry : rx) * 2))
       setCircleError('')
+      selectOnly(drawing.id)
       setCircleAsk({
         id: drawing.id,
         color,
@@ -2321,28 +2376,33 @@ export function TeacherWhiteboardCanvas({
     setSelectedIds((ids) => ids.filter((id) => id !== last.id))
   }
 
-  const clearAll = () => {
-    setSelectedIds([])
-    setState({ ...stateRef.current, objects: [], draft: null }, { type: 'whiteboard-clear' })
-  }
-
   const removeSelected = () => {
-    const ids = selectedIdsRef.current
-    if (ids.length === 0) return
+    const chosen = selectedIdsRef.current.slice()
+    if (chosen.length === 0) return
     const draft = stateRef.current.draft
-    const dropDraft = Boolean(draft && ids.includes(draft.id))
-    const objectIds = ids.filter((id) => !draft || id !== draft.id)
-    const drop = new Set(objectIds)
-    const objects = objectIds.length > 0
-      ? stateRef.current.objects.filter((item) => !drop.has(item.id))
-      : stateRef.current.objects
+    const dropDraft = Boolean(draft && chosen.includes(draft.id))
+    const deleted = deleteWhiteboardSelection(stateRef.current.objects, chosen)
+    if (deleted.removedIds.length === 0 && !dropDraft) {
+      selectedIdsRef.current = []
+      setSelectedIds([])
+      return
+    }
     const nextDraft = dropDraft ? null : draft
-    if (objectIds.length > 0) {
-      setState({ ...stateRef.current, objects, draft: nextDraft }, { type: 'whiteboard-remove', ids: objectIds })
+    const next = { ...stateRef.current, objects: deleted.objects, draft: nextDraft }
+    stateRef.current = next
+    if (deleted.removedIds.length > 0) {
+      setState(next, { type: 'whiteboard-remove', ids: deleted.removedIds })
     } else {
-      setState({ ...stateRef.current, objects, draft: nextDraft })
+      setState(next)
     }
     if (dropDraft) emit({ type: 'whiteboard-draft', draft: null })
+    const gone = new Set(deleted.removedIds)
+    if (dropDraft && draft) gone.add(draft.id)
+    if (straightAsk && gone.has(straightAsk.id)) setStraightAsk(null)
+    if (circleAsk && gone.has(circleAsk.id)) setCircleAsk(null)
+    if (triangleAsk && gone.has(triangleAsk.id)) setTriangleAsk(null)
+    if (quadAsk && gone.has(quadAsk.id)) setQuadAsk(null)
+    if (lineAsk && gone.has(lineAsk.id)) setLineAsk(null)
     selectedIdsRef.current = []
     setSelectedIds([])
   }
@@ -2412,7 +2472,6 @@ export function TeacherWhiteboardCanvas({
 
   const keysRef = useRef({
     undo,
-    clearAll,
     removeSelected,
     toggleGrid,
     zoomByTen,
@@ -2476,7 +2535,6 @@ export function TeacherWhiteboardCanvas({
   )
   keysRef.current = {
     undo,
-    clearAll,
     removeSelected,
     toggleGrid,
     zoomByTen,
@@ -2502,11 +2560,6 @@ export function TeacherWhiteboardCanvas({
       if (cmd && lower === 'z' && !e.shiftKey) {
         e.preventDefault()
         api.undo()
-        return
-      }
-      if (cmd && e.shiftKey && (key === 'Delete' || key === 'Backspace')) {
-        e.preventDefault()
-        api.clearAll()
         return
       }
       if (key === 'Delete' || key === 'Backspace') {
@@ -2748,12 +2801,28 @@ export function TeacherWhiteboardCanvas({
     return tr('Hình bình hành', 'Parallelogram', '平行四边形', '平行四辺形', '평행사변형')
   }
 
+  const quadDrawLabel = (kind: QuadKind) => {
+    if (kind === 'square') return tr('Vẽ hình vuông', 'Draw square', '画正方形', '正方形を描く', '정사각형 그리기')
+    if (kind === 'rectangle') return tr('Vẽ hình chữ nhật', 'Draw rectangle', '画长方形', '長方形を描く', '직사각형 그리기')
+    if (kind === 'rhombus') return tr('Vẽ hình thoi', 'Draw rhombus', '画菱形', 'ひし形を描く', '마름모 그리기')
+    if (kind === 'trapezoid') return tr('Vẽ hình thang', 'Draw trapezoid', '画梯形', '台形を描く', '사다리꼴 그리기')
+    return tr('Vẽ hình bình hành', 'Draw parallelogram', '画平行四边形', '平行四辺形を描く', '평행사변형 그리기')
+  }
+
   const triangleKindLabel = (kind: TriangleKind) => {
     if (kind === 'equilateral') return tr('Tam giác đều', 'Equilateral', '等边三角形', '正三角形', '정삼각형')
     if (kind === 'isosceles') return tr('Tam giác cân', 'Isosceles', '等腰三角形', '二等辺三角形', '이등변삼각형')
     if (kind === 'right') return tr('Tam giác vuông', 'Right', '直角三角形', '直角三角形', '직각삼각형')
     if (kind === 'right-isosceles') return tr('Tam giác vuông cân', 'Isosceles right', '等腰直角三角形', '直角二等辺三角形', '직각이등변삼각형')
     return tr('Tam giác thường', 'Scalene', '一般三角形', '不等辺三角形', '부등변삼각형')
+  }
+
+  const triangleDrawLabel = (kind: TriangleKind) => {
+    if (kind === 'equilateral') return tr('Vẽ tam giác đều', 'Draw equilateral triangle', '画等边三角形', '正三角形を描く', '정삼각형 그리기')
+    if (kind === 'isosceles') return tr('Vẽ tam giác cân', 'Draw isosceles triangle', '画等腰三角形', '二等辺三角形を描く', '이등변삼각형 그리기')
+    if (kind === 'right') return tr('Vẽ tam giác vuông', 'Draw right triangle', '画直角三角形', '直角三角形を描く', '직각삼각형 그리기')
+    if (kind === 'right-isosceles') return tr('Vẽ tam giác vuông cân', 'Draw isosceles right triangle', '画等腰直角三角形', '直角二等辺三角形を描く', '직각이등변삼각형 그리기')
+    return tr('Vẽ tam giác thường', 'Draw scalene triangle', '画一般三角形', '不等辺三角形を描く', '부등변삼각형 그리기')
   }
 
   const triangleLineLabel = (role: TriangleLineRole) => {
@@ -3217,6 +3286,29 @@ export function TeacherWhiteboardCanvas({
     }
   }
   const askCard = 'pointer-events-auto absolute overflow-y-auto rounded-2xl bg-white p-4 text-slate-900 shadow-2xl'
+  const onMoveHandleDown = (id: string, frameId?: string) => (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (readOnly || e.button !== 0) return
+    e.preventDefault()
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* con trỏ đã nhả */ }
+    fillPickRef.current = null
+    dragRef.current = { id, last: localPoint(e).world, mode: 'move', frameId }
+  }
+  const onMoveHandleMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId) || !dragRef.current) return
+    applyDrag(localPoint(e).world)
+  }
+  const onMoveHandleUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+    finishDrag()
+  }
+  const moveHandles = (() => {
+    if (readOnly || selectedIds.length === 0) return []
+    const ctx = canvasRef.current?.getContext('2d')
+    if (!ctx) return []
+    const w = wrapRef.current?.clientWidth || boardSize.w
+    const h = wrapRef.current?.clientHeight || boardSize.h
+    return moveHandleSpots(ctx, state.objects, selectedIds, state.camera, w, h, textDraft?.id ?? null)
+  })()
   return (
     <div ref={rootRef} className={cn('relative flex h-full min-h-0 w-full flex-col bg-slate-200 touch-none', className)} data-teacher-whiteboard>
       <div
@@ -3253,6 +3345,22 @@ export function TeacherWhiteboardCanvas({
           onPointerCancel={onPointerUp}
           onWheel={onWheel}
         />
+        {moveHandles.map((handle) => (
+          <button
+            key={handle.id}
+            type="button"
+            aria-label={tr('Di chuyển', 'Move', '移动', '移動', '이동')}
+            title={tr('Kéo để di chuyển', 'Drag to move', '拖动移动', 'ドラッグして移動', '끌어 이동')}
+            className="absolute z-20 flex cursor-move touch-none items-center justify-center rounded-sm border border-sky-600 bg-white text-sky-700 shadow-sm"
+            style={{ left: handle.x, top: handle.y, width: MOVE_HANDLE, height: MOVE_HANDLE }}
+            onPointerDown={onMoveHandleDown(handle.id, handle.frameId)}
+            onPointerMove={onMoveHandleMove}
+            onPointerUp={onMoveHandleUp}
+            onPointerCancel={onMoveHandleUp}
+          >
+            <Move className="h-3.5 w-3.5" strokeWidth={2.25} aria-hidden />
+          </button>
+        ))}
         {figurePick ? (
           <FigureEditor
             tr={tr}
@@ -3261,6 +3369,8 @@ export function TeacherWhiteboardCanvas({
             onParams={setFigureParams}
             onInsert={insertFigure}
             onClose={closeFigure}
+            band={figureBand}
+            scope={figureScope}
           />
         ) : null}
         {textDraft ? (
@@ -3480,17 +3590,15 @@ export function TeacherWhiteboardCanvas({
                 <button type="button" className={iconBtn(tool === 'pen' && !dimTool)} title={`${tr('Vẽ', 'Draw', '画笔', '描画', '그리기')} (B)`} aria-label={tr('Vẽ', 'Draw', '画笔', '描画', '그리기')} onClick={() => { clearDim(); disarmSolid(); setTool('pen') }}>{glyph(<PenLine className="h-4 w-4" aria-hidden />)}{cap(tr('Vẽ', 'Draw', '画笔', '描画', '그리기'))}</button>
                 <button
                   type="button"
-                  className={iconBtn(false)}
+                  className={cn(iconBtn(false), selectedIds.length === 0 && 'opacity-40')}
+                  disabled={selectedIds.length === 0}
                   title={selectedIds.length > 0
                     ? tr('Xóa phần đang chọn', 'Delete selection', '删除所选', '選択を削除', '선택 삭제')
-                    : `${tr('Xóa hết', 'Clear all', '全部清除', 'すべて消去', '모두 지우기')} (Ctrl+Shift+Delete)`}
+                    : tr('Chọn phần tử rồi xóa', 'Select an item, then delete', '先选择再删除', '選択してから削除', '선택 후 삭제')}
                   aria-label={selectedIds.length > 0
                     ? tr('Xóa phần đang chọn', 'Delete selection', '删除所选', '選択を削除', '선택 삭제')
-                    : tr('Xóa hết', 'Clear all', '全部清除', 'すべて消去', '모두 지우기')}
-                  onClick={() => {
-                    if (selectedIdsRef.current.length > 0) removeSelected()
-                    else clearAll()
-                  }}
+                    : tr('Chọn phần tử rồi xóa', 'Select an item, then delete', '先选择再删除', '選択してから削除', '선택 후 삭제')}
+                  onClick={() => removeSelected()}
                 >
                   {glyph(<Trash2 className="h-4 w-4" aria-hidden />)}
                   {cap(tr('Xóa', 'Del', '删除', '削除', '삭제'))}
@@ -3599,13 +3707,13 @@ export function TeacherWhiteboardCanvas({
                     {glyph(<Shapes className="h-4 w-4" aria-hidden />)}
                     {cap(tr('Chèn', 'Add', '插入', '挿入', '삽입'))}
                   </button>
-                  {figureMenu && !figurePick ? placeMenu(<FigureMenu sheet={visibleFrame.narrow} tr={tr} onInsertImage={() => {
+                  {figureMenu && !figurePick ? placeMenu(<FigureMenu sheet={visibleFrame.narrow} tr={tr} band={figureBand} scope={figureScope} onScope={setFigureScope} onInsertImage={() => {
                     setFigureMenu(false)
                     imageFileRef.current?.click()
                   }} onPick={(id) => {
                     const item = figureItem(id)
                     if (!item) return
-                    setFigureParams(freshFigureParams(item))
+                    setFigureParams(freshFigureParams(item, figureBand, figureScope))
                     setFigurePick(id)
                     setFigureMenu(false)
                   }} mathPlot={(
@@ -3958,7 +4066,7 @@ export function TeacherWhiteboardCanvas({
                   </div>
                   {triError ? <p className="mt-1 text-[11px] font-medium text-red-600">{triError}</p> : null}
                   <div className="mt-2 flex items-center justify-end gap-2">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                     <button
                       type="button"
                       className="text-[11px] text-slate-500"
@@ -3967,7 +4075,7 @@ export function TeacherWhiteboardCanvas({
                       {tr('Giữ nét', 'Keep sketch', '保留草图', '下絵のまま', '스케치 유지')}
                     </button>
                     <button type="button" className="rounded bg-sky-600 px-3 py-1 text-[12px] font-medium text-white" onClick={confirmTriangle}>
-                      {tr('Vẽ tam giác', 'Draw triangle', '画三角形', '三角形を描く', '삼각형 그리기')}
+                      {triangleDrawLabel(triKind)}
                     </button>
                     </div>
                   </div>
@@ -4030,7 +4138,7 @@ export function TeacherWhiteboardCanvas({
                   {tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}
                 </button>
                 <button type="submit" className="rounded bg-sky-600 px-3 py-1 text-[12px] font-medium text-white">
-                  {tr('Vẽ khối', 'Draw solid', '画立体', '立体を描く', '입체 그리기')}
+                  {drawNamed(tr, SOLID_LABEL[solidAsk])}
                 </button>
               </div>
             </form>
@@ -4132,7 +4240,7 @@ export function TeacherWhiteboardCanvas({
               )}
               {quadError ? <p className="mt-1 text-[11px] font-medium text-red-600">{quadError}</p> : null}
               <div className="mt-2 flex items-center justify-end gap-2">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   className="text-[11px] text-slate-500"
@@ -4141,7 +4249,7 @@ export function TeacherWhiteboardCanvas({
                   {tr('Giữ nét', 'Keep sketch', '保留草图', '下絵のまま', '스케치 유지')}
                 </button>
                 <button type="button" className="rounded bg-sky-600 px-3 py-1 text-[12px] font-medium text-white" onClick={confirmQuad}>
-                  {tr('Vẽ tứ giác', 'Draw quadrilateral', '画四边形', '四角形を描く', '사각형 그리기')}
+                  {quadDrawLabel(quadKind)}
                 </button>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { balanceEquation, FIGURE_ITEMS, drawFigureLocal, figureClock, figureHandleAt, figureSimulates, freshFigureParams, lensImage, mirrorImage, mirrorRayError, mirrorScene, moveFigureTune, missingFormulaVariants, figureItem, litmusColor, litmusWord, phenolphthaleinColor, setWaveSources, toggleChemSwitch, toggleFigureRun, toggleTitrationValve, waveTankLayout, youngLayout } from './figures'
+import { balanceEquation, FIGURE_ITEMS, drawFigureLocal, figureClock, figureHandleAt, figureSimulates, freshFigureParams, inclinePose, lensImage, mirrorBeams, mirrorImage, mirrorRayError, mirrorScene, moveFigureTune, missingFormulaVariants, figureItem, litmusColor, litmusWord, phenolphthaleinColor, setWaveSources, toggleChemSwitch, toggleFigureRun, toggleTitrationValve, waveTankLayout, youngLayout } from './figures'
 
 test('cân bằng phương trình phổ thông', () => {
   assert.equal(balanceEquation('H2 + O2 -> H2O'), '2H2 + O2 → 2H2O')
@@ -80,6 +80,14 @@ test('gương kéo vật thì ảnh đổi theo công thức', () => {
       assert.ok(err < 1e-4, `${kind} d=${ratio} lệch ${err}`)
     }
   }
+  const concave = mirrorBeams('concave', 2.75, 0.12)
+  assert.ok(concave.mx - concave.beams[0].x > 1.2)
+  assert.ok(mirrorRayError('concave', 2.75, 0.12) < 1e-4)
+  const planeFace = mirrorBeams('plane', 1.15, 0.3)
+  for (const ray of planeFace.beams) {
+    assert.ok(Math.abs(ray.x - planeFace.mx) < 1e-4)
+    assert.ok(Math.abs(ray.y - planeFace.cy) <= planeFace.reach + 1e-4)
+  }
   const item = figureItem('mirror')
   if (!item) throw new Error('thiếu gương')
   assert.equal(figureSimulates('mirror', 'concave', true), true)
@@ -138,6 +146,46 @@ test('góc alpha mặt nghiêng nằm giữa đáy và mặt nghiêng', () => {
   assert.ok(mark)
   assert.ok(Math.abs(mark[4] - (Math.PI + ang)) < 1e-6)
   assert.equal(mark[5], false)
+})
+
+test('kéo góc alpha thì mũi tên lực dài theo sin và cos', () => {
+  const item = figureItem('force')
+  if (!item) throw new Error('thiếu sơ đồ lực')
+  const params = { ...freshFigureParams(item), variant: 'incline' as const }
+  const low = inclinePose(item.w, item.h, [0.48, (18 * Math.PI) / 180])
+  const high = inclinePose(item.w, item.h, [0.48, (50 * Math.PI) / 180])
+  assert.ok(Math.abs(low.mg - high.mg) < 1e-9)
+  assert.ok(high.parallel > low.parallel * 1.5)
+  assert.ok(high.normal < low.normal)
+  assert.ok(Math.abs(low.parallel - low.mg * Math.sin(low.ang)) < 1e-9)
+  assert.ok(Math.abs(low.normal - low.mg * Math.cos(low.ang)) < 1e-9)
+  assert.ok(Math.abs(high.parallel - high.mg * Math.sin(high.ang)) < 1e-9)
+  const pose = inclinePose(item.w, item.h, params.tune)
+  const raised = moveFigureTune('force', params, item.w, item.h, 'angle', { x: pose.apexX, y: pose.apexY - 48 }, 0)
+  const next = inclinePose(item.w, item.h, raised.tune)
+  assert.ok(next.ang > pose.ang)
+  assert.ok(next.parallel > pose.parallel)
+  assert.ok(next.normal < pose.normal)
+  assert.equal(next.mg, pose.mg)
+  const shifted = moveFigureTune('force', raised, item.w, item.h, 'block', { x: next.x0 + next.span * 0.3, y: next.by }, 0)
+  assert.ok(Math.abs(shifted.tune[1] - raised.tune[1]) < 1e-9)
+  assert.ok(Math.abs(shifted.tune[0] - 0.3) < 0.05)
+  assert.equal(figureHandleAt('force', params, item.w, item.h, { x: pose.apexX, y: pose.apexY }, 6), 'angle')
+  assert.equal(figureHandleAt('force', params, item.w, item.h, { x: pose.alphaX, y: pose.alphaY }, 6), 'angle')
+  assert.equal(figureHandleAt('force', params, item.w, item.h, { x: pose.bx, y: pose.by }, 6), 'block')
+  const words: string[] = []
+  const ctx = new Proxy({} as CanvasRenderingContext2D, {
+    get: (_target, prop) => {
+      if (prop === 'fillText') return (value: string) => { if (typeof value === 'string') words.push(value) }
+      return () => undefined
+    },
+    set: () => true,
+  })
+  drawFigureLocal(ctx, 'force', params, item.w, item.h)
+  assert.ok(words.some((word) => word.startsWith('α = ') && word.includes('N = ') && word.includes('f = ')))
+  words.length = 0
+  drawFigureLocal(ctx, 'force', { ...params, run: true, tune: [0.48, high.ang] }, item.w, item.h)
+  assert.ok(words.some((word) => word.includes('a = ') && word.includes('g')))
 })
 
 test('phenolphtalein và giấy quỳ đổi đúng màu', () => {

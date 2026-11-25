@@ -9,6 +9,7 @@ import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, F
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
+import { presentationBeatCount, presentationBlocks, stepPresentationBeat } from '../lib/presentation-beat'
 import { parseWorksheetToSlides, questionsToSlides } from '@/lib/worksheet-to-slides'
 import { latexToReadable } from '../lib/latex-to-readable'
 import { buildSpatialGeoGebraUrl } from '../lib/geogebra-spatial'
@@ -69,7 +70,7 @@ import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName } fr
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, moveWindowToExternalScreen, studentSlideUrlWithSync } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { QuizPopupDialog } from '../components/quiz-popup-dialog'
-import { getCurriculumById, getSlideProposalsForCurriculum, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
+import { getCurriculumById, getSlideProposalsForCurriculum, readLessonAssistantImagesAction, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from '../lib/worksheet-parse-questions'
 import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-block-index'
 import { toEditableBlockContent } from '../lib/worksheet-editable-block-content'
@@ -77,7 +78,11 @@ import { WorksheetEditSectionPopup } from '../components/worksheet-edit-section-
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '../lib/curriculum-credit-costs'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
 import { imageEngineCredit, type GptImageQuality } from '@/lib/ai/image-engine'
-import { getInfographicStrokeBucketKey, type SlideInfographic } from '../lib/slide-infographic'
+import { getInfographicStrokeBucketKey, infographicBrushSizeNorm, sanitizeSlideInk, type SlideInfographic } from '../lib/slide-infographic'
+import { planSlideInk, slideInkProgressFromTyping, type SlideInkPenFrame } from '../lib/slide-ink-pen'
+/** Một lần tạo ảnh nền cho mỗi tiết trong phiên trang này. Tải lại trang thì chạy tiếp phần còn thiếu. */
+const backgroundInfographicJobs = new Set<string>()
+const slideImageInflight = new Set<string>()
 import {
   applyInfographicToDefaultVisualCells,
   skipInfographicDefaultSwapCurriculumPage,
@@ -109,6 +114,14 @@ type SlideItem = {
   visualInput2?: string
   visualInput3?: string
   visualInput4?: string
+  /** Ảnh trợ giảng của riêng slide này. Không dùng khóa `infographic` — khóa đó bị xóa khi lưu. */
+  assistantImage?: SlideInfographic
+}
+
+type InfographicSourceView = 'visual' | 'slide' | 'lesson' | 'curriculum'
+
+function isInfographicSourceView(value: unknown): value is InfographicSourceView {
+  return value === 'visual' || value === 'slide' || value === 'lesson' || value === 'curriculum'
 }
 
 function withoutAutoAddedReviewSlides(slides: SlideItem[]): SlideItem[] {
@@ -183,20 +196,56 @@ const DARK_GRADIENTS = [
 ]
 const QUIZ_DIFFICULTIES = ['easy', 'medium', 'hard'] as const
 
-/** Vùng ảnh thực sự hiển thị (object-contain) – dùng tâm ảnh + tỷ lệ để tính chuột ảo */
+function objectPositionFractions(value: string): { x: number; y: number } {
+  const parts = value.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const first = parts[0] || 'center'
+  const second = parts[1]
+  const axis = (token: string): number => {
+    if (token === 'left' || token === 'top') return 0
+    if (token === 'right' || token === 'bottom') return 1
+    if (token === 'center') return 0.5
+    if (token.endsWith('%')) {
+      const n = Number.parseFloat(token)
+      return Number.isFinite(n) ? Math.min(1, Math.max(0, n / 100)) : 0.5
+    }
+    return 0.5
+  }
+  if (!second) {
+    if (first === 'top' || first === 'bottom') return { x: 0.5, y: axis(first) }
+    if (first === 'left' || first === 'right') return { x: axis(first), y: 0.5 }
+    return { x: axis(first), y: 0.5 }
+  }
+  return { x: axis(first), y: axis(second) }
+}
+
+/** Vùng bitmap thực sự nhìn thấy. object-contain căn giữa và object-bottom dùng cùng một hệ tọa độ. */
 function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: number; width: number; height: number } {
   const rect = img.getBoundingClientRect()
   const nw = img.naturalWidth || rect.width
   const nh = img.naturalHeight || rect.height
-  if (nw <= 0 || nh <= 0) return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
-  const cw = rect.width
-  const ch = rect.height
-  const scale = Math.min(cw / nw, ch / nh)
+  if (nw <= 0 || nh <= 0 || rect.width <= 0 || rect.height <= 0) {
+    return { left: rect.left, top: rect.top, width: Math.max(0, rect.width), height: Math.max(0, rect.height) }
+  }
+  let fit = 'contain'
+  let pos = '50% 50%'
+  try {
+    const style = window.getComputedStyle(img)
+    fit = style.objectFit || 'contain'
+    pos = style.objectPosition || '50% 50%'
+  } catch { /* ignore */ }
+  if (fit === 'fill') return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  const scale = fit === 'cover'
+    ? Math.max(rect.width / nw, rect.height / nh)
+    : Math.min(rect.width / nw, rect.height / nh)
   const dw = nw * scale
   const dh = nh * scale
-  const ox = (cw - dw) / 2
-  const oy = (ch - dh) / 2
-  return { left: rect.left + ox, top: rect.top + oy, width: dw, height: dh }
+  const frac = objectPositionFractions(pos)
+  return {
+    left: rect.left + (rect.width - dw) * frac.x,
+    top: rect.top + (rect.height - dh) * frac.y,
+    width: dw,
+    height: dh,
+  }
 }
 
 function clamp01(n: number): number {
@@ -949,7 +998,8 @@ function sessionCommandReachesOtherTeacher(type: string): boolean {
     type === 'quiz-session-reset-slide' ||
     type === 'mouse-pos' ||
     type === 'mouse-click' ||
-    type === 'chain-pane-scroll'
+    type === 'chain-pane-scroll' ||
+    type === 'slide-ink-pen'
   )
 }
 
@@ -988,6 +1038,7 @@ export default function CurriculumViewPage() {
   const [content, setContent] = useState('')
   const [fullCurriculumMarkdown, setFullCurriculumMarkdown] = useState('')
   const [lessonSubjectId, setLessonSubjectId] = useState('')
+  const [lessonGradeLevelId, setLessonGradeLevelId] = useState('')
   const [exampleReviewOpen, setExampleReviewOpen] = useState(false)
   const [lessonReviewDone, setLessonReviewDone] = useState(false)
   const lessonReviewDoneRef = useRef(false)
@@ -998,6 +1049,12 @@ export default function CurriculumViewPage() {
   const fullReviewRef = useRef('')
   const [topic, setTopic] = useState('')
   const [currentIndex, setCurrentIndex] = useState(0)
+  /** Đoạn đang chiếu trong slide. 0 là đoạn đầu. Hết đoạn thì nhịp sau mới sang slide khác. */
+  const [activeBlockIndex, setActiveBlockIndex] = useState(0)
+  const activeBlockIndexRef = useRef(0)
+  activeBlockIndexRef.current = activeBlockIndex
+  /** Đổi slide có chủ đích thì không kéo đoạn về 0 ở effect. */
+  const blockNavRef = useRef(false)
   const [slideTitles, setSlideTitles] = useState<string[]>([])
   const [slides, setSlides] = useState<SlideItem[]>([])
   /** Một ảnh infographic cho cả giáo trình (không gắn từng slide) */
@@ -1015,15 +1072,28 @@ export default function CurriculumViewPage() {
   const [studentCurriculumRemoteMode, setStudentCurriculumRemoteMode] = useState<'single-slide' | 'markdown-all'>('single-slide')
   const [splitAtBlock, setSplitAtBlock] = useState<number | null>(null)
   const [curriculumId, setCurriculumId] = useState<string | null>(null)
+  const beatAtStart = worksheetId || !curriculumId
+    ? currentIndex <= 0
+    : currentIndex <= 0 && activeBlockIndex <= 0
+  const beatAtEnd = worksheetId || !curriculumId
+    ? slides.length === 0 || currentIndex >= slides.length - 1
+    : slides.length === 0 || (currentIndex >= slides.length - 1 && activeBlockIndex >= presentationBeatCount(slides[currentIndex]) - 1)
   const [topicLesson, setTopicLesson] = useState(false)
+  const [curriculumLessonCount, setCurriculumLessonCount] = useState<number | null>(null)
   useEffect(() => {
-    if (!curriculumId) return
+    if (!curriculumId) {
+      setCurriculumLessonCount(null)
+      return
+    }
     let cancelled = false
+    setCurriculumLessonCount(null)
     void getCurriculumById(curriculumId).then((res) => {
       if (cancelled || !res || !('curriculum' in res) || !res.curriculum) return
-      const row = res.curriculum as { lesson_number?: number | string | null; textbook_set_id?: string | null }
+      const row = res.curriculum as { lesson_number?: number | string | null; textbook_set_id?: string | null; num_lessons?: number | string | null }
       const lessonNo = row.lesson_number
       setTopicLesson(row.textbook_set_id === 'khac' || lessonNo == null || lessonNo === '')
+      const count = Number(row.num_lessons)
+      setCurriculumLessonCount(Number.isFinite(count) && count > 0 ? Math.floor(count) : null)
     })
     return () => {
       cancelled = true
@@ -1061,6 +1131,8 @@ export default function CurriculumViewPage() {
   const [gvWorksheetEditBlockContent, setGvWorksheetEditBlockContent] = useState('')
   const [gvWorksheetEditSaving, setGvWorksheetEditSaving] = useState(false)
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual' | 'infographic' | 'whiteboard'>('curriculum')
+  const leftPanelModeRef = useRef(leftPanelMode)
+  leftPanelModeRef.current = leftPanelMode
   const [whiteboardState, setWhiteboardState] = useState<WhiteboardState>(() => emptyWhiteboardState())
   const whiteboardStateRef = useRef(whiteboardState)
   whiteboardStateRef.current = whiteboardState
@@ -1068,6 +1140,7 @@ export default function CurriculumViewPage() {
   const [whiteboardSyncTick, setWhiteboardSyncTick] = useState(0)
   const [infographicGenerating, setInfographicGenerating] = useState(false)
   const [lessonInfographicGenerating, setLessonInfographicGenerating] = useState(false)
+  const [slideAssistantGenerating, setSlideAssistantGenerating] = useState(false)
   const [infographicGptQuality, setInfographicGptQuality] = useState<GptImageQuality>('medium')
   const runtimeHydratedRef = useRef(false)
   useEffect(() => {
@@ -1155,12 +1228,14 @@ export default function CurriculumViewPage() {
       typingPaused: answerTypingPaused,
       answerVisibility,
       slideTitle: curriculumSlideTitleTypingText(currentIndex, slide?.title ?? '', numberedTitle),
+      activeBlockIndex: worksheetId ? undefined : activeBlockIndex,
     })
   }, [
     worksheetId,
     curriculumId,
     slides,
     currentIndex,
+    activeBlockIndex,
     answerRevealProgress,
     answerTypingEnabled,
     answerTypingPaused,
@@ -1438,8 +1513,12 @@ export default function CurriculumViewPage() {
   const followedFigureSimRef = useRef<number | null>(null)
   const [figureSimHost, setFigureSimHost] = useState(!phoneFollowerId)
   const skipInfographicSyncRef = useRef(false)
-  /** Đổi cột vì màn hẹp không phải một lần bấm, không được kéo máy kia. */
+  const drawSyncReadyRef = useRef(false)
+  /** Lần áp từ máy kia, hoặc bản chụp lúc mở điện thoại, không được gửi ngược. */
   const layoutPaneRef = useRef(false)
+  const panePublishReadyRef = useRef(false)
+  const presentationBootRef = useRef(false)
+  const presentationAnnouncedRef = useRef(false)
   const seenGenRef = useRef(0)
   /** Lệnh slide vừa áp. Bản chỉ số cũ đang bay trên mạng không được kéo lùi slide này. */
   const slideFollowHoldRef = useRef<{ index: number; until: number } | null>(null)
@@ -1563,6 +1642,8 @@ export default function CurriculumViewPage() {
   const teacherEmbeddedInfographicCanvasRef = useRef<HTMLCanvasElement | null>(null)
   /** Cột phải — vùng cuộn nội dung slide (chế độ 1 slide); map chuột ảo HS theo tỷ lệ khung */
   const teacherSlideContentPaneRef = useRef<HTMLDivElement | null>(null)
+  /** Cột trái (giáo trình / ảnh). Lăn chuột ở đây thì chuỗi slide bên phải cuộn theo. */
+  const teacherLeftColumnScrollRef = useRef<HTMLDivElement | null>(null)
   /** Khối nội dung slide (con trực tiếp trong vùng cuộn) — rel chuột theo bbox toàn khối để khớp xuống dòng với HS */
   const teacherSlideContentLayoutRef = useRef<HTMLDivElement | null>(null)
   /** Chỉ phần thân slide (sau tiêu đề / toolbar) — map chuột ảo khớp chữ, không gồm toolbar & hàng tiêu đề */
@@ -1575,18 +1656,51 @@ export default function CurriculumViewPage() {
   const [infographicDrawTool, setInfographicDrawTool] = useState<InfographicDrawTool>('pen')
   const [infographicDrawBrushPx, setInfographicDrawBrushPx] = useState(4)
   const [infographicDrawColor, setInfographicDrawColor] = useState<string>(INFOGRAPHIC_DRAW_COLORS[0])
-  const [infographicSourceView, setInfographicSourceView] = useState<'visual' | 'lesson' | 'curriculum'>('lesson')
+  const [infographicSourceView, setInfographicSourceView] = useState<InfographicSourceView>('lesson')
+  const infographicSourceViewRef = useRef(infographicSourceView)
+  infographicSourceViewRef.current = infographicSourceView
+  const [inkPlaying, setInkPlaying] = useState(true)
+  const inkFrameRef = useRef<SlideInkPenFrame | null>(null)
+  const inkProgressRef = useRef(0)
+  const inkDriveRef = useRef(true)
+  const inkPlayingRef = useRef(true)
+  const inkKeyRef = useRef('')
+  const inkFetchKeyRef = useRef('')
+  const inkModelRef = useRef({
+    enabled: false,
+    imageUrl: '',
+    lines: [] as Array<{ text: string; x: number; y: number; w: number; h: number }>,
+    width: 0,
+    height: 0,
+    headers: [] as string[],
+    segmentIndex: 0,
+    segmentCount: 1,
+    cumulative: false,
+    holdFull: false,
+    holdEmpty: false,
+  })
+  inkPlayingRef.current = inkPlaying
+  /** Slide đang nằm ở đầu chuỗi khi cuộn xem nội dung cũ. Ảnh trái mở theo slide này. */
+  const [chainImageSlideIndex, setChainImageSlideIndex] = useState(0)
+  const chainImageSlideIndexRef = useRef(0)
+  chainImageSlideIndexRef.current = chainImageSlideIndex
+  const chainImageLockRef = useRef(0)
+  const manualInfographicPinRef = useRef<number | null>(null)
+  const keepInfographicPinRef = useRef(false)
   const hasLessonInfographic = Boolean(String(lessonInfographic?.imageUrl ?? '').trim())
   const hasCurriculumInfographic = Boolean(String(curriculumInfographic?.imageUrl ?? '').trim())
+  /** Một tiết thì ảnh theo tiết trùng ảnh cả bài — chỉ giữ nút cả bài. */
+  const showLessonInfographicAction = curriculumLessonCount !== 1
   const priorityVisualInfographic = useMemo(
     () => (hasLessonInfographic ? lessonInfographic : hasCurriculumInfographic ? curriculumInfographic : undefined),
     [hasLessonInfographic, lessonInfographic, hasCurriculumInfographic, curriculumInfographic]
   )
   const activeVisualInfographic = useMemo(() => {
     if (infographicSourceView === 'visual') return priorityVisualInfographic
+    if (infographicSourceView === 'slide') return slides[chainImageSlideIndex]?.assistantImage
     if (infographicSourceView === 'curriculum') return curriculumInfographic
     return lessonInfographic
-  }, [infographicSourceView, priorityVisualInfographic, lessonInfographic, curriculumInfographic])
+  }, [infographicSourceView, priorityVisualInfographic, lessonInfographic, curriculumInfographic, slides, chainImageSlideIndex])
   const activeVisualInfographicRenderKey = useMemo(
     () => `${infographicSourceView}:${String(activeVisualInfographic?.imageUrl ?? '')}`,
     [infographicSourceView, activeVisualInfographic?.imageUrl]
@@ -1610,7 +1724,7 @@ export default function CurriculumViewPage() {
     () => formatCurriculumCredits(infographicImageCost),
     [infographicImageCost]
   )
-  const renderInfographicEnginePicker = () => (
+  const renderInfographicEnginePicker = (triggerClassName?: string) => (
     <ImageEnginePicker
       locale={uiLocale}
       engine="gpt"
@@ -1619,6 +1733,7 @@ export default function CurriculumViewPage() {
       onGptQualityChange={setInfographicGptQuality}
       gptQualities={['medium', 'high']}
       engines={['gpt']}
+      triggerClassName={triggerClassName}
     />
   )
   useEffect(() => {
@@ -1629,7 +1744,6 @@ export default function CurriculumViewPage() {
       return prev
     })
   }, [hasLessonInfographic, hasCurriculumInfographic])
-  const autoInfographicSourceSlideRef = useRef<number | null>(null)
   const infographicDrawingRef = useRef<{
     target: 'pane' | 'fullscreen'
     strokeId: string
@@ -1680,11 +1794,6 @@ export default function CurriculumViewPage() {
   const applyPhoneCommandRef = useRef<(msg: Record<string, unknown>) => void>(() => {})
   useEffect(() => {
     if (!narrowTeacherLayout) return
-    setLeftPanelMode((mode) => {
-      if (mode === 'whiteboard' || mode === 'infographic' || mode === 'visual') return mode
-      layoutPaneRef.current = true
-      return 'visual'
-    })
     setSlideViewMode('single')
   }, [narrowTeacherLayout])
   // Giao diện giáo viên neo về bên phải: khi thu nhỏ chỉ ẩn dần phần bên trái.
@@ -1717,20 +1826,17 @@ export default function CurriculumViewPage() {
   }, [currentVisualPresentation, activeVisualInfographic])
 
   useEffect(() => {
-    if (autoInfographicSourceSlideRef.current === currentIndex) return
-    autoInfographicSourceSlideRef.current = currentIndex
-    const s = slides[currentIndex]
-    if (!s) {
-      setInfographicSourceView('visual')
-      return
-    }
-    const raw = getVisualCells(s)
-    const hasSlideVisual = raw.cells.some((c) => c.visualEmbed || c.imageUrl)
-    if (hasSlideVisual) setInfographicSourceView('visual')
-    else if (hasLessonInfographic) setInfographicSourceView('lesson')
-    else if (hasCurriculumInfographic) setInfographicSourceView('curriculum')
-    else setInfographicSourceView('visual')
-  }, [currentIndex, slides, hasLessonInfographic, hasCurriculumInfographic])
+    if (keepInfographicPinRef.current) keepInfographicPinRef.current = false
+    else manualInfographicPinRef.current = null
+    chainImageLockRef.current = Date.now() + 750
+    setChainImageSlideIndex(currentIndex)
+  }, [currentIndex])
+  useEffect(() => {
+    if (worksheetId) return
+    if (manualInfographicPinRef.current === chainImageSlideIndex) return
+    if (!String(slides[chainImageSlideIndex]?.assistantImage?.imageUrl ?? '').trim()) return
+    if (infographicSourceView !== 'slide') setInfographicSourceView('slide')
+  }, [worksheetId, chainImageSlideIndex, slides, infographicSourceView])
 
   const tr = useCallback((vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -1850,6 +1956,8 @@ export default function CurriculumViewPage() {
       return
     }
     runtimeHydratedRef.current = true
+    layoutPaneRef.current = true
+    applyingSharedRef.current = true
     try {
       const raw = window.sessionStorage.getItem(TEACHER_CURRICULUM_RUNTIME_CACHE_KEY)
       if (!raw) return
@@ -1872,7 +1980,7 @@ export default function CurriculumViewPage() {
         whiteboard?: { objects?: unknown; camera?: unknown; grid?: unknown }
         slideViewMode?: 'single' | 'triple'
         studentCurriculumRemoteMode?: 'single-slide' | 'markdown-all'
-        infographicSourceView?: 'visual' | 'lesson' | 'curriculum'
+        infographicSourceView?: InfographicSourceView
         infographicDrawStrokesBySlide?: Record<string, InfographicDrawStroke[]>
       }
       const cachedSlides = withoutAutoAddedReviewSlides(
@@ -1929,7 +2037,7 @@ export default function CurriculumViewPage() {
       if (cached?.studentCurriculumRemoteMode === 'markdown-all' || cached?.studentCurriculumRemoteMode === 'single-slide') {
         setStudentCurriculumRemoteMode(cached.studentCurriculumRemoteMode)
       }
-      if (cached?.infographicSourceView === 'visual' || cached?.infographicSourceView === 'lesson' || cached?.infographicSourceView === 'curriculum') {
+      if (isInfographicSourceView(cached?.infographicSourceView)) {
         setInfographicSourceView(cached.infographicSourceView)
       }
       // Khôi phục nét vẽ infographic - không xóa sau reload.
@@ -1949,7 +2057,10 @@ export default function CurriculumViewPage() {
               points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
             }))
         }
-        if (Object.keys(normalized).length > 0) setInfographicDrawStrokesBySlide(normalized)
+        if (Object.keys(normalized).length > 0) {
+          skipInfographicSyncRef.current = true
+          setInfographicDrawStrokesBySlide(normalized)
+        }
       }
       hasHydratedFromCurriculumRef.current = true
     } catch {
@@ -2076,6 +2187,7 @@ export default function CurriculumViewPage() {
         : typingClientIdRef.current,
     }
     if (phoneFollowerIdRef.current) {
+      deliverStudentWindow(payload)
       phoneQueueRef.current?.push(payload)
       return
     }
@@ -2141,6 +2253,7 @@ export default function CurriculumViewPage() {
     enabled?: Record<string, boolean>
   }) => {
     claimTypingDriver()
+    inkDriveRef.current = true
     publishSessionCommand(buildTypingMessage(control, overrides))
   }, [buildTypingMessage, claimTypingDriver, publishSessionCommand])
 
@@ -2180,6 +2293,222 @@ export default function CurriculumViewPage() {
       tickPendingByKeyRef.current = {}
     }
   }, [])
+
+  const inkMissingKey = slides.map((slide) => {
+    const url = String(slide.assistantImage?.imageUrl ?? '')
+    return url && !sanitizeSlideInk(slide.assistantImage) ? url : ''
+  }).join('|')
+  const inkSlideIndex = infographicSourceView === 'slide' ? chainImageSlideIndex : currentIndex
+  const inkSlide = slides[inkSlideIndex]
+  const inkPacked = sanitizeSlideInk(inkSlide?.assistantImage)
+  const inkSegmentCount = Math.max(1, presentationBeatCount(inkSlide))
+  const inkHoldFull = false
+  const inkHoldEmpty = false
+  inkModelRef.current = {
+    enabled: false,
+    imageUrl: String(inkSlide?.assistantImage?.imageUrl ?? ''),
+    lines: inkPacked?.inkLines ?? [],
+    width: inkPacked?.inkWidth ?? 0,
+    height: inkPacked?.inkHeight ?? 0,
+    headers: presentationBlocks(inkSlide).map((block) => String(block.header ?? '')),
+    segmentIndex: inkHoldEmpty ? 0 : inkHoldFull ? inkSegmentCount - 1 : Math.max(0, Math.min(activeBlockIndex, inkSegmentCount - 1)),
+    segmentCount: inkSegmentCount,
+    cumulative: true,
+    holdFull: inkHoldFull,
+    holdEmpty: inkHoldEmpty,
+  }
+  const publishInkFrame = useCallback((frame: SlideInkPenFrame | null, immediate = false) => {
+    const msg = { type: 'slide-ink-pen', frame }
+    if (immediate) sendToStudentView(msg)
+    else sendTickToStudent('slide-ink-pen', msg, 90)
+  }, [sendTickToStudent, sendToStudentView])
+  const paintInkFrame = useCallback((progress: number, playing: boolean) => {
+    const model = inkModelRef.current
+    if (!model.enabled || model.lines.length === 0) {
+      inkFrameRef.current = null
+      return null
+    }
+    const planned = planSlideInk({
+      lines: model.lines,
+      width: model.width,
+      height: model.height,
+      headers: model.headers,
+      segmentIndex: model.holdFull ? model.segmentCount - 1 : model.segmentIndex,
+      segmentCount: model.segmentCount,
+      cumulative: model.cumulative,
+      progress: model.holdFull ? 1 : model.holdEmpty ? 0 : progress,
+    })
+    const frame: SlideInkPenFrame = {
+      enabled: true,
+      playing: model.holdFull || model.holdEmpty ? false : playing,
+      imageUrl: model.imageUrl,
+      bands: planned.bands,
+      pen: model.holdFull || model.holdEmpty || (!playing && progress >= 1) ? null : planned.pen,
+    }
+    inkFrameRef.current = frame
+    return frame
+  }, [])
+
+  useEffect(() => {
+    if (phoneFollowerId) inkDriveRef.current = false
+  }, [phoneFollowerId])
+
+  useEffect(() => {
+    if (worksheetId || !curriculumId || !activeLessonNo) return
+    const mode = slideMode === 'personal' || slideMode === 'original' || slideMode === 'shared' ? slideMode : 'shared'
+    let cancel = false
+    void readLessonAssistantImagesAction(curriculumId, mode, activeLessonNo).then((res) => {
+      if (cancel || !res || !('success' in res) || !res.success) return
+      setSlides((prev) => {
+        if (!prev.length) return prev
+        let changed = false
+        const next = prev.map((slide, index) => {
+          const incoming = res.images[index]
+          if (!incoming?.imageUrl) return slide
+          const currentUrl = String(slide.assistantImage?.imageUrl ?? '')
+          if (currentUrl && currentUrl !== incoming.imageUrl) return slide
+          const currentInk = sanitizeSlideInk(slide.assistantImage)
+          const incomingInk = sanitizeSlideInk(incoming)
+          if (currentUrl && currentInk && (!incomingInk || currentInk.inkLines.length >= incomingInk.inkLines.length)) return slide
+          changed = true
+          return {
+            ...slide,
+            assistantImage: {
+              summary: String(incoming.summary ?? slide.assistantImage?.summary ?? ''),
+              mermaid: String(incoming.mermaid ?? slide.assistantImage?.mermaid ?? ''),
+              imageUrl: incoming.imageUrl,
+              generatedAt: String(incoming.generatedAt ?? slide.assistantImage?.generatedAt ?? ''),
+              ...(incomingInk ?? currentInk ?? {}),
+            },
+          }
+        })
+        return changed ? next : prev
+      })
+    })
+    return () => { cancel = true }
+  }, [worksheetId, curriculumId, activeLessonNo, slideMode])
+
+  useEffect(() => {
+    if (worksheetId || infographicSourceView !== 'slide') return
+    const pending = slides.flatMap((slide, index) => {
+      const url = String(slide.assistantImage?.imageUrl ?? '')
+      if (!url || sanitizeSlideInk(slide.assistantImage)) return []
+      return [{ id: String(index), url }]
+    })
+    if (!pending.length) return
+    const requestKey = pending.map((item) => item.url).join('|')
+    if (inkFetchKeyRef.current === requestKey) return
+    inkFetchKeyRef.current = requestKey
+    let cancel = false
+    void fetch('/api/curriculum-slide-ink', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ images: pending }),
+    }).then(async (res) => {
+      const data = await res.json().catch(() => null)
+      if (cancel || !res.ok || !data?.ok || !Array.isArray(data.images)) {
+        inkFetchKeyRef.current = ''
+        return
+      }
+      setSlides((prev) => {
+        let changed = false
+        const next = prev.map((slide, index) => {
+          const found = data.images.find((item: { id?: string }) => String(item?.id ?? '') === String(index))
+          if (!found || String(slide.assistantImage?.imageUrl ?? '') !== String(found.url ?? '')) return slide
+          if (sanitizeSlideInk(slide.assistantImage)) return slide
+          changed = true
+          return {
+            ...slide,
+            assistantImage: {
+              summary: String(slide.assistantImage?.summary ?? ''),
+              mermaid: String(slide.assistantImage?.mermaid ?? ''),
+              imageUrl: slide.assistantImage?.imageUrl || String(found.url),
+              generatedAt: String(slide.assistantImage?.generatedAt ?? ''),
+              inkWidth: Number(found.width),
+              inkHeight: Number(found.height),
+              inkLines: found.lines,
+            },
+          }
+        })
+        if (changed) void persistSlidesRef.current(next, undefined, { quiet: true })
+        return changed ? next : prev
+      })
+    }).catch(() => { inkFetchKeyRef.current = '' })
+    return () => { cancel = true }
+  }, [worksheetId, infographicSourceView, inkMissingKey])
+
+  useEffect(() => {
+    const model = inkModelRef.current
+    if (!model.enabled) {
+      if (inkKeyRef.current !== 'off') {
+        inkFrameRef.current = null
+        inkKeyRef.current = 'off'
+        publishInkFrame(null, true)
+      }
+      return
+    }
+    if (!typingDriverRef.current || !inkDriveRef.current) return
+    if (model.lines.length === 0) {
+      if (inkFrameRef.current) {
+        inkFrameRef.current = null
+        publishInkFrame(null, true)
+      }
+      return
+    }
+    const slide = slides[currentIndex]
+    const blocks = slide?.blocks && slide.blocks.length > 0 ? slide.blocks : presentationBlocks(slide)
+    const segment = model.segmentIndex
+    const block = blocks[segment]
+    const typingOpts = { worksheetPresentation: false, hasCurriculumSegmentTyping: true }
+    const numbered = studentCurriculumRemoteMode === 'markdown-all'
+    const titleText = curriculumSlideTitleTypingText(currentIndex, slide?.title ?? '', numbered)
+    const progress = model.holdFull
+      ? 1
+      : model.holdEmpty
+        ? 0
+        : slideInkProgressFromTyping({
+            segmentIndex: segment,
+            titleTotal: worksheetAnswerSegmentCount(titleText),
+            titleRevealed: answerRevealProgress[curriculumSlideTitleRevealKey(currentIndex)] ?? 0,
+            blockTotal: block ? blockTypingSegmentCount(block, typingOpts) : 0,
+            blockRevealed: answerRevealProgress[`${currentIndex}-${segment}`] ?? 0,
+            typingOn: answerTypingSegmentsGloballyEnabled,
+          })
+    inkProgressRef.current = progress
+    const typableKeys: string[] = []
+    if (worksheetAnswerSegmentCount(titleText) > 0) typableKeys.push(curriculumSlideTitleRevealKey(currentIndex))
+    typableKeys.push(...typableSolutionBlockIndices(blocks, typingOpts).map((bi) => `${currentIndex}-${bi}`))
+    const paused = typableKeys.length > 0 && typableKeys.every((key) => answerTypingPaused[key] === true)
+    const playing = !paused && answerTypingSegmentsGloballyEnabled && !model.holdFull && !model.holdEmpty && progress < 1
+    if (playing !== inkPlayingRef.current) setInkPlaying(playing)
+    const frame = paintInkFrame(progress, playing)
+    const stamp = [
+      model.imageUrl,
+      segment,
+      model.holdFull ? 1 : 0,
+      model.holdEmpty ? 1 : 0,
+      paused ? 1 : 0,
+      progress >= 1 ? 1 : 0,
+    ].join('|')
+    const immediate = inkKeyRef.current !== stamp
+    inkKeyRef.current = stamp
+    publishInkFrame(frame, immediate)
+  }, [
+    answerRevealProgress,
+    answerTypingPaused,
+    answerTypingSegmentsGloballyEnabled,
+    currentIndex,
+    activeBlockIndex,
+    inkSlideIndex,
+    infographicSourceView,
+    inkPacked?.inkLines.length,
+    inkSlide?.assistantImage?.imageUrl,
+    slides,
+    studentCurriculumRemoteMode,
+    paintInkFrame,
+    publishInkFrame,
+  ])
 
   const upsertInfographicStroke = useCallback((slideIndex: number, stroke: InfographicDrawStroke) => {
     setInfographicDrawStrokesBySlide((prev) => {
@@ -2333,7 +2662,11 @@ export default function CurriculumViewPage() {
   }, [getInfographicDrawStage])
 
   const renderInfographicDrawCanvas = useCallback((target: 'pane' | 'fullscreen') => {
-    const strokes = infographicDrawStrokesBySlide[activeInfographicStrokeKey] ?? []
+    const strokesFor = (img: HTMLImageElement) => {
+      const src = img.getAttribute('src') || ''
+      if (!src) return infographicDrawStrokesBySlide[activeInfographicStrokeKey] ?? []
+      return infographicDrawStrokesBySlide[getInfographicStrokeBucketKey(src)] ?? []
+    }
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
     const clearCanvas = (canvas: HTMLCanvasElement) => {
       if (canvas.width !== 1) canvas.width = 1
@@ -2370,7 +2703,7 @@ export default function CurriculumViewPage() {
       ctx.scale(renderScale, renderScale)
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
-      for (const s of strokes) {
+      for (const s of strokesFor(img)) {
         if (!s.points || s.points.length < 1) continue
         ctx.globalCompositeOperation = s.tool === 'eraser' ? 'destination-out' : 'source-over'
         ctx.strokeStyle = s.color
@@ -2441,13 +2774,23 @@ export default function CurriculumViewPage() {
     const point = resolveInfographicDrawPoint(target, e.clientX, e.clientY)
     if (!point) return
     const strokeId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-    const sizeNorm = Math.max(0.0015, infographicDrawBrushPx / Math.max(point.st.vis.width, 1))
+    const sizeNorm = infographicBrushSizeNorm(infographicDrawBrushPx)
     const stroke: InfographicDrawStroke = {
       id: strokeId,
       tool: infographicDrawTool,
       color: infographicDrawColor,
       sizeNorm,
       points: [{ u: point.u, v: point.v }],
+    }
+    const drawn: InfographicDrawPoint[] = [{ u: point.u, v: point.v }]
+    const rememberDrawn = (batch: InfographicDrawPoint[]) => {
+      let last = drawn[drawn.length - 1]
+      for (const pt of batch) {
+        const normalized = { u: clamp01(pt.u), v: clamp01(pt.v) }
+        const dense = last ? densifyStrokePoints(last, normalized) : [normalized]
+        drawn.push(...dense)
+        last = dense[dense.length - 1] ?? normalized
+      }
     }
     upsertInfographicStroke(activeInfographicStrokeKey, stroke)
     sendToStudentView({
@@ -2474,6 +2817,7 @@ export default function CurriculumViewPage() {
     const flushQueuedPoints = () => {
       if (queuedPoints.length === 0) return
       const batch = queuedPoints.splice(0, queuedPoints.length)
+      rememberDrawn(batch)
       appendInfographicStrokePoints(activeInfographicStrokeKey, strokeId, batch)
       sendToStudentView({
         type: 'infographic-draw-points',
@@ -2509,7 +2853,17 @@ export default function CurriculumViewPage() {
       flushQueuedPoints()
       d.removeListeners?.()
       infographicDrawingRef.current = null
-      sendToStudentView({ type: 'infographic-draw-end', slideIndex: activeInfographicStrokeKey })
+      sendToStudentView({
+        type: 'infographic-draw-end',
+        slideIndex: activeInfographicStrokeKey,
+        stroke: {
+          id: strokeId,
+          tool: infographicDrawTool,
+          color: infographicDrawColor,
+          sizeNorm,
+          points: drawn.slice(-INFOGRAPHIC_MAX_POINTS_PER_STROKE),
+        },
+      })
     }
     const removeListeners = () => {
       window.removeEventListener('pointermove', onMove)
@@ -2624,9 +2978,14 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     if (skipInfographicSyncRef.current) {
       skipInfographicSyncRef.current = false
+      drawSyncReadyRef.current = true
       return
     }
-    if (!studentViewOpened) return
+    if (!studentViewOpened && !phoneSessionId && !phoneFollowerId) return
+    if (!drawSyncReadyRef.current) {
+      drawSyncReadyRef.current = true
+      return
+    }
     lastStudentWirePayloadRef.current = ''
     const send = () => {
       sendToStudentView({ type: 'infographic-draw-sync', strokesBySlide: infographicDrawStrokesBySlide })
@@ -2634,7 +2993,30 @@ export default function CurriculumViewPage() {
     send()
     const t = window.setTimeout(send, 250)
     return () => window.clearTimeout(t)
-  }, [studentViewOpened, sendToStudentView, infographicDrawStrokesBySlide])
+  }, [studentViewOpened, phoneSessionId, phoneFollowerId, sendToStudentView, infographicDrawStrokesBySlide])
+
+  useEffect(() => {
+    if (worksheetId || phoneFollowerId || slides.length === 0 || presentationBootRef.current) return
+    presentationBootRef.current = true
+    setPhoneRemoteOpen(true)
+    if (leftPanelMode !== 'curriculum' && leftPanelMode !== 'slide') return
+    layoutPaneRef.current = true
+    leftPanelModeRef.current = 'visual'
+    setLeftPanelMode('visual')
+  }, [worksheetId, phoneFollowerId, slides.length, leftPanelMode])
+
+  useEffect(() => {
+    if (!presentationBootRef.current || presentationAnnouncedRef.current) return
+    if (leftPanelMode !== 'visual') return
+    if (!phoneSessionId && !studentViewOpened) return
+    presentationAnnouncedRef.current = true
+    publishSessionCommand({
+      type: 'student-curriculum-left-pane',
+      pane: infographicSourceView === 'visual' ? 'visual' : 'infographic',
+      panel: 'visual',
+      source: infographicSourceView,
+    })
+  }, [leftPanelMode, phoneSessionId, studentViewOpened, infographicSourceView, publishSessionCommand])
 
   const toStudentSlidePayload = useCallback((s: SlideItem, slideIndex: number) => {
     const normalized = getVisualCells(s)
@@ -2715,6 +3097,7 @@ export default function CurriculumViewPage() {
       content: wireContent,
       topic,
       currentIndex: Math.max(0, Math.min(idx, compactedSlides.length - 1)),
+      blockIndex: activeBlockIndexRef.current,
       curriculumId: curriculumId ?? null,
       slideMode: slideMode ?? null,
       personalViewSubMode,
@@ -2724,11 +3107,17 @@ export default function CurriculumViewPage() {
       ...(!worksheetId
         ? {
             studentCurriculumRightMode: studentCurriculumRemoteMode,
-            teacherSlideLeftPane: teacherSlideLeftPaneFromMode(leftPanelMode, currentVisualShowsInfographic),
+            teacherSlideLeftPane:
+              leftPanelMode === 'whiteboard'
+                ? 'whiteboard'
+                : infographicSourceView === 'slide' && wireInfographic?.imageUrl
+                  ? 'infographic'
+                  : teacherSlideLeftPaneFromMode(leftPanelMode, currentVisualShowsInfographic),
             curriculumInfographic: wireInfographic ?? null,
           }
         : {}),
       ...(!worksheetId && lessonInfographic ? { lessonInfographic } : {}),
+      slideInkPen: inkFrameRef.current,
     }
     const slideDigestKey = wireSlides.map((s) => slideWireDigest(s)).join(',')
     const payloadKey = [
@@ -2743,6 +3132,7 @@ export default function CurriculumViewPage() {
       worksheetId ? 1 : 0,
       fastHashText(String(studentCurriculumRemoteMode)),
       fastHashText(String(leftPanelMode)),
+      infographicSourceView === 'slide' ? 1 : 0,
       currentVisualShowsInfographic ? 1 : 0,
       fastHashText(String(wireInfographic?.imageUrl ?? '')),
       fastHashText(String(lessonInfographic?.imageUrl ?? '')),
@@ -2760,7 +3150,7 @@ export default function CurriculumViewPage() {
     } catch {
       /* ignore */
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, toStudentSlidePayload, worksheetId, studentCurriculumRemoteMode, activeVisualInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, toStudentSlidePayload, worksheetId, studentCurriculumRemoteMode, activeVisualInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire, infographicSourceView])
 
   useEffect(() => {
     if (!studentViewOpened || worksheetId) return
@@ -2836,6 +3226,8 @@ export default function CurriculumViewPage() {
     pauseBeforeAnswerRevealPopoverRef.current = null
 
     prevSlideIndexForTypingPauseRef.current = currentIndex
+    if (blockNavRef.current) blockNavRef.current = false
+    else setActiveBlockIndex(0)
     // Chỉ chạy khi đổi slide / đổi phiên: `slides` lấy từ closure render này (không liệt kê trong deps để tránh reset khi chỉ sửa nội dung).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- slides chỉ cần đúng khi currentIndex/worksheetId/curriculumId đổi
   }, [currentIndex, worksheetId, curriculumId])
@@ -2878,6 +3270,8 @@ export default function CurriculumViewPage() {
         }
         let targetBi = -1
         for (let bi = 0; bi < slide.blocks.length; bi++) {
+          if (!worksheetId && bi > activeBlockIndexRef.current) break
+          if (!worksheetId && bi < activeBlockIndexRef.current) continue
           const b = slide.blocks[bi]
           const shouldTypeBySegments = worksheetId ? Boolean((b as { isAnswer?: boolean }).isAnswer) : !!curriculumId
           if (!shouldTypeBySegments) continue
@@ -3049,21 +3443,69 @@ export default function CurriculumViewPage() {
 
   const sendSlideControl = useCallback((action: 'slide-prev' | 'slide-next') => {
     commitCurrentSlideDraft()
-    const nextIndex = action === 'slide-next'
-      ? Math.min(currentIndex + 1, slides.length - 1)
-      : Math.max(currentIndex - 1, 0)
-    slideFollowHoldRef.current = { index: nextIndex, until: Date.now() + 900 }
+    const direction = action === 'slide-next' ? 1 : -1
+    const list = slidesRef.current
+    const beatCounts = list.map((s) => presentationBeatCount(s))
+    const fromIndex = currentIndexRef.current
+    const fromBlock = activeBlockIndexRef.current
+    const stepped = worksheetId
+      ? {
+          index: direction > 0 ? Math.min(fromIndex + 1, Math.max(0, list.length - 1)) : Math.max(fromIndex - 1, 0),
+          blockIndex: 0,
+        }
+      : stepPresentationBeat(fromIndex, fromBlock, direction, beatCounts)
+    if (stepped.index === fromIndex && stepped.blockIndex === fromBlock) return
+    if (!worksheetId && stepped.index === fromIndex && stepped.blockIndex > fromBlock) {
+      const leaving = presentationBlocks(list[fromIndex])[fromBlock]
+      if (leaving) {
+        const total = blockTypingSegmentCount(leaving, { worksheetPresentation: false, hasCurriculumSegmentTyping: true })
+        const key = `${fromIndex}-${fromBlock}`
+        setAnswerRevealProgress((prev) => ((prev[key] ?? 0) >= total ? prev : { ...prev, [key]: total }))
+      }
+    }
+    slideFollowHoldRef.current = { index: stepped.index, until: Date.now() + 900 }
     claimTypingDriver()
-    setCurrentIndex(nextIndex)
-    if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
-    publishSessionCommand({ type: 'slide-go', index: nextIndex })
-  }, [claimTypingDriver, commitCurrentSlideDraft, currentIndex, slides.length, publishSessionCommand])
+    if (stepped.index !== fromIndex) blockNavRef.current = true
+    setActiveBlockIndex(stepped.blockIndex)
+    setCurrentIndex(stepped.index)
+    if (window.opener) window.opener.postMessage({ type: action, blockIndex: stepped.blockIndex }, window.location.origin)
+    publishSessionCommand({ type: 'slide-go', index: stepped.index, blockIndex: stepped.blockIndex })
+  }, [claimTypingDriver, commitCurrentSlideDraft, publishSessionCommand, worksheetId])
+  const sendSlideControlRef = useRef(sendSlideControl)
+  sendSlideControlRef.current = sendSlideControl
 
-  const persistSlidesRef = useRef<(s: SlideItem[], curriculumInfographicOverride?: SlideInfographic) => Promise<void>>(async () => {})
+  /** Không có cửa sổ học sinh thì giáo viên tự chạy từng đoạn. Có học sinh thì máy học sinh giữ nhịp. */
+  useEffect(() => {
+    if (worksheetId || !curriculumId || !remoteAutoPlay || studentViewOpened || slides.length === 0) return
+    let startedAt = Date.now()
+    let beatKey = ''
+    const id = window.setInterval(() => {
+      const index = currentIndexRef.current
+      const block = activeBlockIndexRef.current
+      const key = `${index}:${block}`
+      if (key !== beatKey) {
+        beatKey = key
+        startedAt = Date.now()
+      }
+      if (Date.now() - startedAt < remoteAutoPlayIntervalMs) return
+      const active = presentationBlocks(slidesRef.current[index])[block]
+      if (active) {
+        const revealKey = `${index}-${block}`
+        const total = blockTypingSegmentCount(active, { worksheetPresentation: false, hasCurriculumSegmentTyping: true })
+        const revealed = answerRevealProgressRef.current[revealKey] ?? 0
+        if (answerTypingEnabledRef.current[revealKey] !== false && revealed < total) return
+      }
+      sendSlideControlRef.current('slide-next')
+      startedAt = Date.now()
+    }, 200)
+    return () => window.clearInterval(id)
+  }, [worksheetId, curriculumId, remoteAutoPlay, studentViewOpened, remoteAutoPlayIntervalMs, slides.length])
+
+  const persistSlidesRef = useRef<(s: SlideItem[], curriculumInfographicOverride?: SlideInfographic, opts?: { quiet?: boolean }) => Promise<void>>(async () => {})
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
   const lastRequestedSaveIdRef = useRef(0)
   useEffect(() => {
-    persistSlidesRef.current = async (updatedSlides: SlideItem[], curriculumInfographicOverride?: SlideInfographic) => {
+    persistSlidesRef.current = async (updatedSlides: SlideItem[], curriculumInfographicOverride?: SlideInfographic, opts?: { quiet?: boolean }) => {
       if (!curriculumId || updatedSlides.length === 0) return
       const requestId = ++lastRequestedSaveIdRef.current
       const payload = updatedSlides.map((s) => ({
@@ -3078,6 +3520,15 @@ export default function CurriculumViewPage() {
         visualInput3: s.visualInput3,
         visualInput4: s.visualInput4,
         teacherNotes: s.teacherNotes,
+        assistantImage: s.assistantImage?.imageUrl
+          ? {
+              summary: String(s.assistantImage.summary ?? ''),
+              mermaid: String(s.assistantImage.mermaid ?? ''),
+              imageUrl: s.assistantImage.imageUrl,
+              generatedAt: String(s.assistantImage.generatedAt ?? ''),
+              ...(sanitizeSlideInk(s.assistantImage) ?? {}),
+            }
+          : undefined,
       }))
       const inf = curriculumInfographicOverride !== undefined ? curriculumInfographicOverride : curriculumInfographicRef.current
       saveQueueRef.current = saveQueueRef.current
@@ -3094,7 +3545,7 @@ export default function CurriculumViewPage() {
               lessonMode: slideMode === 'original' ? 'original' : 'personal',
             })
             if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
-            else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }) }
+            else if (!opts?.quiet) { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }) }
           } else if (slideMode === 'shared' || !slideMode) {
             const r = await saveSlidesToCurriculum({
               curriculumId,
@@ -3106,7 +3557,7 @@ export default function CurriculumViewPage() {
               lessonNo: activeLessonNo ?? undefined,
             })
             if (r?.error) toast({ title: tr('Lỗi lưu', 'Save error', '保存错误', '保存エラー', '저장 오류'), description: r.error, variant: 'destructive' })
-            else { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }) }
+            else if (!opts?.quiet) { toast({ title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'), duration: 1500 }) }
           }
         })
       await saveQueueRef.current
@@ -3115,12 +3566,16 @@ export default function CurriculumViewPage() {
 
   const leftWidePanel = leftPanelMode === 'visual' || leftPanelMode === 'infographic' || leftPanelMode === 'whiteboard'
 
-  const generateCurriculumInfographic = useCallback(async () => {
+  const generateCurriculumInfographic = useCallback(async (opts?: { quiet?: boolean; force?: boolean }) => {
+    const quiet = opts?.quiet === true
+    const forceMedium = quiet || opts?.force === true
     if (!curriculumId || worksheetId) return
     if (slides.length === 0) return
+    if (quiet && curriculumInfographicRef.current?.imageUrl) return
     const fullMarkdown = String(fullCurriculumMarkdown || '').trim()
     const lessonText = fullMarkdown || curriculumPlainTextForInfographic(slides, content, topic)
     if (lessonText.trim().length < 40) {
+      if (quiet) return
       toast({
         title: tr('Nội dung giáo trình quá ngắn', 'Curriculum content too short', '课程内容太短', 'カリキュラムが短すぎます', '교육과정 내용이 너무 짧음'),
         description: tr('Cần đủ nội dung trên các slide hoặc markdown giáo trình.', 'Add more content on slides or in curriculum markdown.', '请在幻灯片或课程 Markdown 中补充内容。', 'スライドまたはMarkdownに十分な内容を追加してください。', '슬라이드나 교육과정 마크다운에 내용을 더 추가하세요.'),
@@ -3130,15 +3585,16 @@ export default function CurriculumViewPage() {
     }
     setInfographicGenerating(true)
     const curriculumInfographicExists = Boolean(curriculumInfographic?.imageUrl)
-    toast({
+    const curriculumChargeLabel = forceMedium ? '1' : lessonInfographicCostLabel
+    if (!quiet) toast({
       title: tr('Chuẩn bị tạo infographic cả bài', 'Preparing curriculum infographic', '准备创建全课信息图', '全体インフォグラフィック作成準備', '전체 인포그래픽 생성 준비'),
       description: curriculumInfographicExists || topicLesson
         ? tr(
-            `Tạo ảnh sẽ tốn ${lessonInfographicCostLabel} credit.`,
-            `Creating the image costs ${lessonInfographicCostLabel} credits.`,
-            `生成图片将消耗 ${lessonInfographicCostLabel} 积分。`,
-            `画像の作成で ${lessonInfographicCostLabel} クレジットを消費します。`,
-            `이미지 생성에 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
+            `Tạo ảnh sẽ tốn ${curriculumChargeLabel} credit.`,
+            `Creating the image costs ${curriculumChargeLabel} credits.`,
+            `生成图片将消耗 ${curriculumChargeLabel} 积分。`,
+            `画像の作成で ${curriculumChargeLabel} クレジットを消費します。`,
+            `이미지 생성에 ${curriculumChargeLabel} 크레딧이 필요합니다.`
           )
         : tr(
             'Lần đầu cả bài — miễn phí credit.',
@@ -3162,7 +3618,7 @@ export default function CurriculumViewPage() {
           scope: 'curriculum',
           regenerate: Boolean(curriculumInfographic?.imageUrl),
           imageEngine: 'gpt',
-          gptQuality: infographicGptQuality === 'high' ? 'high' : 'medium',
+          gptQuality: forceMedium ? 'medium' : (infographicGptQuality === 'high' ? 'high' : 'medium'),
         }),
       })
       let data: {
@@ -3195,15 +3651,15 @@ export default function CurriculumViewPage() {
       if (data.creditsCharged && typeof window !== 'undefined') {
         window.dispatchEvent(new Event('credits-updated'))
       }
-      toast({
+      if (!quiet) toast({
         title: tr('Đã tạo infographic', 'Infographic created', '已创建信息图', 'インフォグラフィックを作成しました', '인포그래픽 생성됨'),
         description: data.creditsCharged
           ? tr(
-              `Đã trừ ${lessonInfographicCostLabel} credit.`,
-              `Charged ${lessonInfographicCostLabel} credits.`,
-              `已扣除 ${lessonInfographicCostLabel} 积分。`,
-              `${lessonInfographicCostLabel} クレジットを消費しました。`,
-              `${lessonInfographicCostLabel} 크레딧이 차감되었습니다.`
+              `Đã trừ ${curriculumChargeLabel} credit.`,
+              `Charged ${curriculumChargeLabel} credits.`,
+              `已扣除 ${curriculumChargeLabel} 积分。`,
+              `${curriculumChargeLabel} クレジットを消費しました。`,
+              `${curriculumChargeLabel} 크레딧이 차감되었습니다.`
             )
           : tr(
               'Lần đầu cả bài — không trừ credit.',
@@ -3225,8 +3681,11 @@ export default function CurriculumViewPage() {
     }
   }, [curriculumId, worksheetId, slides, fullCurriculumMarkdown, content, topic, currentIndex, curriculumInfographic, lessonInfographicCostLabel, toast, tr, sendCurriculumDataToStudent, infographicGptQuality, topicLesson])
 
-  const generateLessonInfographic = useCallback(async () => {
+  const generateLessonInfographic = useCallback(async (opts?: { quiet?: boolean; force?: boolean }) => {
+    const quiet = opts?.quiet === true
+    const forceMedium = quiet || opts?.force === true
     if (!curriculumId || worksheetId) return
+    if (quiet && lessonInfographic?.imageUrl) return
     if (!activeLessonNo || activeLessonNo <= 0) {
       toast({
         title: tr('Chưa chọn tiết', 'No lesson selected', '尚未选择课时', '授業が未選択です', '차시가 선택되지 않았습니다'),
@@ -3243,6 +3702,7 @@ export default function CurriculumViewPage() {
     }
     const lessonText = String(content || curriculumPlainTextForInfographic(slides, content, topic)).trim()
     if (lessonText.length < 40) {
+      if (quiet) return
       toast({
         title: tr('Nội dung tiết quá ngắn', 'Lesson content too short', '课时内容太短', '授業内容が短すぎます', '차시 내용이 너무 짧음'),
         description: tr(
@@ -3257,15 +3717,16 @@ export default function CurriculumViewPage() {
       return
     }
     const lessonInfographicExists = Boolean(lessonInfographic?.imageUrl)
-    toast({
+    const lessonChargeLabel = forceMedium ? '1' : lessonInfographicCostLabel
+    if (!quiet) toast({
       title: tr('Chuẩn bị tạo infographic tiết', 'Preparing lesson infographic', '准备创建课时信息图', '授業インフォグラフィック作成準備', '차시 인포그래픽 생성 준비'),
       description: lessonInfographicExists || topicLesson
         ? tr(
-            `Tạo ảnh sẽ tốn ${lessonInfographicCostLabel} credit.`,
-            `Creating the image costs ${lessonInfographicCostLabel} credits.`,
-            `生成图片将消耗 ${lessonInfographicCostLabel} 积分。`,
-            `画像の作成で ${lessonInfographicCostLabel} クレジットを消費します。`,
-            `이미지 생성에 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
+            `Tạo ảnh sẽ tốn ${lessonChargeLabel} credit.`,
+            `Creating the image costs ${lessonChargeLabel} credits.`,
+            `生成图片将消耗 ${lessonChargeLabel} 积分。`,
+            `画像の作成で ${lessonChargeLabel} クレジットを消費します。`,
+            `이미지 생성에 ${lessonChargeLabel} 크레딧이 필요합니다.`
           )
         : tr(
             'Lần đầu trong tiết này — miễn phí credit.',
@@ -3291,7 +3752,7 @@ export default function CurriculumViewPage() {
           lessonNo: activeLessonNo,
           regenerate: lessonInfographicExists,
           imageEngine: 'gpt',
-          gptQuality: infographicGptQuality === 'high' ? 'high' : 'medium',
+          gptQuality: forceMedium ? 'medium' : (infographicGptQuality === 'high' ? 'high' : 'medium'),
         }),
       })
       let data: {
@@ -3332,15 +3793,15 @@ export default function CurriculumViewPage() {
       if (data.creditsCharged && typeof window !== 'undefined') {
         window.dispatchEvent(new Event('credits-updated'))
       }
-      toast({
+      if (!quiet) toast({
         title: tr('Đã tạo infographic theo tiết', 'Lesson infographic created', '已创建课时信息图', '授業インフォグラフィックを作成しました', '차시 인포그래픽 생성됨'),
         description: data.creditsCharged
           ? tr(
-              `Đã trừ ${lessonInfographicCostLabel} credit.`,
-              `Charged ${lessonInfographicCostLabel} credits.`,
-              `已扣除 ${lessonInfographicCostLabel} 积分。`,
-              `${lessonInfographicCostLabel} クレジットを消費しました。`,
-              `${lessonInfographicCostLabel} 크레딧이 차감되었습니다.`
+              `Đã trừ ${lessonChargeLabel} credit.`,
+              `Charged ${lessonChargeLabel} credits.`,
+              `已扣除 ${lessonChargeLabel} 积分。`,
+              `${lessonChargeLabel} クレジットを消費しました。`,
+              `${lessonChargeLabel} 크레딧이 차감되었습니다.`
             )
           : tr(
               'Lần đầu trong tiết này — không trừ credit.',
@@ -3432,27 +3893,158 @@ export default function CurriculumViewPage() {
     if (!confirmInfographicAction('curriculum', hasCurriculumInfographic)) return
     void generateCurriculumInfographic()
   }, [hasCurriculumInfographic, confirmInfographicAction, generateCurriculumInfographic])
-  const handleSwitchInfographicSource = useCallback((target: 'visual' | 'lesson' | 'curriculum') => {
-    if (leftPanelMode === 'whiteboard') setLeftPanelMode('visual')
+  const generateSlideAssistant = useCallback(async (opts?: { index?: number; quiet?: boolean; reveal?: boolean; force?: boolean }) => {
+    const quiet = opts?.quiet === true
+    const reveal = opts?.reveal === true
+    const forceMedium = quiet || opts?.force === true
+    if (!curriculumId || worksheetId) return
+    const slideIndex = typeof opts?.index === 'number' ? opts.index : currentIndexRef.current
+    const slide = slidesRef.current[slideIndex]
+    if (!slide) return
+    const existed = Boolean(slide.assistantImage?.imageUrl)
+    if (quiet && existed && opts?.force !== true) return
+    const inflightKey = `${curriculumId}:${slideIndex}`
+    if (slideImageInflight.has(inflightKey)) return
+    const lessonText = slidePlainTextForInfographic(slide).trim()
+    if (lessonText.length < 40) {
+      if (quiet) return
+      toast({
+        title: tr('Slide còn quá ngắn', 'This slide is too short', '这张幻灯片太短', 'このスライドは短すぎます', '이 슬라이드가 너무 짧습니다'),
+        description: tr(
+          'Cần một quy tắc và một ví dụ trước khi vẽ ảnh slide.',
+          'Add a rule and an example before drawing the slide image.',
+          '请先写一条规则和一个例子，再生成幻灯片图。',
+          'ルールと例を入れてからスライド画像を作成してください。',
+          '규칙과 예시를 넣은 뒤 슬라이드 이미지를 만드세요.'
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!quiet) setSlideAssistantGenerating(true)
+    if (!quiet) toast({
+      title: tr('Chuẩn bị tạo ảnh slide', 'Preparing slide image', '准备创建幻灯片图', 'スライド画像を作成します', '슬라이드 이미지 생성 준비'),
+      description: existed || topicLesson
+        ? tr(
+            `Tạo ảnh sẽ tốn ${lessonInfographicCostLabel} credit.`,
+            `Creating the image costs ${lessonInfographicCostLabel} credits.`,
+            `生成图片将消耗 ${lessonInfographicCostLabel} 积分。`,
+            `画像の作成で ${lessonInfographicCostLabel} クレジットを消費します。`,
+            `이미지 생성에 ${lessonInfographicCostLabel} 크레딧이 필요합니다.`
+          )
+        : tr(
+            'Lần đầu của slide này — miễn phí credit.',
+            'First image for this slide — no credit charge.',
+            '本幻灯片首次创建——免积分。',
+            'このスライドの初回—クレジット無料。',
+            '이 슬라이드 첫 생성—크레딧 무료.'
+          ),
+      duration: 1800,
+    })
+    slideImageInflight.add(inflightKey)
+    try {
+      const res = await fetch('/api/curriculum-slide-infographic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          curriculumId,
+          topic: slide.title || tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드'),
+          lessonText,
+          outputLocale: getWebLocaleFromCookie(),
+          scope: 'slide',
+          lessonNo: activeLessonNo && activeLessonNo > 0 ? activeLessonNo : 1,
+          slideIndex,
+          regenerate: existed,
+          imageEngine: 'gpt',
+          gptQuality: forceMedium ? 'medium' : (infographicGptQuality === 'high' ? 'high' : 'medium'),
+        }),
+      })
+      let data: { success?: boolean; infographic?: SlideInfographic; error?: string; creditsCharged?: boolean }
+      try {
+        data = (await res.json()) as typeof data
+      } catch {
+        throw new Error(tr('Phản hồi server không hợp lệ.', 'Invalid server response.', '服务器响应无效。', 'サーバーの応答が無効です。', '서버 응답이 올바르지 않습니다.'))
+      }
+      if (!res.ok || !data.success || !data.infographic?.imageUrl) {
+        throw new Error(data.error || tr('Không tạo được ảnh slide', 'Could not create the slide image', '无法创建幻灯片图', 'スライド画像を作成できません', '슬라이드 이미지를 만들 수 없음'))
+      }
+      const inf = data.infographic
+      const next = slidesRef.current.map((s, i) => (i === slideIndex ? { ...s, assistantImage: inf } : s))
+      slidesRef.current = next
+      setSlides(next)
+      const viewing = currentIndexRef.current
+      const focus = chainImageSlideIndexRef.current
+      if ((reveal || !quiet) && (slideIndex === viewing || slideIndex === focus)) {
+        manualInfographicPinRef.current = null
+        setInfographicSourceView('slide')
+        setLeftPanelMode((mode) => (mode === 'whiteboard' ? 'visual' : mode))
+      }
+      queueMicrotask(() => {
+        void persistSlidesRef.current(next)
+        const showAt = chainImageSlideIndexRef.current
+        sendCurriculumDataToStudent(next, viewing, next[showAt]?.assistantImage)
+      })
+      if (data.creditsCharged && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('credits-updated'))
+      }
+      if (!quiet) toast({
+        title: tr('Đã tạo ảnh slide', 'Slide image created', '已创建幻灯片图', 'スライド画像を作成しました', '슬라이드 이미지 생성됨'),
+        description: data.creditsCharged
+          ? tr(
+              `Đã trừ ${lessonInfographicCostLabel} credit.`,
+              `Charged ${lessonInfographicCostLabel} credits.`,
+              `已扣除 ${lessonInfographicCostLabel} 积分。`,
+              `${lessonInfographicCostLabel} クレジットを消費しました。`,
+              `${lessonInfographicCostLabel} 크레딧이 차감되었습니다.`
+            )
+          : tr(
+              'Lần đầu của slide này — không trừ credit.',
+              'First image for this slide — no credits charged.',
+              '本幻灯片首次创建——不扣积分。',
+              'このスライドの初回—クレジット消費なし。',
+              '이 슬라이드 첫 생성—크레딧 미차감.'
+            ),
+        duration: 2000,
+      })
+    } catch (e) {
+      toast({
+        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive',
+      })
+    } finally {
+      slideImageInflight.delete(inflightKey)
+      if (!quiet) setSlideAssistantGenerating(false)
+    }
+  }, [curriculumId, worksheetId, activeLessonNo, tr, toast, lessonInfographicCostLabel, sendCurriculumDataToStudent, infographicGptQuality, topicLesson])
+  const handleSwitchInfographicSource = useCallback((target: InfographicSourceView) => {
+    const panel = 'visual' as const
+    if (leftPanelMode !== 'visual') setLeftPanelMode(panel)
+    manualInfographicPinRef.current = target === 'slide' ? null : chainImageSlideIndex
     setInfographicSourceView(target)
     const targetInfographic =
       target === 'visual'
         ? priorityVisualInfographic
-        : target === 'curriculum'
-          ? curriculumInfographic
-          : lessonInfographic
-    if (studentViewOpened && !worksheetId) {
-      sendToStudentView({
-        type: 'student-curriculum-left-pane',
-        pane: target === 'visual' ? 'visual' : 'infographic',
-      })
+        : target === 'slide'
+          ? slides[currentIndex]?.assistantImage
+          : target === 'curriculum'
+            ? curriculumInfographic
+            : lessonInfographic
+    publishSessionCommand({
+      type: 'student-curriculum-left-pane',
+      pane: target === 'visual' ? 'visual' : 'infographic',
+      panel,
+      source: target,
+    })
+    if (!worksheetId) {
       sendCurriculumDataToStudent(
         slides,
         currentIndex,
         targetInfographic
       )
     }
-    if (target === 'visual') return
+    if (target === 'visual' || target === 'slide') return
     if (!curriculumId || !activeLessonNo || activeLessonNo <= 0) return
     if (slideMode !== 'personal') return
     void (async () => {
@@ -3474,12 +4066,12 @@ export default function CurriculumViewPage() {
       }
     })()
   }, [
-    studentViewOpened,
     worksheetId,
-    sendToStudentView,
+    publishSessionCommand,
     sendCurriculumDataToStudent,
     slides,
     currentIndex,
+    chainImageSlideIndex,
     priorityVisualInfographic,
     curriculumInfographic,
     lessonInfographic,
@@ -3488,6 +4080,130 @@ export default function CurriculumViewPage() {
     slideMode,
     leftPanelMode,
   ])
+  const handleSlideAssistantClick = useCallback(() => {
+    if (slideAssistantGenerating || !curriculumId || worksheetId) return
+    const slide = slides[currentIndex]
+    if (!slide) return
+    const existing = Boolean(slide.assistantImage?.imageUrl)
+    const showingSlideImage = leftPanelMode !== 'whiteboard' && infographicSourceView === 'slide'
+    if (existing && !showingSlideImage) {
+      handleSwitchInfographicSource('slide')
+      return
+    }
+    const msg = existing
+      ? tr(
+          'Ảnh trợ giảng của slide này đã có. Bạn có chắc muốn tạo lại không?',
+          'This slide already has a teaching image. Regenerate it?',
+          '这张幻灯片已有助教图。确定要重新生成吗？',
+          'このスライドの補助画像は既にあります。再生成しますか？',
+          '이 슬라이드 도우미 이미지가 이미 있습니다. 다시 만들까요?'
+        )
+      : tr(
+          'Bạn có chắc muốn tạo ảnh trợ giảng cho slide này không?',
+          'Create a teaching image for this slide?',
+          '确定要为这张幻灯片创建助教图吗？',
+          'このスライドの補助画像を作成しますか？',
+          '이 슬라이드의 도우미 이미지를 만들까요?'
+        )
+    if (typeof window !== 'undefined' && !window.confirm(msg)) return
+    void generateSlideAssistant()
+  }, [slideAssistantGenerating, curriculumId, worksheetId, slides, currentIndex, infographicSourceView, leftPanelMode, handleSwitchInfographicSource, tr, generateSlideAssistant])
+  const handleRegenerateCurrentSlideImage = useCallback(() => {
+    if (slideAssistantGenerating || !curriculumId || worksheetId) return
+    const slide = slides[currentIndex]
+    if (!slide) return
+    const existing = Boolean(slide.assistantImage?.imageUrl)
+    const msg = existing
+      ? tr(
+          'Tạo lại ảnh slide này bằng NanoAI 2M (1 credit)?',
+          'Regenerate this slide image with NanoAI 2M (1 credit)?',
+          '用 NanoAI 2M 重新生成这张幻灯片图（1 积分）？',
+          'このスライド画像を NanoAI 2M で再作成しますか（1クレジット）？',
+          '이 슬라이드 이미지를 NanoAI 2M으로 다시 만들까요 (1크레딧)?'
+        )
+      : tr(
+          'Tạo ảnh slide này bằng NanoAI 2M. Lần đầu của slide sách giáo khoa không trừ credit.',
+          'Create this slide image with NanoAI 2M. The first image of a textbook slide is free.',
+          '用 NanoAI 2M 创建这张幻灯片图。教科书幻灯片首次免费。',
+          'このスライド画像を NanoAI 2M で作成します。教科書スライドの初回は無料です。',
+          '이 슬라이드 이미지를 NanoAI 2M으로 만듭니다. 교과서 슬라이드 첫 생성은 무료입니다.'
+        )
+    if (typeof window !== 'undefined' && !window.confirm(msg)) return
+    void generateSlideAssistant({ index: currentIndex, reveal: true, force: true })
+  }, [slideAssistantGenerating, curriculumId, worksheetId, slides, currentIndex, tr, generateSlideAssistant])
+  const handleBarLessonInfographic = useCallback(() => {
+    if (lessonInfographicGenerating || !activeLessonNo || !curriculumId) return
+    const msg = hasLessonInfographic
+      ? tr(
+          'Tạo lại ảnh tiết này bằng NanoAI 2M (1 credit)?',
+          'Regenerate this lesson image with NanoAI 2M (1 credit)?',
+          '用 NanoAI 2M 重新生成这张课时图（1 积分）？',
+          'この授業画像を NanoAI 2M で再作成しますか（1クレジット）？',
+          '이 차시 이미지를 NanoAI 2M으로 다시 만들까요 (1크레딧)?'
+        )
+      : tr(
+          'Tạo ảnh tiết này bằng NanoAI 2M. Lần đầu của tiết sách giáo khoa không trừ credit.',
+          'Create this lesson image with NanoAI 2M. The first image of a textbook lesson is free.',
+          '用 NanoAI 2M 创建这张课时图。教科书课时首次免费。',
+          'この授業画像を NanoAI 2M で作成します。教科書の授業の初回は無料です。',
+          '이 차시 이미지를 NanoAI 2M으로 만듭니다. 교과서 차시 첫 생성은 무료입니다.'
+        )
+    if (typeof window !== 'undefined' && !window.confirm(msg)) return
+    void generateLessonInfographic({ force: true })
+  }, [lessonInfographicGenerating, activeLessonNo, curriculumId, hasLessonInfographic, tr, generateLessonInfographic])
+  const handleBarCurriculumInfographic = useCallback(() => {
+    if (infographicGenerating || !curriculumId) return
+    const msg = hasCurriculumInfographic
+      ? tr(
+          'Tạo lại ảnh cả bài bằng NanoAI 2M (1 credit)?',
+          'Regenerate the curriculum image with NanoAI 2M (1 credit)?',
+          '用 NanoAI 2M 重新生成整课图（1 积分）？',
+          '全体画像を NanoAI 2M で再作成しますか（1クレジット）？',
+          '전체 이미지를 NanoAI 2M으로 다시 만들까요 (1크레딧)?'
+        )
+      : tr(
+          'Tạo ảnh cả bài bằng NanoAI 2M. Lần đầu của bài sách giáo khoa không trừ credit.',
+          'Create the curriculum image with NanoAI 2M. The first image of a textbook curriculum is free.',
+          '用 NanoAI 2M 创建整课图。教科书整课首次免费。',
+          '全体画像を NanoAI 2M で作成します。教科書の初回は無料です。',
+          '전체 이미지를 NanoAI 2M으로 만듭니다. 교과서 첫 생성은 무료입니다.'
+        )
+    if (typeof window !== 'undefined' && !window.confirm(msg)) return
+    void generateCurriculumInfographic({ force: true })
+  }, [infographicGenerating, curriculumId, hasCurriculumInfographic, tr, generateCurriculumInfographic])
+
+  const generateSlideAssistantRef = useRef(generateSlideAssistant)
+  const generateLessonInfographicRef = useRef(generateLessonInfographic)
+  const generateCurriculumInfographicRef = useRef(generateCurriculumInfographic)
+  generateSlideAssistantRef.current = generateSlideAssistant
+  generateLessonInfographicRef.current = generateLessonInfographic
+  generateCurriculumInfographicRef.current = generateCurriculumInfographic
+  useEffect(() => {
+    if (worksheetId || !curriculumId || slides.length === 0 || curriculumLessonCount == null) return
+    const key = `${curriculumId}:${activeLessonNo ?? 0}`
+    if (backgroundInfographicJobs.has(key)) return
+    backgroundInfographicJobs.add(key)
+    const lessonCount = curriculumLessonCount
+    const lessonNo = activeLessonNo
+    void (async () => {
+      await Promise.resolve()
+      const first = Math.max(0, Math.min(currentIndexRef.current, Math.max(0, slidesRef.current.length - 1)))
+      try {
+        await generateSlideAssistantRef.current({ index: first, quiet: true, reveal: true })
+        if (lessonCount !== 1 && lessonNo && lessonNo > 0) {
+          await generateLessonInfographicRef.current({ quiet: true })
+        }
+        await generateCurriculumInfographicRef.current({ quiet: true })
+        const total = slidesRef.current.length
+        for (let i = 0; i < total; i += 1) {
+          if (i === first) continue
+          await generateSlideAssistantRef.current({ index: i, quiet: true, reveal: false })
+        }
+      } catch {
+        backgroundInfographicJobs.delete(key)
+      }
+    })()
+  }, [worksheetId, curriculumId, activeLessonNo, curriculumLessonCount, slides.length])
 
   const openTeacherWhiteboard = useCallback(() => {
     setLeftPanelMode('whiteboard')
@@ -3548,6 +4264,7 @@ export default function CurriculumViewPage() {
           : {}),
         ...(!worksheetId && activeVisualInfographic ? { curriculumInfographic: activeVisualInfographic } : {}),
         ...(!worksheetId && lessonInfographic ? { lessonInfographic } : {}),
+        slideInkPen: inkFrameRef.current,
       })
       if (worksheetId || curriculumId) {
         channel.postMessage({
@@ -4767,7 +5484,6 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     if (slideViewMode !== 'single') return
     if (!studentViewOpened && !phoneFollowerId) return
-    if (studentViewOpened && phoneSessionId && !phoneFollowerId) return
     const scrollEl = teacherSlideContentPaneRef.current
     if (!scrollEl) return
     const readAnchor = () => {
@@ -4871,7 +5587,97 @@ export default function CurriculumViewPage() {
       scrollEl.removeEventListener('touchend', emit)
       ro.disconnect()
     }
-  }, [studentViewOpened, phoneFollowerId, phoneSessionId, slideViewMode, studentCurriculumRemoteMode, currentIndex, sendToStudentView])
+  }, [studentViewOpened, phoneFollowerId, slideViewMode, studentCurriculumRemoteMode, currentIndex, sendToStudentView])
+
+  useEffect(() => {
+    if (worksheetId || studentCurriculumRemoteMode !== 'markdown-all' || slideViewMode !== 'single') return
+    const scrollEl = teacherSlideContentPaneRef.current
+    if (!scrollEl) return
+    const readSlideAtTop = () => {
+      if (Date.now() < chainImageLockRef.current) return
+      const line = scrollEl.getBoundingClientRect().top + 28
+      const cards = Array.from(scrollEl.querySelectorAll('[data-teacher-chain-slide]')) as HTMLElement[]
+      let found: number | null = null
+      for (const el of cards) {
+        const rect = el.getBoundingClientRect()
+        if (rect.bottom <= line + 8) continue
+        const idx = Number(el.getAttribute('data-teacher-chain-slide'))
+        if (!Number.isFinite(idx)) continue
+        found = idx
+        break
+      }
+      if (found == null) return
+      setChainImageSlideIndex((prev) => (prev === found ? prev : found))
+    }
+    scrollEl.addEventListener('scroll', readSlideAtTop, { passive: true })
+    return () => scrollEl.removeEventListener('scroll', readSlideAtTop)
+  }, [worksheetId, studentCurriculumRemoteMode, slideViewMode, currentIndex, slides.length])
+
+  useEffect(() => {
+    if (worksheetId || studentCurriculumRemoteMode !== 'markdown-all' || slideViewMode !== 'single') return
+    const left = teacherLeftColumnScrollRef.current
+    const slidePane = teacherSlideContentPaneRef.current
+    if (!left || !slidePane) return
+    const onWheel = (event: WheelEvent) => {
+      if (leftPanelMode === 'whiteboard' || leftPanelMode === 'curriculum') return
+      if (slidePane.contains(event.target as Node)) return
+      slidePane.scrollTop += event.deltaY
+      event.preventDefault()
+    }
+    let leftScrollFrame = 0
+    const onLeftScroll = () => {
+      if (leftPanelMode !== 'curriculum') return
+      if (Date.now() < chainImageLockRef.current) return
+      if (leftScrollFrame) return
+      leftScrollFrame = window.requestAnimationFrame(() => {
+        leftScrollFrame = 0
+        syncLeftCurriculumToChain()
+      })
+    }
+    const syncLeftCurriculumToChain = () => {
+      const sectionsNow = content ? splitCurriculumSections(content) : []
+      if (sectionsNow.length === 0 || slides.length === 0) return
+      const paneTop = left.getBoundingClientRect().top + 8
+      let sectionIndex = 0
+      let best = Infinity
+      sectionRefs.current.forEach((el, i) => {
+        if (!el) return
+        const dist = Math.abs(el.getBoundingClientRect().top - paneTop)
+        if (dist < best) {
+          best = dist
+          sectionIndex = i
+        }
+      })
+      const limit = Math.max(0, Math.min(currentIndex, slides.length - 1))
+      let slideIdx = 0
+      let bestDist = Infinity
+      for (let i = 0; i <= limit; i += 1) {
+        const dist = Math.abs(getSectionIndexForSlide(sectionsNow, slides, i) - sectionIndex)
+        if (dist < bestDist) {
+          bestDist = dist
+          slideIdx = i
+        }
+      }
+      setChainImageSlideIndex((prev) => (prev === slideIdx ? prev : slideIdx))
+      const card = document.getElementById(`teacher-chain-slide-${slideIdx}`)
+      if (!card) return
+      const cRect = slidePane.getBoundingClientRect()
+      const eRect = card.getBoundingClientRect()
+      const top = eRect.top - cRect.top + slidePane.scrollTop
+      const bias = Math.max(56, Math.round(slidePane.clientHeight * 0.18))
+      const nextTop = Math.max(0, top - bias)
+      if (Math.abs(slidePane.scrollTop - nextTop) < 24) return
+      chainImageLockRef.current = Date.now() + 280
+      slidePane.scrollTo({ top: nextTop, behavior: 'auto' })
+    }
+    left.addEventListener('wheel', onWheel, { passive: false })
+    left.addEventListener('scroll', onLeftScroll, { passive: true })
+    return () => {
+      if (leftScrollFrame) window.cancelAnimationFrame(leftScrollFrame)
+      left.removeEventListener('wheel', onWheel)
+      left.removeEventListener('scroll', onLeftScroll)
+    }
+  }, [worksheetId, studentCurriculumRemoteMode, slideViewMode, leftPanelMode, content, slides, currentIndex])
 
   const studentSlideWindowIsLive = useCallback((w: Window | null): w is Window => {
     if (!w || w.closed) return false
@@ -5005,9 +5811,6 @@ export default function CurriculumViewPage() {
     return targetWin
   }, [sendCurriculumDataToStudent, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire, flushPendingProjector])
 
-  const openStudentViewNowRef = useRef(openStudentViewNow)
-  openStudentViewNowRef.current = openStudentViewNow
-
   const reviewLessonKey = curriculumId && activeLessonNo ? `${curriculumId}:${activeLessonNo}` : ''
 
   useEffect(() => {
@@ -5035,7 +5838,6 @@ export default function CurriculumViewPage() {
           reviewGateRef.current = false
           setReviewIsGate(false)
           setExampleReviewOpen(false)
-          openStudentViewNowRef.current()
         }
         return
       }
@@ -5078,19 +5880,27 @@ export default function CurriculumViewPage() {
       openStudentViewNow()
       return
     }
+    if (!lessonAlreadyReviewed()) {
+      reviewGateRef.current = true
+      setReviewIsGate(true)
+      prepareLessonReview()
+      setExampleReviewOpen(true)
+      return
+    }
+    const opened = openStudentViewNow()
+    if (!curriculumId || !activeLessonNo) return
     void (async () => {
-      const pending = curriculumId && activeLessonNo
-        ? await lessonHasOpenSlideEditAction({ curriculumId, lessonNo: activeLessonNo })
-        : null
-      const mustChoose = Boolean(pending && 'open' in pending && pending.open)
-      if (mustChoose || !lessonAlreadyReviewed()) {
-        reviewGateRef.current = true
-        setReviewIsGate(true)
-        prepareLessonReview()
-        setExampleReviewOpen(true)
-        return
+      const pending = await lessonHasOpenSlideEditAction({ curriculumId, lessonNo: activeLessonNo })
+      if (!(pending && 'open' in pending && pending.open)) return
+      if (opened && !opened.closed) {
+        try { opened.close() } catch { /* ignore */ }
       }
-      openStudentViewNow()
+      if (studentViewWindowRef.current === opened) studentViewWindowRef.current = null
+      setStudentViewOpened(false)
+      reviewGateRef.current = true
+      setReviewIsGate(true)
+      prepareLessonReview()
+      setExampleReviewOpen(true)
     })()
   }, [worksheetId, lessonAlreadyReviewed, prepareLessonReview, openStudentViewNow, curriculumId, activeLessonNo])
 
@@ -5234,6 +6044,7 @@ export default function CurriculumViewPage() {
       ...a,
       blocks: [...(a.blocks || []), ...(b.blocks || [])],
       teacherNotes: (a.teacherNotes || '') + (b.teacherNotes ? '\n\n' + b.teacherNotes : ''),
+      assistantImage: undefined,
     }
     const next = [...slides.slice(0, index), merged, ...slides.slice(index + 2)]
     const nextCurrentIndex = currentIndex === index + 1 ? index : currentIndex > index + 1 ? currentIndex - 1 : currentIndex
@@ -5275,6 +6086,7 @@ export default function CurriculumViewPage() {
     const slide1: SlideItem = {
       ...s,
       blocks: firstBlocks,
+      assistantImage: undefined,
     }
     const slide2: SlideItem = {
       ...s,
@@ -5285,6 +6097,7 @@ export default function CurriculumViewPage() {
       visualEmbed: undefined,
       visualLayout: undefined,
       visualCells: undefined,
+      assistantImage: undefined,
     }
     const next = [...slides.slice(0, index), slide1, slide2, ...slides.slice(index + 1)]
     const nextCurrentIndex = currentIndex > index ? currentIndex + 1 : currentIndex
@@ -5322,6 +6135,7 @@ export default function CurriculumViewPage() {
         title: s.title,
         content: blocks.map((b) => b?.content ?? '').join('\n\n'),
         blocks: blocks.map((b) => ({ header: b?.header, content: b?.content ?? '' })),
+        teacherNotes: String(s.teacherNotes ?? '').trim(),
         difficulty,
         lessonContext: {
           topic,
@@ -5810,6 +6624,7 @@ export default function CurriculumViewPage() {
                 : {}),
               ...(!worksheetId && activeVisualInfographic ? { curriculumInfographic: activeVisualInfographic } : {}),
               ...(!worksheetId && lessonInfographic ? { lessonInfographic } : {}),
+              slideInkPen: inkFrameRef.current,
             },
             window.location.origin
           )
@@ -5933,10 +6748,15 @@ export default function CurriculumViewPage() {
       }
       if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number' && e.source === studentViewWindowRef.current) {
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
+        const block = typeof e.data.blockIndex === 'number'
+          ? Math.max(0, Math.floor(e.data.blockIndex))
+          : (idx === currentIndexRef.current ? activeBlockIndexRef.current : 0)
         slideFollowHoldRef.current = { index: idx, until: Date.now() + 900 }
         commitCurrentSlideDraft()
+        if (idx !== currentIndexRef.current) blockNavRef.current = true
+        setActiveBlockIndex(block)
         setCurrentIndex(idx)
-        publishSessionCommandRef.current({ type: 'slide-go', index: idx })
+        publishSessionCommandRef.current({ type: 'slide-go', index: idx, blockIndex: block })
       }
       if (
         e.data?.type === 'student-curriculum-right-mode-changed' &&
@@ -5952,7 +6772,17 @@ export default function CurriculumViewPage() {
         (e.data?.pane === 'infographic' || e.data?.pane === 'visual' || e.data?.pane === 'whiteboard') &&
         e.source === studentViewWindowRef.current
       ) {
-        setLeftPanelMode(e.data.pane)
+        if (e.data.pane === 'whiteboard') {
+          setLeftPanelMode('whiteboard')
+        } else if (e.data.pane === 'infographic') {
+          manualInfographicPinRef.current = null
+          setInfographicSourceView('slide')
+          setLeftPanelMode('visual')
+        } else {
+          manualInfographicPinRef.current = chainImageSlideIndexRef.current
+          setInfographicSourceView('visual')
+          setLeftPanelMode('visual')
+        }
       }
       if (e.data?.type === 'quiz-popup-open' && typeof e.data?.value === 'boolean' && e.source === studentViewWindowRef.current) {
         if (e.data.value) {
@@ -6042,6 +6872,9 @@ export default function CurriculumViewPage() {
         if (typeof e.data.subjectId === 'string' && e.data.subjectId.trim()) {
           setLessonSubjectId(e.data.subjectId.trim())
         }
+        if (typeof e.data.gradeLevelId === 'string' && e.data.gradeLevelId.trim()) {
+          setLessonGradeLevelId(e.data.gradeLevelId.trim())
+        }
         setContent(incomingContent)
         setFullCurriculumMarkdown(
           typeof e.data.fullCurriculumMarkdown === 'string'
@@ -6118,11 +6951,28 @@ export default function CurriculumViewPage() {
     if (worksheetId) return
     if (layoutPaneRef.current) {
       layoutPaneRef.current = false
+      panePublishReadyRef.current = true
       return
     }
     if (!studentViewOpened && !phoneSessionId && !phoneFollowerId) return
-    const pane = teacherSlideLeftPaneFromMode(leftPanelMode, currentVisualShowsInfographic)
-    publishSessionCommand({ type: 'student-curriculum-left-pane', pane, panel: leftPanelMode })
+    if (!panePublishReadyRef.current) {
+      panePublishReadyRef.current = true
+      return
+    }
+    const pane =
+      leftPanelMode === 'whiteboard'
+        ? 'whiteboard'
+        : leftPanelMode === 'curriculum' || leftPanelMode === 'slide'
+          ? 'visual'
+          : infographicSourceView === 'visual'
+            ? teacherSlideLeftPaneFromMode(leftPanelMode, currentVisualShowsInfographic)
+            : 'infographic'
+    publishSessionCommand({
+      type: 'student-curriculum-left-pane',
+      pane,
+      panel: leftPanelMode,
+      source: infographicSourceView,
+    })
     if (leftPanelMode === 'whiteboard') {
       const wb = whiteboardStateRef.current
       publishSessionCommand({
@@ -6132,7 +6982,7 @@ export default function CurriculumViewPage() {
         grid: wb.grid,
       })
     }
-  }, [worksheetId, studentViewOpened, currentVisualShowsInfographic, leftPanelMode, phoneSessionId, phoneFollowerId, publishSessionCommand])
+  }, [worksheetId, studentViewOpened, currentVisualShowsInfographic, leftPanelMode, infographicSourceView, phoneSessionId, phoneFollowerId, publishSessionCommand])
 
   useEffect(() => {
     slidesRef.current = slides
@@ -6224,6 +7074,7 @@ export default function CurriculumViewPage() {
         visualEmbed: s.visualEmbed,
         visualLayout: s.visualLayout,
         visualCells: s.visualCells,
+        assistantImage: s.assistantImage?.imageUrl ? s.assistantImage : undefined,
       }))
       const r = await saveUserCustomizedSlides({
         curriculumId,
@@ -6455,8 +7306,8 @@ export default function CurriculumViewPage() {
             )}
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            <button type="button" className={dockIcon} disabled={currentIndex === 0} onClick={() => sendSlideControl('slide-prev')}><ChevronLeft className="h-4 w-4" /></button>
-            <button type="button" className={dockIcon} disabled={currentIndex >= slides.length - 1} onClick={() => sendSlideControl('slide-next')}><ChevronRight className="h-4 w-4" /></button>
+            <button type="button" className={dockIcon} disabled={beatAtStart} onClick={() => sendSlideControl('slide-prev')}><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" className={dockIcon} disabled={beatAtEnd} onClick={() => sendSlideControl('slide-next')}><ChevronRight className="h-4 w-4" /></button>
           </div>
         </div>
       </div>
@@ -6505,6 +7356,7 @@ export default function CurriculumViewPage() {
     curriculumId,
     lessonNo: activeLessonNo,
     subjectId: lessonSubjectId,
+    gradeLevelId: lessonGradeLevelId,
     slideMode,
     personalViewSubMode,
     hasOriginalSlides,
@@ -6623,7 +7475,7 @@ export default function CurriculumViewPage() {
       typingDriverRef.current = false
     }
     const relayStudent = () => {
-      if (!phoneFollowerIdRef.current) deliverStudentWindow(msg)
+      deliverStudentWindow(msg)
     }
     if (fromSelf) return
     if (type === 'mouse-pos' || type === 'mouse-click' || type === 'chain-pane-scroll') {
@@ -6658,10 +7510,21 @@ export default function CurriculumViewPage() {
       relayStudent()
       return
     }
+    if (type === 'slide-ink-pen') {
+      inkDriveRef.current = false
+      inkFrameRef.current = null
+      relayStudent()
+      return
+    }
     if (type === 'slide-go' && typeof msg.index === 'number') {
       const max = Math.max(0, slidesRef.current.length - 1)
       const idx = Math.max(0, Math.min(Math.floor(msg.index), max))
+      const block = typeof msg.blockIndex === 'number'
+        ? Math.max(0, Math.floor(msg.blockIndex))
+        : (idx === currentIndexRef.current ? activeBlockIndexRef.current : 0)
       slideFollowHoldRef.current = { index: idx, until: Date.now() + 900 }
+      if (idx !== currentIndexRef.current) blockNavRef.current = true
+      setActiveBlockIndex(block)
       setCurrentIndex(idx)
       relayStudent()
     } else if (type === 'set-auto-play') {
@@ -6690,12 +7553,24 @@ export default function CurriculumViewPage() {
       setStudentCurriculumRemoteMode(msg.mode)
       relayStudent()
     } else if (type === 'student-curriculum-left-pane') {
+      const nextSource = isInfographicSourceView(msg.source) ? msg.source : infographicSourceViewRef.current
+      let nextPanel = leftPanelModeRef.current
       const panel = msg.panel
       if (panel === 'curriculum' || panel === 'slide' || panel === 'visual' || panel === 'infographic' || panel === 'whiteboard') {
-        setLeftPanelMode(panel)
-      } else if (msg.pane === 'whiteboard') setLeftPanelMode('whiteboard')
-      else if (msg.pane === 'infographic') setLeftPanelMode('infographic')
-      else if (isTeacherLeftPaneWire(msg.pane)) setLeftPanelMode('visual')
+        nextPanel = panel
+      } else if (msg.pane === 'whiteboard') nextPanel = 'whiteboard'
+      else if (msg.pane === 'infographic') nextPanel = 'infographic'
+      else if (isTeacherLeftPaneWire(msg.pane)) nextPanel = 'visual'
+      if (nextSource !== infographicSourceViewRef.current || nextPanel !== leftPanelModeRef.current) layoutPaneRef.current = true
+      if (isInfographicSourceView(msg.source) && msg.source !== infographicSourceViewRef.current) {
+        manualInfographicPinRef.current = msg.source === 'slide' ? null : chainImageSlideIndexRef.current
+        infographicSourceViewRef.current = msg.source
+        setInfographicSourceView(msg.source)
+      }
+      if (nextPanel !== leftPanelModeRef.current) {
+        leftPanelModeRef.current = nextPanel
+        setLeftPanelMode(nextPanel)
+      }
       relayStudent()
     } else if (type === 'visual-fullscreen-open') {
       setInfographicFullscreenOpen(false)
@@ -6743,6 +7618,13 @@ export default function CurriculumViewPage() {
     } else if (type === 'infographic-draw-clear' && typeof msg.slideIndex === 'number') {
       skipInfographicSyncRef.current = true
       clearInfographicStrokes(msg.slideIndex)
+      relayStudent()
+    } else if (type === 'infographic-draw-end') {
+      const stroke = readInfographicStroke(msg.stroke)
+      if (typeof msg.slideIndex === 'number' && stroke) {
+        skipInfographicSyncRef.current = true
+        upsertInfographicStroke(msg.slideIndex, stroke)
+      }
       relayStudent()
     } else if (type === 'infographic-draw-sync' && msg.strokesBySlide && typeof msg.strokesBySlide === 'object') {
       const incoming = msg.strokesBySlide as Record<string, InfographicDrawStroke[]>
@@ -7036,7 +7918,7 @@ export default function CurriculumViewPage() {
       }).catch(() => { /* lần sau */ })
     }, 500)
     return () => window.clearTimeout(handle)
-  }, [phoneSessionId, phoneFollowerId, slides, content, studentCurriculumRemoteMode, currentIndex, remoteAutoPlay, remoteAutoPlayIntervalMs])
+  }, [phoneSessionId, phoneFollowerId, slides, content, studentCurriculumRemoteMode, leftPanelMode, infographicSourceView, currentIndex, remoteAutoPlay, remoteAutoPlayIntervalMs])
 
   useEffect(() => {
     if (phoneFollowerId || !phoneSessionId) return
@@ -7096,6 +7978,24 @@ export default function CurriculumViewPage() {
             const idx = Math.max(0, Math.min(Math.floor(body.index), max))
             const held = slideFollowHoldRef.current
             if (!(held && Date.now() < held.until && idx !== held.index)) setCurrentIndex(idx)
+          }
+          if (isInfographicSourceView(snap.infographicSourceView) && snap.infographicSourceView !== infographicSourceViewRef.current) {
+            manualInfographicPinRef.current = snap.infographicSourceView === 'slide' ? null : chainImageSlideIndexRef.current
+            keepInfographicPinRef.current = snap.infographicSourceView !== 'slide'
+            layoutPaneRef.current = true
+            setInfographicSourceView(snap.infographicSourceView)
+          }
+          if (
+            snap.leftPanelMode === 'curriculum' ||
+            snap.leftPanelMode === 'slide' ||
+            snap.leftPanelMode === 'visual' ||
+            snap.leftPanelMode === 'infographic' ||
+            snap.leftPanelMode === 'whiteboard'
+          ) {
+            if (snap.leftPanelMode !== leftPanelModeRef.current) {
+              layoutPaneRef.current = true
+              setLeftPanelMode(snap.leftPanelMode)
+            }
           }
           const incomingBoardGen = typeof body.whiteboardGen === 'number' ? body.whiteboardGen : whiteboardGen
           if (incomingBoardGen > seenWhiteboardGenRef.current) {
@@ -7223,6 +8123,7 @@ export default function CurriculumViewPage() {
     let cancel = false
     const revisionRef = { current: 0 }
     let paneApplied = false
+    let sourceApplied = false
     const applySnap = (snap: Record<string, unknown>, index: number, board: boolean) => {
       if (board) applySharedWhiteboardRef.current(snap.whiteboard)
       markWhiteboardLinkReady()
@@ -7235,6 +8136,7 @@ export default function CurriculumViewPage() {
       if (typeof snap.curriculumId === 'string') setCurriculumId(snap.curriculumId)
       setActiveLessonNo(Number.isFinite(Number(snap.lessonNo)) ? Math.max(1, Math.floor(Number(snap.lessonNo))) : null)
       if (typeof snap.subjectId === 'string' && snap.subjectId.trim()) setLessonSubjectId(snap.subjectId.trim())
+      if (typeof snap.gradeLevelId === 'string' && snap.gradeLevelId.trim()) setLessonGradeLevelId(snap.gradeLevelId.trim())
       const mode = snap.slideMode === 'personal' || snap.slideMode === 'shared' || snap.slideMode === 'original' ? snap.slideMode : null
       setSlideMode(mode)
       setPersonalViewSubMode(snap.personalViewSubMode === 'original' ? 'original' : 'current')
@@ -7246,7 +8148,12 @@ export default function CurriculumViewPage() {
       if (snap.studentCurriculumRightMode === 'markdown-all' || snap.studentCurriculumRightMode === 'single-slide') {
         setStudentCurriculumRemoteMode(snap.studentCurriculumRightMode)
       }
-      if (snap.infographicSourceView === 'visual' || snap.infographicSourceView === 'lesson' || snap.infographicSourceView === 'curriculum') {
+      if (!sourceApplied && isInfographicSourceView(snap.infographicSourceView)) {
+        sourceApplied = true
+        manualInfographicPinRef.current =
+          snap.infographicSourceView === 'slide' ? null : Math.max(0, Math.floor(index) || 0)
+        keepInfographicPinRef.current = snap.infographicSourceView !== 'slide'
+        if (snap.infographicSourceView !== infographicSourceView) layoutPaneRef.current = true
         setInfographicSourceView(snap.infographicSourceView)
       }
       setSlideTitles(sanitized.map((s) => s?.title ?? ''))
@@ -7267,6 +8174,7 @@ export default function CurriculumViewPage() {
         )
       ) {
         paneApplied = true
+        if (snap.leftPanelMode !== leftPanelMode) layoutPaneRef.current = true
         setLeftPanelMode(snap.leftPanelMode)
       }
       if (typeof snap.remoteAutoPlay === 'boolean') setRemoteAutoPlay(snap.remoteAutoPlay)
@@ -7480,10 +8388,12 @@ export default function CurriculumViewPage() {
           onSandTimerStart={(sec) => sendToStudentView({ type: 'sand-timer-start', seconds: sec })}
           onPrev={() => sendSlideControl('slide-prev')}
           onNext={() => sendSlideControl('slide-next')}
+          prevDisabled={beatAtStart}
+          nextDisabled={beatAtEnd}
           slideViewMode={slideViewMode}
           onSlideViewModeChange={(m) => setSlideViewMode(m)}
           onOpenStudentView={!phoneFollowerId && slides.length > 0 ? openStudentView : undefined}
-          onPhoneControl={!phoneFollowerId && studentViewOpened ? () => setPhoneRemoteOpen(true) : undefined}
+          onPhoneControl={!phoneFollowerId ? () => setPhoneRemoteOpen(true) : undefined}
           hideIndex
           hideInsert
           hideTeacherLeftButtons
@@ -7506,10 +8416,33 @@ export default function CurriculumViewPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={openTeacherWhiteboard}
-                  className={cn('h-7 border-l border-slate-600/70 px-2 text-[11px] font-medium', leftPanelMode === 'whiteboard' ? 'bg-sky-500/30 text-sky-100' : 'text-slate-200')}
+                  data-teacher-chrome
+                  onClick={() => {
+                    if (leftPanelMode === 'whiteboard') {
+                      handleSwitchInfographicSource('slide')
+                      return
+                    }
+                    const showingSlideImage = infographicSourceView === 'slide'
+                    if (showingSlideImage && slides[currentIndex]?.assistantImage?.imageUrl) {
+                      openTeacherWhiteboard()
+                      return
+                    }
+                    handleSlideAssistantClick()
+                  }}
+                  disabled={slideAssistantGenerating || !curriculumId}
+                  className={cn(
+                    'h-7 border-l border-slate-600/70 px-2 text-[11px] font-medium',
+                    leftPanelMode !== 'whiteboard' && infographicSourceView === 'slide' && slides[currentIndex]?.assistantImage?.imageUrl
+                      ? 'bg-sky-500/30 text-sky-100'
+                      : 'bg-emerald-500/30 text-emerald-100',
+                    (slideAssistantGenerating || !curriculumId) && 'cursor-not-allowed opacity-50'
+                  )}
                 >
-                  {tr('Bảng trắng', 'Whiteboard', '白板', 'ホワイトボード', '화이트보드')}
+                  {slideAssistantGenerating
+                    ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...')
+                    : leftPanelMode !== 'whiteboard' && infographicSourceView === 'slide' && slides[currentIndex]?.assistantImage?.imageUrl
+                      ? tr('Bảng trắng', 'Whiteboard', '白板', 'ホワイトボード', '화이트보드')
+                      : tr('Slide', 'Slide', '幻灯片', 'スライド', '슬라이드')}
                 </button>
                 {(() => {
                   const lessonNo = activeLessonNo && activeLessonNo > 0 ? activeLessonNo : 1
@@ -7787,7 +8720,7 @@ export default function CurriculumViewPage() {
                 </div>
               </div>
             </div>
-            <div className={cn('min-w-0 flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', (leftWidePanel || (narrowTeacherLayout && (leftPanelMode === 'visual' || leftPanelMode === 'whiteboard'))) && 'p-0 pr-0 space-y-0 overflow-hidden')}>
+            <div ref={teacherLeftColumnScrollRef} className={cn('min-w-0 flex-1 overflow-y-scroll overflow-x-hidden overscroll-y-contain p-4 space-y-3 pr-2 scroll-smooth min-h-0 text-left', (leftWidePanel || (narrowTeacherLayout && (leftPanelMode === 'visual' || leftPanelMode === 'whiteboard'))) && 'p-0 pr-0 space-y-0 overflow-hidden')}>
               {leftPanelMode === 'whiteboard' ? (
                 <div className="flex h-full min-h-0 flex-col">
                   <div className="h-full min-h-0 flex-1">
@@ -7815,6 +8748,7 @@ export default function CurriculumViewPage() {
                           worldY: point.worldY,
                         })
                       }}
+                      gradeLevelId={lessonGradeLevelId}
                       tr={tr}
                     />
                   </div>
@@ -7910,8 +8844,8 @@ export default function CurriculumViewPage() {
                               </button>
                             )}
                             <span className="ml-auto flex shrink-0 items-center gap-1">
-                              <button type="button" className={dockIcon} disabled={currentIndex === 0} onClick={() => sendSlideControl('slide-prev')}><ChevronLeft className="h-4 w-4" /></button>
-                              <button type="button" className={dockIcon} disabled={currentIndex >= slides.length - 1} onClick={() => sendSlideControl('slide-next')}><ChevronRight className="h-4 w-4" /></button>
+                              <button type="button" className={dockIcon} disabled={beatAtStart} onClick={() => sendSlideControl('slide-prev')}><ChevronLeft className="h-4 w-4" /></button>
+                              <button type="button" className={dockIcon} disabled={beatAtEnd} onClick={() => sendSlideControl('slide-next')}><ChevronRight className="h-4 w-4" /></button>
                             </span>
                           </>
                         )
@@ -7931,7 +8865,11 @@ export default function CurriculumViewPage() {
                   )
                   const canGenerateVisualInfographic = !worksheetId && !curriculumInfographic && !!curriculumId
                   const visualInfographicCostLabel = lessonInfographicCostLabel
-                  const slideNum = currentIndex + 1
+                  const slideNum = (
+                    !worksheetId && studentCurriculumRemoteMode === 'markdown-all' && infographicSourceView === 'slide'
+                      ? chainImageSlideIndex
+                      : currentIndex
+                  ) + 1
                   const slideTotal = slideTitles.length || slides.length
                   const visualCellLabel = (cell: number) => `${slideNum}-${cell}/${slideTotal}`
                   const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
@@ -7945,46 +8883,25 @@ export default function CurriculumViewPage() {
                   return (
                     <div
                       key={activeVisualInfographicRenderKey}
-                      className="h-full w-full relative overflow-hidden"
+                      className="flex h-full w-full min-h-0 flex-col overflow-hidden"
                       style={{
                         background: visualUsesCurriculumInfographic || visualUsesFourCellData ? infographicStableBackground : gradient,
                       }}
                     >
-                      {narrowTeacherLayout ? null : (
-                        <div className="absolute top-4 left-4 w-9 h-9 rounded-full bg-red-500 flex items-center justify-center text-white font-bold text-sm shadow-lg z-10">
-                          {slideNum}
-                        </div>
-                      )}
-                      {renderPhoneTeacherControlBar()}
                       {!worksheetId && !narrowTeacherLayout && (
-                        <div className="absolute right-4 top-2 z-10 flex flex-wrap items-center justify-end gap-2">
-                          {renderInfographicEnginePicker()}
-                          <button
-                            type="button"
-                            onClick={handleGenerateLessonInfographic}
-                            disabled={lessonInfographicGenerating || !activeLessonNo || !curriculumId}
-                            className="shrink-0 rounded-lg border border-cyan-300/60 bg-cyan-500/20 px-3 py-1.5 text-[11px] font-semibold tracking-normal text-cyan-100 hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {lessonInfographicGenerating
-                              ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
-                              : infographicActionText('lesson', hasLessonInfographic, lessonInfographicCostLabel)}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleGenerateCurriculumInfographic}
-                            disabled={infographicGenerating || !curriculumId}
-                            className="shrink-0 rounded-lg border border-amber-300/60 bg-amber-500/20 px-3 py-1.5 text-[11px] font-semibold tracking-normal text-amber-100 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {infographicGenerating
-                              ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
-                              : infographicActionText('curriculum', hasCurriculumInfographic, lessonInfographicCostLabel)}
-                          </button>
-                          <div className="flex shrink-0 overflow-hidden rounded-lg border border-slate-500/70 bg-slate-800/50">
+                        <div
+                          data-teacher-chrome
+                          className="z-20 flex h-8 shrink-0 flex-nowrap items-center gap-1.5 overflow-x-auto border-b border-white/10 bg-slate-950 px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">{slideNum}</span>
+                          <div className="flex shrink-0 overflow-hidden rounded-md border border-slate-500/70 bg-slate-800/50">
                             <button
                               type="button"
                                 onClick={() => handleSwitchInfographicSource('visual')}
-                              className={cn(
-                                'h-8 px-2.5 text-[11px] font-medium transition-colors',
+                                className={cn(
+                                'h-7 px-2.5 text-[11px] font-medium transition-colors',
                                 infographicSourceView === 'visual'
                                   ? 'bg-violet-500/30 text-violet-200'
                                   : 'text-slate-300 hover:bg-slate-700/50'
@@ -7995,10 +8912,33 @@ export default function CurriculumViewPage() {
                             </button>
                             <button
                               type="button"
+                              onClick={handleSlideAssistantClick}
+                              disabled={slideAssistantGenerating || !curriculumId}
+                              className={cn(
+                                'h-7 border-l border-slate-600/70 px-2.5 text-[11px] font-medium transition-colors',
+                                infographicSourceView === 'slide'
+                                  ? 'bg-emerald-500/30 text-emerald-100'
+                                  : 'text-slate-300 hover:bg-slate-700/50',
+                                (slideAssistantGenerating || !curriculumId) && 'cursor-not-allowed opacity-50 hover:bg-transparent'
+                              )}
+                              title={tr(
+                                'Ảnh trợ giảng của slide này. Chưa có thì tạo, đang xem thì tạo lại.',
+                                'Teaching image for this slide. Create it if missing, or regenerate while it is showing.',
+                                '本幻灯片的助教图。没有则创建，正在查看则重新生成。',
+                                'このスライドの補助画像。未作成なら作成、表示中なら再生成。',
+                                '이 슬라이드의 도우미 이미지. 없으면 만들고, 보는 중이면 다시 만듭니다.'
+                              )}
+                            >
+                              {slideAssistantGenerating
+                                ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...')
+                                : tr('Ảnh slide', 'Slide image', '幻灯片图', 'スライド画像', '슬라이드 이미지')}
+                            </button>
+                            <button
+                              type="button"
                                 onClick={() => handleSwitchInfographicSource('lesson')}
                               disabled={!hasLessonInfographic}
                               className={cn(
-                                'h-8 border-l border-slate-600/70 px-2.5 text-[11px] font-medium transition-colors',
+                                'h-7 border-l border-slate-600/70 px-2.5 text-[11px] font-medium transition-colors',
                                 infographicSourceView === 'lesson'
                                   ? 'bg-amber-500/30 text-amber-200'
                                   : 'text-slate-300 hover:bg-slate-700/50',
@@ -8013,7 +8953,7 @@ export default function CurriculumViewPage() {
                                 onClick={() => handleSwitchInfographicSource('curriculum')}
                               disabled={!hasCurriculumInfographic}
                               className={cn(
-                                'h-8 border-l border-slate-600/70 px-2.5 text-[11px] font-medium transition-colors',
+                                'h-7 border-l border-slate-600/70 px-2.5 text-[11px] font-medium transition-colors',
                                 infographicSourceView === 'curriculum'
                                   ? 'bg-amber-500/30 text-amber-200'
                                   : 'text-slate-300 hover:bg-slate-700/50',
@@ -8024,11 +8964,68 @@ export default function CurriculumViewPage() {
                               {tr('Ảnh cả bài', 'Curriculum image', '整课图', '全体画像', '전체 이미지')}
                             </button>
                           </div>
+                          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleRegenerateCurrentSlideImage}
+                            disabled={slideAssistantGenerating || !curriculumId}
+                            title={tr(
+                              'Tạo lại ảnh của đúng slide đang mở. Mặc định NanoAI 2M, 1 credit.',
+                              'Regenerate the image of the open slide. NanoAI 2M, 1 credit.',
+                              '重新生成当前幻灯片的图。默认 NanoAI 2M，1 积分。',
+                              '開いているスライドの画像を再作成。NanoAI 2M、1クレジット。',
+                              '열린 슬라이드 이미지를 다시 만듭니다. NanoAI 2M, 1크레딧.'
+                            )}
+                            className="h-7 shrink-0 rounded-md border border-violet-400/40 bg-violet-500/20 px-2 text-[11px] font-semibold text-violet-100 hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {slideAssistantGenerating
+                              ? tr('Đang tạo...', 'Creating...', '生成中...', '作成中...', '생성 중...')
+                              : tr('Tạo lại slide (1)', 'Redo slide (1)', '重做幻灯片 (1)', 'スライド再作成 (1)', '슬라이드 다시 (1)')}
+                          </button>
+                          {showLessonInfographicAction ? (
+                          <button
+                            type="button"
+                            onClick={handleBarLessonInfographic}
+                            disabled={lessonInfographicGenerating || !activeLessonNo || !curriculumId}
+                            title={tr(
+                              hasLessonInfographic ? 'Tạo lại ảnh của tiết này. NanoAI 2M, 1 credit.' : 'Tạo ảnh tiết này. Lần đầu của tiết sách giáo khoa không trừ credit.',
+                              hasLessonInfographic ? 'Regenerate this lesson image. NanoAI 2M, 1 credit.' : 'Create this lesson image. The first textbook lesson image is free.',
+                              hasLessonInfographic ? '重新生成本课时的图。NanoAI 2M，1 积分。' : '创建本课时的图。教科书课时首次免费。',
+                              hasLessonInfographic ? 'この授業の画像を再作成。NanoAI 2M、1クレジット。' : 'この授業の画像を作成。教科書の初回は無料。',
+                              hasLessonInfographic ? '이 차시 이미지를 다시 만듭니다. NanoAI 2M, 1크레딧.' : '이 차시 이미지를 만듭니다. 교과서 첫 생성은 무료.'
+                            )}
+                            className="h-7 shrink-0 rounded-md border border-cyan-300/60 bg-cyan-500/20 px-2 text-[11px] font-semibold tracking-normal text-cyan-100 hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {lessonInfographicGenerating
+                              ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
+                              : tr(hasLessonInfographic ? 'Tạo lại tiết (1)' : 'Tạo tiết', hasLessonInfographic ? 'Redo lesson (1)' : 'New lesson', hasLessonInfographic ? '重做课时 (1)' : '创建课时', hasLessonInfographic ? '授業を再作成 (1)' : '授業を作成', hasLessonInfographic ? '차시 다시 (1)' : '차시 만들기')}
+                          </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={handleBarCurriculumInfographic}
+                            disabled={infographicGenerating || !curriculumId}
+                            title={tr(
+                              hasCurriculumInfographic ? 'Tạo lại ảnh cả bài. NanoAI 2M, 1 credit.' : 'Tạo ảnh cả bài. Lần đầu của bài sách giáo khoa không trừ credit.',
+                              hasCurriculumInfographic ? 'Regenerate the curriculum image. NanoAI 2M, 1 credit.' : 'Create the curriculum image. The first textbook image is free.',
+                              hasCurriculumInfographic ? '重新生成整课图。NanoAI 2M，1 积分。' : '创建整课图。教科书首次免费。',
+                              hasCurriculumInfographic ? '全体画像を再作成。NanoAI 2M、1クレジット。' : '全体画像を作成。教科書の初回は無料。',
+                              hasCurriculumInfographic ? '전체 이미지를 다시 만듭니다. NanoAI 2M, 1크레딧.' : '전체 이미지를 만듭니다. 교과서 첫 생성은 무료.'
+                            )}
+                            className="h-7 shrink-0 rounded-md border border-amber-300/60 bg-amber-500/20 px-2 text-[11px] font-semibold tracking-normal text-amber-100 hover:bg-amber-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {infographicGenerating
+                              ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
+                              : tr(hasCurriculumInfographic ? 'Tạo lại cả bài (1)' : 'Tạo cả bài', hasCurriculumInfographic ? 'Redo curriculum (1)' : 'New curriculum', hasCurriculumInfographic ? '重做全课 (1)' : '创建全课', hasCurriculumInfographic ? '全体を再作成 (1)' : '全体を作成', hasCurriculumInfographic ? '전체 다시 (1)' : '전체 만들기')}
+                          </button>
+                          </div>
                         </div>
                       )}
-                      <div ref={teacherEmbeddedVisualFrameRef} className={cn('absolute inset-0 min-h-0 px-4 pb-4', narrowTeacherLayout ? 'px-2 pb-16 pt-2' : 'pt-14', layout === 1 ? 'flex flex-col' : gridClass)}>
+                      <div className="relative min-h-0 flex-1 overflow-hidden">
+                      {renderPhoneTeacherControlBar()}
+                      <div ref={teacherEmbeddedVisualFrameRef} className={cn('absolute inset-0 min-h-0', narrowTeacherLayout ? 'px-2 pb-16 pt-2' : '', layout === 1 ? 'flex flex-col' : gridClass)}>
                         {layout === 1 ? (
-                          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
+                          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-black/30">
                             <span className="absolute top-1 left-1 z-10 px-1.5 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
                               {visualCellLabel(1)}
                             </span>
@@ -8050,7 +9047,7 @@ export default function CurriculumViewPage() {
                                 <div className="flex min-h-0 w-full flex-1 flex-col">
                                 <div
                                   data-teacher-infographic-draw-pane-stage
-                                  className="relative flex min-h-0 w-full flex-1 touch-none items-end justify-center"
+                                  className="relative min-h-0 w-full flex-1 touch-none"
                                   onPointerDown={(e) => {
                                     const stage = e.currentTarget as HTMLDivElement
                                     const img = stage.querySelector('img') as HTMLImageElement | null
@@ -8069,7 +9066,7 @@ export default function CurriculumViewPage() {
                                     alt=""
                                     draggable={false}
                                     onDragStart={(ev) => ev.preventDefault()}
-                                    className="max-h-full max-w-full select-none border border-white/10 bg-black/20 object-contain object-bottom"
+                                    className="absolute inset-0 h-full w-full select-none object-contain"
                                     referrerPolicy="no-referrer"
                                   />
                                   <canvas data-teacher-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
@@ -8103,6 +9100,7 @@ export default function CurriculumViewPage() {
                                 {canGenerateVisualInfographic ? (
                                   <div className="flex flex-wrap items-center justify-center gap-2">
                                     {renderInfographicEnginePicker()}
+                                    {showLessonInfographicAction ? (
                                     <button
                                       type="button"
                                       disabled={lessonInfographicGenerating || !activeLessonNo}
@@ -8113,6 +9111,7 @@ export default function CurriculumViewPage() {
                                         ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
                                         : infographicActionText('lesson', hasLessonInfographic, visualInfographicCostLabel)}
                                     </button>
+                                    ) : null}
                                     <button
                                       type="button"
                                       disabled={infographicGenerating}
@@ -8167,7 +9166,7 @@ export default function CurriculumViewPage() {
                                     <div className="flex min-h-0 w-full flex-1 flex-col">
                                     <div
                                       data-teacher-infographic-draw-pane-stage
-                                      className="relative flex min-h-0 w-full flex-1 touch-none items-end justify-center"
+                                      className="relative min-h-0 w-full flex-1 touch-none"
                                       onPointerDown={(e) => {
                                         const stage = e.currentTarget as HTMLDivElement
                                         const img = stage.querySelector('img') as HTMLImageElement | null
@@ -8186,7 +9185,7 @@ export default function CurriculumViewPage() {
                                         alt=""
                                         draggable={false}
                                         onDragStart={(ev) => ev.preventDefault()}
-                                        className="max-h-full max-w-full select-none border border-white/10 bg-black/20 object-contain object-bottom"
+                                        className="absolute inset-0 h-full w-full select-none object-contain"
                                         referrerPolicy="no-referrer"
                                       />
                                       <canvas data-teacher-infographic-draw-pane-canvas className="pointer-events-none absolute" aria-hidden />
@@ -8220,6 +9219,7 @@ export default function CurriculumViewPage() {
                                     {canGenerateVisualInfographic ? (
                                       <div className="flex flex-wrap items-center justify-center gap-2">
                                         {renderInfographicEnginePicker()}
+                                        {showLessonInfographicAction ? (
                                         <button
                                           type="button"
                                           disabled={lessonInfographicGenerating || !activeLessonNo}
@@ -8230,6 +9230,7 @@ export default function CurriculumViewPage() {
                                             ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
                                             : tr('Tạo ảnh tiết này', 'Create lesson image', '创建本课时图片', 'この授業の画像を作成', '이 차시 이미지 만들기')}
                                         </button>
+                                        ) : null}
                                         <button
                                           type="button"
                                           disabled={infographicGenerating}
@@ -8251,6 +9252,7 @@ export default function CurriculumViewPage() {
                           </>
                         )}
                       </div>
+                      </div>
                     </div>
                   )
                 })()
@@ -8266,25 +9268,42 @@ export default function CurriculumViewPage() {
                         {!inf ? (
                           <div className="rounded-xl border border-white/10 bg-black/25 p-4 space-y-3">
                             <p className="text-sm text-slate-200/90">
-                              {tr(
-                                'Ảnh infographic chưa được tạo. Bạn có thể tạo ảnh theo tiết hiện tại hoặc ảnh dùng chung toàn bài.',
-                                'Infographic is not created yet. You can create one for this lesson or a shared one for the whole curriculum.',
-                                '信息图尚未创建。您可以创建当前课时信息图，或创建全课共用信息图。',
-                                'インフォグラフィックは未作成です。現在の授業用または全体共通の画像を作成できます。',
-                                '인포그래픽이 아직 없습니다. 현재 차시용 또는 전체 공용 이미지를 만들 수 있습니다.'
-                              )}
+                              {showLessonInfographicAction
+                                ? tr(
+                                    'Ảnh infographic chưa được tạo. Bạn có thể tạo ảnh theo tiết hiện tại hoặc ảnh dùng chung toàn bài.',
+                                    'Infographic is not created yet. You can create one for this lesson or a shared one for the whole curriculum.',
+                                    '信息图尚未创建。您可以创建当前课时信息图，或创建全课共用信息图。',
+                                    'インフォグラフィックは未作成です。現在の授業用または全体共通の画像を作成できます。',
+                                    '인포그래픽이 아직 없습니다. 현재 차시용 또는 전체 공용 이미지를 만들 수 있습니다.'
+                                  )
+                                : tr(
+                                    'Ảnh infographic chưa được tạo. Tạo một ảnh cho cả bài.',
+                                    'Infographic is not created yet. Create one image for the whole curriculum.',
+                                    '信息图尚未创建。请为整课创建一张图。',
+                                    'インフォグラフィックは未作成です。全体用の画像を1枚作成できます。',
+                                    '인포그래픽이 아직 없습니다. 전체 수업용 이미지를 하나 만드세요.'
+                                  )}
                             </p>
                             <p className="text-xs text-slate-400">
-                              {tr(
-                                'Lần đầu tạo (theo tiết hoặc cả bài) miễn phí credit; chỉ tạo lại mới trừ credit.',
-                                'First creation (per lesson or whole curriculum) is free; only regenerating costs credits.',
-                                '首次创建（按课时或全课）免积分；仅重新生成扣积分。',
-                                '初回作成（授業単位・全体）は無料。再生成時のみクレジット消費。',
-                                '첫 생성(차시·전체)은 무료. 다시 만들 때만 크레딧 차감.'
-                              )}
+                              {showLessonInfographicAction
+                                ? tr(
+                                    'Lần đầu tạo (theo tiết hoặc cả bài) miễn phí credit; chỉ tạo lại mới trừ credit.',
+                                    'First creation (per lesson or whole curriculum) is free; only regenerating costs credits.',
+                                    '首次创建（按课时或全课）免积分；仅重新生成扣积分。',
+                                    '初回作成（授業単位・全体）は無料。再生成時のみクレジット消費。',
+                                    '첫 생성(차시·전체)은 무료. 다시 만들 때만 크레딧 차감.'
+                                  )
+                                : tr(
+                                    'Lần đầu tạo cả bài miễn phí credit; chỉ tạo lại mới trừ credit.',
+                                    'The first whole-curriculum image is free; only regenerating costs credits.',
+                                    '首次创建整课信息图免积分；仅重新生成扣积分。',
+                                    '全体の初回作成は無料。再生成時のみクレジット消費。',
+                                    '전체 첫 생성은 무료. 다시 만들 때만 크레딧 차감.'
+                                  )}
                             </p>
                             <div className="flex flex-wrap items-center gap-2">
                               {renderInfographicEnginePicker()}
+                              {showLessonInfographicAction ? (
                               <button
                                 type="button"
                                 disabled={!curriculumId || lessonInfographicGenerating || !activeLessonNo}
@@ -8295,6 +9314,7 @@ export default function CurriculumViewPage() {
                                   ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
                                   : infographicActionText('lesson', hasLessonInfographic, costLabel)}
                               </button>
+                              ) : null}
                               <button
                                 type="button"
                                 disabled={!curriculumId || infographicGenerating}
@@ -8382,6 +9402,7 @@ export default function CurriculumViewPage() {
                             </div>
                             <div className="flex flex-wrap items-center justify-center gap-2">
                               {renderInfographicEnginePicker()}
+                              {showLessonInfographicAction ? (
                               <button
                                 type="button"
                                 disabled={lessonInfographicGenerating || !activeLessonNo || !curriculumId}
@@ -8392,6 +9413,7 @@ export default function CurriculumViewPage() {
                                   ? tr('Đang tạo...', 'Generating...', '生成中...', '生成中...', '생성 중...')
                                   : infographicActionText('lesson', hasLessonInfographic, costLabel)}
                               </button>
+                              ) : null}
                               <button
                                 type="button"
                                 disabled={infographicGenerating || !curriculumId}
@@ -8547,13 +9569,13 @@ export default function CurriculumViewPage() {
                 {phoneFollowerId ? null : <button
                   data-control="xem-học-sinh"
                   type="button"
-                  onMouseDown={(e) => {
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
                     if (slides.length <= 0) return
-                    e.preventDefault()
                     if (studentViewOpened) viewOpenedStudentView()
                     else openStudentView()
                   }}
-                  onClick={(e) => e.preventDefault()}
                   disabled={slides.length === 0}
                   className="flex h-9 shrink-0 items-center gap-1 border-l border-slate-600/70 bg-emerald-500/25 px-1.5 text-[11px] font-medium normal-case tracking-normal text-emerald-300 hover:bg-emerald-500/35 disabled:cursor-not-allowed disabled:opacity-50"
                   title={studentViewOpened
@@ -8761,6 +9783,8 @@ export default function CurriculumViewPage() {
                         {blks.length > 0 ? (
                           <div className={mirrorChain ? SLIDE_POINTER_CHAIN_BLOCKS_CLASS : SLIDE_POINTER_SINGLE_BLOCKS_CLASS}>
                             {blks.map((b, i) => {
+                              if (!worksheetId && mirrorChain && i > activeBlockIndex) return null
+                              if (!worksheetId && !mirrorChain && i !== activeBlockIndex) return null
                               const blockProposals = proposals.filter((p) => p.slide_index === currentIndex && p.block_index === i)
                               const isEditing = editingBlock?.slideIndex === currentIndex && editingBlock?.blockIndex === i
                               const isEditingHeader = editingHeader?.slideIndex === currentIndex && editingHeader?.blockIndex === i
@@ -8771,6 +9795,7 @@ export default function CurriculumViewPage() {
                                 (!!worksheetId && !!(b as { isAnswer?: boolean }).isAnswer) ||
                                 (!worksheetId && !!curriculumId)
                               const blockKey = `${currentIndex}-${i}`
+                              const chainOpenedBeat = mirrorChain && !worksheetId && i < activeBlockIndex
                               const headerTypingOpts = {
                                 worksheetPresentation: !!worksheetId,
                                 hasCurriculumSegmentTyping: !!curriculumId,
@@ -8778,16 +9803,20 @@ export default function CurriculumViewPage() {
                               }
                               const headerSplit = splitBlockTypingReveal(
                                 b,
-                                answerRevealJumpPopoverSlideIndex === currentIndex && answerRevealJumpPreviewByBlock
-                                  ? answerRevealJumpPreviewByBlock[blockKey]
-                                  : answerRevealProgress[blockKey] ?? 0,
+                                chainOpenedBeat
+                                  ? 1_000_000
+                                  : answerRevealJumpPopoverSlideIndex === currentIndex && answerRevealJumpPreviewByBlock
+                                    ? answerRevealJumpPreviewByBlock[blockKey]
+                                    : answerRevealProgress[blockKey] ?? 0,
                                 headerTypingOpts
                               )
                               const headerIsLeader =
+                                !chainOpenedBeat &&
                                 sequentialSolutionLeaderBlockIndex === i &&
                                 headerSplit.headerTotal > 0 &&
                                 headerSplit.headerVisible < headerSplit.headerTotal
                               const contentIsLeader =
+                                !chainOpenedBeat &&
                                 sequentialSolutionLeaderBlockIndex === i &&
                                 headerSplit.headerVisible >= headerSplit.headerTotal
                               const headerLabel = (b.header ?? '').trim()
@@ -9638,7 +10667,7 @@ export default function CurriculumViewPage() {
           <button
             type="button"
             onClick={() => sendSlideControl('slide-prev')}
-            disabled={currentIndex <= 0}
+            disabled={beatAtStart}
             className="flex h-11 shrink-0 items-center justify-center gap-1 rounded-xl bg-amber-400 px-3 text-sm font-semibold text-slate-900 disabled:opacity-35"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -9658,7 +10687,7 @@ export default function CurriculumViewPage() {
           <button
             type="button"
             onClick={() => sendSlideControl('slide-next')}
-            disabled={currentIndex >= (slideTitles.length || slides.length) - 1}
+            disabled={beatAtEnd}
             className="flex h-11 shrink-0 items-center justify-center gap-1 rounded-xl bg-amber-400 px-3 text-sm font-semibold text-slate-900 disabled:opacity-35"
           >
             {tr('Tiếp', 'Next', '下一张', '次へ', '다음')}

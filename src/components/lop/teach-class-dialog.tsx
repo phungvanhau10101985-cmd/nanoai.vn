@@ -2,12 +2,14 @@
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { gradeLevelLabel } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import type { TeachClassOption } from '@/lib/db/class-taught-lessons-pg'
 
 export function TeachClassDialog({
   open,
   loading,
   classes,
+  locale,
   labels,
   onPick,
   onSkip,
@@ -15,6 +17,7 @@ export function TeachClassDialog({
   open: boolean
   loading: boolean
   classes: TeachClassOption[]
+  locale: string
   labels: {
     title: string
     lead: string
@@ -45,7 +48,7 @@ export function TeachClassDialog({
               <span className="block">
                 <span className="block font-semibold">{row.className}</span>
                 <span className="block text-xs text-muted-foreground">
-                  {[row.subjectLabel, row.schoolName].filter(Boolean).join(' · ')}
+                  {[gradeLevelLabel(row.gradeLevelId, locale), row.subjectLabel, row.schoolName].filter(Boolean).join(' · ')}
                 </span>
               </span>
             </Button>

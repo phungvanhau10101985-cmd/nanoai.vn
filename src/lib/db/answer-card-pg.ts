@@ -8,8 +8,10 @@ import {
   answerCardShortName,
   isAnswerCardPhoneToken,
   isAnswerChoice,
+  letterForSameOption,
   scanQuestionFromParts,
   scanQuestionFromWorksheetContent,
+  scanQuestionInDisplayedOrder,
   type AnswerChoice,
   type ScanQuestion,
 } from '@/lib/lop/answer-card'
@@ -470,12 +472,40 @@ async function loadWorksheetQuestions(classId: string, worksheetId: string): Pro
   }
 }
 
+function parseChoiceList(value: unknown): string[] {
+  let raw = value
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw) as unknown
+    } catch {
+      return []
+    }
+  }
+  if (!Array.isArray(raw)) return []
+  return raw.map((item) => String(item ?? ''))
+}
+
+function choiceOrderKey(questions: ScanQuestion[]): string {
+  return questions
+    .map((question) => `${question.correct}\u0000${question.prompt}\u0000${question.choices.join('\u0001')}`)
+    .join('\u0002')
+}
+
+async function closeLiveRound(roundId: string): Promise<void> {
+  await pgQuery(
+    `update public.answer_card_rounds
+     set status = 'closed', closed_at = timezone('utc'::text, now())
+     where id = $1::uuid and status = 'live'`,
+    [roundId]
+  )
+}
+
 async function reuseLiveRound(
   classId: string,
   teacherId: string,
   sourceKind: 'exam' | 'worksheet',
   sourceId: string,
-  firstPrompt: string | null,
+  match: { choiceKey: string } | { firstPrompt: string | null },
   expectedCount: number
 ): Promise<AnswerCardRoundView | null> {
   const existing = await pgQueryOne<{ id: string }>(
@@ -491,6 +521,33 @@ async function reuseLiveRound(
     [classId, teacherId, sourceKind, sourceId]
   )
   if (!existing?.id) return null
+  if ('choiceKey' in match) {
+    const rows = await pgQuery<{
+      question_index: number
+      prompt: string
+      choices: unknown
+      correct_choice: string
+    }>(
+      `select question_index, prompt, choices, correct_choice
+       from public.answer_card_questions
+       where round_id = $1::uuid
+       order by question_index asc`,
+      [existing.id]
+    )
+    const stored: ScanQuestion[] = []
+    for (const row of rows) {
+      const correct = asChoice(row.correct_choice)
+      const choices = parseChoiceList(row.choices)
+      if (!correct || choices.length < 2) continue
+      stored.push({ prompt: row.prompt, choices, correct })
+    }
+    const sameOrder = stored.length === expectedCount && choiceOrderKey(stored) === match.choiceKey
+    if (!sameOrder) {
+      await closeLiveRound(existing.id)
+      return null
+    }
+    return loadAnswerCardRoundForTeacherPg(existing.id, teacherId)
+  }
   const first = await pgQueryOne<{ prompt: string; n: string }>(
     `select q.prompt,
             (select count(*) from public.answer_card_questions c where c.round_id = $1::uuid)::text as n
@@ -499,17 +556,58 @@ async function reuseLiveRound(
     [existing.id]
   )
   const samePaper = Number(first?.n ?? 0) === expectedCount
-    && (firstPrompt == null || (first?.prompt ?? '') === firstPrompt)
+    && (match.firstPrompt == null || (first?.prompt ?? '') === match.firstPrompt)
   if (!samePaper) {
-    await pgQuery(
-      `update public.answer_card_rounds
-       set status = 'closed', closed_at = timezone('utc'::text, now())
-       where id = $1::uuid and status = 'live'`,
-      [existing.id]
-    )
+    await closeLiveRound(existing.id)
     return null
   }
   return loadAnswerCardRoundForTeacherPg(existing.id, teacherId)
+}
+
+export type DisplayedExamChoices = { id: string; choices: string[] }
+
+/** Đáp án đúng theo thứ tự đang chiếu, không tin chữ cái do trình duyệt gửi. */
+export async function alignDisplayedExamScanQuestions(
+  classId: string,
+  teacherId: string,
+  sessionId: string,
+  displayed: DisplayedExamChoices[],
+): Promise<ScanQuestion[] | 'mismatch' | null> {
+  if (!UUID_RE.test(classId) || !UUID_RE.test(sessionId)) return null
+  const rows = await pgQuery<{
+    id: string
+    question_text: string | null
+    options: unknown
+    correct_index: unknown
+  }>(
+    `select q.id::text, q.question_text, q.options, q.correct_index
+     from public.exam_sessions s
+     join public.exam_questions q on q.session_id = s.id
+     where s.id = $1::uuid
+       and s.class_id = $2::uuid
+       and s.teacher_id = $3::uuid
+     order by q."order" asc`,
+    [sessionId, classId, teacherId]
+  )
+  if (rows.length === 0) return null
+  const canonical = new Map<string, ScanQuestion>()
+  for (const row of rows) {
+    const question = scanQuestionFromParts(row.question_text, row.options, row.correct_index)
+    if (question) canonical.set(row.id, question)
+  }
+  if (displayed.length !== canonical.size) return 'mismatch'
+  const seen = new Set<string>()
+  const aligned: ScanQuestion[] = []
+  for (const item of displayed) {
+    if (seen.has(item.id)) return 'mismatch'
+    seen.add(item.id)
+    const question = canonical.get(item.id)
+    if (!question) return 'mismatch'
+    const next = scanQuestionInDisplayedOrder(question, item.choices)
+    if (!next) return 'mismatch'
+    aligned.push(next)
+  }
+  return aligned
 }
 
 export async function createAnswerCardRoundPg(input: {
@@ -518,19 +616,37 @@ export async function createAnswerCardRoundPg(input: {
   sourceKind: 'exam' | 'worksheet'
   sourceId: string
   questions?: ScanQuestion[]
-}): Promise<AnswerCardRoundView | 'no_mcq' | 'not_found' | null> {
+  displayedChoices?: DisplayedExamChoices[]
+}): Promise<AnswerCardRoundView | 'no_mcq' | 'not_found' | 'mismatch' | null> {
   if (!isPgConfigured()) return null
   if (!UUID_RE.test(input.classId) || !UUID_RE.test(input.sourceId)) return 'not_found'
-  const inline = (input.questions ?? []).slice(0, 40)
-  const loaded = inline.length > 0
-    ? {
-        title: inline[0]?.prompt.slice(0, 80) || 'Trắc nghiệm',
-        subjectId: '',
-        questions: inline,
-      }
-    : input.sourceKind === 'exam'
-      ? await loadExamQuestions(input.classId, input.teacherId, input.sourceId)
-      : await loadWorksheetQuestions(input.classId, input.sourceId)
+  const displayed = input.sourceKind === 'exam' ? (input.displayedChoices ?? []) : []
+  const inline = displayed.length > 0 ? [] : (input.questions ?? []).slice(0, 40)
+  let loaded: { title: string; subjectId: string; questions: ScanQuestion[] } | null
+  if (displayed.length > 0) {
+    const aligned = await alignDisplayedExamScanQuestions(
+      input.classId,
+      input.teacherId,
+      input.sourceId,
+      displayed,
+    )
+    if (aligned === 'mismatch') return 'mismatch'
+    if (!aligned) return 'not_found'
+    if (aligned.length === 0) return 'no_mcq'
+    const exam = await loadExamQuestions(input.classId, input.teacherId, input.sourceId)
+    if (!exam) return 'not_found'
+    loaded = { title: exam.title, subjectId: exam.subjectId, questions: aligned }
+  } else {
+    loaded = inline.length > 0
+      ? {
+          title: inline[0]?.prompt.slice(0, 80) || 'Trắc nghiệm',
+          subjectId: '',
+          questions: inline,
+        }
+      : input.sourceKind === 'exam'
+        ? await loadExamQuestions(input.classId, input.teacherId, input.sourceId)
+        : await loadWorksheetQuestions(input.classId, input.sourceId)
+  }
   if (!loaded) return 'not_found'
   if (loaded.questions.length === 0) return 'no_mcq'
   const reused = await reuseLiveRound(
@@ -538,7 +654,9 @@ export async function createAnswerCardRoundPg(input: {
     input.teacherId,
     input.sourceKind,
     input.sourceId,
-    inline.length > 0 ? (loaded.questions[0]?.prompt ?? '') : null,
+    displayed.length > 0
+      ? { choiceKey: choiceOrderKey(loaded.questions) }
+      : { firstPrompt: inline.length > 0 ? (loaded.questions[0]?.prompt ?? '') : null },
     loaded.questions.length
   )
   if (reused) return reused
@@ -673,19 +791,50 @@ type MergedAnswerRow = {
   choices: Array<AnswerChoice | null>
 }
 
-/** Một bảng: quét thẻ và nộp trên máy. Câu đã quét giữ nguyên, câu trống lấy từ bài nộp. */
+async function loadOriginalScanQuestions(sessionId: string): Promise<ScanQuestion[]> {
+  const rows = await pgQuery<{ question_text: string | null; options: unknown; correct_index: unknown }>(
+    `select question_text, options, correct_index
+     from public.exam_questions
+     where session_id = $1::uuid
+     order by "order" asc`,
+    [sessionId],
+  )
+  const questions: ScanQuestion[] = []
+  for (const row of rows) {
+    const question = scanQuestionFromParts(row.question_text, row.options, row.correct_index)
+    if (question) questions.push(question)
+  }
+  return questions
+}
+
+/** Một bảng: quét thẻ và nộp trên máy. Chữ cái đưa về thứ tự `targetQuestions`. */
 async function loadMergedAnswerRows(
   classId: string,
   sessionId: string,
-  questionCount: number,
+  targetQuestions: ScanQuestion[],
 ): Promise<{ submittedUserIds: string[]; students: MergedAnswerRow[] } | null> {
-  if (!UUID_RE.test(classId) || !UUID_RE.test(sessionId) || questionCount < 0) return null
-  const papers = await loadSubmittedMcqPapers(sessionId)
-  const useOnline = Boolean(papers && papers.mcqCount === questionCount)
-  const scanRows = await pgQuery<{ question_index: number; user_id: string; choice: string }>(
-    `select p.question_index, p.user_id::text, p.choice
+  if (!UUID_RE.test(classId) || !UUID_RE.test(sessionId)) return null
+  const questionCount = targetQuestions.length
+  const [papers, originalQuestions] = await Promise.all([
+    loadSubmittedMcqPapers(sessionId),
+    loadOriginalScanQuestions(sessionId),
+  ])
+  const useOnline = Boolean(
+    papers
+    && papers.mcqCount === questionCount
+    && originalQuestions.length === questionCount,
+  )
+  const scanRows = await pgQuery<{
+    question_index: number
+    user_id: string
+    choice: string
+    round_choices: unknown
+  }>(
+    `select p.question_index, p.user_id::text, p.choice, q.choices as round_choices
      from public.answer_card_picks p
      join public.answer_card_rounds r on r.id = p.round_id
+     join public.answer_card_questions q
+       on q.round_id = p.round_id and q.question_index = p.question_index
      where r.class_id = $1::uuid
        and r.source_kind = 'exam'
        and r.source_id = $2::uuid
@@ -696,8 +845,16 @@ async function loadMergedAnswerRows(
   for (const row of scanRows) {
     if (row.question_index < 0 || row.question_index >= questionCount) continue
     if (!isAnswerChoice(row.choice)) continue
+    const target = targetQuestions[row.question_index]
+    if (!target) continue
+    const roundChoices = parseChoiceList(row.round_choices)
+    const fromChoices = roundChoices.length >= 2
+      ? roundChoices
+      : (originalQuestions[row.question_index]?.choices ?? [])
+    const letter = letterForSameOption(row.choice, fromChoices, target.choices)
+    if (!letter) continue
     const choices = scanByUser.get(row.user_id) ?? new Map<number, AnswerChoice>()
-    choices.set(row.question_index, row.choice)
+    choices.set(row.question_index, letter)
     scanByUser.set(row.user_id, choices)
   }
   const [members, cards] = await Promise.all([
@@ -710,9 +867,15 @@ async function loadMergedAnswerRows(
     const card = cardByUser.get(member.userId)
     const scan = scanByUser.get(member.userId)
     const online = useOnline ? papers?.choicesByUser.get(member.userId) : undefined
-    const choices = Array.from({ length: questionCount }, (_, questionIndex) => (
-      scan?.get(questionIndex) ?? online?.[questionIndex] ?? null
-    ))
+    const choices = Array.from({ length: questionCount }, (_, questionIndex) => {
+      const scanned = scan?.get(questionIndex)
+      if (scanned) return scanned
+      const onlineLetter = online?.[questionIndex]
+      const target = targetQuestions[questionIndex]
+      const source = originalQuestions[questionIndex]
+      if (!onlineLetter || !target || !source) return null
+      return letterForSameOption(onlineLetter, source.choices, target.choices)
+    })
     const attempted = submitted.has(member.userId) || choices.some((choice) => choice != null)
     return {
       userId: member.userId,
@@ -813,7 +976,7 @@ export async function loadAnswerCardRoundForTeacherPg(
       shortName: answerCardShortName(card.name),
     }))
     if (round.source_kind === 'exam' && round.source_id) {
-      const merged = await loadMergedAnswerRows(round.class_id, round.source_id, questions.length)
+      const merged = await loadMergedAnswerRows(round.class_id, round.source_id, questions)
       if (merged) {
         submittedUserIds = merged.submittedUserIds
         picks.splice(0, picks.length, ...picksFromMergedRows(merged.students))
@@ -1077,8 +1240,8 @@ async function loadAnswerCardClassSummaryPg(roundId: string): Promise<AnswerCard
   )
   if (!round) return null
   const [questions, picks, cards] = await Promise.all([
-    pgQuery<{ question_index: number; correct_choice: string }>(
-      `select question_index, correct_choice
+    pgQuery<{ question_index: number; prompt: string; choices: unknown; correct_choice: string }>(
+      `select question_index, prompt, choices, correct_choice
        from public.answer_card_questions
        where round_id = $1::uuid
        order by question_index asc`,
@@ -1114,8 +1277,15 @@ async function loadAnswerCardClassSummaryPg(roundId: string): Promise<AnswerCard
       attempted,
     }
   })
-  if (round.source_kind === 'exam' && round.source_id) {
-    const merged = await loadMergedAnswerRows(round.class_id, round.source_id, questions.length)
+  const targetQuestions: ScanQuestion[] = []
+  for (const row of questions) {
+    const correct = asChoice(row.correct_choice)
+    const choices = parseChoiceList(row.choices)
+    if (!correct || choices.length < 2) continue
+    targetQuestions.push({ prompt: row.prompt, choices, correct })
+  }
+  if (round.source_kind === 'exam' && round.source_id && targetQuestions.length === questions.length) {
+    const merged = await loadMergedAnswerRows(round.class_id, round.source_id, targetQuestions)
     if (merged) {
       studentRows = merged.students.map((student) => {
         const marks = questions.map((question, index) => {
@@ -1556,7 +1726,7 @@ export async function loadClassScoreboardPg(
     const question = scanQuestionFromParts(row.question_text, row.options, row.correct_index)
     return question ? [{ correct: question.correct, prompt: question.prompt, choices: question.choices }] : []
   })
-  const merged = await loadMergedAnswerRows(classId, sessionId, questions.length)
+  const merged = await loadMergedAnswerRows(classId, sessionId, questions)
   const students = (merged?.students ?? []).map((student) => ({
     userId: student.userId,
     cardNo: student.cardNo,

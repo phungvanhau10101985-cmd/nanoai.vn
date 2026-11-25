@@ -131,6 +131,7 @@ import { questionsToMarkdown } from './lib/questions-to-markdown'
 import { parseWorksheetIntoBlocks } from './lib/worksheet-parse-questions'
 import { blocksToContentJson } from './lib/markdown-to-questions'
 import type { SlideInfographic } from './lib/slide-infographic'
+import { keepSlideInk } from './lib/slide-infographic'
 import {
   buildLessonChunksFromSlides,
   parseStoredCurriculumSlidesJson,
@@ -251,6 +252,7 @@ type WorksheetSlideRow = {
   visualInput3?: string
   visualInput4?: string
   teacherNotes?: string
+  assistantImage?: SlideInfographic
 }
 
 type CurriculumLessonRow = {
@@ -405,7 +407,7 @@ async function upsertCurriculumLessonRows(curriculumId: string, lessons: LessonO
   await replaceWorksheetCurriculumLessonsPg(curriculumId, lessons)
 }
 
-const LESSON_SLIDE_MAX_CONTENT_PER_SLIDE = 320
+const LESSON_SLIDE_MAX_CONTENT_PER_SLIDE = 720
 
 function cleanAiJsonText(raw: string): string {
   return String(raw || '')
@@ -466,7 +468,7 @@ function buildLessonSlidesFallback(lessonTitle: string, lessonMarkdown: string):
     }
   }
   if (buffer) chunks.push(buffer.slice(0, LESSON_SLIDE_MAX_CONTENT_PER_SLIDE))
-  const sliced = chunks.slice(0, 24)
+  const sliced = chunks.slice(0, 16)
   const baseTitle = String(lessonTitle || 'Tiết học').trim() || 'Tiết học'
   return sliced.map((content, idx) => ({
     title: sliced.length > 1 ? `${baseTitle} - Slide ${idx + 1}` : baseTitle,
@@ -489,22 +491,22 @@ async function generateSlidesForLessonByAI(params: {
     ...GEMINI_25_FLASH_NO_THINKING,
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
-  const estimatedSlides = Math.max(8, Math.min(28, Math.ceil(params.lessonMarkdown.length / 320)))
+  const estimatedSlides = Math.max(4, Math.min(16, Math.ceil(params.lessonMarkdown.length / 900)))
   const prompt = `Tạo slide cho đúng MỘT TIẾT học từ markdown dưới đây.
 Trả JSON:
-{"slides":[{"title":"...","blocks":[{"header":"Nội dung","content":"..."}]}]}
+{"slides":[{"title":"...","blocks":[{"header":"Quy tắc","content":"..."},{"header":"Ví dụ","content":"..."}],"teacherNotes":"Ngã rẽ: ...\\nVì sao: ..."}]}
 
 Yêu cầu:
-- Tạo khoảng ${estimatedSlides} slide.
+- Tạo khoảng ${estimatedSlides} slide. Mỗi slide là MỘT ý học trọn vẹn, đủ để vẽ một ảnh trợ giảng chỉ cho ý đó và ra một câu hỏi tình huống từ ví dụ của slide.
+- Không tách một ý thành nhiều slide cụt. Không gộp hai ý không liên quan vào một slide.
 - Bám mạch kiến thức của giáo trình tiết đã cho, không bỏ sót ý quan trọng.
-- Slide là để CHIẾU CHO HỌC SINH: diễn đạt dễ hiểu, dẫn dắt cuốn hút, tập trung kiến thức học sinh cần nắm.
-- Mỗi slide 1 ý chính nhưng phải diễn giải đủ ý học tập, không ghi quá cụt.
-- Ví dụ và lời giải trên slide chỉ lấy từ ví dụ do giáo trình tự đặt. Nếu ví dụ đó có lời giải thì đưa đủ bước.
+- Slide chiếu cho học sinh: "Quy tắc" là một câu hoặc một công thức. "Ví dụ" là một tình huống hoặc một phép tính có số, lấy từ ví dụ giáo trình tự đặt. Nếu ví dụ đó có lời giải thì đưa đủ bước chính.
+- teacherNotes chỉ để tạo câu hỏi và ảnh, không phải chữ chiếu: một lỗi học sinh hay mắc với đúng ví dụ đó, và một câu vì sao đáp án đúng.
 - Không thêm đề, số bài tập, số trang hay lời giải in trong sách.
 - Sắp xếp mạch nội dung theo đúng trình tự giáo trình (khởi động -> kiến thức -> luyện tập -> vận dụng nếu có).
 - Không đưa lên slide bài nằm trong dấu «Bài này AI viết sai, cần tính lại» hoặc «Bài này code chưa kiểm được, giáo viên cần xem», và không đưa dòng kiểm tra <!-- check ... -->.
 - Không đưa lên slide các nhãn/ghi chú kiểu giáo án cho giáo viên: "Hình thành kiến thức (20 phút)", "Hoạt động 1", "HĐ4 (SGK trang ...)", "Yêu cầu HS", "Tách/Gộp slide", "Tạo câu hỏi ... credits", "GV/HS: ...".
-- Mỗi block content tối đa ${LESSON_SLIDE_MAX_CONTENT_PER_SLIDE} ký tự.
+- Mỗi block content tối đa ${LESSON_SLIDE_MAX_CONTENT_PER_SLIDE} ký tự. teacherNotes tối đa 280 ký tự.
 - Không dùng LaTeX $...$, dùng Unicode dễ đọc.
 - Chỉ trả JSON hợp lệ.
 
@@ -520,10 +522,10 @@ ${params.lessonMarkdown.slice(0, 90000)}
 Ràng buộc:
 - Chỉ dùng dữ liệu của MỘT tiết bên dưới.
 - Không markdown code fence, không giải thích.
-- Không rút gọn quá mức; phải phản ánh đầy đủ nội dung giáo trình tiết.
+- Mỗi slide một ý trọn: block "Quy tắc", block "Ví dụ" có số hoặc tình huống, và teacherNotes dạng "Ngã rẽ: ...\\nVì sao: ...".
 - Các ví dụ có lời giải phải giữ đủ bước lập luận chính.
 - Chỉ xuất nội dung phù hợp học sinh nhìn trên màn chiếu; loại bỏ toàn bộ nhãn điều phối tiết học cho giáo viên.
-- Mỗi block.content <= ${LESSON_SLIDE_MAX_CONTENT_PER_SLIDE} ký tự.
+- Mỗi block.content <= ${LESSON_SLIDE_MAX_CONTENT_PER_SLIDE} ký tự. teacherNotes <= 280 ký tự.
 
 Tiêu đề tiết: ${params.lessonTitle || 'Tiết học'}
 Nội dung tiết:
@@ -533,7 +535,7 @@ ${params.lessonMarkdown.slice(0, 90000)}
   const parseSlidesFromText = (raw: string): WorksheetSlideRow[] => {
     const text = cleanAiJsonText(raw)
     if (!text) return []
-    const parsed = JSON.parse(text) as { slides?: Array<{ title?: string; blocks?: Array<{ header?: string; content?: string }> }> }
+    const parsed = JSON.parse(text) as { slides?: Array<{ title?: string; teacherNotes?: string; blocks?: Array<{ header?: string; content?: string }> }> }
     return (parsed.slides ?? [])
       .map((s) => {
         const title = sanitizeStudentFacingText(String(s.title || 'Slide').trim()) || 'Slide'
@@ -545,7 +547,8 @@ ${params.lessonMarkdown.slice(0, 90000)}
           }))
           .filter((b) => b.content.length > 0)
         if (blocks.length === 0) return null
-        return { title, blocks } as WorksheetSlideRow
+        const teacherNotes = sanitizeStudentFacingText(String(s.teacherNotes || '').trim()).slice(0, 280)
+        return { title, blocks, ...(teacherNotes ? { teacherNotes } : {}) } as WorksheetSlideRow
       })
       .filter((s): s is WorksheetSlideRow => !!s)
   }
@@ -2367,7 +2370,14 @@ export async function saveSlidesToCurriculum(opts: {
   }
 
   const infographicToStore = await mergeInfographicForSharedSave(opts.curriculumId, opts.curriculumInfographic)
-  const contentJson = serializeStoredCurriculumSlidesJson(opts.slides, infographicToStore)
+  const safeLessonNoForInk = Number.isFinite(Number(opts.lessonNo)) ? Math.max(1, Math.floor(Number(opts.lessonNo))) : null
+  const existingInkSlides = safeLessonNoForInk
+    ? parseStoredCurriculumSlidesJson((
+        await fetchWorksheetCurriculumLessonSlidesJsonForLessonModePg(opts.curriculumId, safeLessonNoForInk, 'shared', user.id)
+      )?.slides_json).slides as WorksheetSlideRow[]
+    : []
+  const slidesToStore = keepSlideInk(opts.slides, existingInkSlides)
+  const contentJson = serializeStoredCurriculumSlidesJson(slidesToStore, infographicToStore)
 
   const up = await upsertWorksheetSlidesRowPg({
     curriculumId: opts.curriculumId,
@@ -2397,7 +2407,7 @@ export async function saveSlidesToCurriculum(opts: {
     )?.slides_json
     const existingLessonParsed = parseStoredCurriculumSlidesJson(existingSlidesJson)
     // Chỉ giữ infographic theo tiết trong cache tiết — không copy ảnh cả bài vào envelope tiết.
-    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(opts.slides, existingLessonParsed.curriculumInfographic)
+    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(slidesToStore, existingLessonParsed.curriculumInfographic)
     const cacheSave = await saveLessonSlidesCacheRow({
       curriculumId: opts.curriculumId,
       mode: 'shared',
@@ -2729,7 +2739,14 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
   if (mode === 'shared' && cache.slides.length > 0) {
     const personal = await loadLessonSlidesCacheByMode(user.id, curriculumId, 'personal', safeLessonNo)
     if (personal.slides.length > 0) {
-      const merged = cache.slides.map((slide, index) => personal.slides[index] ?? slide)
+      const merged = cache.slides.map((slide, index) => {
+        const own = personal.slides[index]
+        if (!own) return slide
+        if (slide.assistantImage?.imageUrl && !own.assistantImage?.imageUrl) {
+          return { ...own, assistantImage: slide.assistantImage }
+        }
+        return own
+      })
       cache.slides.splice(0, cache.slides.length, ...merged)
     }
   }
@@ -2895,6 +2912,31 @@ async function loadLessonSlidesCacheByMode(
   }
 }
 
+/** Đọc ảnh trợ giảng đã lưu. Không tạo slide mới. */
+export async function readLessonAssistantImagesAction(
+  curriculumId: string,
+  mode: CurriculumSlideModeForLesson,
+  lessonNo: number
+) {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  if (!isPgConfigured()) return { error: 'Thiếu DATABASE_URL — không thể đọc ảnh slide.' }
+  const safeLessonNo = Math.max(1, Math.floor(Number(lessonNo) || 1))
+  const { user } = authResult
+  const own = await loadLessonSlidesCacheByMode(user.id, curriculumId, mode, safeLessonNo)
+  const shared = mode === 'shared'
+    ? own
+    : await loadLessonSlidesCacheByMode(user.id, curriculumId, 'shared', safeLessonNo)
+  const count = Math.max(own.slides.length, shared.slides.length)
+  const images: Array<SlideInfographic | null> = []
+  for (let i = 0; i < count; i += 1) {
+    const fromOwn = own.slides[i]?.assistantImage
+    const fromShared = shared.slides[i]?.assistantImage
+    images.push(fromOwn?.imageUrl ? fromOwn : fromShared?.imageUrl ? fromShared : null)
+  }
+  return { success: true as const, images }
+}
+
 export async function ensureCurriculumLessonSlidesPrepared(curriculumId: string, lessonNo: number) {
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
@@ -3049,7 +3091,10 @@ export async function saveUserCustomizedSlides(opts: {
     )?.slides_json
     const existingLessonParsed = parseStoredCurriculumSlidesJson(existingSlidesJson)
     // Chỉ giữ infographic theo tiết trong cache tiết — không copy ảnh cả bài vào envelope tiết.
-    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(opts.slides, existingLessonParsed.curriculumInfographic)
+    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(
+      keepSlideInk(opts.slides, existingLessonParsed.slides as WorksheetSlideRow[]),
+      existingLessonParsed.curriculumInfographic
+    )
     const cacheSave = await saveLessonSlidesCacheRow({
       curriculumId: opts.curriculumId,
       mode: lessonMode,

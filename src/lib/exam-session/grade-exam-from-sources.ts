@@ -1,4 +1,7 @@
-import type { ExamLayoutSnapshotV1 } from '@/lib/exam-session/student-exam-layout'
+import {
+  displayedChoiceMatchesOriginal,
+  type ExamLayoutSnapshotV1,
+} from '@/lib/exam-session/student-exam-layout'
 import type { ExamGradingMeta } from '@/lib/exam-feedback'
 import { EXAM_ESSAY_IMAGE_RETENTION_DAYS, isPublicExamEssayImageUrl } from '@/lib/exam-essay-config'
 
@@ -133,15 +136,18 @@ export function gradeExamFromStoredAnswers(
     const displayIdx = typeof userAnswer === 'number' ? userAnswer : parseInt(String(userAnswer), 10)
     if (!Number.isFinite(displayIdx)) continue
     const perm = optionPerms[qid]
-    let userOriginal = displayIdx
-    if (perm && Array.isArray(perm) && perm.length === dbOpts.length && dbOpts.length >= 2) {
-      if (displayIdx < 0 || displayIdx >= perm.length) continue
-      userOriginal = perm[displayIdx]!
+    if (
+      !displayedChoiceMatchesOriginal({
+        options: dbOpts,
+        perm,
+        displayIndex: displayIdx,
+        correctIndex: safeCorrect,
+      })
+    ) {
+      continue
     }
-    if (userOriginal === safeCorrect) {
-      correctCount++
-      quizPointsEarned += readQuestionPoints(q as { points?: unknown })
-    }
+    correctCount++
+    quizPointsEarned += readQuestionPoints(q as { points?: unknown })
   }
 
   const maxScore = Math.round((quizPointsMax + essayPointsMax) * 100) / 100

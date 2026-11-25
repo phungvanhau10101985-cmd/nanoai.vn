@@ -13,6 +13,7 @@ import {
   type FigureParams,
   type FigureSubject,
 } from '../lib/teacher-whiteboard/figures'
+import { figureItemVisible, figureShown, type FigureBand, type FigureScope } from '../lib/teacher-whiteboard/figure-grade'
 import { parsePlotInput, parseSpatialInput, samplePlot, formatAxisNumber, axisTickStep } from '../lib/teacher-whiteboard/plot'
 import { FigureMenuIcon } from './teacher-whiteboard-figure-icons'
 
@@ -24,7 +25,11 @@ function say(tr: Tr, label: FigureLabel) {
 
 const MENU_GROUPS: Record<FigureSubject, { title: FigureLabel; ids: string[] }[]> = {
   math: [
-    { title: ['Đồ thị hàm số', 'Function graphs', '函数图像', '関数のグラフ', '함수 그래프'], ids: ['spatial', 'math-trig'] },
+    { title: ['Tiểu học', 'Primary', '小学', '小学校', '초등'], ids: ['count-set', 'number-line', 'base-ten', 'clock', 'bar-model', 'fraction-disc', 'measure-units', 'percent-bar', 'bar-chart', 'mirror-symmetry'] },
+    { title: ['THCS', 'Middle school', '初中', '中学校', '중학교'], ids: ['line-pair', 'venn', 'congruence', 'proportion', 'algebra-tile', 'thales', 'similar', 'pythagoras-fig', 'circle-angles', 'chance'] },
+    { title: ['Đồ thị hàm số', 'Function graphs', '函数图像', '関数のグラフ', '함수 그래프'], ids: ['math-graph', 'math-trig', 'spatial', 'tangent-graph', 'asymptote', 'variation-table', 'integral-area', 'sequence-line'] },
+    { title: ['THPT', 'High school', '高中', '高校', '고등'], ids: ['vector-add', 'half-plane', 'stats-chart', 'space-line-plane', 'cross-section'] },
+    { title: ['Nghề và đại học', 'Vocational and university', '职业与大学', '職業と大学', '직업과 대학'], ids: ['projection', 'complex-plane', 'slope-field', 'polar-curve'] },
     { title: ['Công thức toán', 'Math formulas', '数学公式', '数学の公式', '수학 공식'], ids: ['math-formula'] },
   ],
   physics: [
@@ -33,18 +38,21 @@ const MENU_GROUPS: Record<FigureSubject, { title: FigureLabel; ids: string[] }[]
     { title: ['Đồ thị chuyển động, sóng', 'Motion and wave graphs', '运动与波的图像', '運動・波のグラフ', '운동·파동 그래프'], ids: ['phys-graph', 'wave', 'law-graph'] },
     { title: ['Thí nghiệm và công thức', 'Experiments and formulas', '实验与公式', '実験と公式', '실험과 공식'], ids: ['interfere', 'experiment-phys', 'formula-physics', 'constants'] },
     { title: ['Bàn thí nghiệm', 'Lab bench', '实验台', '実験台', '실험대'], ids: ['standing', 'meters', 'radiation', 'transformer', 'buoyancy', 'photoelectric'] },
+    { title: ['Theo cấp học', 'By grade', '按学段', '学年別', '학년별'], ids: ['measure-lab', 'states', 'shadow', 'energy-flow', 'simple-machine', 'communicating', 'phase-temp', 'electromagnet', 'home-wire', 'circular-motion', 'collision', 'torque', 'hooke', 'sound-wave', 'capacitor', 'solenoid', 'induction', 'ac-circuit', 'nuclear', 'thermo-path', 'diode'] },
   ],
   chemistry: [
     { title: ['Phương trình và cấu tạo', 'Equations and structure', '方程式与结构', '反応式と構造', '반응식과 구조'], ids: ['equation', 'structure', 'atom'] },
     { title: ['Thí nghiệm', 'Lab', '实验', '実験', '실험'], ids: ['glass', 'titration', 'chem-experiment'] },
     { title: ['Bộ thí nghiệm', 'Lab setups', '实验装置', '実験装置', '실험 장치'], ids: ['distill', 'gaslab', 'filter', 'galvanic', 'rate'] },
     { title: ['Tra cứu', 'Reference', '查阅', '資料', '자료'], ids: ['chem-scheme', 'periodic', 'formula-chem'] },
+    { title: ['Theo cấp học', 'By grade', '按学段', '学年別', '학년별'], ids: ['separate', 'compound-class', 'ion-test', 'rust', 'shells', 'redox', 'lechatelier', 'titration-curve', 'electrolysis-solution', 'isomer', 'hydrocarbon', 'org-reaction', 'biomolecule', 'electro-series', 'industry', 'kinetics-plot'] },
   ],
   biology: [
     { title: ['Tế bào', 'Cells', '细胞', '細胞', '세포'], ids: ['cell', 'division', 'genetic'] },
     { title: ['Di truyền', 'Genetics', '遗传', '遺伝', '유전'], ids: ['pedigree', 'punnett'] },
     { title: ['Quần thể', 'Populations', '种群', '個体群', '개체군'], ids: ['ecology', 'bio-graph', 'formula-bio'] },
     { title: ['Thí nghiệm', 'Experiments', '实验', '実験', '실험'], ids: ['osmosis', 'photo', 'slide', 'blood', 'reflex'] },
+    { title: ['Theo cấp học', 'By grade', '按学段', '学年別', '학년별'], ids: ['kingdoms', 'flowering-plant', 'body-system', 'photo-resp', 'pollination', 'sex-chromosome', 'carbon-cycle', 'microbe', 'organelles', 'enzyme', 'transpiration', 'crossover', 'mutation', 'selection', 'succession', 'pcr-gel', 'ferment', 'central-dogma'] },
   ],
 }
 
@@ -59,7 +67,7 @@ const FORMULA_GROUPS: Record<string, { title: FigureLabel; ids: string[] }[]> = 
   'formula-physics': [
     { title: ['Chuyển động', 'Motion', '运动', '運動', '운동'], ids: ['velocity', 'accel', 'motion'] },
     { title: ['Lực, năng lượng', 'Force and energy', '力与能量', '力・エネルギー', '힘·에너지'], ids: ['newton', 'weight', 'momentum', 'work', 'power', 'kinetic', 'potential', 'friction'] },
-    { title: ['Công thức điện', 'Electricity formulas', '电学公式', '電気の公式', '전기 공식'], ids: ['ohm', 'series', 'parallel', 'current', 'joule', 'coulomb'] },
+    { title: ['Công thức điện', 'Electricity formulas', '电学公式', '電気の公式', '전기 공식'], ids: ['ohm', 'series', 'parallel', 'current', 'joule', 'electric-power', 'coulomb'] },
     { title: ['Nhiệt, sóng, quang', 'Heat, waves, light', '热、波、光', '熱・波・光', '열·파동·빛'], ids: ['heat', 'wave', 'frequency', 'period', 'lens', 'snell', 'density', 'pressure', 'gas', 'energy', 'efficiency'] },
   ],
   'formula-chem': [
@@ -69,12 +77,16 @@ const FORMULA_GROUPS: Record<string, { title: FigureLabel; ids: string[] }[]> = 
   ],
 }
 
-function visibleVariants(item: FigureItem, current: string) {
-  return (item.variants ?? []).filter((entry) => entry.menu !== false || entry.id === current)
+function visibleVariants(item: FigureItem, current: string, band: FigureBand | null = null, scope: FigureScope = 'all') {
+  return (item.variants ?? []).filter((entry) => {
+    if (entry.menu === false && entry.id !== current) return false
+    if (entry.id === current) return true
+    return figureShown(entry.grades ?? item.grades, band, scope)
+  })
 }
 
-function variantGroups(item: FigureItem, current: string) {
-  const choices = visibleVariants(item, current)
+function variantGroups(item: FigureItem, current: string, band: FigureBand | null = null, scope: FigureScope = 'all') {
+  const choices = visibleVariants(item, current, band, scope)
   const plan = FORMULA_GROUPS[item.id]
   if (!plan) return [{ title: null as FigureLabel | null, variants: choices }]
   const used = new Set<string>()
@@ -254,7 +266,7 @@ export function GraphPreview({
   return <canvas ref={ref} className="h-full min-h-[168px] w-full rounded-lg border border-slate-200 bg-slate-50" />
 }
 
-export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false }: { tr: Tr; onPick: (id: string) => void; onInsertImage: () => void; mathPlot?: ReactNode; sheet?: boolean }) {
+export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false, band = null, scope = 'all', onScope }: { tr: Tr; onPick: (id: string) => void; onInsertImage: () => void; mathPlot?: ReactNode; sheet?: boolean; band?: FigureBand | null; scope?: FigureScope; onScope?: (scope: FigureScope) => void }) {
   const [subject, setSubject] = useState<FigureSubject>('math')
   const boxRef = useRef<HTMLDivElement>(null)
   const [maxH, setMaxH] = useState(320)
@@ -283,7 +295,7 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
   }, [nudge, subject, showPlot, sheet])
-  const pool = FIGURE_ITEMS.filter((item) => item.subject === subject && item.menu !== false)
+  const pool = FIGURE_ITEMS.filter((item) => item.subject === subject && figureItemVisible(item, band, scope))
   const listed = new Set(MENU_GROUPS[subject].flatMap((group) => group.ids))
   const groups = MENU_GROUPS[subject].flatMap((group) => {
     const items = group.ids.flatMap((id) => {
@@ -330,6 +342,24 @@ export function FigureMenu({ tr, onPick, onInsertImage, mathPlot, sheet = false 
             )
           })}
         </div>
+        {band ? (
+          <div className="mt-1 grid grid-cols-3 gap-1">
+            {([
+              ['band', tr('Lớp này', 'This grade', '本年级', 'この学年', '이 학년')],
+              ['stage', tr('Cả cấp', 'This stage', '本学段', 'この段階', '이 단계')],
+              ['all', tr('Tất cả', 'All', '全部', 'すべて', '전체')],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={cn('rounded-md border text-[11px] font-semibold', tap, scope === id ? 'border-sky-600 bg-sky-50 text-sky-800' : 'border-slate-200 text-slate-600')}
+                onClick={() => onScope?.(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <button
           type="button"
           className={cn('mt-1 flex w-full items-center gap-1.5 rounded-md border border-slate-200 text-left font-semibold text-slate-800 hover:bg-sky-50', tap)}
@@ -396,6 +426,8 @@ export function FigureEditor({
   onParams,
   onInsert,
   onClose,
+  band = null,
+  scope = 'all',
 }: {
   tr: Tr
   itemId: string
@@ -403,6 +435,8 @@ export function FigureEditor({
   onParams: (next: FigureParams) => void
   onInsert: () => void
   onClose: () => void
+  band?: FigureBand | null
+  scope?: FigureScope
 }) {
   const item = figureItem(itemId)
   const visibleFrame = useMobileVisibleFrame()
@@ -456,7 +490,7 @@ export function FigureEditor({
                   })
                 }}
               >
-                {variantGroups(item, params.variant).map((group) => {
+                {variantGroups(item, params.variant, band, scope).map((group) => {
                   const options = group.variants.map((variant) => (
                     <option key={variant.id} value={variant.id}>{say(tr, variant.label)}</option>
                   ))

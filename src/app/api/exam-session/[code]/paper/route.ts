@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import { fetchExamQuestionsForReviewPg, fetchExamSessionForTeacherReviewPg } from '@/lib/db/exam-session-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { shufflePaperOptions } from '@/lib/exam-session/shuffle-paper-options'
 import { scanQuestionFromParts } from '@/lib/lop/answer-card'
+
+export const dynamic = 'force-dynamic'
 
 type ExamQuestionRow = {
   id?: string
@@ -43,25 +46,30 @@ export async function GET(
     }
 
     const items = (questions as ExamQuestionRow[]).map((q, idx) => {
-      const options = Array.isArray(q.options)
+      const rawOptions = Array.isArray(q.options)
         ? q.options.map((x: unknown) => String(x ?? '').trim()).filter(Boolean)
         : []
+      const scan = scanQuestionFromParts(q.question_text, q.options, q.correct_index)
+      const base = scan ? scan.choices : rawOptions.length >= 2 ? rawOptions : []
       return {
         index: idx + 1,
+        id: q.id ? String(q.id) : '',
         questionText: String(q.question_text ?? ''),
-        options: options.length >= 2 ? options : [],
-        canScan: scanQuestionFromParts(q.question_text, q.options, q.correct_index) != null,
-        ...(sessionRes.is_practice_homework && q.id ? { id: q.id } : {}),
+        options: base.length >= 2 ? shufflePaperOptions(base) : [],
+        canScan: scan != null,
       }
     })
 
-    return NextResponse.json({
-      code: sessionRes.code,
-      title: sessionRes.title,
-      practiceHomework: sessionRes.is_practice_homework,
-      durationMinutes: sessionRes.duration_minutes,
-      questions: items,
-    })
+    return NextResponse.json(
+      {
+        code: sessionRes.code,
+        title: sessionRes.title,
+        practiceHomework: sessionRes.is_practice_homework,
+        durationMinutes: sessionRes.duration_minutes,
+        questions: items,
+      },
+      { headers: { 'Cache-Control': 'no-store' } },
+    )
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })

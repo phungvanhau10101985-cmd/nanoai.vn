@@ -44,7 +44,7 @@ export default async function BatQuetPage({
   } catch (error) {
     created = error instanceof AnswerCardSchemaError ? 'schema' : null
   }
-  if (created && created !== 'no_mcq' && created !== 'not_found' && created !== 'schema') {
+  if (created && created !== 'no_mcq' && created !== 'not_found' && created !== 'mismatch' && created !== 'schema') {
     redirect(`/lop/${id}/the-tra-loi/chieu/${created.id}`)
   }
   const message = created === 'no_mcq'

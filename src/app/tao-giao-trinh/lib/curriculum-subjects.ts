@@ -158,6 +158,25 @@ export function gradeGroupLabel(
   return group.labelVi
 }
 
+/** Mã khối cũ gộp nhiều lớp. Giáo trình và lớp đang dùng từng mã `lop-N`. */
+export function canonicalGradeLevelId(id: string): string {
+  const key = id.trim()
+  if (key === 'tieu-hoc') return 'lop-1'
+  if (key === 'thcs') return 'lop-6'
+  if (key === 'thpt') return 'lop-12'
+  return key
+}
+
+/** Lớp đưa vào hộp ghép khi mở slide: cùng một khối với giáo trình. Khối trống hoặc không khớp thì danh sách rỗng. */
+export function teachClassesMatchingGrade<T extends { gradeLevelId?: string | null }>(
+  rows: readonly T[],
+  curriculumGradeId: string,
+): T[] {
+  const grade = canonicalGradeLevelId(curriculumGradeId)
+  if (!grade) return []
+  return rows.filter((row) => canonicalGradeLevelId(row.gradeLevelId ?? '') === grade)
+}
+
 /** Mã đang chọn mới, hoặc mã cũ `khac` của giáo trình đã lưu. */
 export function isStoredGradeLevelId(id: string): boolean {
   return STORED_GRADE_LEVELS.some((g) => g.id === id)

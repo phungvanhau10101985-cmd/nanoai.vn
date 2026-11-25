@@ -6,10 +6,10 @@ import { teacherCanSaveCurriculumPg } from '@/lib/db/class-teacher-curricula-pg'
 import { attachTaughtLessonPg, listTeachClassesForSubjectPg, type TeachClassOption } from '@/lib/db/class-taught-lessons-pg'
 import { tutoringClassFeatureBlock } from '@/lib/db/tutoring-package-pg'
 
-export async function listClassesForTeaching(subjectId: string): Promise<TeachClassOption[]> {
+export async function listClassesForTeaching(subjectId: string, gradeLevelId: string): Promise<TeachClassOption[]> {
   const user = await getUserOrBypass()
   if (!user) return []
-  return listTeachClassesForSubjectPg(user.id, subjectId)
+  return listTeachClassesForSubjectPg(user.id, subjectId, gradeLevelId)
 }
 
 export async function attachLessonToClass(input: {

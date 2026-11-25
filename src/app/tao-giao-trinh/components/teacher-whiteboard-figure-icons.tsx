@@ -464,11 +464,20 @@ export function FigureMenuIcon({ id }: { id: string }) {
           <path d="M7 15 V10 H10 M13 15 C15 15 16 13.5 16 12 C16 10.5 15 9 13 9" {...S} />
         </Glyph>
       )
-    default:
+    default: {
+      let hash = 0
+      for (let i = 0; i < id.length; i += 1) hash = (hash * 33 + id.charCodeAt(i)) >>> 0
+      const palette = ['#0369a1', '#b45309', '#15803d', '#7c3aed', '#be123c']
+      const tint = palette[hash % palette.length]
+      const x1 = 4 + (hash % 5)
+      const y1 = 5 + ((hash >> 3) % 6)
       return (
-        <Glyph tint="#64748b">
-          <rect x="5" y="5" width="14" height="14" rx="2" {...S} />
+        <Glyph tint={tint}>
+          <circle cx="12" cy="12" r="8" {...S} />
+          <path d={`M${x1} ${y1} L${20 - x1} ${20 - y1} M${x1} ${20 - y1} L${20 - x1} ${y1}`} {...S} />
+          {dot(12, 12, 1.5, tint)}
         </Glyph>
       )
+    }
   }
 }

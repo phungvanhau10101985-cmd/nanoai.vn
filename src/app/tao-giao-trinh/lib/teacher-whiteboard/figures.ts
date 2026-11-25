@@ -3,6 +3,11 @@ import { worldToScreen } from './geometry'
 import { drawDiffract, drawEyeLab, drawPrismSpectrum, drawSlab, drawSpectrum, drawTir, moveOpticsTune, opticsHandles, prismAngleFromPoint, prismHandle } from './optics-lab'
 import { drawSchoolBench, moveSchoolBench, SCHOOL_ANIM, schoolHandles } from './school-bench'
 import type { WhiteboardCamera } from './types'
+import { type FigureBand, type FigureScope, figureShown, stampFigureGrades } from './figure-grade'
+import { drawExtra, extraHandles, extraRuns, moveExtra, releaseExtra } from './figure-registry'
+import { lessonFigures } from './figures-lesson-data'
+import './figures-lesson-draw'
+import { METAL_SERIES, dihybridGrid } from './figure-models'
 
 export type FigureSubject = 'math' | 'physics' | 'chemistry' | 'biology'
 
@@ -14,6 +19,7 @@ export type FigureVariant = {
   sample?: string
   /** false: vẫn vẽ được nếu bảng đã có, nhưng không hiện trong menu vì trùng mục khác. */
   menu?: boolean
+  grades?: FigureBand[]
 }
 
 export type FigureField = 'variant' | 'liquid' | 'level' | 'label' | 'equation'
@@ -27,6 +33,7 @@ export type FigureItem = {
   variants?: FigureVariant[]
   fields: FigureField[]
   menu?: boolean
+  grades?: FigureBand[]
 }
 
 export type FigureParams = {
@@ -52,7 +59,7 @@ export const FIGURE_SUBJECTS: { id: FigureSubject; label: FigureLabel; color: st
 
 const L = (vi: string, en: string, zh: string, ja: string, ko: string): FigureLabel => [vi, en, zh, ja, ko]
 
-export const FIGURE_ITEMS: FigureItem[] = [
+const CORE_FIGURES: FigureItem[] = [
   { id: 'math-formula', subject: 'math', w: 460, h: 168, fields: ['variant'], label: L('Công thức toán', 'Math formulas', '数学公式', '数学の公式', '수학 공식'), variants: [
     { id: 'pythagoras', label: L('Pythagore a² + b² = c²', 'Pythagoras a² + b² = c²', '勾股定理 a² + b² = c²', '三平方の定理 a² + b² = c²', '피타고라스 a² + b² = c²') },
     { id: 'square-sum', label: L('(a + b)²', '(a + b)²', '(a + b)²', '(a + b)²', '(a + b)²') },
@@ -85,7 +92,7 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'choose', label: L('Tổ hợp chập k của n phần tử', 'Combinations of n taken k', '从 n 个中取 k 个的组合', 'n 個から k 個の組合せ', 'n개 중 k개의 조합') },
     { id: 'prob', label: L('Xác suất biến cố P(A)', 'Probability of an event P(A)', '事件概率 P(A)', '事象の確率 P(A)', '사건의 확률 P(A)') },
   ] },
-  { id: 'math-graph', subject: 'math', menu: false, w: 320, h: 220, fields: ['variant'], label: L('Đồ thị hàm số', 'Function graph', '函数图像', '関数のグラフ', '함수 그래프'), variants: [
+  { id: 'math-graph', subject: 'math', w: 320, h: 220, fields: ['variant'], label: L('Đồ thị hàm số', 'Function graph', '函数图像', '関数のグラフ', '함수 그래프'), variants: [
     { id: 'parabola', label: L('Parabol', 'Parabola', '抛物线', '放物線', '포물선') },
     { id: 'line', label: L('Hàm bậc nhất', 'Linear', '一次函数', '一次関数', '일차함수') },
     { id: 'sine', label: L('Hàm sin', 'Sine', '正弦', 'サイン', '사인') },
@@ -166,6 +173,7 @@ export const FIGURE_ITEMS: FigureItem[] = [
   { id: 'standing', subject: 'physics', w: 520, h: 250, fields: ['variant'], label: L('Sóng dừng', 'Standing wave', '驻波', '定常波', '정상파'), variants: [
     { id: 'string', label: L('Dây hai đầu cố định', 'String fixed at both ends', '两端固定的弦', '両端固定の弦', '양쪽이 고정된 줄') },
     { id: 'pipe', label: L('Ống kín một đầu', 'Pipe closed at one end', '一端封闭的管', '一端が閉じた管', '한쪽이 막힌 관') },
+    { id: 'pipe-open', label: L('Ống hở hai đầu', 'Pipe open at both ends', '两端开口的管', '両端が開いた管', '양쪽이 열린 관') },
   ] },
   { id: 'meters', subject: 'physics', w: 560, h: 300, fields: [], label: L('Đo hiệu điện thế và dòng điện', 'Measuring voltage and current', '测量电压和电流', '電圧と電流の測定', '전압과 전류 측정') },
   { id: 'radiation', subject: 'physics', w: 480, h: 270, fields: [], label: L('Tia phóng xạ trong từ trường', 'Radioactive rays in a magnetic field', '磁场中的放射线', '磁場の中の放射線', '자기장 속의 방사선') },
@@ -209,6 +217,7 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'parallel', label: L('Điện trở mắc song song 1/R = 1/R₁ + 1/R₂', 'Parallel resistors 1/R = 1/R₁ + 1/R₂', '并联电阻 1/R = 1/R₁ + 1/R₂', '並列抵抗 1/R = 1/R₁ + 1/R₂', '병렬 저항 1/R = 1/R₁ + 1/R₂') },
     { id: 'current', label: L('Cường độ dòng điện I = q/t', 'Current I = q/t', '电流 I = q/t', '電流 I = q/t', '전류 I = q/t') },
     { id: 'joule', label: L('Nhiệt toả trên điện trở Q = I²Rt', 'Heat in a resistor Q = I²Rt', '电阻放热 Q = I²Rt', '抵抗で発生する熱 Q = I²Rt', '저항에서 나는 열 Q = I²Rt') },
+    { id: 'electric-power', label: L('Công suất điện P = UI', 'Electric power P = UI', '电功率 P = UI', '電力 P = UI', '전기 일률 P = UI') },
     { id: 'heat', label: L('Nhiệt lượng Q = mcΔt', 'Heat Q = mcΔt', '热量 Q = mcΔt', '熱量 Q = mcΔt', '열량 Q = mcΔt') },
     { id: 'wave', label: L('Vận tốc truyền sóng v = λf', 'Wave speed v = λf', '波速 v = λf', '波の速さ v = λf', '파동 속력 v = λf') },
     { id: 'frequency', label: L('Tần số và chu kỳ f = 1/T', 'Frequency and period f = 1/T', '频率与周期 f = 1/T', '周波数と周期 f = 1/T', '진동수와 주기 f = 1/T') },
@@ -298,7 +307,7 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'gas', label: L('Phương trình trạng thái khí pV = nRT', 'Gas equation pV = nRT', '气体状态方程 pV = nRT', '気体の状態方程式 pV = nRT', '기체 상태 방정식 pV = nRT') },
     { id: 'electro', label: L('Khối lượng chất thu được khi điện phân', 'Mass deposited in electrolysis', '电解析出的质量', '電気分解で生じる質量', '전기 분해로 얻는 질량') },
     { id: 'alpha', label: L('Độ điện li α = số hạt phân li / số hạt ban đầu', 'Degree of dissociation α', '电离度 α', '電離度 α', '이온화도 α') },
-    { id: 'titrate', menu: false, label: L('Chuẩn độ', 'Titration', '滴定', '滴定', '적정') },
+    { id: 'titrate', label: L('Chuẩn độ', 'Titration', '滴定', '滴定', '적정') },
   ] },
   { id: 'bio-graph', subject: 'biology', w: 320, h: 210, fields: ['variant'], label: L('Đồ thị tăng trưởng quần thể', 'Population growth graph', '种群增长图', '個体群の成長グラフ', '개체군 성장 그래프'), variants: [
     { id: 'logistic', label: L('Tăng trưởng logistic, chậm lại khi gần cực đại', 'Logistic growth, slowing near the limit', '逻辑增长，接近上限时变慢', 'ロジスティック成長、上限付近で減速', '로지스틱 성장, 한계 근처에서 느려짐') },
@@ -321,9 +330,10 @@ export const FIGURE_ITEMS: FigureItem[] = [
     { id: 'plant', label: L('Tế bào thực vật', 'Plant cell', '植物细胞', '植物細胞', '식물 세포') },
   ] },
   { id: 'pedigree', subject: 'biology', w: 280, h: 210, fields: [], label: L('Sơ đồ phả hệ di truyền', 'Inheritance pedigree', '遗传系谱', '遺伝の家系図', '유전 가계도') },
-  { id: 'punnett', subject: 'biology', w: 240, h: 220, fields: ['variant'], label: L('Bảng Punnett', 'Punnett square', '庞氏方格', 'パネット方形', '퍼넷 사각형'), variants: [
+  { id: 'punnett', subject: 'biology', w: 420, h: 360, fields: ['variant'], label: L('Bảng Punnett', 'Punnett square', '庞氏方格', 'パネット方形', '퍼넷 사각형'), variants: [
     { id: 'mono', label: L('Một cặp alen Aa × Aa', 'Aa × Aa', 'Aa × Aa', 'Aa × Aa', 'Aa × Aa') },
     { id: 'test', label: L('Lai phân tích Aa × aa', 'Aa × aa', 'Aa × aa', 'Aa × aa', 'Aa × aa') },
+    { id: 'dihybrid', label: L('Hai tính trạng AaBb × AaBb', 'AaBb × AaBb', 'AaBb × AaBb', 'AaBb × AaBb', 'AaBb × AaBb') },
   ] },
   { id: 'formula-bio', subject: 'biology', w: 320, h: 140, fields: ['variant'], label: L('Công thức quần thể', 'Population formulas', '种群公式', '個体群の公式', '개체군 공식'), variants: [
     { id: 'hardy', label: L('Hardy–Weinberg p² + 2pq + q² = 1', 'Hardy–Weinberg p² + 2pq + q² = 1', '哈迪-温伯格 p² + 2pq + q² = 1', 'ハーディ・ワインベルク p² + 2pq + q² = 1', '하디-바인베르크 p² + 2pq + q² = 1') },
@@ -348,14 +358,18 @@ export const FIGURE_ITEMS: FigureItem[] = [
   { id: 'reflex', subject: 'biology', w: 540, h: 300, fields: [], label: L('Cung phản xạ', 'Reflex arc', '反射弧', '反射弓', '반사궁') },
 ]
 
+export const FIGURE_ITEMS: FigureItem[] = stampFigureGrades([...CORE_FIGURES, ...(lessonFigures as FigureItem[])])
+
 const itemMap = new Map(FIGURE_ITEMS.map((item) => [item.id, item]))
 
 export function figureItem(id: string): FigureItem | null {
   return itemMap.get(id) ?? null
 }
 
-export function freshFigureParams(item: FigureItem): FigureParams {
-  const variant = item.variants?.find((entry) => entry.menu !== false) ?? item.variants?.[0]
+export function freshFigureParams(item: FigureItem, band: FigureBand | null = null, scope: FigureScope = 'all'): FigureParams {
+  const variant = item.variants?.find((entry) => entry.menu !== false && figureShown(entry.grades ?? item.grades, band, scope))
+    ?? item.variants?.find((entry) => entry.menu !== false)
+    ?? item.variants?.[0]
   return {
     variant: variant?.id ?? '',
     liquid: '#7dd3fc',
@@ -689,6 +703,55 @@ function drawCircuit(ctx: Ctx, w: number, h: number, parallel: boolean, tune?: n
   }
 }
 
+const INCLINE_ANGLE_MIN = (15 * Math.PI) / 180
+const INCLINE_ANGLE_MAX = (55 * Math.PI) / 180
+
+/** Mặt nghiêng. Kéo đỉnh hoặc núm ở góc α. Mũi tên: mg cố định, N = mg cos α, f = mg sin α. */
+export function inclinePose(w: number, h: number, tune?: number[]) {
+  const x1 = w - 28
+  const y0 = h - 28
+  const spanMax = Math.max(80, x1 - 36)
+  const riseMax = Math.max(64, y0 - 26)
+  const ang0 = Math.atan2(108, spanMax)
+  const ang = clampNum(tuneAt(tune, 1, ang0), INCLINE_ANGLE_MIN, INCLINE_ANGLE_MAX)
+  let span = spanMax
+  let rise = span * Math.tan(ang)
+  if (rise > riseMax) {
+    rise = riseMax
+    span = rise / Math.tan(ang)
+  }
+  const x0 = x1 - span
+  const along = clampNum(tuneAt(tune, 0, 0.48), 0.22, 0.78)
+  const downX = Math.cos(ang)
+  const downY = Math.sin(ang)
+  const nx = Math.sin(ang)
+  const ny = -Math.cos(ang)
+  const mg = 56
+  return {
+    x0,
+    x1,
+    y0,
+    span,
+    rise,
+    ang,
+    along,
+    bx: x0 + span * along,
+    by: y0 - rise * (1 - along),
+    apexX: x0,
+    apexY: y0 - rise,
+    alphaX: x1 - downX * 22,
+    alphaY: y0 - downY * 22,
+    nx,
+    ny,
+    downX,
+    downY,
+    mg,
+    normal: mg * Math.cos(ang),
+    parallel: mg * Math.sin(ang),
+    deg: Math.round((ang * 180) / Math.PI),
+  }
+}
+
 function drawForce(ctx: Ctx, w: number, h: number, incline: boolean, tune?: number[], run = false) {
   if (!incline) {
     const y = h * 0.72
@@ -729,24 +792,17 @@ function drawForce(ctx: Ctx, w: number, h: number, incline: boolean, tune?: numb
     }
     return
   }
-  const x0 = 36
-  const y0 = h - 28
-  const x1 = w - 28
-  const rise = 108
-  const span = x1 - x0
+  const pose = inclinePose(w, h, tune)
+  const { x0, x1, y0, bx, by, ang } = pose
   ink(ctx, INK.muted)
   ctx.beginPath()
   ctx.moveTo(x0, y0)
   ctx.lineTo(x1, y0)
-  ctx.lineTo(x0, y0 - rise)
+  ctx.lineTo(pose.apexX, pose.apexY)
   ctx.closePath()
   ctx.fillStyle = '#f8fafc'
   ctx.fill()
   ctx.stroke()
-  const ang = Math.atan2(rise, span)
-  const along = clampNum(tuneAt(tune, 0, 0.48), 0.22, 0.78)
-  const bx = x0 + span * along
-  const by = y0 - rise * (1 - along)
   ctx.save()
   ctx.translate(bx, by)
   ctx.rotate(ang)
@@ -755,36 +811,60 @@ function drawForce(ctx: Ctx, w: number, h: number, incline: boolean, tune?: numb
   ctx.fillRect(-26, -30, 52, 30)
   ctx.strokeRect(-26, -30, 52, 30)
   ctx.restore()
-  const nx = Math.sin(ang)
-  const ny = -Math.cos(ang)
+  const ox = bx + pose.nx * 14
+  const oy = by + pose.ny * 14
+  const { nx, ny, downX, downY, mg, normal, parallel } = pose
+  const forceArrow = (x: number, y: number, dx: number, dy: number, len: number) => {
+    const head = Math.max(3.5, Math.min(7.5, len * 0.3))
+    arrow(ctx, x, y, x + dx * len, y + dy * len, head)
+  }
+  const place = (text: string, x: number, y: number, color: string) => {
+    const half = spanWidth(text, 12) / 2
+    textAt(ctx, text, clampNum(x, half + 4, w - half - 4), clampNum(y, 16, h - 20), 12, color)
+  }
   ink(ctx, INK.green)
-  arrow(ctx, bx + nx * 8, by - 16 + ny * 8, bx + nx * 52, by - 16 + ny * 52)
-  textAt(ctx, 'N', bx + nx * 60, by - 16 + ny * 60, 13, INK.green)
+  forceArrow(ox, oy, nx, ny, normal)
   ink(ctx, INK.violet)
-  arrow(ctx, bx + 10, by - 8, bx + 10, by + 46)
-  textAt(ctx, 'mg', bx + 28, by + 36, 13, INK.violet)
-  const downX = Math.cos(ang)
-  const downY = Math.sin(ang)
+  forceArrow(ox, oy, 0, 1, mg)
   ink(ctx, INK.amber)
-  arrow(ctx, bx - 6, by - 22, bx - 6 + downX * 46, by - 22 + downY * 46)
-  textAt(ctx, 'mg sin α', bx + downX * 54, by - 30 + downY * 54, 12, INK.amber)
+  forceArrow(ox, oy, downX, downY, parallel)
+  const ax = ox + nx * 16
+  const ay = oy + ny * 16
   if (run) {
     ink(ctx, INK.red)
-    arrow(ctx, bx + 8, by - 30, bx + 8 + downX * 36, by - 30 + downY * 36)
-    textAt(ctx, 'a', bx + 8 + downX * 48, by - 30 + downY * 48, 13, INK.red)
+    forceArrow(ax, ay, downX, downY, parallel)
   } else {
     ink(ctx, INK.red)
-    arrow(ctx, bx + 8, by - 30, bx + 8 - downX * 36, by - 30 - downY * 36)
-    textAt(ctx, 'f', bx + 8 - downX * 48, by - 30 - downY * 48, 13, INK.red)
+    forceArrow(ox, oy, -downX, -downY, parallel)
+  }
+  place('N', ox + nx * (normal + 14), oy + ny * (normal + 14), INK.green)
+  place('mg', ox - 20, oy + Math.min(mg * 0.68, y0 - oy - 18), INK.violet)
+  place('mg sin α', ox + downX * (parallel + 38), oy + downY * (parallel + 14) - 8, INK.amber)
+  if (run) {
+    place('a', ax + downX * (parallel + 12) + nx * 14, ay + downY * (parallel + 12) + ny * 14, INK.red)
+  } else {
+    const fReach = parallel + 16
+    place('f', ox - downX * fReach + nx * 8, oy - downY * fReach + ny * 8, INK.red)
   }
   ink(ctx, INK.red)
   ctx.beginPath()
   ctx.arc(x1, y0, 28, Math.PI, Math.PI + ang, false)
   ctx.stroke()
   const mid = Math.PI + ang / 2
-  textAt(ctx, 'α', x1 + Math.cos(mid) * 42, y0 + Math.sin(mid) * 42, 13, INK.red)
+  textAt(ctx, 'α', x1 + Math.cos(mid) * 46, y0 + Math.sin(mid) * 46, 13, INK.red)
   knob(ctx, bx, by)
-  textAt(ctx, run ? 'bỏ ma sát: a = g sin α, trượt xuống' : 'đứng yên: f hướng lên dốc, f = mg sin α', w * 0.46, h - 10, 11, run ? INK.red : INK.green)
+  knob(ctx, pose.apexX, pose.apexY)
+  knob(ctx, pose.alphaX, pose.alphaY)
+  const cosTxt = (pose.normal / pose.mg).toFixed(2)
+  const sinTxt = (pose.parallel / pose.mg).toFixed(2)
+  textAt(
+    ctx,
+    run ? `α = ${pose.deg}°   N = ${cosTxt} mg   a = ${sinTxt} g` : `α = ${pose.deg}°   N = ${cosTxt} mg   f = ${sinTxt} mg`,
+    w * 0.5,
+    h - 10,
+    11,
+    run ? INK.red : INK.green,
+  )
 }
 
 function lens(ctx: Ctx, cx: number, cy: number, convex: boolean) {
@@ -959,10 +1039,6 @@ export function mirrorScene(w: number, h: number, kind: MirrorKind, tune?: numbe
   }
 }
 
-function planeStrikeY(cy: number, unit: number) {
-  return cy - Math.min(62, unit * 1.2)
-}
-
 function lineDist(x1: number, y1: number, x2: number, y2: number, px: number, py: number) {
   const dx = x2 - x1
   const dy = y2 - y1
@@ -970,25 +1046,179 @@ function lineDist(x1: number, y1: number, x2: number, y2: number, px: number, py
   return Math.abs(dx * (y1 - py) - dy * (x1 - px)) / len
 }
 
-/** Ba tia dựng ảnh phải đi qua đúng ảnh của công thức gương. */
-export function mirrorRayError(kind: MirrorKind, ratio: number, objFrac: number) {
-  const s = mirrorScene(420, 240, kind, [ratio, objFrac])
-  if (!s.finite) return 0
-  const errors = [
-    lineDist(s.mx, s.cy, s.ox, 2 * s.cy - s.oy, s.ix, s.iy),
-  ]
-  if (kind === 'plane') {
-    errors.push(Math.abs(s.iy - s.oy))
-    const hy = planeStrikeY(s.cy, s.unit)
-    errors.push(lineDist(s.mx, hy, s.mx - (s.mx - s.ox), hy + (hy - s.oy), s.ix, s.iy))
-  } else {
-    errors.push(lineDist(s.mx, s.oy, s.fx, s.cy, s.ix, s.iy))
-    if (Math.abs(s.fx - s.ox) > 8) {
-      const hitY = s.oy + ((s.cy - s.oy) * (s.mx - s.ox)) / (s.fx - s.ox)
-      errors.push(Math.abs(hitY - s.iy))
+const MIRROR_CAP = 1.2
+
+function mirrorCircle(kind: MirrorKind, mx: number, unit: number) {
+  const radius = unit * 2
+  const ccx = kind === 'concave' ? mx - radius : mx + radius
+  return { radius, ccx }
+}
+
+/** Góc từ đỉnh gương. 0 là giữa mặt phản xạ. */
+function capAngle(kind: MirrorKind, ccx: number, cy: number, x: number, y: number) {
+  const ang = Math.atan2(y - cy, x - ccx)
+  if (kind === 'concave') return ang
+  return Math.atan2(Math.sin(ang - Math.PI), Math.cos(ang - Math.PI))
+}
+
+function circleHits(ccx: number, cy: number, radius: number, x1: number, y1: number, x2: number, y2: number) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const fx = x1 - ccx
+  const fy = y1 - cy
+  const a = dx * dx + dy * dy
+  if (a < 1e-8) return []
+  const b = 2 * (fx * dx + fy * dy)
+  const c = fx * fx + fy * fy - radius * radius
+  const disc = b * b - 4 * a * c
+  if (disc < 0) return []
+  const root = Math.sqrt(disc)
+  const ts = root < 1e-8 ? [-b / (2 * a)] : [(-b - root) / (2 * a), (-b + root) / (2 * a)]
+  return ts.map((t) => ({ x: x1 + dx * t, y: y1 + dy * t }))
+}
+
+/** Giao điểm của đường thẳng với mặt phản xạ (phần cung hướng về vật). */
+function pickCap(kind: MirrorKind, mx: number, cy: number, unit: number, x1: number, y1: number, x2: number, y2: number) {
+  if (kind === 'plane') return null
+  const { radius, ccx } = mirrorCircle(kind, mx, unit)
+  const hits = circleHits(ccx, cy, radius, x1, y1, x2, y2).filter((hit) => Math.abs(capAngle(kind, ccx, cy, hit.x, hit.y)) <= MIRROR_CAP)
+  hits.sort((a, b) => Math.abs(a.x - mx) - Math.abs(b.x - mx))
+  return hits[0] ?? null
+}
+
+/** Chỗ tia từ vật đập vào mặt gương trước, phía trước vật. */
+function pickForward(kind: MirrorKind, mx: number, cy: number, unit: number, x1: number, y1: number, x2: number, y2: number, minX: number) {
+  if (kind === 'plane') return null
+  const { radius, ccx } = mirrorCircle(kind, mx, unit)
+  const hits = circleHits(ccx, cy, radius, x1, y1, x2, y2).filter((hit) => Math.abs(capAngle(kind, ccx, cy, hit.x, hit.y)) <= MIRROR_CAP && hit.x >= minX + 0.5)
+  hits.sort((a, b) => a.x - b.x)
+  return hits[0] ?? null
+}
+
+type MirrorBeam = {
+  x: number
+  y: number
+  dirX: number
+  dirY: number
+  through?: { x: number; y: number }
+  incidentDash?: { x: number; y: number }
+  beyondDash?: { x: number; y: number }
+}
+
+function realDir(hitX: number, hitY: number, ix: number, iy: number, virtual: boolean) {
+  const dx = ix - hitX
+  const dy = iy - hitY
+  if (Math.hypot(dx, dy) < 1e-4) return { dirX: -1, dirY: 0 }
+  if (virtual) return { dirX: -dx, dirY: -dy }
+  return { dirX: dx, dirY: dy }
+}
+
+function planeReach(cy: number, cardH: number, unit: number, ys: number[]) {
+  const base = Math.min(70, unit * 1.28)
+  const need = ys.reduce((max, y) => Math.max(max, Math.abs(y - cy)), base)
+  const room = Math.max(28, Math.min(cy - 32, cardH - cy - 40))
+  return Math.min(Math.max(base, need + 8), room)
+}
+
+function mirrorDiagramOf(s: ReturnType<typeof mirrorScene>, cardH: number) {
+  const beams: MirrorBeam[] = []
+  if (s.kind === 'plane') {
+    const nominal = s.cy - Math.min(62, s.unit * 1.2)
+    const reach = planeReach(s.cy, cardH, s.unit, [s.oy, s.cy, nominal])
+    const clampY = (y: number) => Math.max(s.cy - reach, Math.min(s.cy + reach, y))
+    let hy = clampY(nominal)
+    if (Math.abs(hy - s.oy) < 8 || Math.abs(hy - s.cy) < 8) hy = clampY(s.cy + Math.min(reach * 0.72, s.unit * 0.7))
+    for (const y of [s.oy, s.cy, hy]) {
+      const hitY = clampY(y)
+      beams.push({ x: s.mx, y: hitY, ...realDir(s.mx, hitY, s.ix, s.iy, true) })
+    }
+    return { beams, reach }
+  }
+
+  const focus = { x: s.fx, y: s.cy }
+  const image = s.finite ? { x: s.ix, y: s.iy } : null
+  let parallel = s.finite ? pickCap(s.kind, s.mx, s.cy, s.unit, s.fx, s.cy, s.ix, s.iy) : null
+  let through: { x: number; y: number } | undefined = focus
+  if (parallel) {
+    const tilt = Math.atan2(parallel.y - s.oy, parallel.x - s.ox)
+    if (Math.abs(tilt) > 0.22) {
+      const flat = pickCap(s.kind, s.mx, s.cy, s.unit, s.ox, s.oy, s.ox + s.unit, s.oy)
+      if (flat) {
+        parallel = flat
+        through = undefined
+      }
     }
   }
-  return Math.max(...errors)
+  if (!parallel || parallel.x < s.ox + 0.5) {
+    const ahead = pickForward(s.kind, s.mx, s.cy, s.unit, s.ox, s.oy, s.ox + s.unit, s.oy, s.ox)
+    if (ahead) {
+      parallel = ahead
+      through = undefined
+    }
+  }
+  if (parallel) {
+    const parallelDir = image
+      ? realDir(parallel.x, parallel.y, image.x, image.y, s.virtual)
+      : {
+          dirX: s.kind === 'concave' ? s.fx - parallel.x : parallel.x - s.fx,
+          dirY: s.kind === 'concave' ? s.cy - parallel.y : parallel.y - s.cy,
+        }
+    if (through && lineDist(parallel.x, parallel.y, parallel.x + parallelDir.dirX, parallel.y + parallelDir.dirY, through.x, through.y) > 0.05) {
+      through = undefined
+    }
+    beams.push({ x: parallel.x, y: parallel.y, ...parallelDir, through })
+  }
+
+  const vertexDir = s.finite
+    ? realDir(s.mx, s.cy, s.ix, s.iy, s.virtual)
+    : { dirX: s.ox - s.mx, dirY: s.cy - s.oy }
+  beams.push({ x: s.mx, y: s.cy, ...vertexDir })
+
+  if (s.finite && Math.abs(s.fx - s.ox) > 8) {
+    const hit = pickForward(s.kind, s.mx, s.cy, s.unit, s.ox, s.oy, s.fx, s.cy, s.ox)
+    if (hit) {
+      const beam: MirrorBeam = { x: hit.x, y: hit.y, ...realDir(hit.x, hit.y, s.ix, s.iy, s.virtual) }
+      if (s.kind === 'convex' && s.fx > hit.x) beam.beyondDash = focus
+      else if (s.fx < s.ox) beam.incidentDash = focus
+      beams.push(beam)
+    }
+  }
+
+  const { radius, ccx } = mirrorCircle(s.kind, s.mx, s.unit)
+  let spread = Math.asin(Math.min(0.9, Math.min(70, s.unit * 1.28) / radius))
+  for (const beam of beams) {
+    const ang = Math.abs(capAngle(s.kind, ccx, s.cy, beam.x, beam.y))
+    if (ang <= MIRROR_CAP) spread = Math.max(spread, Math.min(MIRROR_CAP, ang + 0.06))
+  }
+  return { beams, reach: spread }
+}
+
+function mirrorSurfaceMiss(s: ReturnType<typeof mirrorScene>, x: number, y: number, reach: number) {
+  if (s.kind === 'plane') {
+    return Math.max(Math.abs(x - s.mx), Math.max(0, Math.abs(y - s.cy) - reach - 1e-6))
+  }
+  const { radius, ccx } = mirrorCircle(s.kind, s.mx, s.unit)
+  const radial = Math.abs(Math.hypot(x - ccx, y - s.cy) - radius)
+  const past = Math.max(0, Math.abs(capAngle(s.kind, ccx, s.cy, x, y)) - reach - 1e-6)
+  return Math.max(radial, past)
+}
+
+/** Tia phản xạ chạm đúng mặt gương và đi qua ảnh của công thức. */
+export function mirrorRayError(kind: MirrorKind, ratio: number, objFrac: number) {
+  const s = mirrorScene(420, 240, kind, [ratio, objFrac])
+  const { beams, reach } = mirrorDiagramOf(s, 240)
+  let err = 0
+  for (const beam of beams) {
+    err = Math.max(err, mirrorSurfaceMiss(s, beam.x, beam.y, reach))
+    if (s.finite) err = Math.max(err, lineDist(beam.x, beam.y, beam.x + beam.dirX, beam.y + beam.dirY, s.ix, s.iy))
+    if (beam.through) err = Math.max(err, lineDist(beam.x, beam.y, beam.x + beam.dirX, beam.y + beam.dirY, beam.through.x, beam.through.y))
+  }
+  return err
+}
+
+export function mirrorBeams(kind: MirrorKind, ratio: number, objFrac: number) {
+  const s = mirrorScene(420, 240, kind, [ratio, objFrac])
+  return { ...mirrorDiagramOf(s, 240), mx: s.mx, cy: s.cy }
 }
 
 function springShift(rest: number, ampFrac: number, h: number, tune: number[] | undefined, time: number) {
@@ -1312,8 +1542,8 @@ function drawRay(ctx: Ctx, w: number, h: number, convex: boolean, tune?: number[
   textAt(ctx, kind, w * 0.34, h - 26, 11, s.virtual ? INK.violet : INK.image)
 }
 
-function mirrorGlass(ctx: Ctx, mx: number, cy: number, kind: MirrorKind, unit: number) {
-  const half = Math.min(70, unit * 1.28)
+function mirrorGlass(ctx: Ctx, mx: number, cy: number, kind: MirrorKind, unit: number, reach: number) {
+  const half = kind === 'plane' ? reach : Math.min(70, unit * 1.28)
   ctx.save()
   ctx.lineCap = 'round'
   ctx.lineWidth = 2.2
@@ -1337,7 +1567,7 @@ function mirrorGlass(ctx: Ctx, mx: number, cy: number, kind: MirrorKind, unit: n
   const radius = unit * 2
   const concave = kind === 'concave'
   const ccx = concave ? mx - radius : mx + radius
-  const spread = Math.asin(Math.min(0.9, half / radius))
+  const spread = Math.min(MIRROR_CAP, Math.max(0.2, reach))
   const steps = 16
   const pts: Array<[number, number]> = []
   for (let i = 0; i <= steps; i += 1) {
@@ -1469,46 +1699,23 @@ function tipLabel(
 
 function drawMirror(ctx: Ctx, w: number, h: number, kind: MirrorKind, tune?: number[], time = 0) {
   const s = mirrorScene(w, h, kind, tune)
-  const focus = kind === 'plane' ? undefined : { x: s.fx, y: s.cy }
+  const { beams, reach } = mirrorDiagramOf(s, h)
   ctx.save()
   ctx.lineWidth = 1.25
   ink(ctx, INK.muted)
   arrow(ctx, 12, s.cy, w - 14, s.cy)
   ctx.restore()
 
-  ink(ctx, INK.blue)
-  beam(ctx, s.ox, s.oy, s.mx, s.oy, w, h)
-  if (kind === 'plane') {
-    if (s.finite) {
-      const [vx, vy] = beyond(s.mx, s.oy, s.ix, s.iy, 12)
-      beam(ctx, s.mx, s.oy, vx, vy, w, h, true)
-    }
-  } else {
-    const toFx = s.fx - s.mx
-    const toFy = s.cy - s.oy
-    const lightX = kind === 'concave' ? toFx : -toFx
-    const lightY = kind === 'concave' ? toFy : -toFy
-    reflectedBeam(ctx, s.mx, s.oy, lightX, lightY, w, h, s, focus)
-  }
+  const rayInk = [INK.blue, INK.green, INK.amber]
+  beams.forEach((ray, index) => {
+    ink(ctx, rayInk[index] ?? INK.amber)
+    if (ray.incidentDash) beam(ctx, ray.incidentDash.x, ray.incidentDash.y, s.ox, s.oy, w, h, true)
+    beam(ctx, s.ox, s.oy, ray.x, ray.y, w, h)
+    if (ray.beyondDash) beam(ctx, ray.x, ray.y, ray.beyondDash.x, ray.beyondDash.y, w, h, true)
+    reflectedBeam(ctx, ray.x, ray.y, ray.dirX, ray.dirY, w, h, s, ray.through)
+  })
 
-  ink(ctx, INK.green)
-  beam(ctx, s.ox, s.oy, s.mx, s.cy, w, h)
-  reflectedBeam(ctx, s.mx, s.cy, s.ox - s.mx, s.cy - s.oy, w, h, s)
-
-  ink(ctx, INK.amber)
-  if (kind === 'plane') {
-    const hy = planeStrikeY(s.cy, s.unit)
-    beam(ctx, s.ox, s.oy, s.mx, hy, w, h)
-    reflectedBeam(ctx, s.mx, hy, s.ox - s.mx, hy - s.oy, w, h, s)
-  } else if (Math.abs(s.fx - s.ox) > 8) {
-    const hitY = s.oy + ((s.cy - s.oy) * (s.mx - s.ox)) / (s.fx - s.ox)
-    beam(ctx, s.ox, s.oy, s.mx, hitY, w, h)
-    if (s.fx < s.ox) beam(ctx, s.fx, s.cy, s.ox, s.oy, w, h, true)
-    if (kind === 'convex') beam(ctx, s.mx, hitY, s.fx, s.cy, w, h, true)
-    reflectedBeam(ctx, s.mx, hitY, -1, 0, w, h, s)
-  }
-
-  mirrorGlass(ctx, s.mx, s.cy, kind, s.unit)
+  mirrorGlass(ctx, s.mx, s.cy, kind, s.unit, reach)
   if (kind !== 'plane') {
     const axisDy = (x: number) => {
       const nearObject = Math.abs(x - s.ox) < 12
@@ -1553,30 +1760,19 @@ function drawMirror(ctx: Ctx, w: number, h: number, kind: MirrorKind, tune?: num
   }
 
   const pulse = wrap01(time * 0.32)
+  const ride = beams[0]
   let dotX = s.ox
   let dotY = s.oy
-  if (pulse < 0.45) {
+  if (ride && pulse < 0.45) {
     const t = pulse / 0.45
-    dotX = s.ox + (s.mx - s.ox) * t
-    dotY = s.oy
-  } else if (kind === 'plane') {
+    dotX = s.ox + (ride.x - s.ox) * t
+    dotY = s.oy + (ride.y - s.oy) * t
+  } else if (ride) {
     const t = (pulse - 0.45) / 0.55
-    dotX = s.mx + (s.ox - s.mx) * t
-    dotY = s.oy
-  } else if (s.finite && !s.virtual) {
-    const t = (pulse - 0.45) / 0.55
-    dotX = s.mx + (s.ix - s.mx) * t
-    dotY = s.oy + (s.iy - s.oy) * t
-  } else {
-    const t = (pulse - 0.45) / 0.55
-    const toFx = s.fx - s.mx
-    const toFy = s.cy - s.oy
-    const lightX = kind === 'concave' ? toFx : -toFx
-    const lightY = kind === 'concave' ? toFy : -toFy
-    const len = Math.hypot(lightX, lightY) || 1
+    const len = Math.hypot(ride.dirX, ride.dirY) || 1
     const travel = s.unit * 1.35 * t
-    dotX = s.mx + (lightX / len) * travel
-    dotY = s.oy + (lightY / len) * travel
+    dotX = ride.x + (ride.dirX / len) * travel
+    dotY = ride.y + (ride.dirY / len) * travel
   }
   ink(ctx, INK.amber)
   ctx.beginPath()
@@ -1696,6 +1892,7 @@ function drawSpatial(ctx: Ctx, w: number, h: number, equation: string, time = 0)
 
 export function figureSimulates(id: string, variant = '', run = false): boolean {
   if (!run) return false
+  if (extraRuns(id)) return true
   if (id === 'spatial' || id === 'experiment-phys' || id === 'interfere' || id === 'young' || id === 'wave' || id === 'field' || id === 'chem-experiment' || id === 'titration' || id === 'ray' || id === 'mirror' || id === 'circuit' || id === 'refraction' || id === 'tir' || id === 'slab' || SCHOOL_ANIM.has(id)) return true
   return variant === 'pendulum'
 }
@@ -3276,7 +3473,7 @@ function drawScheme(ctx: Ctx, w: number, h: number, kind: string) {
     return
   }
   if (kind === 'activity') {
-    const metals = ['K', 'Na', 'Ca', 'Mg', 'Al', 'Zn', 'Fe', 'H', 'Cu', 'Ag']
+    const metals = METAL_SERIES
     metals.forEach((metal, index) => {
       const color = metal === 'H' ? INK.amber : index < 7 ? INK.blue : INK.muted
       textAt(ctx, metal, 70, 22 + index * 18, 14, color)
@@ -4166,7 +4363,27 @@ function drawPedigree(ctx: Ctx, w: number, h: number) {
   }
 }
 
-function drawPunnett(ctx: Ctx, w: number, h: number, test: boolean) {
+function drawPunnett(ctx: Ctx, w: number, h: number, variant: string) {
+  if (variant === 'dihybrid') {
+    const grid = dihybridGrid()
+    const cell = Math.min(36, (w - 80) / 4, (h - 70) / 4)
+    const x0 = (w - cell * 4) / 2
+    const y0 = 48
+    const tops = ['AB', 'Ab', 'aB', 'ab']
+    tops.forEach((allele, index) => textAt(ctx, allele, x0 + cell * (index + 0.5), y0 - 14, 11, INK.blue))
+    tops.forEach((allele, index) => textAt(ctx, allele, x0 - 18, y0 + cell * (index + 0.5), 11, INK.green))
+    grid.cells.forEach((gene, index) => {
+      const row = Math.floor(index / 4)
+      const col = index % 4
+      ctx.strokeStyle = INK.muted
+      ctx.strokeRect(x0 + col * cell, y0 + row * cell, cell, cell)
+      const both = gene.includes('A') && gene.includes('B')
+      textAt(ctx, gene, x0 + col * cell + cell / 2, y0 + row * cell + cell / 2, 9, both ? INK.blue : INK.muted)
+    })
+    textAt(ctx, `${grid.both}/16`, w / 2, h - 16, 12, INK.amber)
+    return
+  }
+  const test = variant === 'test'
   const alleles = test ? ['A', 'a'] : ['A', 'a']
   const top = test ? ['a', 'a'] : ['A', 'a']
   const x0 = w * 0.32
@@ -4486,6 +4703,7 @@ const PHYSICS_FORMULAS: Record<string, FormulaCard> = {
   parallel: formulaCard([['1/R', INK.blue], [' = ', INK.muted], ['1/R₁', INK.green], [' + ', INK.muted], ['1/R₂', INK.amber], [' + …', INK.muted]], 'mắc song song'),
   current: formulaCard([['I', INK.blue], [' = ', INK.muted], ['q', INK.red], [' / ', INK.muted], ['t', INK.amber]], 'cường độ dòng điện'),
   joule: formulaCard([['Q', INK.blue], [' = ', INK.muted], ['I²', INK.red], ['R', INK.violet], ['t', INK.amber]], 'nhiệt lượng toả trên điện trở'),
+  'electric-power': formulaCard([['P', INK.blue], [' = ', INK.muted], ['U', INK.green], [' · ', INK.muted], ['I', INK.red]], 'công suất điện'),
   heat: formulaCard([['Q', INK.blue], [' = ', INK.muted], ['m', INK.amber], ['c', INK.green], ['Δt', INK.violet]], 'c là nhiệt dung riêng'),
   wave: formulaCard([['v', INK.blue], [' = ', INK.muted], ['λ', INK.amber], ['f', INK.green]], 'vận tốc truyền sóng'),
   frequency: formulaCard([['f', INK.blue], [' = ', INK.muted], ['1', INK.amber], [' / ', INK.muted], ['T', INK.green]], 'tần số và chu kỳ'),
@@ -4577,7 +4795,9 @@ export function drawFigureLocal(ctx: Ctx, id: string, params: FigureParams, w: n
   ctx.fillStyle = '#1e293b'
   ctx.lineWidth = 2
   const variant = params.variant
-  if (id === 'math-formula') drawMathFormula(ctx, w, h, variant)
+  if (drawExtra(ctx, id, params, w, h, time)) {
+    /* hình bài học theo cấp */
+  } else if (id === 'math-formula') drawMathFormula(ctx, w, h, variant)
   else if (id === 'math-graph') drawMathGraph(ctx, w, h, variant)
   else if (id === 'math-trig') drawTrig(ctx, w, h)
   else if (id === 'spatial') drawSpatial(ctx, w, h, params.equation || (variant === 'saddle' ? 'x^2-y^2' : variant === 'ripple' ? 'sin(x)*cos(y)' : 'x^2+y^2'), time)
@@ -4616,11 +4836,11 @@ export function drawFigureLocal(ctx: Ctx, id: string, params: FigureParams, w: n
   else if (id === 'division') drawDivision(ctx, w, h, variant === 'meiosis')
   else if (id === 'cell') drawCell(ctx, w, h, variant === 'plant')
   else if (id === 'pedigree') drawPedigree(ctx, w, h)
-  else if (id === 'punnett') drawPunnett(ctx, w, h, variant === 'test')
+  else if (id === 'punnett') drawPunnett(ctx, w, h, variant || 'mono')
   else if (id === 'formula-bio') drawBioFormula(ctx, w, h, variant === 'growth')
   else if (id === 'standing' || id === 'meters' || id === 'radiation' || id === 'transformer' || id === 'buoyancy' || id === 'photoelectric' || id === 'distill' || id === 'gaslab' || id === 'filter' || id === 'galvanic' || id === 'rate' || id === 'osmosis' || id === 'photo' || id === 'slide' || id === 'blood' || id === 'reflex') drawSchoolBench(ctx, id, w, h, variant, params.tune, time)
   else cardFormula(ctx, w, h, id, '')
-  if (LAB_RUN.has(id)) playMark(ctx, w, params.run === true)
+  if (LAB_RUN.has(id) || extraRuns(id)) playMark(ctx, w, params.run === true)
   ctx.restore()
 }
 
@@ -4638,6 +4858,8 @@ function baseTune(params: FigureParams, count: number, defaults: number[]) {
 }
 
 function labHandles(figure: string, params: FigureParams, w: number, h: number, time: number) {
+  const extra = extraHandles(figure, params, w, h)
+  if (extra) return extra
   const tune = params.tune
   const variant = params.variant
   if (figure === 'ray') {
@@ -4654,11 +4876,14 @@ function labHandles(figure: string, params: FigureParams, w: number, h: number, 
     return [{ id: 'switch', x: box.switchX, y: closed ? box.yTop : box.yTop - 10 }]
   }
   if (figure === 'force' && variant === 'incline') {
-    const x0 = 36
-    const y0 = h - 28
-    const run = w - 28 - x0
-    const along = clampNum(tuneAt(tune, 0, 0.48), 0.22, 0.78)
-    return [{ id: 'block', x: x0 + run * along, y: y0 - 108 * (1 - along) }]
+    const pose = inclinePose(w, h, tune)
+    const edge = 0.08
+    return [
+      { id: 'block', x: pose.bx, y: pose.by },
+      { id: 'angle', x: pose.apexX, y: pose.apexY },
+      { id: 'angle', x: pose.alphaX, y: pose.alphaY },
+      { id: 'angle', x: pose.x0 + pose.span * edge, y: pose.y0 - pose.rise * (1 - edge) },
+    ]
   }
   if (figure === 'force') {
     const bx = clampNum(tuneAt(tune, 0, 0.42), 0.18, 0.7) * w
@@ -4757,7 +4982,7 @@ export function figureHandleAt(
   time = 0,
 ): string | null {
   const handles = labHandles(figure, params, w, h, time)
-  if (LAB_RUN.has(figure)) {
+  if (LAB_RUN.has(figure) || extraRuns(figure)) {
     handles.push({ id: 'run', x: w - 18, y: 16 })
     handles.push({ id: 'run', x: w - 52, y: 16 })
   }
@@ -4779,6 +5004,8 @@ export function moveFigureTune(
   local: { x: number; y: number },
   time: number,
 ): FigureParams {
+  const moved = moveExtra(figure, params, w, h, handle, local.x, local.y, time)
+  if (moved) return moved
   const variant = params.variant
   if (figure === 'ray' && handle === 'object') {
     const fAbs = Math.max(40, Math.min(72, w * 0.155))
@@ -4800,11 +5027,19 @@ export function moveFigureTune(
     const box = circuitLayout(w, h)
     return withTune(params, [local.y < box.yTop - 6 ? 0 : 1])
   }
-  if (figure === 'force' && handle === 'block') {
-    if (variant === 'incline') {
-      const run = w - 28 - 36
-      return withTune(params, [clampNum((local.x - 36) / run, 0.22, 0.78)])
+  if (figure === 'force' && variant === 'incline' && (handle === 'block' || handle === 'angle')) {
+    const pose = inclinePose(w, h, params.tune)
+    const tune = baseTune(params, 2, [0.48, pose.ang])
+    if (handle === 'angle') {
+      const dx = Math.max(16, pose.x1 - local.x)
+      const dy = Math.max(0, pose.y0 - local.y)
+      tune[1] = clampNum(Math.atan2(dy, dx), INCLINE_ANGLE_MIN, INCLINE_ANGLE_MAX)
+    } else {
+      tune[0] = clampNum((local.x - pose.x0) / pose.span, 0.22, 0.78)
     }
+    return withTune(params, tune)
+  }
+  if (figure === 'force' && handle === 'block') {
     return withTune(params, [clampNum((local.x - 35) / w, 0.18, 0.7)])
   }
   if (handle === 'mass') {
@@ -4883,6 +5118,8 @@ export function moveFigureTune(
 }
 
 export function releaseFigureTune(figure: string, params: FigureParams, handle: string, time: number): FigureParams {
+  const released = releaseExtra(figure, params, handle)
+  if (released) return released
   if (figure !== 'experiment-phys' && figure !== 'wave') return params
   if (handle !== 'bob' && handle !== 'mass') return params
   const tune = baseTune(params, 3, [handle === 'bob' ? -0.46 : 0.08, time, 0])

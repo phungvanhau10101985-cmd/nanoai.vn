@@ -165,6 +165,8 @@ export function findFirstSequentialSolutionBlockIndex(
     answerVisibility?: Record<string, boolean> | undefined
     /** Tiêu đề slide (chỉ giáo trình): thứ tự gõ trước block đầu. */
     slideTitle?: string
+    /** Chỉ gõ đoạn đang chiếu. Đoạn sau chờ bấm sang, như sang slide khác. */
+    activeBlockIndex?: number
   }
 ): number | null {
   const useSeg = params.worksheetPresentation || params.hasCurriculumSegmentTyping
@@ -189,6 +191,8 @@ export function findFirstSequentialSolutionBlockIndex(
 
   for (let bi = 0; bi < blocks.length; bi++) {
     const b = blocks[bi]
+    if (typeof params.activeBlockIndex === 'number' && bi > params.activeBlockIndex) return null
+    if (typeof params.activeBlockIndex === 'number' && bi < params.activeBlockIndex) continue
     const should = params.worksheetPresentation
       ? worksheetAnswerSegmentCount(b.content ?? '') > 0
       : params.hasCurriculumSegmentTyping
@@ -232,6 +236,7 @@ export function advanceSlideRevealOneStep(
     typingEnabled?: Record<string, boolean>
     typingPaused?: Record<string, boolean>
     answerVisibility?: Record<string, boolean>
+    activeBlockIndex?: number
   }
 ): Record<string, number> {
   if (!slide) return prev
@@ -259,6 +264,8 @@ export function advanceSlideRevealOneStep(
   if (!blocks?.length) return prev
   for (let bi = 0; bi < blocks.length; bi++) {
     const block = blocks[bi]
+    if (typeof opts.activeBlockIndex === 'number' && bi > opts.activeBlockIndex) return prev
+    if (typeof opts.activeBlockIndex === 'number' && bi < opts.activeBlockIndex) continue
     const shouldType = opts.worksheetPresentation ? Boolean(block.isAnswer) : opts.hasCurriculumSegmentTyping
     if (!shouldType) continue
     const key = `${slideIndex}-${bi}`

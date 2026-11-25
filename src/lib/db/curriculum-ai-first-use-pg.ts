@@ -7,6 +7,7 @@ export type CurriculumAiArtifactKind =
   | 'lesson_slides'
   | 'infographic_curriculum'
   | 'infographic_lesson'
+  | 'infographic_slide'
 
 function isMissingFirstUseTableError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err)

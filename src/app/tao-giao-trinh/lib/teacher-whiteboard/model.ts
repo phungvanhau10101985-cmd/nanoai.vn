@@ -541,6 +541,36 @@ function boxInside(inner: WorldBox, outer: WorldBox): boolean {
   return inner.minX >= outer.minX && inner.maxX <= outer.maxX && inner.minY >= outer.minY && inner.maxY <= outer.maxY
 }
 
+/** Kéo chuột ngắn hơn mức này là một cú chọn, không phải khung chọn nhiều phần tử. Ngón tay không dùng khung chọn. */
+export const WHITEBOARD_MARQUEE_MIN_PX = 28
+
+export function whiteboardMarqueeIsSelection(pointer: string, distance: number): boolean {
+  if (pointer === 'touch') return false
+  return distance >= WHITEBOARD_MARQUEE_MIN_PX
+}
+
+/**
+ * Chỉ bỏ những id đang được chọn và đang có trên bảng.
+ * Phần tử không nằm trong danh sách chọn giữ nguyên, kể cả hàm cùng hệ trục.
+ */
+export function deleteWhiteboardSelection(
+  objects: WhiteboardObject[],
+  selectedIds: readonly string[],
+): { objects: WhiteboardObject[]; removedIds: string[] } {
+  const live = new Set<string>()
+  for (const obj of objects) live.add(obj.id)
+  const removedIds: string[] = []
+  const seen = new Set<string>()
+  for (const id of selectedIds) {
+    if (!live.has(id) || seen.has(id)) continue
+    seen.add(id)
+    removedIds.push(id)
+  }
+  if (removedIds.length === 0) return { objects, removedIds }
+  const drop = new Set(removedIds)
+  return { objects: objects.filter((obj) => !drop.has(obj.id)), removedIds }
+}
+
 /** Quét AutoCAD: trái→phải chỉ lấy hình nằm trọn, phải→trái lấy hình khung chạm. */
 export function pickObjectsInMarquee(
   objects: WhiteboardObject[],

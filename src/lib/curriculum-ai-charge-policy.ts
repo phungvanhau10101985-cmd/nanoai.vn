@@ -83,9 +83,13 @@ export function buildLessonSlidesArtifactKey(
 
 export function buildInfographicArtifactKey(
   curriculumId: string,
-  scope: 'curriculum' | 'lesson',
-  lessonNo?: number
+  scope: 'curriculum' | 'lesson' | 'slide',
+  lessonNo?: number,
+  slideIndex?: number
 ): string {
+  if (scope === 'slide' && lessonNo != null && slideIndex != null) {
+    return `infographic:${curriculumId}:slide:${lessonNo}:${slideIndex}`
+  }
   if (scope === 'lesson' && lessonNo != null) {
     return `infographic:${curriculumId}:lesson:${lessonNo}`
   }

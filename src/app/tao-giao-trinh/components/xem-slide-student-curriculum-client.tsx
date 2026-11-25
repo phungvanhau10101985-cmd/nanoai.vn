@@ -77,6 +77,7 @@ export default function XemSlideStudentCurriculumClient() {
       tr={tr.bind(null, locale)}
       slideMode={data.slideMode ?? undefined}
       initialSlideIndex={data.currentIndex}
+      syncedActiveBlockIndex={data.activeBlockIndex ?? 0}
       isTeacherView={false}
       worksheetPresentation={false}
       worksheetAnswerReveal={data.answerRevealProgress}

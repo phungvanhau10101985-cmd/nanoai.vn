@@ -1,6 +1,7 @@
 import { getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { cleanQuizSolution } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import {
+  correctDisplayIndex,
   parseLayoutSnapshot,
   rebuildPublicFromSnapshot,
   type ExamQuestionRow,
@@ -31,8 +32,7 @@ function correctDisplayIndexForRow(
   if (!Number.isFinite(ciRaw)) return null
   const safe = Math.max(0, Math.min(rawOpts.length - 1, Math.floor(ciRaw)))
   if (!perm || perm.length !== rawOpts.length) return null
-  const at = perm.findIndex((orig) => orig === safe)
-  return at >= 0 ? at : null
+  return correctDisplayIndex(perm, safe)
 }
 
 function solutionTextForQuestion(type: 'quiz' | 'essay', contentJson: unknown): string {

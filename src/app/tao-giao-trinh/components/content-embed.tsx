@@ -86,8 +86,23 @@ function getEmbedSrc(type: EmbedType, urlOrId: string): string | null {
   }
 
   if (type === 'maps') {
-    if (raw.startsWith('http') && (raw.includes('google.com/maps') || raw.includes('goo.gl/maps'))) return raw
-    return raw.startsWith('http') ? raw : null
+    if (!raw.startsWith('http')) return null
+    if (/output=embed|\/maps\/embed/i.test(raw)) return raw
+    const at = raw.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
+    if (at) return `https://maps.google.com/maps?q=${at[1]},${at[2]}&z=16&output=embed`
+    const place = raw.match(/\/maps\/place\/([^/@?]+)/i)?.[1]
+    let query = raw
+    if (place) {
+      try {
+        query = decodeURIComponent(place).replace(/\+/g, ' ')
+      } catch {
+        query = place.replace(/\+/g, ' ')
+      }
+    }
+    if (/google\.[^/]+\/maps|goo\.gl\/maps|maps\.google\./i.test(raw) || place) {
+      return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&output=embed`
+    }
+    return raw
   }
 
   if (type === 'image' || type === 'audio') {

@@ -22,7 +22,7 @@ import { SlideVersionDialog, type SlideVersionChoice } from './components/slide-
 import { CurriculumExerciseListDialog } from './components/curriculum-exercise-list-dialog'
 import type { AISlideData } from './lib/curriculum-to-slides'
 import type { SlideInfographic } from './lib/slide-infographic'
-import { SUBJECTS, isStoredGradeLevelId, TEXTBOOK_SETS } from './lib/curriculum-subjects'
+import { SUBJECTS, canonicalGradeLevelId, isStoredGradeLevelId, TEXTBOOK_SETS } from './lib/curriculum-subjects'
 import { GradeLevelOptions } from './lib/grade-level-options'
 import ClassSubjectField from '../lop/class-subject-field'
 import { CURRICULUM_LESSON_MINUTES, parseCurriculumLessonNumber, formatCurriculumLessonNoDisplay } from './lib/curriculum-input-normalize'
@@ -160,8 +160,7 @@ function lessonChunksToGroups(chunks: CurriculumLessonChunk[] | undefined | null
 }
 
 function normalizeGradeLevelId(id: string): string {
-  const map: Record<string, string> = { 'tieu-hoc': 'lop-1', thcs: 'lop-6', thpt: 'lop-12' }
-  return map[id] ?? id
+  return canonicalGradeLevelId(id)
 }
 
 function getWebLocaleFromCookie(): UiLocale {
@@ -1942,6 +1941,9 @@ export default function TaoGiaoTrinhClientPage({
               visualInput2: (s as { visualInput2?: string }).visualInput2,
               visualInput3: (s as { visualInput3?: string }).visualInput3,
               visualInput4: (s as { visualInput4?: string }).visualInput4,
+              assistantImage: (s as { assistantImage?: SlideInfographic }).assistantImage?.imageUrl
+                ? (s as { assistantImage?: SlideInfographic }).assistantImage
+                : undefined,
             }))
           : []
       if (!slides || slides.length <= 0) {
@@ -1989,6 +1991,7 @@ export default function TaoGiaoTrinhClientPage({
                   curriculumId: curriculumId ?? null,
                   topicMode: createMode === 'topic' || textbookSetId === 'khac',
                   subjectId,
+                  gradeLevelId,
                   slideMode: mode === 'personal' ? 'personal' : mode === 'shared' ? 'shared' : mode === 'original' ? 'original' : null,
                   personalViewSubMode: 'current',
                   hasOriginalSlides: hasOriginalOrSharedVersion,
@@ -2008,12 +2011,13 @@ export default function TaoGiaoTrinhClientPage({
         setTimeout(send, 700)
       }
     },
-    [curriculumMarkdown, displayTopic, curriculumId, subjectId, hasOriginalOrSharedVersion, infographicShared, infographicOriginal, infographicPersonal, toast, tr, createMode, textbookSetId]
+    [curriculumMarkdown, displayTopic, curriculumId, subjectId, gradeLevelId, hasOriginalOrSharedVersion, infographicShared, infographicOriginal, infographicPersonal, toast, tr, createMode, textbookSetId]
   )
 
   const beginTeachOpen = useCallback((open: () => void) => {
     const lessonNo = selectedLessonNoRef.current
-    if (!curriculumId || !subjectId || !lessonNo) {
+    const grade = normalizeGradeLevelId(gradeLevelId)
+    if (!curriculumId || !subjectId || !lessonNo || !grade) {
       open()
       return
     }
@@ -2021,10 +2025,18 @@ export default function TaoGiaoTrinhClientPage({
     teachOpenOnceRef.current = false
     setTeachClasses([])
     setTeachClassLoading(true)
-    setTeachClassOpen(true)
-    void listClassesForTeaching(subjectId)
+    setTeachClassOpen(false)
+    void listClassesForTeaching(subjectId, grade)
       .then((rows) => {
         if (teachOpenOnceRef.current) return
+        if (rows.length === 0) {
+          teachOpenOnceRef.current = true
+          pendingTeachOpenRef.current = null
+          setTeachClassLoading(false)
+          setTeachClassOpen(false)
+          open()
+          return
+        }
         const preferred = typeof window !== 'undefined'
           ? new URLSearchParams(window.location.search).get('classId')?.trim() ?? ''
           : ''
@@ -2033,12 +2045,7 @@ export default function TaoGiaoTrinhClientPage({
           : rows
         setTeachClasses(sorted)
         setTeachClassLoading(false)
-        if (sorted.length === 0) {
-          teachOpenOnceRef.current = true
-          pendingTeachOpenRef.current = null
-          setTeachClassOpen(false)
-          open()
-        }
+        setTeachClassOpen(true)
       })
       .catch(() => {
         if (teachOpenOnceRef.current) return
@@ -2048,7 +2055,7 @@ export default function TaoGiaoTrinhClientPage({
         setTeachClassOpen(false)
         open()
       })
-  }, [curriculumId, subjectId])
+  }, [curriculumId, subjectId, gradeLevelId])
 
   const finishTeachOpen = useCallback((classId: string | null) => {
     if (teachOpenOnceRef.current) return
@@ -2274,6 +2281,9 @@ export default function TaoGiaoTrinhClientPage({
               visualInput2: (s as { visualInput2?: string }).visualInput2,
               visualInput3: (s as { visualInput3?: string }).visualInput3,
               visualInput4: (s as { visualInput4?: string }).visualInput4,
+              assistantImage: (s as { assistantImage?: SlideInfographic }).assistantImage?.imageUrl
+                ? (s as { assistantImage?: SlideInfographic }).assistantImage
+                : undefined,
             }))
           : []
       const requestInfographic =
@@ -2297,6 +2307,7 @@ export default function TaoGiaoTrinhClientPage({
             curriculumId: curriculumId ?? null,
             topicMode: createMode === 'topic' || textbookSetId === 'khac',
             subjectId,
+            gradeLevelId,
             slideMode: slideVersionChoice ?? null,
             personalViewSubMode: 'current',
             hasOriginalSlides: hasOriginalOrSharedVersion,
@@ -2313,7 +2324,7 @@ export default function TaoGiaoTrinhClientPage({
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [curriculumMarkdown, displayTopic, curriculumId, subjectId, aiSlides, curriculumSlides, slideVersionChoice, hasOriginalOrSharedVersion, refreshPersonalSlides, infographicShared, infographicOriginal, infographicPersonal, createMode, textbookSetId])
+  }, [curriculumMarkdown, displayTopic, curriculumId, subjectId, gradeLevelId, aiSlides, curriculumSlides, slideVersionChoice, hasOriginalOrSharedVersion, refreshPersonalSlides, infographicShared, infographicOriginal, infographicPersonal, createMode, textbookSetId])
 
   const handleOpenSlides = async () => {
     if (!curriculumMarkdown.trim()) return
@@ -3880,14 +3891,15 @@ export default function TaoGiaoTrinhClientPage({
         open={teachClassOpen}
         loading={teachClassLoading}
         classes={teachClasses}
+        locale={uiLocale}
         labels={{
           title: tr('Chọn lớp để lên lớp', 'Choose a class to teach', '选择上课班级', '授業するクラスを選択', '수업할 학급 선택'),
           lead: tr(
-            'Tiết này gắn vào môn của cô trong lớp đã chọn. Học sinh mở lại để ôn. Lớp khác đã gắn vẫn giữ.',
-            'This lesson is attached to your subject in the chosen class. Students can review it. Other classes stay attached.',
-            '该课时挂到所选班级里你的科目。学生可以复习。其他班级仍然保留。',
-            'この授業は選んだクラスの担当教科に付きます。生徒は復習できます。他のクラスはそのままです。',
-            '이 차시는 고른 학급의 담당 과목에 붙습니다. 학생은 복습할 수 있습니다. 다른 학급은 그대로입니다.'
+            'Chỉ hiện lớp cùng khối với giáo trình này. Tiết gắn vào môn của cô trong lớp đã chọn. Học sinh mở lại để ôn. Lớp khác đã gắn vẫn giữ.',
+            'Only classes in the same grade as this curriculum are listed. The lesson attaches to your subject in the chosen class. Students can review it. Other classes stay attached.',
+            '只显示与本课程同一年级的班级。课时挂到所选班级里你的科目。学生可以复习。其他班级仍然保留。',
+            'このカリキュラムと同じ学年のクラスだけ表示します。授業は選んだクラスの担当教科に付きます。生徒は復習できます。他のクラスはそのままです。',
+            '이 교육과정과 같은 학년의 학급만 표시합니다. 차시는 고른 학급의 담당 과목에 붙습니다. 학생은 복습할 수 있습니다. 다른 학급은 그대로입니다.'
           ),
           loading: tr('Đang tải lớp…', 'Loading classes…', '正在加载班级…', 'クラスを読み込み中…', '학급 불러오는 중…'),
           skip: tr('Chỉ mở slide', 'Open slides only', '只打开幻灯片', 'スライドだけ開く', '슬라이드만 열기'),

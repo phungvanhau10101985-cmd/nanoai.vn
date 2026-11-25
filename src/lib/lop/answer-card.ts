@@ -12,6 +12,65 @@ export type ScanQuestion = {
 }
 
 const CHOICES: AnswerChoice[] = ['A', 'B', 'C', 'D']
+
+function normOptionText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Thẻ giơ lên đúng khi nội dung ở chữ đó trùng đáp án gốc,
+ * dù chữ đó là A trên đề này và C trên đề khác.
+ */
+export function displayedLetterMatchesCanonical(
+  displayedChoices: readonly string[],
+  picked: AnswerChoice,
+  canonical: ScanQuestion,
+): boolean {
+  const letter = letterForSameOption(picked, displayedChoices, canonical.choices)
+  return letter != null && letter === canonical.correct
+}
+
+/** Chữ cái trên `toChoices` cùng nội dung với chữ cái đang chọn ở `fromChoices`. */
+export function letterForSameOption(
+  fromLetter: AnswerChoice,
+  fromChoices: readonly string[],
+  toChoices: readonly string[],
+): AnswerChoice | null {
+  const fromIndex = CHOICES.indexOf(fromLetter)
+  if (fromIndex < 0) return null
+  const text = normOptionText(String(fromChoices[fromIndex] ?? ''))
+  if (!text) return null
+  const toIndex = toChoices.findIndex((choice) => normOptionText(String(choice ?? '')) === text)
+  if (toIndex < 0 || toIndex >= CHOICES.length) return null
+  return CHOICES[toIndex] ?? null
+}
+
+/**
+ * Giữ nội dung đáp án đúng, đổi chữ A–D theo thứ tự đang chiếu.
+ * `displayedChoices` phải là hoán vị của đáp án gốc.
+ */
+export function scanQuestionInDisplayedOrder(
+  canonical: ScanQuestion,
+  displayedChoices: readonly string[],
+): ScanQuestion | null {
+  const shown = displayedChoices.map((item) => normOptionText(String(item ?? ''))).filter((item) => item.length > 0)
+  if (shown.length !== canonical.choices.length || shown.length < 2 || shown.length > 4) return null
+  const used = new Set<number>()
+  for (const text of shown) {
+    const idx = canonical.choices.findIndex((choice, i) => !used.has(i) && normOptionText(choice) === text)
+    if (idx < 0) return null
+    used.add(idx)
+  }
+  const correctText = normOptionText(canonical.choices[CHOICES.indexOf(canonical.correct)] ?? '')
+  const displayIndex = shown.findIndex((choice) => choice === correctText)
+  if (displayIndex < 0) return null
+  return {
+    prompt: canonical.prompt,
+    choices: shown,
+    correct: CHOICES[displayIndex] ?? 'A',
+  }
+}
+
 const TOKEN_RE = /^[A-Za-z0-9_-]{8,32}$/
 const PHONE_TOKEN_RE = /^[A-Za-z0-9_-]{16,64}$/
 const SEAT_RE = /^(0[1-9]|[1-9][0-9])$/

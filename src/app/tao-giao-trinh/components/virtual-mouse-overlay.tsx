@@ -67,7 +67,7 @@ const VARIANT = {
 } as const
 
 const TRAIL_MIN_STEP_PX = 1.2
-const TRAIL_MAX = 96
+const TRAIL_MAX = 28
 const TRAIL_SNAP_PX = 80
 
 function buildSmoothMouseTrailPath(points: Array<{ x: number; y: number }>): string {

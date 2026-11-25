@@ -16,6 +16,7 @@ import {
   radiationScene,
   rayCurvature,
   standingDisplacement,
+  standingOpen,
   standingPipe,
   standingString,
   transformerCircuit,
@@ -71,6 +72,15 @@ test('sóng dừng đúng điều kiện biên và tần số', () => {
   assert.equal(kept('standing', 'string', 'mode')[0], 3)
   assert.equal(kept('standing', 'pipe', 'mode')[0], 1)
   assert.equal(kept('standing', 'string', 'mode', [6])[0], 6)
+  assert.equal(standingOpen(0.5, 1).frequency, 340)
+  for (let mode = 1; mode <= 4; mode += 1) {
+    const open = standingOpen(0.5, mode)
+    assert.equal(open.harmonic, mode)
+    assert.equal(open.frequency, (mode * 340) / 1)
+    assert.ok(Math.abs(Math.abs(standingDisplacement('open', mode, 0)) - 1) < 1e-9)
+    assert.ok(Math.abs(Math.abs(standingDisplacement('open', mode, 1)) - 1) < 1e-9)
+  }
+  assert.equal(kept('standing', 'pipe-open', 'mode')[0], 1)
 })
 
 test('mạch đo: ampe kế và vôn kế đổi theo biến trở', () => {

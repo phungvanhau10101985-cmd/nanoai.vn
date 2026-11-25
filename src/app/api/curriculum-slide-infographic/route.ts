@@ -56,6 +56,22 @@ const FLASH_INSTRUCTION = `You are an assistant for teachers. Given the full les
 
 The diagram maps the main formulas and how they relate across the whole lesson. Keep mathematical notation as symbols.`
 
+const SLIDE_FLASH_INSTRUCTION = `You are an assistant for teachers. Given ONE slide (one idea only), output ONLY valid JSON (no markdown fences) with keys:
+- "summary": string, in the OUTPUT_LANGUAGE. Line 1 is the slide title copied character for character. Each following line is one formula or one numeric example copied from the slide, character for character, including coordinates such as A(1; 3). Do not invent a new title. Do not add a formula, point, or result the slide does not already state. If the slide only asks a question, copy the question; do not answer it.
+- "mermaid": string, a tiny flowchart or one comparison, max ~400 characters. Node labels are copied from this slide, in the same OUTPUT_LANGUAGE, 2–6 words. Do not invent facts that are not in the slide.`
+
+const SLIDE_IMAGE_INSTRUCTION_PREFIX = `Create ONE classroom teaching diagram (16:9) for this one slide. The picture must show the same idea as the slide text a student is reading beside it.
+
+LAYOUT:
+- The large title is the slide title, copied exactly. Do not replace it with a shorter name.
+- ONE diagram: the rule and, when the slide has one, the numeric example. A coordinate or result written on the slide must appear on the diagram.
+- Large type, high contrast, generous whitespace. No watermark.
+
+DO NOT INCLUDE:
+- No second title, no objectives, no checklists, no paragraphs, no fine print.
+- Do not invent a formula, a point, or a result the slide does not state. If the slide asks a question and does not give the answer, draw the question, not an answer.
+- Do not render raw Mermaid code or syntax as text.`
+
 const IMAGE_INSTRUCTION_PREFIX = `Create ONE student knowledge-summary poster (16:9, classroom projection). It is a visual cheat-sheet: a student should understand the lesson's core ideas at a glance and read every word easily from a seat.
 
 LAYOUT:
@@ -144,8 +160,9 @@ export async function POST(req: NextRequest) {
       /** Toàn bộ nội dung giáo trình (mọi slide) — tạo một infographic cho cả bài */
       lessonText?: string
       outputLocale?: string
-      scope?: 'curriculum' | 'lesson'
+      scope?: 'curriculum' | 'lesson' | 'slide'
       lessonNo?: number
+      slideIndex?: number
       regenerate?: boolean
       imageEngine?: string | null
       gptQuality?: string | null
@@ -179,8 +196,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: 401 })
     }
     const user = auth.user
-    const scope = body.scope === 'lesson' ? 'lesson' : 'curriculum'
-    const lessonNo = scope === 'lesson' ? Math.max(1, Math.floor(Number(body.lessonNo) || 1)) : undefined
+    const scope = body.scope === 'slide' ? 'slide' : body.scope === 'lesson' ? 'lesson' : 'curriculum'
+    const lessonNo = scope === 'curriculum' ? undefined : Math.max(1, Math.floor(Number(body.lessonNo) || 1))
+    const rawSlideIndex = Number(body.slideIndex)
+    if (scope === 'slide' && (!Number.isFinite(rawSlideIndex) || rawSlideIndex < 0 || rawSlideIndex > 200)) {
+      return NextResponse.json({ error: 'Thiếu số thứ tự slide.' }, { status: 400 })
+    }
+    const slideIndex = scope === 'slide' ? Math.floor(rawSlideIndex) : undefined
     const isRegenerate = body.regenerate === true
     const rawEngine = String(body.imageEngine ?? '').trim().toLowerCase()
     const gptQuality = parseGptImageQuality(body.gptQuality)
@@ -188,8 +210,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Ảnh tóm tắt chỉ tạo bằng NanoAI 2M hoặc NanoAI 2H.' }, { status: 400 })
     }
     const listPrice = imageEngineCredit({ engine: 'gpt', gptQuality, geminiCost: 1 })
-    const infographicArtifactKey = buildInfographicArtifactKey(curriculumId, scope, lessonNo)
-    const infographicKind = scope === 'lesson' ? 'infographic_lesson' : 'infographic_curriculum'
+    const infographicArtifactKey = buildInfographicArtifactKey(curriculumId, scope, lessonNo, slideIndex)
+    const infographicKind = scope === 'slide' ? 'infographic_slide' : scope === 'lesson' ? 'infographic_lesson' : 'infographic_curriculum'
     const topicLesson = await topicCurriculumChargesInfographic(curriculumId)
 
     const requiredPrecheck = topicLesson
@@ -226,7 +248,16 @@ export async function POST(req: NextRequest) {
       ...GEMINI_25_FLASH_NO_THINKING,
       generationConfig: { temperature: 0.4, maxOutputTokens: 4096 },
     })
-    const flashUser = `OUTPUT_LANGUAGE code: ${outputLocale} (vi=Vietnamese, en=English, zh=Chinese, ja=Japanese, ko=Korean).
+    const flashUser = scope === 'slide'
+      ? `OUTPUT_LANGUAGE code: ${outputLocale} (vi=Vietnamese, en=English, zh=Chinese, ja=Japanese, ko=Korean).
+
+Slide title: ${topic || '(none)'}
+
+ONE SLIDE ONLY:
+${lessonText}
+
+${SLIDE_FLASH_INSTRUCTION}`
+      : `OUTPUT_LANGUAGE code: ${outputLocale} (vi=Vietnamese, en=English, zh=Chinese, ja=Japanese, ko=Korean).
 
 Topic / lesson title: ${topic || '(none)'}
 
@@ -300,8 +331,9 @@ ${FLASH_INSTRUCTION}`
     }
 
     const languageName = OUTPUT_LANGUAGE_NAME[outputLocale]
-    const imagePrompt =
-      `${IMAGE_INSTRUCTION_PREFIX}\n${imageTextLanguageLock(outputLocale)}\n\nLESSON KNOWLEDGE (show each line as a large formula or a short heading in ${languageName}, never as a paragraph or an objectives list):\n${summary}\n\nHOW THE IDEAS CONNECT (layout only; labels stay short and in ${languageName}; do not print the diagram code):\n${mermaid}`
+    const imagePrompt = scope === 'slide'
+      ? `${SLIDE_IMAGE_INSTRUCTION_PREFIX}\n${imageTextLanguageLock(outputLocale)}\n\nSLIDE TEXT (the only words and numbers allowed on the picture; copy the title and the example from here):\n${lessonText}\n\nSHORT LAYOUT NOTES (do not add facts that are not in the slide text):\n${summary}\n\nLAYOUT HINT (do not print this code):\n${mermaid}`
+      : `${IMAGE_INSTRUCTION_PREFIX}\n${imageTextLanguageLock(outputLocale)}\n\nLESSON KNOWLEDGE (show each line as a large formula or a short heading in ${languageName}, never as a paragraph or an objectives list):\n${summary}\n\nHOW THE IDEAS CONNECT (layout only; labels stay short and in ${languageName}; do not print the diagram code):\n${mermaid}`
 
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) {
@@ -342,7 +374,9 @@ ${FLASH_INSTRUCTION}`
       console.warn('[curriculum-slide-infographic] projection compress skipped, fallback png:', e)
       resultBuffer = rawPng
     }
-    const resultPath = `results/${user.id}/curriculum_infographic_${curriculumId}_${Date.now()}.${resultExt}`
+    const resultPath = scope === 'slide'
+      ? `results/${user.id}/curriculum_infographic_${curriculumId}_l${lessonNo ?? 0}_s${slideIndex ?? 0}_${Date.now()}.${resultExt}`
+      : `results/${user.id}/curriculum_infographic_${curriculumId}_${Date.now()}.${resultExt}`
     let infographicPublicUrl: string
     try {
       const { publicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
@@ -361,7 +395,7 @@ ${FLASH_INSTRUCTION}`
           amount: listPrice,
           chargeType: CURRICULUM_AI_CHARGE_TYPES.slideInfographic,
           eventKey: `curriculum_infographic:${user.id}:${randomUUID()}`,
-          metadata: { curriculumId, scope, lessonNo: lessonNo ?? null, topicLesson: true },
+          metadata: { curriculumId, scope, lessonNo: lessonNo ?? null, slideIndex: slideIndex ?? null, topicLesson: true },
         })
       : await applyCurriculumAiCharge({
           userId: user.id,
@@ -375,6 +409,7 @@ ${FLASH_INSTRUCTION}`
             curriculumId,
             scope,
             lessonNo: lessonNo ?? null,
+            slideIndex: slideIndex ?? null,
           },
         })
     if (!charge.ok) {

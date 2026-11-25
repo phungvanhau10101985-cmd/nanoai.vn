@@ -119,7 +119,7 @@ export function createPhoneCommandQueue(sessionId: string) {
       } else {
         queue.push(msg)
       }
-      const urgent = type === 'mouse-click' || type === 'control-press' || type === 'slide-go' || type === 'student-curriculum-right-mode' || type === 'student-curriculum-left-pane' || type === 'set-auto-play' || type === 'set-auto-play-interval' || type.startsWith('teacher-timer-') || (type.startsWith('whiteboard-') && type !== 'whiteboard-sim') || type.endsWith('-open') || type.endsWith('-close') || type === 'infographic-draw-undo' || type === 'infographic-draw-clear' || (type === 'worksheet-answer-reveal' && msg.control === true)
+      const urgent = type === 'mouse-click' || type === 'control-press' || type === 'slide-go' || type === 'student-curriculum-right-mode' || type === 'student-curriculum-left-pane' || type === 'set-auto-play' || type === 'set-auto-play-interval' || type.startsWith('teacher-timer-') || (type.startsWith('whiteboard-') && type !== 'whiteboard-sim') || type.endsWith('-open') || type.endsWith('-close') || type === 'infographic-draw-undo' || type === 'infographic-draw-clear' || type === 'infographic-draw-end' || (type === 'worksheet-answer-reveal' && msg.control === true)
       if (urgent) {
         if (timer != null) window.clearTimeout(timer)
         timer = window.setTimeout(flush, 0)

@@ -82,20 +82,56 @@ const DARK_GRADIENTS = [
 ]
 const QUIZ_DIFFICULTIES = ['easy', 'medium', 'hard'] as const
 
-/** Vùng ảnh thực sự hiển thị (object-contain) – dùng tâm ảnh + tỷ lệ để tính chuột ảo */
+function objectPositionFractions(value: string): { x: number; y: number } {
+  const parts = value.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const first = parts[0] || 'center'
+  const second = parts[1]
+  const axis = (token: string): number => {
+    if (token === 'left' || token === 'top') return 0
+    if (token === 'right' || token === 'bottom') return 1
+    if (token === 'center') return 0.5
+    if (token.endsWith('%')) {
+      const n = Number.parseFloat(token)
+      return Number.isFinite(n) ? Math.min(1, Math.max(0, n / 100)) : 0.5
+    }
+    return 0.5
+  }
+  if (!second) {
+    if (first === 'top' || first === 'bottom') return { x: 0.5, y: axis(first) }
+    if (first === 'left' || first === 'right') return { x: axis(first), y: 0.5 }
+    return { x: axis(first), y: 0.5 }
+  }
+  return { x: axis(first), y: axis(second) }
+}
+
+/** Vùng bitmap thực sự nhìn thấy. object-contain căn giữa và object-bottom dùng cùng một hệ tọa độ. */
 function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: number; width: number; height: number } {
   const rect = img.getBoundingClientRect()
   const nw = img.naturalWidth || rect.width
   const nh = img.naturalHeight || rect.height
-  if (nw <= 0 || nh <= 0) return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
-  const cw = rect.width
-  const ch = rect.height
-  const scale = Math.min(cw / nw, ch / nh)
+  if (nw <= 0 || nh <= 0 || rect.width <= 0 || rect.height <= 0) {
+    return { left: rect.left, top: rect.top, width: Math.max(0, rect.width), height: Math.max(0, rect.height) }
+  }
+  let fit = 'contain'
+  let pos = '50% 50%'
+  try {
+    const style = window.getComputedStyle(img)
+    fit = style.objectFit || 'contain'
+    pos = style.objectPosition || '50% 50%'
+  } catch { /* ignore */ }
+  if (fit === 'fill') return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  const scale = fit === 'cover'
+    ? Math.max(rect.width / nw, rect.height / nh)
+    : Math.min(rect.width / nw, rect.height / nh)
   const dw = nw * scale
   const dh = nh * scale
-  const ox = (cw - dw) / 2
-  const oy = (ch - dh) / 2
-  return { left: rect.left + ox, top: rect.top + oy, width: dw, height: dh }
+  const frac = objectPositionFractions(pos)
+  return {
+    left: rect.left + (rect.width - dw) * frac.x,
+    top: rect.top + (rect.height - dh) * frac.y,
+    width: dw,
+    height: dh,
+  }
 }
 
 function getSlideVisualInputs(slide: SlideItem): string[] {
@@ -4215,13 +4251,13 @@ export default function GiaoVienWorksheetPage() {
                 <button
                   data-control="xem-học-sinh"
                   type="button"
-                  onMouseDown={(e) => {
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
                     if (slides.length <= 0) return
-                    e.preventDefault()
                     if (studentViewOpened) viewOpenedStudentView()
                     else openStudentView()
                   }}
-                  onClick={(e) => e.preventDefault()}
                   disabled={slides.length === 0}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/25 border-l border-slate-600/70 text-emerald-300 hover:bg-emerald-500/35 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium shrink-0 h-9"
                   title={studentViewOpened

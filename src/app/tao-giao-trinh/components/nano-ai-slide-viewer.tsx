@@ -11,6 +11,7 @@ import QRCode from 'qrcode'
 import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { cn } from '@/lib/utils'
 import { parseCurriculumToSlides, parseContentToBlocks, type AISlideData } from '../lib/curriculum-to-slides'
+import { presentationBeatCount, stepPresentationBeat } from '../lib/presentation-beat'
 import { latexToReadable } from '../lib/latex-to-readable'
 import { buildSpatialGeoGebraUrl } from '../lib/geogebra-spatial'
 import { ContentEmbed, parseContentEmbeds, splitBlockContentAtQuizBoundary } from './content-embed'
@@ -38,7 +39,7 @@ import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
 import { useScreenShare } from '../hooks/use-screen-share'
 import { blockTypingSegmentCount, curriculumSlideTitleRevealKey, curriculumSlideTitleTypingText, findFirstSequentialSolutionBlockIndex, splitBlockTypingReveal, worksheetAnswerSegmentCount } from '../lib/worksheet-answer-segments'
-import { getInfographicStrokeBucketKey, type SlideInfographic } from '../lib/slide-infographic'
+import { getInfographicStrokeBucketKey, infographicBrushSizeNorm, type SlideInfographic } from '../lib/slide-infographic'
 import {
   applyInfographicToDefaultVisualCells,
   skipInfographicDefaultSwapNano,
@@ -431,20 +432,56 @@ function MemoryDebugHudRuntime({
   )
 }
 
-/** Vùng ảnh thực sự hiển thị (object-contain) – dùng tâm ảnh + tỷ lệ để tính chuột ảo */
+function objectPositionFractions(value: string): { x: number; y: number } {
+  const parts = value.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const first = parts[0] || 'center'
+  const second = parts[1]
+  const axis = (token: string): number => {
+    if (token === 'left' || token === 'top') return 0
+    if (token === 'right' || token === 'bottom') return 1
+    if (token === 'center') return 0.5
+    if (token.endsWith('%')) {
+      const n = Number.parseFloat(token)
+      return Number.isFinite(n) ? Math.min(1, Math.max(0, n / 100)) : 0.5
+    }
+    return 0.5
+  }
+  if (!second) {
+    if (first === 'top' || first === 'bottom') return { x: 0.5, y: axis(first) }
+    if (first === 'left' || first === 'right') return { x: axis(first), y: 0.5 }
+    return { x: axis(first), y: 0.5 }
+  }
+  return { x: axis(first), y: axis(second) }
+}
+
+/** Vùng bitmap thực sự nhìn thấy. object-contain căn giữa và object-bottom dùng cùng một hệ tọa độ. */
 function getVisibleImageBounds(img: HTMLImageElement): { left: number; top: number; width: number; height: number } {
   const rect = img.getBoundingClientRect()
   const nw = img.naturalWidth || rect.width
   const nh = img.naturalHeight || rect.height
-  if (nw <= 0 || nh <= 0) return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
-  const cw = rect.width
-  const ch = rect.height
-  const scale = Math.min(cw / nw, ch / nh)
+  if (nw <= 0 || nh <= 0 || rect.width <= 0 || rect.height <= 0) {
+    return { left: rect.left, top: rect.top, width: Math.max(0, rect.width), height: Math.max(0, rect.height) }
+  }
+  let fit = 'contain'
+  let pos = '50% 50%'
+  try {
+    const style = window.getComputedStyle(img)
+    fit = style.objectFit || 'contain'
+    pos = style.objectPosition || '50% 50%'
+  } catch { /* ignore */ }
+  if (fit === 'fill') return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  const scale = fit === 'cover'
+    ? Math.max(rect.width / nw, rect.height / nh)
+    : Math.min(rect.width / nw, rect.height / nh)
   const dw = nw * scale
   const dh = nh * scale
-  const ox = (cw - dw) / 2
-  const oy = (ch - dh) / 2
-  return { left: rect.left + ox, top: rect.top + oy, width: dw, height: dh }
+  const frac = objectPositionFractions(pos)
+  return {
+    left: rect.left + (rect.width - dw) * frac.x,
+    top: rect.top + (rect.height - dh) * frac.y,
+    width: dw,
+    height: dh,
+  }
 }
 
 function LazyHeavyMount({
@@ -871,6 +908,8 @@ interface NanoAISlideViewerProps {
   sharedSlides?: AISlideData[] | null
   /** Slide hiện tại từ giáo viên (đồng bộ khi mở/refresh) */
   initialSlideIndex?: number
+  /** Đoạn đang chiếu trong slide, đồng bộ từ giáo viên. */
+  syncedActiveBlockIndex?: number | null
   /** Chỉ giáo viên mới thấy các nút thao tác lưu/chỉnh visual */
   isTeacherView?: boolean
   /** Nút "Mở giao diện học sinh" – khi không truyền và curriculumId=null (phiếu bài tập), tự implement */
@@ -1337,7 +1376,7 @@ function slideProseClientPoint(data: {
   })
 }
 
-export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
+export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, syncedActiveBlockIndex = null, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [memoryDebugEnabled, setMemoryDebugEnabled] = useState(false)
   const curriculumPayloadStatsRef = useRef<{
@@ -1373,6 +1412,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   })
   const [slides, setSlides] = useState<SlideItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [activeBlockIndex, setActiveBlockIndex] = useState(0)
+  useEffect(() => {
+    if (typeof syncedActiveBlockIndex === 'number' && Number.isFinite(syncedActiveBlockIndex)) {
+      setActiveBlockIndex(Math.max(0, Math.floor(syncedActiveBlockIndex)))
+    }
+  }, [syncedActiveBlockIndex])
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false)
   const [autoPlay, setAutoPlay] = useState(false)
   const [autoPlayIntervalMs, setAutoPlayIntervalMs] = useState(5000)
@@ -2212,7 +2257,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   const renderAllInfographicDrawCanvases = useCallback(() => {
     if (typeof document === 'undefined') return
-    const strokes = infographicDrawStrokesBySlide[activeInfographicStrokeKey] ?? []
     let paintedCount = 0
     document.querySelectorAll('[data-infographic-draw-pane-stage]').forEach((node) => {
       const stage = node as HTMLElement
@@ -2228,6 +2272,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         clearInfographicCanvasOnStage(stage)
         return
       }
+      const img = stage.querySelector('img') as HTMLImageElement | null
+      const src = img?.getAttribute('src') || ''
+      const strokes = !src
+        ? (infographicDrawStrokesBySlide[activeInfographicStrokeKey] ?? [])
+        : (infographicDrawStrokesBySlide[getInfographicStrokeBucketKey(src)] ?? [])
       if (paintInfographicStrokesOnStage(stage, strokes)) paintedCount += 1
     })
     return paintedCount
@@ -2243,13 +2292,23 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     if (!resolved) return
     const { u, v } = resolved
     const strokeId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-    const sizeNorm = INFOGRAPHIC_UNIFIED_STROKE_NORM
+    const sizeNorm = infographicBrushSizeNorm(infographicDrawBrushPx)
     const stroke: InfographicDrawStroke = {
       id: strokeId,
       tool: infographicDrawTool,
       color: infographicDrawColor,
       sizeNorm,
       points: [{ u, v }],
+    }
+    const drawn: InfographicDrawPoint[] = [{ u, v }]
+    const rememberDrawn = (batch: InfographicDrawPoint[]) => {
+      let last = drawn[drawn.length - 1]
+      for (const pt of batch) {
+        const normalized = { u: clamp01(pt.u), v: clamp01(pt.v) }
+        const dense = last ? densifyStrokePoints(last, normalized) : [normalized]
+        drawn.push(...dense)
+        last = dense[dense.length - 1] ?? normalized
+      }
     }
     upsertInfographicStroke(activeInfographicStrokeKey, stroke)
     sendInfographicDrawMessage({
@@ -2276,6 +2335,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     const flushQueuedPoints = () => {
       if (queuedPoints.length === 0) return
       const batch = queuedPoints.splice(0, queuedPoints.length)
+      rememberDrawn(batch)
       appendInfographicStrokePoints(activeInfographicStrokeKey, strokeId, batch)
       sendInfographicDrawMessage({
         type: 'infographic-draw-points',
@@ -2311,7 +2371,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       flushQueuedPoints()
       d.removeListeners?.()
       infographicDrawingRef.current = null
-      sendInfographicDrawMessage({ type: 'infographic-draw-end', slideIndex: d.slideIndex })
+      sendInfographicDrawMessage({
+        type: 'infographic-draw-end',
+        slideIndex: d.slideIndex,
+        stroke: {
+          id: strokeId,
+          tool: infographicDrawTool,
+          color: infographicDrawColor,
+          sizeNorm,
+          points: drawn.slice(-INFOGRAPHIC_MAX_POINTS_PER_STROKE),
+        },
+      })
     }
     const removeListeners = () => {
       window.removeEventListener('pointermove', onMove)
@@ -2884,7 +2954,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               id: s.id,
               tool: s.tool === 'eraser' ? 'eraser' : 'pen',
               color: typeof s.color === 'string' ? s.color : '#ef4444',
-              sizeNorm: INFOGRAPHIC_UNIFIED_STROKE_NORM,
+              sizeNorm: typeof s.sizeNorm === 'number' ? Math.max(0.001, s.sizeNorm) : INFOGRAPHIC_UNIFIED_STROKE_NORM,
               points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
             }))
         }
@@ -2903,7 +2973,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               id: s.id,
               tool: s.tool === 'eraser' ? 'eraser' : 'pen',
               color: typeof s.color === 'string' ? s.color : '#ef4444',
-              sizeNorm: INFOGRAPHIC_UNIFIED_STROKE_NORM,
+              sizeNorm: typeof s.sizeNorm === 'number' ? Math.max(0.001, s.sizeNorm) : INFOGRAPHIC_UNIFIED_STROKE_NORM,
               points: s.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
             }))
         }
@@ -3071,7 +3141,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             id: stroke.id,
             tool: stroke.tool === 'eraser' ? 'eraser' : 'pen',
             color: typeof stroke.color === 'string' ? stroke.color : '#ef4444',
-            sizeNorm: INFOGRAPHIC_UNIFIED_STROKE_NORM,
+            sizeNorm: typeof stroke.sizeNorm === 'number' ? Math.max(0.001, stroke.sizeNorm) : INFOGRAPHIC_UNIFIED_STROKE_NORM,
             points: stroke.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
           })
           syncVirtualCursorFromInfographicUv(stroke.points[stroke.points.length - 1])
@@ -3104,6 +3174,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       }
       else if (t === 'infographic-draw-clear' && typeof e.data?.slideIndex === 'number') {
         clearInfographicStrokes(e.data.slideIndex)
+      }
+      else if (t === 'infographic-draw-end' && typeof e.data?.slideIndex === 'number' && e.data?.stroke) {
+        const stroke = e.data.stroke as InfographicDrawStroke
+        if (stroke && typeof stroke.id === 'string' && Array.isArray(stroke.points)) {
+          upsertInfographicStroke(e.data.slideIndex, {
+            id: stroke.id,
+            tool: stroke.tool === 'eraser' ? 'eraser' : 'pen',
+            color: typeof stroke.color === 'string' ? stroke.color : '#ef4444',
+            sizeNorm: typeof stroke.sizeNorm === 'number' ? Math.max(0.001, stroke.sizeNorm) : INFOGRAPHIC_UNIFIED_STROKE_NORM,
+            points: stroke.points.map((p) => ({ u: clamp01(Number(p.u) || 0), v: clamp01(Number(p.v) || 0) })),
+          })
+        }
       }
       else if (t === 'infographic-draw-undo' && typeof e.data?.slideIndex === 'number') {
         undoInfographicStroke(e.data.slideIndex)
@@ -4010,13 +4092,13 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }))
   }, [baseSlidesForDisplay, isTeacherView, currentIndex, studentCurriculumRightMode])
 
-  const lastPublishedSlideRef = useRef<{ index: number; at: number } | null>(null)
-  const publishStudentSlide = useCallback((index: number) => {
+  const lastPublishedSlideRef = useRef<{ index: number; blockIndex: number; at: number } | null>(null)
+  const publishStudentSlide = useCallback((index: number, blockIndex = 0) => {
     latestPhoneSlideRef.current = { index, at: Date.now() }
     if (presentationMode !== 'slide-interaction') return
     const prev = lastPublishedSlideRef.current
-    if (prev && prev.index === index && Date.now() - prev.at < 80) return
-    lastPublishedSlideRef.current = { index, at: Date.now() }
+    if (prev && prev.index === index && prev.blockIndex === blockIndex && Date.now() - prev.at < 80) return
+    lastPublishedSlideRef.current = { index, blockIndex, at: Date.now() }
     const id = phoneRemoteIdRef.current
     if (id) {
       void fetch('/api/giao-trinh/phone-remote/command', {
@@ -4024,33 +4106,51 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         credentials: 'same-origin',
         keepalive: true,
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id, commands: [{ type: 'slide-go', index }] }),
+        body: JSON.stringify({ id, commands: [{ type: 'slide-go', index, blockIndex }] }),
       }).catch(() => { /* máy giáo viên vẫn nhận qua cửa sổ cha */ })
     }
     if (presentationMode === 'slide-interaction' && typeof window !== 'undefined' && window.opener && !window.opener.closed) {
-      window.opener.postMessage({ type: 'slide-go', index }, window.location.origin)
+      window.opener.postMessage({ type: 'slide-go', index, blockIndex }, window.location.origin)
     }
   }, [presentationMode])
 
   const goNext = useCallback(() => {
     setAutoPlay(false)
     setTransitionDirection('next')
-    setCurrentIndex((i) => {
-      const next = Math.min(i + 1, slides.length - 1)
-      if (next !== i) publishStudentSlide(next)
-      return next
-    })
-  }, [slides.length, publishStudentSlide])
+    if (worksheetPresentation || !curriculumId) {
+      setCurrentIndex((i) => {
+        const next = Math.min(i + 1, slides.length - 1)
+        if (next !== i) publishStudentSlide(next, 0)
+        return next
+      })
+      setActiveBlockIndex(0)
+      return
+    }
+    const counts = slides.map((s) => presentationBeatCount(s))
+    const next = stepPresentationBeat(currentIndex, activeBlockIndex, 1, counts)
+    setActiveBlockIndex(next.blockIndex)
+    setCurrentIndex(next.index)
+    publishStudentSlide(next.index, next.blockIndex)
+  }, [worksheetPresentation, curriculumId, slides, currentIndex, activeBlockIndex, publishStudentSlide])
 
   const goPrev = useCallback(() => {
     setAutoPlay(false)
     setTransitionDirection('prev')
-    setCurrentIndex((i) => {
-      const next = Math.max(i - 1, 0)
-      if (next !== i) publishStudentSlide(next)
-      return next
-    })
-  }, [publishStudentSlide])
+    if (worksheetPresentation || !curriculumId) {
+      setCurrentIndex((i) => {
+        const next = Math.max(i - 1, 0)
+        if (next !== i) publishStudentSlide(next, 0)
+        return next
+      })
+      setActiveBlockIndex(0)
+      return
+    }
+    const counts = slides.map((s) => presentationBeatCount(s))
+    const next = stepPresentationBeat(currentIndex, activeBlockIndex, -1, counts)
+    setActiveBlockIndex(next.blockIndex)
+    setCurrentIndex(next.index)
+    publishStudentSlide(next.index, next.blockIndex)
+  }, [worksheetPresentation, curriculumId, slides, currentIndex, activeBlockIndex, publishStudentSlide])
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
@@ -4058,10 +4158,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (e.data?.type === 'slide-prev') {
         setAutoPlay(false)
         setTransitionDirection('prev')
+        setActiveBlockIndex(0)
         setCurrentIndex((i) => Math.max(i - 1, 0))
       } else if (e.data?.type === 'slide-next') {
         setAutoPlay(false)
         setTransitionDirection('next')
+        setActiveBlockIndex(0)
         setCurrentIndex((i) => Math.min(i + 1, slides.length - 1))
       } else if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number') {
         if (slides.length <= 0) {
@@ -4069,10 +4171,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           return
         }
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
+        const block = typeof e.data.blockIndex === 'number' && Number.isFinite(e.data.blockIndex)
+          ? Math.max(0, Math.floor(e.data.blockIndex))
+          : 0
         latestPhoneSlideRef.current = { index: idx, at: Date.now() }
         ignoreChainScrollUntilRef.current = Date.now() + 700
+        setActiveBlockIndex(block)
         setCurrentIndex((prev) => {
-          setTransitionDirection(idx > prev ? 'next' : 'prev')
+          setTransitionDirection(idx > prev ? 'next' : idx < prev ? 'prev' : prev)
           return idx
         })
       }
@@ -4544,6 +4650,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     if (!hasBlocks) return { hasSegmentTypingWork: hasWork, segmentTypingCompleted: !hasWork || allDone }
     blocks.forEach((b, i) => {
+      if (!worksheetPresentation && curriculumId && i > activeBlockIndex) return
       const shouldTypeThisBlock = worksheetPresentation
         ? worksheetAnswerSegmentCount(b.content ?? '') > 0
         : true
@@ -4557,7 +4664,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (revealed < total) allDone = false
     })
     return { hasSegmentTypingWork: hasWork, segmentTypingCompleted: !hasWork || allDone }
-  }, [isTeacherView, worksheetPresentation, curriculumId, hasBlocks, blocks, currentIndex, worksheetAnswerTypingEnabled, worksheetAnswerReveal, slide, studentCurriculumRightMode])
+  }, [isTeacherView, worksheetPresentation, curriculumId, hasBlocks, blocks, currentIndex, activeBlockIndex, worksheetAnswerTypingEnabled, worksheetAnswerReveal, slide, studentCurriculumRightMode])
 
   /** Chỉ block đang tới lượt gõ segment mới hiện bút ở reveal === 0 (tránh nhiều bút trên slide ghép). */
   const sequentialSolutionPenBlockIndex = useMemo(() => {
@@ -4578,6 +4685,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         reveal: worksheetAnswerReveal,
         typingEnabled: worksheetAnswerTypingEnabled,
         slideTitle: titleText,
+        activeBlockIndex: worksheetPresentation ? undefined : activeBlockIndex,
       }
     )
   }, [
@@ -4588,6 +4696,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     curriculumId,
     blocks,
     currentIndex,
+    activeBlockIndex,
     worksheetAnswerReveal,
     worksheetAnswerTypingEnabled,
     studentCurriculumRightMode,
@@ -4728,18 +4837,33 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   }, [currentIndex, studentCurriculumRightMode, slides.length, isTeacherView, worksheetPresentation])
 
   useEffect(() => {
-    if (!autoPlay || slides.length <= 1) return
+    if (!autoPlay || slides.length === 0) return
+    if (worksheetPresentation && slides.length <= 1) return
     let advanced = false
     const startedAt = Date.now()
     const advance = () => {
       if (advanced) return
       advanced = true
+      if (worksheetPresentation || !curriculumId) {
+        setTransitionDirection('next')
+        setActiveBlockIndex(0)
+        setCurrentIndex((i) => {
+          const next = i >= slides.length - 1 ? 0 : i + 1
+          if (next !== i) publishStudentSlide(next, 0)
+          return next
+        })
+        return
+      }
+      const counts = slides.map((s) => presentationBeatCount(s))
+      const next = stepPresentationBeat(currentIndex, activeBlockIndex, 1, counts)
+      if (next.index === currentIndex && next.blockIndex === activeBlockIndex) {
+        setAutoPlay(false)
+        return
+      }
       setTransitionDirection('next')
-      setCurrentIndex((i) => {
-        const next = i >= slides.length - 1 ? 0 : i + 1
-        if (next !== i) publishStudentSlide(next)
-        return next
-      })
+      setActiveBlockIndex(next.blockIndex)
+      setCurrentIndex(next.index)
+      publishStudentSlide(next.index, next.blockIndex)
     }
     const id = window.setInterval(() => {
       const timeReady = Date.now() - startedAt >= autoPlayIntervalMs
@@ -4747,7 +4871,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (timeReady && segmentTypingReady) advance()
     }, 120)
     return () => window.clearInterval(id)
-  }, [autoPlay, slides.length, autoPlayIntervalMs, publishStudentSlide, hasSegmentTypingWork, segmentTypingCompleted])
+  }, [autoPlay, slides, currentIndex, activeBlockIndex, autoPlayIntervalMs, publishStudentSlide, hasSegmentTypingWork, segmentTypingCompleted, worksheetPresentation, curriculumId])
 
   if (slides.length === 0) return null
 
@@ -4792,6 +4916,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             onSandTimerReset={resetTimer}
             onPrev={goPrev}
             onNext={goNext}
+            prevDisabled={!worksheetPresentation && !!curriculumId ? currentIndex === 0 && activeBlockIndex === 0 : currentIndex === 0}
+            nextDisabled={!worksheetPresentation && !!curriculumId ? currentIndex >= slides.length - 1 && activeBlockIndex >= presentationBeatCount(slides[currentIndex]) - 1 : currentIndex >= slides.length - 1}
             onPrint={presentationMode === 'slide-interaction' ? undefined : () => window.print()}
             onClose={presentationMode === 'slide-interaction' ? undefined : onClose}
             onShareClick={handleShareClick}
@@ -5553,8 +5679,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           <div
             ref={studentEmbeddedVisualViewportRef}
             className={cn(
-              'absolute inset-0 px-2 pb-2 md:px-4 md:pb-4 landscape:px-4 landscape:pb-4',
-              'pt-12 md:pt-14 landscape:pt-14',
+              'absolute inset-0',
+              narrowSlideLayout || isTeacherView
+                ? 'px-2 pb-2 pt-12 md:px-4 md:pb-4 md:pt-14 landscape:px-4 landscape:pb-4 landscape:pt-14'
+                : 'p-0',
               showInfographicInMainPane ? 'flex flex-col' : visualLayout === 1 ? 'flex flex-col' : visualGridClass
             )}
           >
@@ -5565,7 +5693,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     <div
                       ref={infographicPaneStageRef}
                       data-infographic-draw-pane-stage
-                      className={cn('relative flex min-h-0 flex-1 items-end justify-center touch-none')}
+                      className="relative min-h-0 w-full flex-1 touch-none"
                       onPointerDown={(e) => startInfographicDrawing(e)}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element -- remote curriculum infographic */}
@@ -5576,7 +5704,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         alt=""
                         draggable={false}
                         onDragStart={(ev) => ev.preventDefault()}
-                        className="max-h-full min-h-0 w-full select-none border border-white/10 bg-black/20 object-contain object-bottom"
+                        className="absolute inset-0 h-full w-full select-none object-contain"
                         referrerPolicy="no-referrer"
                       />
                       {shouldRenderInlineInfographicCanvas && (
@@ -5683,7 +5811,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             ) : (
               <div ref={studentEmbeddedVisualFrameRef} className="contents">
               {visualLayout === 1 ? (
-                <div key={`nano-vis-pane-${currentIndex}`} className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
+                <div key={`nano-vis-pane-${currentIndex}`} className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-black/30">
                   <span className="absolute left-1 top-1 z-10 rounded bg-black/60 px-1.5 py-0.5 font-mono text-xs text-white">
                     {currentIndex + 1}-1
                   </span>
@@ -5705,7 +5833,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       <div className="flex min-h-0 w-full flex-1 flex-col">
                       <div
                         data-infographic-draw-pane-stage
-                        className="relative flex min-h-0 w-full flex-1 touch-none items-end justify-center"
+                        className="relative min-h-0 w-full flex-1 touch-none"
                         onPointerDown={(e) => startInfographicDrawing(e)}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in Visual pane */}
@@ -5716,7 +5844,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           alt=""
                           draggable={false}
                           onDragStart={(ev) => ev.preventDefault()}
-                          className="max-h-full max-w-full select-none border border-white/10 bg-black/20 object-contain object-bottom"
+                          className="absolute inset-0 h-full w-full select-none object-contain"
                           referrerPolicy="no-referrer"
                         />
                         {shouldRenderInlineInfographicCanvas && (
@@ -5742,12 +5870,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         </div>
                       </div>
                     ) : (
-                      <div className="flex h-full min-h-0 w-full items-center justify-center">
+                      <div className="relative h-full min-h-0 w-full">
                         <img
                           key={`nano-vis-img-${currentIndex}-0`}
                           src={visualCells[0].imageUrl}
                           alt=""
-                          className="max-h-full max-w-full object-contain"
+                          className="absolute inset-0 h-full w-full object-contain"
                           referrerPolicy="no-referrer"
                         />
                       </div>
@@ -5761,7 +5889,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               ) : (
                 <>
                   {visualCells.map((cell, idx) => (
-                    <div key={`${currentIndex}-${idx}`} className="group relative flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-white/10 bg-black/30">
+                    <div key={`${currentIndex}-${idx}`} className="group relative flex h-full min-h-0 flex-col overflow-hidden bg-black/30">
                       <span className="absolute left-1 top-1 z-10 rounded bg-black/60 px-1.5 py-0.5 font-mono text-xs text-white">
                         {currentIndex + 1}-{idx + 1}
                       </span>
@@ -5803,7 +5931,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           <div className="flex min-h-0 w-full flex-1 flex-col">
                           <div
                             data-infographic-draw-pane-stage
-                            className="relative flex min-h-0 w-full flex-1 touch-none items-end justify-center"
+                            className="relative min-h-0 w-full flex-1 touch-none"
                             onPointerDown={(e) => startInfographicDrawing(e)}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element -- curriculum infographic in Visual pane */}
@@ -5814,7 +5942,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                               alt=""
                               draggable={false}
                               onDragStart={(ev) => ev.preventDefault()}
-                              className="max-h-full max-w-full select-none border border-white/10 bg-black/20 object-contain object-bottom"
+                              className="absolute inset-0 h-full w-full select-none object-contain"
                               referrerPolicy="no-referrer"
                             />
                             {shouldRenderInlineInfographicCanvas && (
@@ -5840,12 +5968,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                             </div>
                           </div>
                         ) : (
-                          <div className="flex min-h-0 flex-1 items-center justify-center">
+                          <div className="relative min-h-0 w-full flex-1">
                             <img
                               key={`nano-vis-img-${currentIndex}-${idx}`}
                               src={cell.imageUrl}
                               alt=""
-                              className="max-h-full max-w-full object-contain"
+                              className="absolute inset-0 h-full w-full object-contain"
                               referrerPolicy="no-referrer"
                             />
                           </div>
@@ -5990,6 +6118,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   blksForSlide.length > 0 ? (
                     <div className={SLIDE_POINTER_CHAIN_BLOCKS_CLASS}>
                       {blksForSlide.map((b, bi) => {
+                        if (!worksheetPresentation && isCurrent && bi > activeBlockIndex) return null
                         const bExt = b as { studentAnswerHidden?: boolean }
                         if (!isTeacherView && bExt.studentAnswerHidden) return null
                         const blockContentNode = (
@@ -6067,6 +6196,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     return (
                       <div className={SLIDE_POINTER_CHAIN_BLOCKS_CLASS}>
                         {blocks.map((b, i) => {
+                          if (!worksheetPresentation && !!curriculumId && i > activeBlockIndex) return null
+                          const openedEarlier = !worksheetPresentation && !!curriculumId && i < activeBlockIndex
                           const bExt = b as { isAnswer?: boolean; studentAnswerHidden?: boolean }
                           if (!isTeacherView && bExt.studentAnswerHidden) return null
                           const wsKey = `${currentIndex}-${i}`
@@ -6080,7 +6211,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                             hasCurriculumSegmentTyping: !!curriculumId,
                             typingOn: !!solutionSegmentBlock && worksheetAnswerTypingEnabled?.[wsKey] !== false,
                           }
-                          const headerSplit = splitBlockTypingReveal(b, worksheetAnswerReveal?.[wsKey] ?? 0, typingOpts)
+                          const headerSplit = splitBlockTypingReveal(
+                            b,
+                            openedEarlier ? 1_000_000 : worksheetAnswerReveal?.[wsKey] ?? 0,
+                            typingOpts
+                          )
                           const visibleForBlock = solutionSegmentBlock
                             ? typingOpts.typingOn
                               ? headerSplit.contentVisible
@@ -6088,10 +6223,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                             : undefined
                           const headerLabel = (b.header ?? '').trim()
                           const headerIsLeader =
+                            !openedEarlier &&
                             sequentialSolutionPenBlockIndex === i &&
                             headerSplit.headerTotal > 0 &&
                             headerSplit.headerVisible < headerSplit.headerTotal
                           const contentIsLeader =
+                            !openedEarlier &&
                             sequentialSolutionPenBlockIndex != null &&
                             sequentialSolutionPenBlockIndex === i &&
                             headerSplit.headerVisible >= headerSplit.headerTotal
@@ -6304,6 +6441,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               {hasBlocks ? (
                 <div className={!isTeacherView && !worksheetPresentation ? SLIDE_POINTER_SINGLE_BLOCKS_CLASS : 'space-y-4'}>
                   {blocks.map((b, i) => {
+                    if (!isTeacherView && !worksheetPresentation && !!curriculumId && i !== activeBlockIndex) return null
                     const bExt = b as { isAnswer?: boolean; studentAnswerHidden?: boolean }
                     if (!isTeacherView && bExt.studentAnswerHidden) return null
                     const wsKey = `${currentIndex}-${i}`

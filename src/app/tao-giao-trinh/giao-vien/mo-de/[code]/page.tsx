@@ -267,7 +267,13 @@ export default function TeacherExamPaperPage() {
       const res = await fetch(`/api/lop/${ctx.classId}/answer-cards/rounds`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sourceKind: 'exam', sourceId: ctx.sourceId }),
+        body: JSON.stringify({
+          sourceKind: 'exam',
+          sourceId: ctx.sourceId,
+          displayedChoices: questions
+            .filter((item) => item.canScan && item.id && item.options.length >= 2)
+            .map((item) => ({ id: item.id, choices: item.options })),
+        }),
       })
       const data = await res.json().catch(() => null) as {
         id?: string
@@ -314,6 +320,7 @@ export default function TeacherExamPaperPage() {
     classes.answerCardsSchema,
     classes.answerCardsTunnelMissing,
     code,
+    questions,
     scanBusy,
   ])
 

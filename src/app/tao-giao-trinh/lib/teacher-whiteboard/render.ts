@@ -804,6 +804,17 @@ export function drawObject(
   ctx.restore()
 }
 
+export function selectionFrame(
+  ctx: CanvasRenderingContext2D,
+  obj: WhiteboardObject,
+  cam: WhiteboardCamera,
+  w: number,
+  h: number,
+) {
+  if (obj.kind === 'text') return textInkFrame(ctx, obj, cam, w, h)
+  return selectionBox(obj, cam, w, h)
+}
+
 export function selectionBox(
   obj: WhiteboardObject,
   cam: WhiteboardCamera,
@@ -1335,11 +1346,7 @@ export function paintWhiteboard(
     ctx.lineWidth = 1
     for (const id of picked) {
       const selected = opts.objects.find((obj) => obj.id === id)
-      const box = selected
-        ? selected.kind === 'text'
-          ? textInkFrame(ctx, selected, opts.camera, w, h)
-          : selectionBox(selected, opts.camera, w, h)
-        : null
+      const box = selected ? selectionFrame(ctx, selected, opts.camera, w, h) : null
       if (box) ctx.strokeRect(box.x, box.y, box.w, box.h)
     }
     ctx.restore()

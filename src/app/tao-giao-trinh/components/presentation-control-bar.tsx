@@ -62,6 +62,9 @@ export interface PresentationControlBarProps {
   /** Navigation */
   onPrev: () => void
   onNext: () => void
+  /** Khi slide có nhiều đoạn: nút tắt theo nhịp đoạn, không chỉ theo số slide. */
+  prevDisabled?: boolean
+  nextDisabled?: boolean
   /** Student: Print, Close, Share (link + QR). Teacher: 1/3 mode, Xem học sinh */
   onPrint?: () => void
   onClose?: () => void
@@ -127,6 +130,8 @@ export function PresentationControlBar({
   onSandTimerReset,
   onPrev,
   onNext,
+  prevDisabled,
+  nextDisabled,
   onPrint,
   onClose,
   onShareClick,
@@ -258,11 +263,11 @@ export function PresentationControlBar({
               <button
                 data-control="xem-học-sinh"
                 type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault()
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
                   onOpenStudentView()
                 }}
-                onClick={(e) => e.preventDefault()}
                 className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/35 text-xs font-medium shrink-0 h-9', highlightClass('xem-học-sinh'))}
                 title={tr('Xem fullscreen như học sinh', 'View as student', '全屏学生视图', '全画面生徒表示', '전체화면 학생 보기')}
               >
@@ -402,10 +407,10 @@ export function PresentationControlBar({
         </div>
 
         {/* 5. Prev / Next */}
-        <button data-control="prev" data-pointer-sync-id="ctrl-prev" type="button" onClick={onPrev} disabled={currentIndex === 0} className={cn(SHARED_LAYOUT.btnNav, theme.navBtn, 'disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-none', highlightClass('prev'), press('ctrl-prev'))} title={tr('Slide trước', 'Prev slide', '上一张', '前へ', '이전')}>
+        <button data-control="prev" data-pointer-sync-id="ctrl-prev" type="button" onClick={onPrev} disabled={prevDisabled ?? currentIndex === 0} className={cn(SHARED_LAYOUT.btnNav, theme.navBtn, 'disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-none', highlightClass('prev'), press('ctrl-prev'))} title={tr('Đoạn trước', 'Previous part', '上一段', '前の段', '이전 구간')}>
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <button data-control="next" data-pointer-sync-id="ctrl-next" type="button" onClick={onNext} disabled={currentIndex >= totalSlides - 1} className={cn(SHARED_LAYOUT.btnNav, theme.navBtn, 'disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-none', highlightClass('next'), press('ctrl-next'))} title={tr('Slide sau', 'Next slide', '下一张', '次へ', '다음')}>
+        <button data-control="next" data-pointer-sync-id="ctrl-next" type="button" onClick={onNext} disabled={nextDisabled ?? currentIndex >= totalSlides - 1} className={cn(SHARED_LAYOUT.btnNav, theme.navBtn, 'disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-none', highlightClass('next'), press('ctrl-next'))} title={tr('Đoạn sau', 'Next part', '下一段', '次の段', '다음 구간')}>
           <ChevronRight className="h-5 w-5" />
         </button>
 

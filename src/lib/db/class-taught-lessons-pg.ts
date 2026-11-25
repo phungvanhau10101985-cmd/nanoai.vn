@@ -1,9 +1,11 @@
+import { canonicalGradeLevelId, teachClassesMatchingGrade } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 
 export type TeachClassOption = {
   classId: string
   className: string
+  gradeLevelId: string
   subjectId: string
   subjectLabel: string
   schoolName: string
@@ -21,20 +23,24 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export async function listTeachClassesForSubjectPg(
   teacherId: string,
-  subjectId: string
+  subjectId: string,
+  gradeLevelId: string,
 ): Promise<TeachClassOption[]> {
   if (!isPgConfigured()) return []
   const subject = subjectId.trim()
-  if (!subject) return []
+  const grade = canonicalGradeLevelId(gradeLevelId)
+  if (!subject || !grade) return []
   const rows = await pgQuery<{
     class_id: string
     class_name: string | null
+    grade_level_id: string | null
     subject_id: string
     subject_label: string | null
     school_name: string | null
   }>(
     `select c.id::text as class_id,
             c.name as class_name,
+            c.grade_level_id,
             cs.subject_id,
             cs.subject_label,
             sch.name as school_name
@@ -55,13 +61,15 @@ export async function listTeachClassesForSubjectPg(
      order by c.name asc`,
     [teacherId, subject]
   )
-  return rows.map((row) => ({
+  const mapped = rows.map((row) => ({
     classId: row.class_id,
     className: String(row.class_name ?? '').trim() || row.class_id,
+    gradeLevelId: String(row.grade_level_id ?? '').trim(),
     subjectId: row.subject_id,
     subjectLabel: String(row.subject_label ?? '').trim(),
     schoolName: String(row.school_name ?? '').trim(),
   }))
+  return teachClassesMatchingGrade(mapped, grade)
 }
 
 export async function attachTaughtLessonPg(opts: {
@@ -86,12 +94,21 @@ export async function attachTaughtLessonPg(opts: {
     [opts.classId, opts.teacherId, subjectId]
   )
   if (!ownsSubject) return { ok: false, error: 'not_subject_teacher' }
-  const curriculum = await pgQueryOne<{ subject_id: string | null }>(
-    `select subject_id from public.worksheet_curricula where id = $1::uuid limit 1`,
+  const curriculum = await pgQueryOne<{ subject_id: string | null; grade_level_id: string | null }>(
+    `select subject_id, grade_level_id from public.worksheet_curricula where id = $1::uuid limit 1`,
     [opts.curriculumId]
   )
   if (!curriculum || String(curriculum.subject_id ?? '') !== subjectId) {
     return { ok: false, error: 'subject_mismatch' }
+  }
+  const classGrade = await pgQueryOne<{ grade_level_id: string | null }>(
+    `select grade_level_id from public.classes where id = $1::uuid limit 1`,
+    [opts.classId]
+  )
+  const curriculumGrade = canonicalGradeLevelId(String(curriculum.grade_level_id ?? ''))
+  const roomGrade = canonicalGradeLevelId(String(classGrade?.grade_level_id ?? ''))
+  if (!curriculumGrade || curriculumGrade !== roomGrade) {
+    return { ok: false, error: 'grade_mismatch' }
   }
   const lesson = await pgQueryOne<{ lesson_no: number }>(
     `select lesson_no

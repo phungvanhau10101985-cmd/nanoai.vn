@@ -49,8 +49,29 @@ export function standingPipe(length = 0.5, mode = 1, speed = 340): StandingMode 
   }
 }
 
-/** xNorm = 0 tại đầu trái. Dây: nút ở cả hai đầu. Ống: nút ở đầu kín, bụng ở đầu hở. */
-export function standingDisplacement(kind: 'string' | 'pipe', mode: number, xNorm: number, phase = 0) {
+/** Ống hở hai đầu: L = k λ/2. Bụng ở cả hai đầu. */
+export function standingOpen(length = 0.5, mode = 1, speed = 340): StandingMode {
+  const k = clamp(Math.round(mode), 1, 4)
+  const lambda = (2 * length) / k
+  return {
+    kind: 'pipe',
+    k,
+    length,
+    speed,
+    frequency: (k * speed) / (2 * length),
+    lambda,
+    nodes: Math.max(0, k - 1),
+    antinodes: k + 1,
+    harmonic: k,
+  }
+}
+
+/** xNorm = 0 tại đầu trái. Dây: nút ở cả hai đầu. Ống kín: nút ở đầu trái. Ống hở: bụng ở hai đầu. */
+export function standingDisplacement(kind: 'string' | 'pipe' | 'open', mode: number, xNorm: number, phase = 0) {
+  if (kind === 'open') {
+    const state = standingOpen(0.5, mode)
+    return Math.cos(state.k * Math.PI * xNorm) * Math.cos(phase)
+  }
   const state = kind === 'pipe' ? standingPipe(0.5, mode) : standingString(1.2, mode)
   const shape = kind === 'pipe'
     ? Math.sin((state.harmonic * Math.PI * xNorm) / 2)
@@ -59,16 +80,18 @@ export function standingDisplacement(kind: 'string' | 'pipe', mode: number, xNor
 }
 
 export function standingScene(w: number, h: number, variant: string, tune?: number[]) {
-  const pipe = variant === 'pipe'
+  const open = variant === 'pipe-open'
+  const pipe = variant === 'pipe' || open
   const maxK = pipe ? 4 : 6
   const k = clamp(Math.round(tuneAt(tune, 0, pipe ? 1 : 3)), 1, maxK)
-  const mode = pipe ? standingPipe(0.5, k) : standingString(1.2, k)
+  const mode = open ? standingOpen(0.5, k) : pipe ? standingPipe(0.5, k) : standingString(1.2, k)
   const x0 = 78
   const x1 = w - 46
   const slider0 = 92
   const slider1 = w - 70
   return {
     pipe,
+    open,
     maxK,
     mode,
     x0,
@@ -89,7 +112,10 @@ export function drawStanding(ctx: Ctx, w: number, h: number, variant: string, tu
   ctx.save()
   ctx.lineWidth = 1.6
   ink(ctx, INK.text)
-  if (scene.pipe) {
+  if (scene.open) {
+    textAt(ctx, 'hở', scene.x0, scene.y + scene.amp + 18, 11, INK.muted)
+    textAt(ctx, 'hở', scene.x1, scene.y - 22, 11, INK.muted)
+  } else if (scene.pipe) {
     ctx.beginPath()
     ctx.moveTo(scene.x0 + 12, scene.y - 20)
     ctx.lineTo(scene.x0 - 8, scene.y - 20)
@@ -119,15 +145,15 @@ export function drawStanding(ctx: Ctx, w: number, h: number, variant: string, tu
   const steps = 80
   for (let i = 0; i <= steps; i += 1) {
     const t = i / steps
-    const y = scene.y - standingDisplacement(scene.pipe ? 'pipe' : 'string', mode.k, t, phase) * scene.amp
+    const y = scene.y - standingDisplacement(scene.open ? 'open' : scene.pipe ? 'pipe' : 'string', mode.k, t, phase) * scene.amp
     const x = scene.x0 + t * (scene.x1 - scene.x0)
     if (i === 0) ctx.moveTo(x, y)
     else ctx.lineTo(x, y)
   }
   ctx.stroke()
-  const nodeCount = scene.pipe ? mode.k : mode.k + 1
+  const nodeCount = scene.open ? mode.k : scene.pipe ? mode.k : mode.k + 1
   for (let i = 0; i < nodeCount; i += 1) {
-    const t = scene.pipe ? (2 * i) / mode.harmonic : i / mode.k
+    const t = scene.open ? (2 * i + 1) / (2 * mode.k) : scene.pipe ? (2 * i) / mode.harmonic : i / mode.k
     if (t > 1) continue
     ink(ctx, INK.amber)
     ctx.beginPath()
@@ -145,7 +171,7 @@ export function drawStanding(ctx: Ctx, w: number, h: number, variant: string, tu
   textAt(ctx, scene.pipe ? 'λ/4' : 'λ/2', (scene.x0 + xMark) / 2, scene.y - scene.amp - 28, 12, INK.green)
   textAt(
     ctx,
-    scene.pipe ? 'độ lệch dọc vẽ ngang' : 'sóng ngang',
+    scene.open ? 'bụng hai đầu' : scene.pipe ? 'độ lệch dọc vẽ ngang' : 'sóng ngang',
     (scene.x0 + scene.x1) / 2,
     34,
     11,
@@ -153,7 +179,9 @@ export function drawStanding(ctx: Ctx, w: number, h: number, variant: string, tu
   )
   textAt(
     ctx,
-    scene.pipe
+    scene.open
+      ? `${mode.k} bó · f = ${Math.round(mode.frequency)} Hz · λ = ${(mode.lambda * 100).toFixed(1)} cm`
+      : scene.pipe
       ? `bậc ${mode.harmonic} · f = ${Math.round(mode.frequency)} Hz · λ = ${(mode.lambda * 100).toFixed(1)} cm`
       : `${mode.k} bó · f = ${mode.frequency.toFixed(0)} Hz · λ = ${(mode.lambda * 100).toFixed(0)} cm`,
     w / 2,
@@ -167,7 +195,7 @@ export function drawStanding(ctx: Ctx, w: number, h: number, variant: string, tu
   ctx.lineTo(scene.slider1, scene.handleY)
   ctx.stroke()
   knob(ctx, scene.handleX, scene.handleY)
-  textAt(ctx, scene.pipe ? 'bậc lẻ' : 'số bó', scene.handleX, scene.handleY + 16, 11, INK.sky)
+  textAt(ctx, scene.open ? 'số bó' : scene.pipe ? 'bậc lẻ' : 'số bó', scene.handleX, scene.handleY + 16, 11, INK.sky)
   ctx.restore()
 }
 
