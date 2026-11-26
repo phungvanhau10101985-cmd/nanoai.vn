@@ -21,22 +21,28 @@ import { imageEngineCredit, parseGptImageQuality } from '@/lib/ai/image-engine'
 import { generateGptImage } from '@/lib/ai/gpt-image'
 import { withTransientGeminiRetry } from '@/lib/ai/gemini-transient'
 import { parseFlashJson } from '@/lib/curriculum/infographic-flash-json'
+import { slideImageGradeStylePrompt } from '@/app/tao-giao-trinh/lib/slide-image-grade-style'
 
 const MAX_SLIDE_TEXT = 28000
 const INFOGRAPHIC_TARGET_BYTES = 820 * 1024
 const INFOGRAPHIC_MAX_DIMENSION = 2048
 const toTenths = (value: number) => Math.round(value * 10)
 
-async function topicCurriculumChargesInfographic(curriculumId: string): Promise<boolean> {
-  if (!isPgConfigured()) return false
-  const row = await pgQueryOne<{ lesson_number: string | null; textbook_set_id: string | null }>(
-    `select lesson_number::text as lesson_number, textbook_set_id
+async function loadCurriculumImageMeta(curriculumId: string): Promise<{ topicLesson: boolean; gradeLevelId: string }> {
+  if (!isPgConfigured()) return { topicLesson: false, gradeLevelId: '' }
+  const row = await pgQueryOne<{
+    lesson_number: string | null
+    textbook_set_id: string | null
+    grade_level_id: string | null
+  }>(
+    `select lesson_number::text as lesson_number, textbook_set_id, grade_level_id
      from public.worksheet_curricula
      where id = $1::uuid
      limit 1`,
     [curriculumId]
   )
-  return Boolean(row) && (row?.textbook_set_id === 'khac' || row?.lesson_number == null || row?.lesson_number === '')
+  const topicLesson = Boolean(row) && (row?.textbook_set_id === 'khac' || row?.lesson_number == null || row?.lesson_number === '')
+  return { topicLesson, gradeLevelId: String(row?.grade_level_id ?? '').trim() }
 }
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
 
@@ -212,7 +218,8 @@ export async function POST(req: NextRequest) {
     const listPrice = imageEngineCredit({ engine: 'gpt', gptQuality, geminiCost: 1 })
     const infographicArtifactKey = buildInfographicArtifactKey(curriculumId, scope, lessonNo, slideIndex)
     const infographicKind = scope === 'slide' ? 'infographic_slide' : scope === 'lesson' ? 'infographic_lesson' : 'infographic_curriculum'
-    const topicLesson = await topicCurriculumChargesInfographic(curriculumId)
+    const { topicLesson, gradeLevelId } = await loadCurriculumImageMeta(curriculumId)
+    const gradeStyle = slideImageGradeStylePrompt(gradeLevelId)
 
     const requiredPrecheck = topicLesson
       ? listPrice
@@ -331,9 +338,10 @@ ${FLASH_INSTRUCTION}`
     }
 
     const languageName = OUTPUT_LANGUAGE_NAME[outputLocale]
+    const gradeStyleBlock = gradeStyle ? `\n${gradeStyle}\n` : '\n'
     const imagePrompt = scope === 'slide'
-      ? `${SLIDE_IMAGE_INSTRUCTION_PREFIX}\n${imageTextLanguageLock(outputLocale)}\n\nSLIDE TEXT (the only words and numbers allowed on the picture; copy the title and the example from here):\n${lessonText}\n\nSHORT LAYOUT NOTES (do not add facts that are not in the slide text):\n${summary}\n\nLAYOUT HINT (do not print this code):\n${mermaid}`
-      : `${IMAGE_INSTRUCTION_PREFIX}\n${imageTextLanguageLock(outputLocale)}\n\nLESSON KNOWLEDGE (show each line as a large formula or a short heading in ${languageName}, never as a paragraph or an objectives list):\n${summary}\n\nHOW THE IDEAS CONNECT (layout only; labels stay short and in ${languageName}; do not print the diagram code):\n${mermaid}`
+      ? `${SLIDE_IMAGE_INSTRUCTION_PREFIX}\n${gradeStyleBlock}${imageTextLanguageLock(outputLocale)}\n\nSLIDE TEXT (the only words and numbers allowed on the picture; copy the title and the example from here):\n${lessonText}\n\nSHORT LAYOUT NOTES (do not add facts that are not in the slide text):\n${summary}\n\nLAYOUT HINT (do not print this code):\n${mermaid}`
+      : `${IMAGE_INSTRUCTION_PREFIX}\n${gradeStyleBlock}${imageTextLanguageLock(outputLocale)}\n\nLESSON KNOWLEDGE (show each line as a large formula or a short heading in ${languageName}, never as a paragraph or an objectives list):\n${summary}\n\nHOW THE IDEAS CONNECT (layout only; labels stay short and in ${languageName}; do not print the diagram code):\n${mermaid}`
 
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) {
