@@ -22,7 +22,7 @@ import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { guestChatSameOriginImageSrc } from '@/lib/messaging/guest-chat-image-src'
 import { nextShopImageRetrySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { itFeatureOpenButtonsFromPayload } from '@/lib/messaging/partner-ai-it-feature-link-reply'
-import { humanZaloButtonFromPayload } from '@/lib/messaging/partner-ai-human-zalo-handoff'
+import { humanZaloButtonFromPayload } from '@/lib/messaging/partner-ai-human-zalo-button'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 
