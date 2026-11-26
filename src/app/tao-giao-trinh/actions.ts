@@ -12,6 +12,11 @@ import {
   stripCurriculumOriginalBodyMarker,
 } from './lib/curriculum-original-body'
 import { applyCurriculumMathMarks, curriculumMarkdownForStudents } from './lib/curriculum-math-check'
+import {
+  LESSON_SLIDES_PER_LESSON,
+  buildLessonSlidesFromPieces,
+  fitLessonSlidesToExactCount,
+} from './lib/lesson-slide-count'
 import { repairThenMarkLessonMarkdown } from './lib/curriculum-math-repair'
 import { randomUUID } from 'crypto'
 import { headers } from 'next/headers'
@@ -407,8 +412,6 @@ async function upsertCurriculumLessonRows(curriculumId: string, lessons: LessonO
   await replaceWorksheetCurriculumLessonsPg(curriculumId, lessons)
 }
 
-const LESSON_SLIDE_MAX_CONTENT_PER_SLIDE = 720
-
 function cleanAiJsonText(raw: string): string {
   return String(raw || '')
     .replace(/^```(?:json)?\s*/i, '')
@@ -448,32 +451,15 @@ function sanitizeStudentFacingText(text: string): string {
 function buildLessonSlidesFallback(lessonTitle: string, lessonMarkdown: string): WorksheetSlideRow[] {
   const normalized = sanitizeStudentFacingText(normalizeLessonMarkdownText(lessonMarkdown))
   if (!normalized) return []
-  const paragraphs = normalized
+  const pieces = normalized
     .split(/\n{2,}/)
     .map((p) => p.replace(/^[-*]\s+/gm, '').trim())
     .filter((p) => p.length > 0)
+  return buildLessonSlidesFromPieces(lessonTitle, pieces)
+}
 
-  const chunks: string[] = []
-  let buffer = ''
-  for (const para of paragraphs) {
-    if (!buffer) {
-      buffer = para
-      continue
-    }
-    if ((buffer + '\n\n' + para).length <= LESSON_SLIDE_MAX_CONTENT_PER_SLIDE) {
-      buffer += '\n\n' + para
-    } else {
-      chunks.push(buffer.slice(0, LESSON_SLIDE_MAX_CONTENT_PER_SLIDE))
-      buffer = para
-    }
-  }
-  if (buffer) chunks.push(buffer.slice(0, LESSON_SLIDE_MAX_CONTENT_PER_SLIDE))
-  const sliced = chunks.slice(0, 16)
-  const baseTitle = String(lessonTitle || 'Tiết học').trim() || 'Tiết học'
-  return sliced.map((content, idx) => ({
-    title: sliced.length > 1 ? `${baseTitle} - Slide ${idx + 1}` : baseTitle,
-    blocks: [{ header: 'Nội dung', content }],
-  }))
+function lessonSlideTextLength(slides: WorksheetSlideRow[]): number {
+  return slides.reduce((sum, slide) => sum + slide.blocks.reduce((n, block) => n + block.content.length, 0), 0)
 }
 
 async function generateSlidesForLessonByAI(params: {
@@ -491,22 +477,25 @@ async function generateSlidesForLessonByAI(params: {
     ...GEMINI_25_FLASH_NO_THINKING,
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
-  const estimatedSlides = Math.max(4, Math.min(16, Math.ceil(params.lessonMarkdown.length / 900)))
+  const slideCountRules = `- Tạo đúng ${LESSON_SLIDES_PER_LESSON} slide, không hơn không kém. Không cắt bớt slide và không bỏ slide.
+- ${LESSON_SLIDES_PER_LESSON} slide phải chứa đủ mọi ý của tiết, theo đúng thứ tự giáo trình. Không bỏ ý để vừa số lượng. Không cắt cụt một ý giữa chừng.
+- Nếu tiết có hơn ${LESSON_SLIDES_PER_LESSON} ý: gộp các ý liền nhau vào cùng một slide và viết đủ từng ý.
+- Nếu tiết có ít hơn ${LESSON_SLIDES_PER_LESSON} ý: tách ý dài thành các phần trọn (quy tắc, ví dụ, bước giải, luyện tập có trong tiết) để đủ ${LESSON_SLIDES_PER_LESSON} slide. Không bịa ý ngoài giáo trình.
+- Mỗi slide đủ để vẽ một ảnh trợ giảng và ra một câu hỏi tình huống từ ví dụ trên slide đó.`
   const prompt = `Tạo slide cho đúng MỘT TIẾT học từ markdown dưới đây.
 Trả JSON:
 {"slides":[{"title":"...","blocks":[{"header":"Quy tắc","content":"..."},{"header":"Ví dụ","content":"..."}],"teacherNotes":"Ngã rẽ: ...\\nVì sao: ..."}]}
 
 Yêu cầu:
-- Tạo khoảng ${estimatedSlides} slide. Mỗi slide là MỘT ý học trọn vẹn, đủ để vẽ một ảnh trợ giảng chỉ cho ý đó và ra một câu hỏi tình huống từ ví dụ của slide.
-- Không tách một ý thành nhiều slide cụt. Không gộp hai ý không liên quan vào một slide.
-- Bám mạch kiến thức của giáo trình tiết đã cho, không bỏ sót ý quan trọng.
+${slideCountRules}
+- Bám mạch kiến thức của giáo trình tiết đã cho.
 - Slide chiếu cho học sinh: "Quy tắc" là một câu hoặc một công thức. "Ví dụ" là một tình huống hoặc một phép tính có số, lấy từ ví dụ giáo trình tự đặt. Nếu ví dụ đó có lời giải thì đưa đủ bước chính.
 - teacherNotes chỉ để tạo câu hỏi và ảnh, không phải chữ chiếu: một lỗi học sinh hay mắc với đúng ví dụ đó, và một câu vì sao đáp án đúng.
 - Không thêm đề, số bài tập, số trang hay lời giải in trong sách.
 - Sắp xếp mạch nội dung theo đúng trình tự giáo trình (khởi động -> kiến thức -> luyện tập -> vận dụng nếu có).
 - Không đưa lên slide bài nằm trong dấu «Bài này AI viết sai, cần tính lại» hoặc «Bài này code chưa kiểm được, giáo viên cần xem», và không đưa dòng kiểm tra <!-- check ... -->.
 - Không đưa lên slide các nhãn/ghi chú kiểu giáo án cho giáo viên: "Hình thành kiến thức (20 phút)", "Hoạt động 1", "HĐ4 (SGK trang ...)", "Yêu cầu HS", "Tách/Gộp slide", "Tạo câu hỏi ... credits", "GV/HS: ...".
-- Mỗi block content tối đa ${LESSON_SLIDE_MAX_CONTENT_PER_SLIDE} ký tự. teacherNotes tối đa 280 ký tự.
+- teacherNotes tối đa 280 ký tự.
 - Không dùng LaTeX $...$, dùng Unicode dễ đọc.
 - Chỉ trả JSON hợp lệ.
 
@@ -522,10 +511,11 @@ ${params.lessonMarkdown.slice(0, 90000)}
 Ràng buộc:
 - Chỉ dùng dữ liệu của MỘT tiết bên dưới.
 - Không markdown code fence, không giải thích.
-- Mỗi slide một ý trọn: block "Quy tắc", block "Ví dụ" có số hoặc tình huống, và teacherNotes dạng "Ngã rẽ: ...\\nVì sao: ...".
+${slideCountRules}
+- Mỗi slide có block "Quy tắc", block "Ví dụ" có số hoặc tình huống, và teacherNotes dạng "Ngã rẽ: ...\\nVì sao: ...".
 - Các ví dụ có lời giải phải giữ đủ bước lập luận chính.
 - Chỉ xuất nội dung phù hợp học sinh nhìn trên màn chiếu; loại bỏ toàn bộ nhãn điều phối tiết học cho giáo viên.
-- Mỗi block.content <= ${LESSON_SLIDE_MAX_CONTENT_PER_SLIDE} ký tự. teacherNotes <= 280 ký tự.
+- teacherNotes <= 280 ký tự.
 
 Tiêu đề tiết: ${params.lessonTitle || 'Tiết học'}
 Nội dung tiết:
@@ -543,7 +533,7 @@ ${params.lessonMarkdown.slice(0, 90000)}
         const blocks = blocksRaw
           .map((b) => ({
             header: sanitizeStudentFacingText(String(b?.header || 'Nội dung').trim()) || 'Nội dung',
-            content: sanitizeStudentFacingText(String(b?.content || '').trim()).slice(0, LESSON_SLIDE_MAX_CONTENT_PER_SLIDE),
+            content: sanitizeStudentFacingText(String(b?.content || '').trim()),
           }))
           .filter((b) => b.content.length > 0)
         if (blocks.length === 0) return null
@@ -552,22 +542,45 @@ ${params.lessonMarkdown.slice(0, 90000)}
       })
       .filter((s): s is WorksheetSlideRow => !!s)
   }
+  const readSlides = (raw: string): WorksheetSlideRow[] => {
+    try {
+      return parseSlidesFromText(raw)
+    } catch (err) {
+      console.warn('[lesson-slides] parse-failed', err)
+      return []
+    }
+  }
   try {
     const result = await model.generateContent(prompt)
     trackCurriculumGeminiResult(result, GEMINI_25_FLASH_NO_THINKING.model, CurriculumApiFeature.lessonSlidesGenerate, params.userId ?? null)
-    const firstPass = parseSlidesFromText(result.response.text() || '')
-    if (firstPass.length > 0) return { slides: firstPass, source: 'ai-first-pass' }
-    console.warn('[lesson-slides] empty-first-pass, retrying', {
-      lessonTitle: params.lessonTitle,
-      markdownLength: params.lessonMarkdown.length,
-    })
-    const retryResult = await model.generateContent(retryPrompt)
-    trackCurriculumGeminiResult(retryResult, GEMINI_25_FLASH_NO_THINKING.model, CurriculumApiFeature.lessonSlidesGenerate, params.userId ?? null)
-    const secondPass = parseSlidesFromText(retryResult.response.text() || '')
-    if (secondPass.length > 0) return { slides: secondPass, source: 'ai-retry-pass' }
+    let chosen = readSlides(result.response.text() || '')
+    let source: 'ai-first-pass' | 'ai-retry-pass' = 'ai-first-pass'
+    if (chosen.length !== LESSON_SLIDES_PER_LESSON) {
+      console.warn('[lesson-slides] count-mismatch, retrying', {
+        lessonTitle: params.lessonTitle,
+        markdownLength: params.lessonMarkdown.length,
+        slideCount: chosen.length,
+        expected: LESSON_SLIDES_PER_LESSON,
+      })
+      try {
+        const retryResult = await model.generateContent(retryPrompt)
+        trackCurriculumGeminiResult(retryResult, GEMINI_25_FLASH_NO_THINKING.model, CurriculumApiFeature.lessonSlidesGenerate, params.userId ?? null)
+        const secondPass = readSlides(retryResult.response.text() || '')
+        if (lessonSlideTextLength(secondPass) > lessonSlideTextLength(chosen)) {
+          chosen = secondPass
+          source = 'ai-retry-pass'
+        }
+      } catch (retryErr) {
+        console.warn('[lesson-slides] retry-failed', retryErr)
+      }
+    }
+    const fitted = fitLessonSlidesToExactCount(chosen)
+    if (fitted.length === LESSON_SLIDES_PER_LESSON) return { slides: fitted, source }
     const fallback = buildLessonSlidesFallback(params.lessonTitle, params.lessonMarkdown)
-    console.warn('[lesson-slides] ai-empty-use-fallback', {
+    console.warn('[lesson-slides] use-fallback', {
       lessonTitle: params.lessonTitle,
+      aiSlides: chosen.length,
+      fittedSlides: fitted.length,
       fallbackSlides: fallback.length,
     })
     return { slides: fallback, source: 'fallback-empty' }
