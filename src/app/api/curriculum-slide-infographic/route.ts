@@ -70,12 +70,14 @@ const SLIDE_IMAGE_INSTRUCTION_PREFIX = `Create ONE teaching-assistant picture (1
 
 COMBINE in one frame:
 - One illustration of what the slide is teaching: the people, objects, number line, axes, table, groups, or marks in the example. Make the illustration large.
-- The main points written on that same illustration: the title, the short rule or formula, and the label of each point or vector, such as u(3; -2; 4), placed beside that point or arrow.
-- Axes are only the illustration: three or two clean rays with arrowheads and the letters x, y, z. No tick, no scale, and no number written on an axis.
+- The main points written on that same illustration: the title, the short rule or formula, and the label of each point or vector the slide states, placed beside that point or arrow.
+- A flat 2D graph (one plane, Ox and Oy, such as y = f(x)): draw the curve and fill in the coordinates the slide states. Tick numbers on Ox and Oy, such as 0, 1, 2, and −1, and a point label such as A(1; 2) are allowed when those numbers are in the slide.
+- A spatial graph (three axes Oxyz, a surface z = f(x, y), a sphere, a line or a point in space): do not fill in coordinates. Three clean rays with arrowheads and only the letters x, y, and z. No tick, no scale, and no number on Ox, Oy, or Oz.
 - Large type, high contrast. No watermark.
 
 DO NOT INCLUDE:
-- Do not write any number on a coordinate axis. No 0, no 1, no 2, no -1, no tick label, no unit mark along Ox, Oy, or Oz. The axis line stays blank except the letter x, y, or z at the arrow.
+- On a spatial graph, do not write any number on a coordinate axis. No 0, no 1, no 2, no −1, no tick label, no unit mark, and no coordinate triple such as (1; 2; 3) along Ox, Oy, or Oz. Each axis stays blank except the letter x, y, or z at the arrow. A formula that is a main point may sit beside the figure as text.
+- On a flat 2D graph, coordinate numbers are allowed. Do not invent a tick or a point coordinate the slide does not state.
 - Do not paste the slide's full sentences. Only the main points, on the illustration.
 - Do not print a spoken line such as "các em nhìn ảnh", "quan sát ảnh", or "phân tích cho cô".
 - Do not make a picture with no words, and do not make a page of text with no illustration.
