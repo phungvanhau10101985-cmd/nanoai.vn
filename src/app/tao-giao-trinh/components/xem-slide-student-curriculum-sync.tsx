@@ -33,6 +33,8 @@ export type CurriculumStudentViewData = {
     visualInput4?: string
     infographic?: SlideInfographic
   }>
+  /** URL ảnh mở rộng từng slide, cùng thứ tự với cửa sổ giáo viên. */
+  slideGalleryUrls?: string[]
   /** Đồng bộ từ GV (wire: `worksheetAnswerReveal`) — hiển thị đáp án / gõ trên slide giáo trình */
   answerRevealProgress: Record<string, number>
   answerTypingEnabled: Record<string, boolean>
@@ -60,6 +62,62 @@ type WirePayload = {
   teacherSlideLeftPane?: string
   whiteboard?: unknown
   curriculumInfographic?: unknown
+  slideGalleryUrls?: unknown
+}
+
+function readSlideGalleryUrls(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const urls = raw.map((item) => (typeof item === 'string' ? item.trim() : ''))
+  return urls.some((url) => url.length > 0) ? urls : undefined
+}
+
+function keepGalleryUrls(prev: string[] | undefined, incoming: string[] | undefined): string[] | undefined {
+  if (!incoming) return prev
+  if (!prev || prev.length !== incoming.length) return incoming
+  for (let i = 0; i < prev.length; i += 1) {
+    if (prev[i] !== incoming[i]) return incoming
+  }
+  return prev
+}
+
+function slideListSig(slides: CurriculumStudentViewData['slides']): string {
+  let out = ''
+  for (const s of slides) {
+    out += `${s.title}\n${s.imageUrl ?? ''}\n${s.visualEmbed ?? ''}\n${s.infographic?.imageUrl ?? ''}\n`
+    const blocks = s.blocks
+    if (blocks) {
+      for (const b of blocks) out += `${b.header ?? ''}|${b.content ?? ''}\n`
+    }
+    const cells = s.visualCells
+    if (cells) {
+      for (const cell of cells) out += `${cell.imageUrl ?? ''}|${cell.visualEmbed ?? ''}\n`
+    }
+    out += '\u0001'
+  }
+  return out
+}
+
+/** Payload lặp khi mở cửa sổ học sinh không được đổi mảng slide — đổi mảng thì thẻ chữ nháy. */
+function sameSlideList(a: CurriculumStudentViewData['slides'], b: CurriculumStudentViewData['slides']): boolean {
+  return a.length === b.length && slideListSig(a) === slideListSig(b)
+}
+
+function mergeRevealForward(
+  prev: Record<string, number> | undefined,
+  incoming: unknown
+): Record<string, number> {
+  const base = prev ?? {}
+  if (incoming == null || typeof incoming !== 'object') return base
+  let changed = false
+  const next = { ...base }
+  for (const [key, value] of Object.entries(incoming as Record<string, unknown>)) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue
+    if (value > (next[key] ?? 0)) {
+      next[key] = value
+      changed = true
+    }
+  }
+  return changed ? next : base
 }
 
 function compactSlidesForStudentRuntime(
@@ -211,13 +269,13 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
           curriculumId: typeof e.curriculumId === 'string' ? e.curriculumId : null,
           slideMode:
             e.slideMode === 'personal' || e.slideMode === 'shared' || e.slideMode === 'original' ? e.slideMode : null,
-          slides: compactedSlides,
-          answerRevealProgress:
-            wr != null && typeof wr === 'object' ? { ...wr } : (prev?.answerRevealProgress ?? {}),
+          slides: prev && sameSlideList(prev.slides, compactedSlides) ? prev.slides : compactedSlides,
+          answerRevealProgress: mergeRevealForward(prev?.answerRevealProgress, wr),
           answerTypingEnabled:
             wte != null && typeof wte === 'object' ? { ...wte } : (prev?.answerTypingEnabled ?? {}),
           studentCurriculumRightMode: studentCurriculumRightMode ?? prev?.studentCurriculumRightMode,
           curriculumInfographic: nextCurriculumInfographic,
+          slideGalleryUrls: keepGalleryUrls(prev?.slideGalleryUrls, readSlideGalleryUrls(e.slideGalleryUrls)),
           teacherSlideLeftPane: (() => {
             if (!Object.prototype.hasOwnProperty.call(e, 'teacherSlideLeftPane')) return prev?.teacherSlideLeftPane
             const tls = e.teacherSlideLeftPane
@@ -270,22 +328,43 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
           else if (exact) progress = { ...incoming }
           else if (keys.length === 0) progress = d.answerRevealProgress
           else {
-            progress = { ...d.answerRevealProgress }
+            const speedMs = typeof payload.typingSpeedMs === 'number' && payload.typingSpeedMs >= 15
+              ? payload.typingSpeedMs
+              : 55
+            const catchUpSlack = Math.max(8, Math.ceil(700 / speedMs))
+            const merged = { ...d.answerRevealProgress }
+            let jumped = false
             for (const key of keys) {
               const value = incoming[key]
-              if (typeof value === 'number' && Number.isFinite(value)) {
-                progress[key] = Math.max(progress[key] ?? 0, value)
+              if (typeof value !== 'number' || !Number.isFinite(value)) continue
+              const local = merged[key] ?? 0
+              if (value - local > catchUpSlack) {
+                merged[key] = value
+                jumped = true
               }
             }
+            progress = jumped ? merged : d.answerRevealProgress
           }
         }
         let enabled = d.answerTypingEnabled
         if (wte != null && typeof wte === 'object') {
-          enabled = { ...(wte as Record<string, boolean>) }
+          const incomingEnabled = wte as Record<string, boolean>
+          const enabledKeys = new Set([...Object.keys(d.answerTypingEnabled), ...Object.keys(incomingEnabled)])
+          let sameEnabled = true
+          for (const key of enabledKeys) {
+            if ((d.answerTypingEnabled[key] !== false) !== (incomingEnabled[key] !== false)) {
+              sameEnabled = false
+              break
+            }
+          }
+          if (!sameEnabled) enabled = { ...incomingEnabled }
         } else if (typeof (payload as { typingOn?: unknown }).typingOn === 'boolean') {
           const on = (payload as { typingOn: boolean }).typingOn
-          enabled = Object.fromEntries(Object.keys(d.answerTypingEnabled).map((k) => [k, on]))
+          const nextEnabled = Object.fromEntries(Object.keys(d.answerTypingEnabled).map((k) => [k, on]))
+          const changed = Object.keys(d.answerTypingEnabled).some((k) => (d.answerTypingEnabled[k] !== false) !== on)
+          if (changed) enabled = nextEnabled
         }
+        if (progress === d.answerRevealProgress && enabled === d.answerTypingEnabled) return d
         return {
           ...d,
           answerRevealProgress: progress,
@@ -413,6 +492,7 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
               topic?: string
               studentCurriculumRightMode?: string
               curriculumInfographic?: SlideInfographic
+              slideGalleryUrls?: unknown
             }
             const sl = Array.isArray(snap.slides) ? snap.slides : []
             const mode = snap.studentCurriculumRightMode === 'markdown-all' || snap.studentCurriculumRightMode === 'single-slide'
@@ -427,12 +507,13 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
               const compacted = compactSlidesForStudentRuntime(sl, useIndex, mode === 'markdown-all')
               return {
                 ...prev,
-                slides: compacted.length > 0 ? compacted : prev.slides,
+                slides: compacted.length > 0 && !sameSlideList(prev.slides, compacted) ? compacted : prev.slides,
                 content: typeof snap.content === 'string' ? snap.content : prev.content,
                 topic: typeof snap.topic === 'string' ? snap.topic : prev.topic,
                 currentIndex: useIndex,
                 studentCurriculumRightMode: mode ?? prev.studentCurriculumRightMode,
                 curriculumInfographic: snap.curriculumInfographic ?? prev.curriculumInfographic,
+                slideGalleryUrls: keepGalleryUrls(prev.slideGalleryUrls, readSlideGalleryUrls(snap.slideGalleryUrls)),
               }
             })
             if (mode) {

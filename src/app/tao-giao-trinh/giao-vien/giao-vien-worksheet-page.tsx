@@ -19,6 +19,7 @@ import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { PresentationControlBar } from '../components/presentation-control-bar'
 import { TeacherPhoneRemoteDialog } from '../components/teacher-phone-remote-dialog'
+import { ExpandedImageNav, ExpandedImageStage, expandedGalleryImageUrl, useExpandedImageSwipe } from '../components/expanded-image-nav'
 import { TeacherWhiteboardCanvas, type WhiteboardLivePointer } from '../components/teacher-whiteboard-canvas'
 import { clientPointForWhiteboardPointer, isWhiteboardWireType } from '../lib/teacher-whiteboard'
 import {
@@ -1001,6 +1002,8 @@ export default function GiaoVienWorksheetPage() {
   const projectorBusyRef = useRef(false)
   const flushPendingProjectorRef = useRef<(w: Window | null) => void>(() => {})
   const [studentViewOpened, setStudentViewOpened] = useState(false)
+  /** Nút QR điện thoại chỉ bật sau khi giao diện học sinh tải xong. */
+  const [studentViewerReady, setStudentViewerReady] = useState(false)
   /** Slide index trước lần đổi `currentIndex` — kế thừa trạng thái tạm dừng gõ sang slide sau. */
   const prevSlideIndexForTypingPauseRef = useRef<number | null>(null)
   /** Đổi phiếu/giáo trình → không kế thừa pause từ tài liệu cũ. */
@@ -1238,13 +1241,28 @@ export default function GiaoVienWorksheetPage() {
     const syncStudentWindowState = () => {
       const w = studentViewWindowRef.current
       const alive = !!(w && !w.closed)
-      if (!alive) studentViewWindowRef.current = null
-      setStudentViewOpened(alive)
+      if (!alive) {
+        if (w && w.closed) setStudentViewerReady(false)
+        studentViewWindowRef.current = null
+        setStudentViewOpened(false)
+        return
+      }
+      setStudentViewOpened(true)
+      try {
+        const kind = isWorksheetSlideMode ? 'worksheet' : 'curriculum'
+        const path = w.location.pathname || ''
+        const syncOk = new URLSearchParams(w.location.search || '').get('sync') === presentationSyncId
+        if (isPathMatchingStudentSlideKind(path, kind) && syncOk && w.document.readyState === 'complete') {
+          setStudentViewerReady(true)
+        }
+      } catch {
+        /* đang chuyển trang, chưa đọc được document học sinh */
+      }
     }
     syncStudentWindowState()
     const id = window.setInterval(syncStudentWindowState, 800)
     return () => window.clearInterval(id)
-  }, [])
+  }, [isWorksheetSlideMode, presentationSyncId])
 
   const requestCurriculum = useCallback(() => {
     if (window.opener) window.opener.postMessage({ type: 'request-curriculum' }, window.location.origin)
@@ -1281,6 +1299,9 @@ export default function GiaoVienWorksheetPage() {
     onIndexRef: phoneOnIndexRef,
     snapshotKey: phoneSnapshotKey,
   })
+  useEffect(() => {
+    if (!studentViewerReady) phoneBoard.setPhoneRemoteOpen(false)
+  }, [studentViewerReady, phoneBoard.setPhoneRemoteOpen])
   const sendToStudentView = useCallback((msg: Record<string, unknown>) => {
     phoneBoard.routeOutgoing(msg)
   }, [phoneBoard.routeOutgoing])
@@ -1611,6 +1632,14 @@ export default function GiaoVienWorksheetPage() {
     if (window.opener) window.opener.postMessage({ type: action }, window.location.origin)
     sendToStudentView({ type: 'slide-go', index: nextIndex })
   }, [commitCurrentSlideDraft, currentIndex, slides.length, phoneBoard.holdSlide, sendToStudentView])
+  const goExpandedImage = useCallback((direction: -1 | 1) => {
+    setTeacherExpandedCellIndex(null)
+    sendSlideControl(direction > 0 ? 'slide-next' : 'slide-prev')
+  }, [sendSlideControl])
+  const expandedImageSwipe = useExpandedImageSwipe(
+    () => goExpandedImage(-1),
+    () => goExpandedImage(1),
+  )
 
   useEffect(() => {
     const linked = Boolean(phoneBoard.phoneSessionId || phoneFollowerId)
@@ -1676,6 +1705,7 @@ export default function GiaoVienWorksheetPage() {
     syncChannelRef.current = channel
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === 'student-viewer-ready') {
+        setStudentViewerReady(true)
         flushPendingProjectorRef.current(studentViewWindowRef.current)
         return
       }
@@ -2399,6 +2429,8 @@ export default function GiaoVienWorksheetPage() {
     }
     if (!targetWin) {
       setStudentViewOpened(false)
+      setStudentViewerReady(false)
+      phoneBoard.setPhoneRemoteOpen(false)
       projectorPendingRef.current = false
       toast({
         title: tr('Không mở được giao diện học sinh', 'Cannot open student view', '无法打开学生界面', '生徒画面を開けません', '학생 화면을 열 수 없습니다'),
@@ -2536,6 +2568,8 @@ export default function GiaoVienWorksheetPage() {
     if (!targetWin || targetWin.closed) {
       studentViewWindowRef.current = null
       setStudentViewOpened(false)
+      setStudentViewerReady(false)
+      phoneBoard.setPhoneRemoteOpen(false)
       toast({
         title: tr('Chưa có giao diện học sinh đang mở', 'Student view is not open yet', '学生界面尚未打开', '生徒画面はまだ開いていません', '학생 화면이 아직 열려 있지 않습니다'),
         description: tr('Hãy bấm "Mở giao diện học sinh" để mở lần đầu.', 'Click "Open student interface" for the first launch.', '请点击“打开学生界面”进行首次打开。', '初回は「生徒画面を開く」を押してください。', '처음에는 "학생 인터페이스 열기"를 눌러 주세요.'),
@@ -3389,6 +3423,7 @@ export default function GiaoVienWorksheetPage() {
           studentViewWindowRef.current = src as Window
           setStudentViewOpened(true)
         }
+        setStudentViewerReady(true)
         flushPendingProjectorRef.current(studentViewWindowRef.current)
       }
       if (e.data?.type === 'request-curriculum' && e.source && content) {
@@ -3706,10 +3741,20 @@ export default function GiaoVienWorksheetPage() {
 
   useEffect(() => {
     if (!visualFullscreenOpen) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeTeacherVisualFullscreen() }
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      const tag = (el?.tagName || '').toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || el?.isContentEditable) return
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        goExpandedImage(e.key === 'ArrowRight' ? 1 : -1)
+        return
+      }
+      if (e.key === 'Escape') closeTeacherVisualFullscreen()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visualFullscreenOpen, closeTeacherVisualFullscreen])
+  }, [visualFullscreenOpen, closeTeacherVisualFullscreen, goExpandedImage])
 
   return (
     <div key={apple.ios ? 'apple-ios' : apple.mac ? 'apple-mac' : 'win'} {...apple.shellProps} className={cn('fixed inset-0 z-50 flex h-screen w-screen flex-col items-stretch overflow-x-hidden bg-slate-950 text-white', apple.ios || apple.mac ? 'overflow-hidden' : 'overflow-y-auto')}>
@@ -3759,7 +3804,7 @@ export default function GiaoVienWorksheetPage() {
           slideViewMode={slideViewMode}
           onSlideViewModeChange={(m) => setSlideViewMode(m)}
           onOpenStudentView={!phoneFollowerId && slides.length > 0 ? openStudentView : undefined}
-          onPhoneControl={!phoneFollowerId && studentViewOpened ? () => phoneBoard.setPhoneRemoteOpen(true) : undefined}
+          onPhoneControl={!phoneFollowerId && studentViewerReady ? () => phoneBoard.setPhoneRemoteOpen(true) : undefined}
           hideIndex
           hideInsert
           hideTeacherLeftButtons
@@ -5308,6 +5353,7 @@ export default function GiaoVienWorksheetPage() {
       {visualFullscreenOpen && leftPanelMode === 'visual' && slides[currentIndex] && (() => {
         const s = slides[currentIndex]
         const { layout, cells } = getVisualCells(s)
+        const hasAny = cells.some((cell) => cell.visualEmbed || cell.imageUrl)
         const showSingleCell = teacherExpandedCellIndex != null && layout > 1
         const displayCells = showSingleCell && cells[teacherExpandedCellIndex] ? [cells[teacherExpandedCellIndex]] : cells
         const displayIndices = showSingleCell && teacherExpandedCellIndex != null ? [teacherExpandedCellIndex] : cells.map((_, i) => i)
@@ -5317,24 +5363,32 @@ export default function GiaoVienWorksheetPage() {
             : !showSingleCell && layout === 4
               ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-2'
               : ''
+        const emptyImageLabel = tr('Slide này chưa có ảnh', 'This slide has no image', '这张幻灯片没有图片', 'このスライドに画像はありません', '이 슬라이드에는 이미지가 없습니다')
+        const galleryUrls = slides.map((item) => {
+          const visual = getVisualCells(item)
+          return expandedGalleryImageUrl(visual.layout, visual.cells[0])
+        })
+        const gallery = Boolean(galleryUrls[currentIndex])
         return (
           <div ref={teacherVisualOverlayRef} className="fixed inset-0 z-[105] flex min-h-0 flex-col bg-black">
-            <div className="z-20 flex h-14 w-full shrink-0 items-center justify-between bg-black/70 px-4">
-              <span className="text-white/80 text-sm">{currentIndex + 1}/{slides.length} {s.title}</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={closeTeacherVisualFullscreen}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium transition-colors"
-                  title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
-                >
-                  <X className="h-5 w-5" />
-                  {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
-                </button>
-              </div>
+            <div className="z-20 flex h-12 w-full shrink-0 items-center justify-between gap-2 bg-black/80 px-3 sm:h-14 sm:px-4">
+              <span className="min-w-0 truncate text-sm text-white/80">{currentIndex + 1}/{slides.length} {s.title}</span>
+              <button
+                type="button"
+                onClick={closeTeacherVisualFullscreen}
+                className="flex h-11 shrink-0 items-center gap-2 rounded-lg bg-white/20 px-3 text-sm font-medium text-white transition-colors hover:bg-white/30 sm:px-4"
+                title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+              >
+                <X className="h-5 w-5" />
+                <span className="hidden sm:inline">{tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}</span>
+              </button>
             </div>
             <div
-              className="flex min-h-0 flex-1 flex-col px-4 pb-4"
+              className="relative flex min-h-0 flex-1 flex-col"
+              {...expandedImageSwipe}
+            >
+            <div
+              className="flex min-h-0 flex-1 flex-col px-2 pb-2 sm:px-4 sm:pb-4"
               onClick={(e) => {
                 if (e.target === e.currentTarget) closeTeacherVisualFullscreen()
               }}
@@ -5347,7 +5401,9 @@ export default function GiaoVienWorksheetPage() {
                   )}
                   onClick={(e) => e.stopPropagation()}
                 >
-                {displayCells.map((cell, i) => {
+                {gallery ? (
+                  <ExpandedImageStage urls={galleryUrls} index={currentIndex} emptyLabel={emptyImageLabel} />
+                ) : hasAny ? displayCells.map((cell, i) => {
                   const cellFillClass =
                     showSingleCell || layout === 1 ? 'min-h-0 w-full flex-1 basis-0' : 'h-full min-h-0 min-w-0'
                   return (
@@ -5376,8 +5432,20 @@ export default function GiaoVienWorksheetPage() {
                     )}
                   </div>
                   )
-                })}
+                }) : (
+                  <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-white/70">
+                    {tr('Slide này chưa có ảnh', 'This slide has no image', '这张幻灯片没有图片', 'このスライドに画像はありません', '이 슬라이드에는 이미지가 없습니다')}
+                  </div>
+                )}
                 </div>
+            </div>
+            <ExpandedImageNav
+              index={currentIndex}
+              count={slides.length}
+              onPrev={() => goExpandedImage(-1)}
+              onNext={() => goExpandedImage(1)}
+              tr={tr}
+            />
             </div>
           </div>
         )

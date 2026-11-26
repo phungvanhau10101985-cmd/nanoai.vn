@@ -94,6 +94,7 @@ function collectCharBoxes(root: HTMLElement, scope: Node): CharBox[] {
   while ((n = walker.nextNode())) {
     const text = n as Text
     if (!root.contains(text) || text.data.length === 0) continue
+    if (text.parentElement?.closest('[aria-hidden="true"]')) continue
     const base = offsetOfText(root, text, 0)
     if (base == null) continue
     for (let i = 0; i < text.data.length; i++) {
@@ -207,7 +208,7 @@ export function readCharRevealLineBreaks(reveal: HTMLElement): number[] {
     range.setEnd(text, 1)
     const rect = tightGlyph(usableCharRects(range))
     if (!rect) continue
-    if (prevTop >= 0 && rect.top > prevTop + 4) breaks.push(i)
+    if (prevTop >= 0 && rect.top > prevTop + 8) breaks.push(i)
     prevTop = rect.top
   }
   return breaks

@@ -63,19 +63,24 @@ const FLASH_INSTRUCTION = `You are an assistant for teachers. Given the full les
 The diagram maps the main formulas and how they relate across the whole lesson. Keep mathematical notation as symbols.`
 
 const SLIDE_FLASH_INSTRUCTION = `You are an assistant for teachers. Given ONE slide (one idea only), output ONLY valid JSON (no markdown fences) with keys:
-- "summary": string, in the OUTPUT_LANGUAGE. Line 1 is the slide title copied character for character. Each following line is one formula or one numeric example copied from the slide, character for character, including coordinates such as A(1; 3). Do not invent a new title. Do not add a formula, point, or result the slide does not already state. If the slide only asks a question, copy the question; do not answer it.
-- "mermaid": string, a tiny flowchart or one comparison, max ~400 characters. Node labels are copied from this slide, in the same OUTPUT_LANGUAGE, 2–6 words. Do not invent facts that are not in the slide.`
+- "summary": string, in the OUTPUT_LANGUAGE. These are the main points a teaching-assistant picture will write on the illustration. Line 1 is the slide title, copied character for character. Each following line is one main point of THIS slide only: a short rule, a formula, or the key names and numbers, about 2–12 words. Use the slide's own words. Do not copy a full sentence, a spoken line such as "các em nhìn ảnh", or a paragraph. Do not invent a title, a formula, a point, or a result the slide does not state. If the slide asks and does not give the answer, list the given data, not a solved answer.
+- "mermaid": string, a tiny flowchart or one comparison, max ~400 characters. Node labels are the same main points, in the same OUTPUT_LANGUAGE, 2–6 words. Do not invent facts that are not in the slide.`
 
-const SLIDE_IMAGE_INSTRUCTION_PREFIX = `Create ONE classroom teaching diagram (16:9) for this one slide. The picture must show the same idea as the slide text a student is reading beside it.
+const SLIDE_IMAGE_INSTRUCTION_PREFIX = `Create ONE teaching-assistant picture (16:9) for this one slide. The student reads the slide beside it. This picture helps that slide: an illustration combined with the main points of the same slide.
 
-LAYOUT:
-- The large title is the slide title, copied exactly. Do not replace it with a shorter name.
-- ONE diagram: the rule and, when the slide has one, the numeric example. A coordinate or result written on the slide must appear on the diagram.
-- Large type, high contrast, generous whitespace. No watermark.
+COMBINE in one frame:
+- One illustration of what the slide is teaching: the people, objects, number line, axes, table, groups, or marks in the example. Make the illustration large.
+- The main points written on that same illustration: the title, the short rule or formula, and the label of each point or vector, such as u(3; -2; 4), placed beside that point or arrow.
+- Axes are only the illustration: three or two clean rays with arrowheads and the letters x, y, z. No tick, no scale, and no number written on an axis.
+- Large type, high contrast. No watermark.
 
 DO NOT INCLUDE:
-- No second title, no objectives, no checklists, no paragraphs, no fine print.
-- Do not invent a formula, a point, or a result the slide does not state. If the slide asks a question and does not give the answer, draw the question, not an answer.
+- Do not write any number on a coordinate axis. No 0, no 1, no 2, no -1, no tick label, no unit mark along Ox, Oy, or Oz. The axis line stays blank except the letter x, y, or z at the arrow.
+- Do not paste the slide's full sentences. Only the main points, on the illustration.
+- Do not print a spoken line such as "các em nhìn ảnh", "quan sát ảnh", or "phân tích cho cô".
+- Do not make a picture with no words, and do not make a page of text with no illustration.
+- Do not invent a formula, a point, a label, or a result the slide does not state. If the slide asks and does not give the answer, draw the given data, not a solved answer.
+- No second scene, no second title, no objectives, no checklists, no fine print.
 - Do not render raw Mermaid code or syntax as text.`
 
 const IMAGE_INSTRUCTION_PREFIX = `Create ONE student knowledge-summary poster (16:9, classroom projection). It is a visual cheat-sheet: a student should understand the lesson's core ideas at a glance and read every word easily from a seat.
@@ -340,7 +345,7 @@ ${FLASH_INSTRUCTION}`
     const languageName = OUTPUT_LANGUAGE_NAME[outputLocale]
     const gradeStyleBlock = gradeStyle ? `\n${gradeStyle}\n` : '\n'
     const imagePrompt = scope === 'slide'
-      ? `${SLIDE_IMAGE_INSTRUCTION_PREFIX}\n${gradeStyleBlock}${imageTextLanguageLock(outputLocale)}\n\nSLIDE TEXT (the only words and numbers allowed on the picture; copy the title and the example from here):\n${lessonText}\n\nSHORT LAYOUT NOTES (do not add facts that are not in the slide text):\n${summary}\n\nLAYOUT HINT (do not print this code):\n${mermaid}`
+      ? `${SLIDE_IMAGE_INSTRUCTION_PREFIX}\n${gradeStyleBlock}${imageTextLanguageLock(outputLocale)}\n\nMAIN POINTS TO WRITE ON THE ILLUSTRATION (these lines only, in the slide's own words):\n${summary}\n\nTHIS SLIDE (draw the illustration from here; do not paste these sentences onto the picture):\n${lessonText}\n\nLAYOUT HINT (do not print this code):\n${mermaid}`
       : `${IMAGE_INSTRUCTION_PREFIX}\n${gradeStyleBlock}${imageTextLanguageLock(outputLocale)}\n\nLESSON KNOWLEDGE (show each line as a large formula or a short heading in ${languageName}, never as a paragraph or an objectives list):\n${summary}\n\nHOW THE IDEAS CONNECT (layout only; labels stay short and in ${languageName}; do not print the diagram code):\n${mermaid}`
 
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()

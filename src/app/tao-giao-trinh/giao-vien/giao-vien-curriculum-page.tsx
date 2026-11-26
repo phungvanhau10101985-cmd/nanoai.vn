@@ -21,6 +21,7 @@ import { PresentationControlBar } from '../components/presentation-control-bar'
 import { TeacherPhoneSandTimerPicker } from '../components/teacher-phone-sand-timer-picker'
 import { TeacherPhoneAutoPlayPicker } from '../components/teacher-phone-autoplay-picker'
 import { TeacherPhoneRemoteDialog } from '../components/teacher-phone-remote-dialog'
+import { ExpandedImageNav, ExpandedImageStage, expandedGalleryImageUrl, useExpandedImageSwipe } from '../components/expanded-image-nav'
 import { AnswerScanLaunch, scanQuestionsFromSlide } from '@/components/lop/answer-scan-launch'
 import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { TeacherWhiteboardCanvas, applyRemoteWhiteboard, emptyWhiteboardState, type WhiteboardLivePointer } from '../components/teacher-whiteboard-canvas'
@@ -51,7 +52,7 @@ import {
   SLIDE_POINTER_SINGLE_TITLE_CLASS,
   SLIDE_SYNC_MARKDOWN_CLASS,
 } from '../components/slide-sync-markdown-classes'
-import { readCharRevealLineBreaks, readPointerTextHit } from '../components/slide-pointer-text-hit'
+import { readPointerTextHit } from '../components/slide-pointer-text-hit'
 import { bindLatestPointerFrame, VirtualMouseOverlay, type VirtualMouseController } from '../components/virtual-mouse-overlay'
 import { AnswerTypingPositionPopover } from '../components/answer-typing-position-popover'
 import {
@@ -660,6 +661,28 @@ function getVisualCellsForPresentation(
   const hasAnyVisual = normalized.some((c) => String(c.visualEmbed ?? '').trim() || String(c.imageUrl ?? '').trim())
   if (hasAnyVisual) return { layout: swapped.layout, cells: normalized }
   return { layout: 1, cells: [{ imageUrl: infUrl.trim() }] }
+}
+
+/** Cùng thứ tự ảnh mà lớp trượt của giáo viên đang dùng. Chỉ là URL, gửi đủ mọi slide. */
+function expandedSlideGalleryUrl(
+  item: SlideItem,
+  sourceView: InfographicSourceView,
+  lessonUrl: string | undefined,
+  curriculumUrl: string | undefined,
+  activeInfographic: SlideInfographic | null | undefined,
+): string {
+  if (sourceView === 'slide') {
+    const assistant = String(item.assistantImage?.imageUrl ?? '').trim()
+    if (assistant) return assistant
+  } else if (sourceView === 'curriculum') {
+    const poster = String(curriculumUrl ?? '').trim()
+    if (poster) return poster
+  } else if (sourceView === 'lesson') {
+    const poster = String(lessonUrl ?? '').trim()
+    if (poster) return poster
+  }
+  const visual = getVisualCellsForPresentation(item, activeInfographic, [lessonUrl, curriculumUrl], false)
+  return expandedGalleryImageUrl(visual.layout, visual.cells[0])
 }
 
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -1487,6 +1510,8 @@ export default function CurriculumViewPage() {
   const projectorBusyRef = useRef(false)
   const flushPendingProjectorRef = useRef<(w: Window | null) => void>(() => {})
   const [studentViewOpened, setStudentViewOpened] = useState(false)
+  /** Nút QR điện thoại chỉ bật sau khi giao diện học sinh tải xong. Mở cửa sổ giáo viên không bật. */
+  const [studentViewerReady, setStudentViewerReady] = useState(false)
   /** Slide index trước lần đổi `currentIndex` — kế thừa trạng thái tạm dừng gõ sang slide sau. */
   const prevSlideIndexForTypingPauseRef = useRef<number | null>(null)
   /** Đổi phiếu/giáo trình → không kế thừa pause từ tài liệu cũ. */
@@ -1685,6 +1710,15 @@ export default function CurriculumViewPage() {
   const chainImageSlideIndexRef = useRef(0)
   chainImageSlideIndexRef.current = chainImageSlideIndex
   const chainImageLockRef = useRef(0)
+  const expandedImageWasOpenRef = useRef(false)
+  const layoutWireSigRef = useRef('')
+  const chainScrollWireRef = useRef<{
+    anchor: string
+    slideIndex: number | null
+    blockIndex: number | null
+    syncId: string
+    rel: number
+  } | null>(null)
   const manualInfographicPinRef = useRef<number | null>(null)
   const keepInfographicPinRef = useRef(false)
   const hasLessonInfographic = Boolean(String(lessonInfographic?.imageUrl ?? '').trim())
@@ -1933,13 +1967,31 @@ export default function CurriculumViewPage() {
     const syncStudentWindowState = () => {
       const w = studentViewWindowRef.current
       const alive = !!(w && !w.closed)
-      if (!alive) studentViewWindowRef.current = null
-      setStudentViewOpened(alive)
+      if (!alive) {
+        if (w && w.closed) {
+          setStudentViewerReady(false)
+          setPhoneRemoteOpen(false)
+        }
+        studentViewWindowRef.current = null
+        setStudentViewOpened(false)
+        return
+      }
+      setStudentViewOpened(true)
+      try {
+        const kind = worksheetId ? 'worksheet' : 'curriculum'
+        const path = w.location.pathname || ''
+        const syncOk = new URLSearchParams(w.location.search || '').get('sync') === presentationSyncId
+        if (isPathMatchingStudentSlideKind(path, kind) && syncOk && w.document.readyState === 'complete') {
+          setStudentViewerReady(true)
+        }
+      } catch {
+        /* đang chuyển trang, chưa đọc được document học sinh */
+      }
     }
     syncStudentWindowState()
     const id = window.setInterval(syncStudentWindowState, 800)
     return () => window.clearInterval(id)
-  }, [])
+  }, [worksheetId, presentationSyncId])
 
   const requestCurriculum = useCallback(() => {
     if (window.opener) window.opener.postMessage({ type: 'request-curriculum' }, window.location.origin)
@@ -2902,7 +2954,7 @@ export default function CurriculumViewPage() {
           c.style.width = '0px'
           c.style.height = '0px'
         }
-      } else {
+      } else if (!visualFullscreenOpen) {
         const c = teacherInfographicOverlayCanvasRef.current
         if (c) {
           if (c.width !== 1) c.width = 1
@@ -2912,24 +2964,24 @@ export default function CurriculumViewPage() {
         }
       }
     }
-    if (infographicFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
+    if (infographicFullscreenOpen || visualFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
     else renderInfographicDrawCanvas('pane')
     clearInactive()
     const raf = typeof window !== 'undefined' ? window.requestAnimationFrame(() => {
-      if (infographicFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
+      if (infographicFullscreenOpen || visualFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
       else renderInfographicDrawCanvas('pane')
       clearInactive()
     }) : 0
     return () => {
       if (raf) window.cancelAnimationFrame(raf)
     }
-  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, infographicSourceView, activeVisualInfographic?.imageUrl])
+  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, visualFullscreenOpen, infographicSourceView, activeVisualInfographic?.imageUrl])
 
   useEffect(() => {
     // Repaint nhẹ sau đổi slide/tab: đủ để bắt ảnh load chậm nhưng tránh tốn RAM/CPU.
     const timers: Array<ReturnType<typeof setTimeout>> = []
     const run = () => {
-      if (infographicFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
+      if (infographicFullscreenOpen || visualFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
       else renderInfographicDrawCanvas('pane')
     }
     timers.push(setTimeout(run, 450))
@@ -2938,7 +2990,7 @@ export default function CurriculumViewPage() {
     return () => {
       for (const id of timers) clearTimeout(id)
     }
-  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, infographicSourceView, activeVisualInfographic?.imageUrl, infographicDrawStrokesBySlide])
+  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, visualFullscreenOpen, infographicSourceView, activeVisualInfographic?.imageUrl, infographicDrawStrokesBySlide])
 
   useEffect(() => {
     const binds: Array<() => void> = []
@@ -2961,7 +3013,7 @@ export default function CurriculumViewPage() {
     }
     bind('fullscreen', teacherInfographicOverlayStageRef.current, teacherInfographicOverlayImgRef.current)
     const onResize = () => {
-      if (infographicFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
+      if (infographicFullscreenOpen || visualFullscreenOpen) renderInfographicDrawCanvas('fullscreen')
       else renderInfographicDrawCanvas('pane')
     }
     window.addEventListener('resize', onResize)
@@ -2973,7 +3025,7 @@ export default function CurriculumViewPage() {
       window.removeEventListener('resize', onResize)
       if (raf) window.cancelAnimationFrame(raf)
     }
-  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, infographicSourceView, activeVisualInfographic?.imageUrl])
+  }, [renderInfographicDrawCanvas, currentIndex, leftPanelMode, infographicFullscreenOpen, visualFullscreenOpen, infographicSourceView, activeVisualInfographic?.imageUrl])
 
   useEffect(() => {
     if (skipInfographicSyncRef.current) {
@@ -2998,7 +3050,6 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     if (worksheetId || phoneFollowerId || slides.length === 0 || presentationBootRef.current) return
     presentationBootRef.current = true
-    setPhoneRemoteOpen(true)
     if (leftPanelMode !== 'curriculum' && leftPanelMode !== 'slide') return
     layoutPaneRef.current = true
     leftPanelModeRef.current = 'visual'
@@ -3091,6 +3142,13 @@ export default function CurriculumViewPage() {
     const wireInfographic = curriculumInfographicWire ?? activeVisualInfographic
     const compactedSlides = compactSlidesForStudentWire(slidesToSend, idx)
     const wireSlides = compactedSlides.map((s, i) => toStudentSlidePayload(s, i))
+    const slideGalleryUrls = slidesToSend.map((item) => expandedSlideGalleryUrl(
+      item,
+      infographicSourceView,
+      lessonInfographic?.imageUrl,
+      curriculumInfographic?.imageUrl,
+      activeVisualInfographic,
+    ))
     const wireContent = compactedSlides.length > 0 ? '' : content
     const payload = {
       type: 'curriculum-data',
@@ -3103,6 +3161,7 @@ export default function CurriculumViewPage() {
       personalViewSubMode,
       hasOriginalSlides,
       slides: wireSlides,
+      slideGalleryUrls,
       worksheetId: !!worksheetId,
       ...(!worksheetId
         ? {
@@ -3136,6 +3195,7 @@ export default function CurriculumViewPage() {
       currentVisualShowsInfographic ? 1 : 0,
       fastHashText(String(wireInfographic?.imageUrl ?? '')),
       fastHashText(String(lessonInfographic?.imageUrl ?? '')),
+      fastHashText(slideGalleryUrls.join('\n')),
       slideDigestKey,
     ].join('|')
     if (lastStudentWirePayloadRef.current === payloadKey) return
@@ -3150,7 +3210,7 @@ export default function CurriculumViewPage() {
     } catch {
       /* ignore */
     }
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, toStudentSlidePayload, worksheetId, studentCurriculumRemoteMode, activeVisualInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire, infographicSourceView])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, toStudentSlidePayload, worksheetId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, curriculumInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire, infographicSourceView])
 
   useEffect(() => {
     if (!studentViewOpened || worksheetId) return
@@ -3471,12 +3531,30 @@ export default function CurriculumViewPage() {
     if (window.opener) window.opener.postMessage({ type: action, blockIndex: stepped.blockIndex }, window.location.origin)
     publishSessionCommand({ type: 'slide-go', index: stepped.index, blockIndex: stepped.blockIndex })
   }, [claimTypingDriver, commitCurrentSlideDraft, publishSessionCommand, worksheetId])
+  const goExpandedImage = useCallback((direction: -1 | 1) => {
+    const list = slidesRef.current
+    const from = currentIndexRef.current
+    const next = Math.max(0, Math.min(Math.max(0, list.length - 1), from + direction))
+    if (next === from) return
+    commitCurrentSlideDraft()
+    slideFollowHoldRef.current = { index: next, until: Date.now() + 1200 }
+    claimTypingDriver()
+    blockNavRef.current = true
+    setTeacherExpandedCellIndex(null)
+    setActiveBlockIndex(0)
+    setCurrentIndex(next)
+    publishSessionCommand({ type: 'slide-go', index: next, blockIndex: 0 })
+  }, [claimTypingDriver, commitCurrentSlideDraft, publishSessionCommand])
+  const expandedImageSwipe = useExpandedImageSwipe(
+    () => goExpandedImage(-1),
+    () => goExpandedImage(1),
+  )
   const sendSlideControlRef = useRef(sendSlideControl)
   sendSlideControlRef.current = sendSlideControl
 
-  /** Không có cửa sổ học sinh thì giáo viên tự chạy từng đoạn. Có học sinh thì máy học sinh giữ nhịp. */
+  /** Nhịp «Tự chạy» tính theo thời gian mỗi đoạn. Cửa sổ học sinh đang mở vẫn do giáo viên đẩy, để nút không đứng im. */
   useEffect(() => {
-    if (worksheetId || !curriculumId || !remoteAutoPlay || studentViewOpened || slides.length === 0) return
+    if (worksheetId || !curriculumId || !remoteAutoPlay || slides.length === 0) return
     let startedAt = Date.now()
     let beatKey = ''
     const id = window.setInterval(() => {
@@ -3488,18 +3566,11 @@ export default function CurriculumViewPage() {
         startedAt = Date.now()
       }
       if (Date.now() - startedAt < remoteAutoPlayIntervalMs) return
-      const active = presentationBlocks(slidesRef.current[index])[block]
-      if (active) {
-        const revealKey = `${index}-${block}`
-        const total = blockTypingSegmentCount(active, { worksheetPresentation: false, hasCurriculumSegmentTyping: true })
-        const revealed = answerRevealProgressRef.current[revealKey] ?? 0
-        if (answerTypingEnabledRef.current[revealKey] !== false && revealed < total) return
-      }
       sendSlideControlRef.current('slide-next')
       startedAt = Date.now()
     }, 200)
     return () => window.clearInterval(id)
-  }, [worksheetId, curriculumId, remoteAutoPlay, studentViewOpened, remoteAutoPlayIntervalMs, slides.length])
+  }, [worksheetId, curriculumId, remoteAutoPlay, remoteAutoPlayIntervalMs, slides.length])
 
   const persistSlidesRef = useRef<(s: SlideItem[], curriculumInfographicOverride?: SlideInfographic, opts?: { quiet?: boolean }) => Promise<void>>(async () => {})
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
@@ -4235,7 +4306,16 @@ export default function CurriculumViewPage() {
     syncChannelRef.current = channel
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === 'student-viewer-ready') {
+        setStudentViewerReady(true)
         flushPendingProjectorRef.current(studentViewWindowRef.current)
+        return
+      }
+      if (event.data?.type === 'set-auto-play' && typeof event.data?.value === 'boolean') {
+        setRemoteAutoPlay(event.data.value)
+        return
+      }
+      if (event.data?.type === 'set-auto-play-interval' && typeof event.data?.ms === 'number' && event.data.ms >= 1000) {
+        setRemoteAutoPlayIntervalMs(event.data.ms)
         return
       }
       if (event.data?.type !== 'request-curriculum') return
@@ -4255,6 +4335,13 @@ export default function CurriculumViewPage() {
         personalViewSubMode,
         hasOriginalSlides,
         slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
+        slideGalleryUrls: slides.map((item) => expandedSlideGalleryUrl(
+          item,
+          infographicSourceView,
+          lessonInfographic?.imageUrl,
+          curriculumInfographic?.imageUrl,
+          activeVisualInfographic,
+        )),
         worksheetId: !!worksheetId,
         ...(!worksheetId
           ? {
@@ -4269,8 +4356,8 @@ export default function CurriculumViewPage() {
       if (worksheetId || curriculumId) {
         channel.postMessage({
           type: 'worksheet-answer-reveal',
-          worksheetAnswerReveal: answerRevealProgress,
-          worksheetAnswerTypingEnabled: answerTypingEnabled,
+          worksheetAnswerReveal: answerRevealProgressRef.current,
+          worksheetAnswerTypingEnabled: answerTypingEnabledRef.current,
         })
       }
       channel.postMessage({ type: 'presentation-mode', mode: 'slide-interaction' })
@@ -4313,7 +4400,7 @@ export default function CurriculumViewPage() {
       channel.close()
       if (syncChannelRef.current === channel) syncChannelRef.current = null
     }
-  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, quizPopupOpen, quizFocusSlideIndex, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, answerRevealProgress, answerTypingEnabled, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
+  }, [presentationSyncId, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, remoteAutoPlay, remoteAutoPlayIntervalMs, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, quizPopupOpen, quizFocusSlideIndex, quizSessionData, quizSessionSettings, toStudentSlidePayload, worksheetId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, curriculumInfographic, infographicSourceView, leftPanelMode, currentVisualShowsInfographic, compactSlidesForStudentWire])
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     if (phoneFollowerIdRef.current) {
@@ -5423,31 +5510,20 @@ export default function CurriculumViewPage() {
     const el = teacherSlideContentLayoutRef.current
     if (!el) return
     const emit = () => {
-      const w = Math.round(el.getBoundingClientRect().width)
+      const w = Math.round(el.getBoundingClientRect().width / 8) * 8
       const prose = Array.from(el.querySelectorAll('[data-pointer-prose-root]')).find((node) => {
         if (!(node instanceof HTMLElement)) return false
         const rect = node.getBoundingClientRect()
         return rect.width > 40 && rect.height > 8
       }) as HTMLElement | undefined
-      const proseW = prose ? Math.round(prose.clientWidth) : 0
-      const proseBreaks: { slideIndex: number; blockIndex: number; reveals: number[][] }[] = []
-      el.querySelectorAll('[data-pointer-prose-root]').forEach((node) => {
-        if (!(node instanceof HTMLElement)) return
-        const rect = node.getBoundingClientRect()
-        if (rect.width <= 40 || rect.height <= 8) return
-        const slideIndex = Number(node.getAttribute('data-slide-index'))
-        const blockIndex = Number(node.getAttribute('data-block-index'))
-        if (!Number.isFinite(slideIndex) || !Number.isFinite(blockIndex)) return
-        const reveals: number[][] = []
-        node.querySelectorAll('[data-sync-char-reveal]').forEach((reveal) => {
-          if (reveal instanceof HTMLElement) reveals.push(readCharRevealLineBreaks(reveal))
-        })
-        if (reveals.some((line) => line.length > 0)) proseBreaks.push({ slideIndex, blockIndex, reveals })
-      })
+      const proseW = prose ? Math.round(prose.clientWidth / 8) * 8 : 0
       if (w > 0) {
+        const sig = `${w}|${proseW}`
+        if (layoutWireSigRef.current === sig) return
+        layoutWireSigRef.current = sig
         sendTickToStudent(
           'slide-content-layout',
-          { type: 'slide-content-layout', layoutW: w, proseW, proseBreaks },
+          { type: 'slide-content-layout', layoutW: w, proseW },
           120
         )
       }
@@ -5455,31 +5531,47 @@ export default function CurriculumViewPage() {
     emit()
     const ro = new ResizeObserver(() => emit())
     ro.observe(el)
-    el.querySelectorAll('[data-pointer-prose-root], [data-sync-char-reveal]').forEach((node) => ro.observe(node))
     return () => ro.disconnect()
   }, [studentViewOpened, slideViewMode, sendToStudentView, currentIndex])
 
   useEffect(() => {
-    if (worksheetId || studentCurriculumRemoteMode !== 'markdown-all' || slideViewMode !== 'single') return
+    const wasOpen = expandedImageWasOpenRef.current
+    expandedImageWasOpenRef.current = visualFullscreenOpen
+    if (visualFullscreenOpen) return
+    const alignTop = wasOpen
+    const chain = !worksheetId && studentCurriculumRemoteMode === 'markdown-all' && slideViewMode === 'single'
+    if (!alignTop && !chain) return
+    if (alignTop) {
+      chainImageLockRef.current = Date.now() + 900
+      setChainImageSlideIndex(currentIndex)
+    }
     if (narrowTeacherLayout) chainProgrammaticScrollUntilRef.current = Date.now() + 520
-    const container = teacherSlideContentPaneRef.current
-    const el = document.getElementById(`teacher-chain-slide-${currentIndex}`)
-    if (!container || !el) return
-    const timer = window.setTimeout(() => {
+    const scrollToSlide = () => {
+      const container = teacherSlideContentPaneRef.current
+      if (!container) return
+      const el = chain ? document.getElementById(`teacher-chain-slide-${currentIndex}`) : null
+      if (!(el instanceof HTMLElement)) {
+        if (alignTop) container.scrollTo({ top: 0, behavior: 'auto' })
+        return
+      }
       const cRect = container.getBoundingClientRect()
       const eRect = el.getBoundingClientRect()
       const elTop = eRect.top - cRect.top + container.scrollTop
-      const bias = Math.max(56, Math.round(container.clientHeight * 0.18))
-      const extra = Math.max(16, Math.min(180, Math.round(eRect.height * 0.1)))
+      const bias = alignTop ? 8 : Math.max(56, Math.round(container.clientHeight * 0.18))
+      const extra = alignTop ? 0 : Math.max(16, Math.min(180, Math.round(eRect.height * 0.1)))
       const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight)
-      if (narrowTeacherLayout) chainProgrammaticScrollUntilRef.current = Date.now() + 220
+      if (narrowTeacherLayout || alignTop) chainProgrammaticScrollUntilRef.current = Date.now() + 400
       container.scrollTo({
         top: Math.min(maxScroll, Math.max(0, elTop - bias + extra)),
-        behavior: narrowTeacherLayout ? 'auto' : 'smooth',
+        behavior: alignTop || narrowTeacherLayout ? 'auto' : 'smooth',
       })
-    }, 80)
-    return () => window.clearTimeout(timer)
-  }, [worksheetId, studentCurriculumRemoteMode, slideViewMode, currentIndex, slides.length, narrowTeacherLayout])
+    }
+    const timers = [window.setTimeout(scrollToSlide, alignTop ? 0 : 80)]
+    if (alignTop) timers.push(window.setTimeout(scrollToSlide, 160))
+    return () => {
+      for (const timer of timers) window.clearTimeout(timer)
+    }
+  }, [worksheetId, studentCurriculumRemoteMode, slideViewMode, currentIndex, slides.length, narrowTeacherLayout, visualFullscreenOpen])
 
   useEffect(() => {
     if (slideViewMode !== 'single') return
@@ -5565,26 +5657,49 @@ export default function CurriculumViewPage() {
       }
       return { type: 'chain-pane-scroll', anchor: 'start', rel: 0 }
     }
-    const emit = () => {
+    const emit = (fromResize: boolean) => {
       if (phoneFollowerId && Date.now() < chainProgrammaticScrollUntilRef.current) return
-      sendTickToStudent('chain-pane-scroll', readAnchor(), 32)
+      const msg = readAnchor() as {
+        anchor?: string
+        slideIndex?: number
+        blockIndex?: number
+        syncId?: string
+        rel?: number
+      }
+      const anchor = String(msg.anchor ?? '')
+      const slideIndex = typeof msg.slideIndex === 'number' ? msg.slideIndex : null
+      const blockIndex = typeof msg.blockIndex === 'number' ? msg.blockIndex : null
+      const syncId = typeof msg.syncId === 'string' ? msg.syncId : ''
+      const rel = typeof msg.rel === 'number' && Number.isFinite(msg.rel) ? msg.rel : 0
+      const prev = chainScrollWireRef.current
+      const sameAnchor =
+        !!prev &&
+        prev.anchor === anchor &&
+        prev.slideIndex === slideIndex &&
+        prev.blockIndex === blockIndex &&
+        prev.syncId === syncId
+      const relSlack = fromResize ? 0.012 : 0.004
+      if (sameAnchor && Math.abs(prev.rel - rel) < relSlack) return
+      chainScrollWireRef.current = { anchor, slideIndex, blockIndex, syncId, rel }
+      sendTickToStudent('chain-pane-scroll', msg as Record<string, unknown>, 32)
     }
-    emit()
-    const retrySoon = window.setTimeout(emit, 140)
-    const retryLater = window.setTimeout(emit, 420)
-    scrollEl.addEventListener('scroll', emit, { passive: true })
-    scrollEl.addEventListener('touchmove', emit, { passive: true })
-    scrollEl.addEventListener('touchend', emit, { passive: true })
-    const ro = new ResizeObserver(() => emit())
+    emit(false)
+    const retrySoon = window.setTimeout(() => emit(false), 140)
+    const retryLater = window.setTimeout(() => emit(false), 420)
+    const emitScroll = () => emit(false)
+    scrollEl.addEventListener('scroll', emitScroll, { passive: true })
+    scrollEl.addEventListener('touchmove', emitScroll, { passive: true })
+    scrollEl.addEventListener('touchend', emitScroll, { passive: true })
+    const ro = new ResizeObserver(() => emit(true))
     ro.observe(scrollEl)
     const content = scrollEl.firstElementChild
     if (content) ro.observe(content)
     return () => {
       window.clearTimeout(retrySoon)
       window.clearTimeout(retryLater)
-      scrollEl.removeEventListener('scroll', emit)
-      scrollEl.removeEventListener('touchmove', emit)
-      scrollEl.removeEventListener('touchend', emit)
+      scrollEl.removeEventListener('scroll', emitScroll)
+      scrollEl.removeEventListener('touchmove', emitScroll)
+      scrollEl.removeEventListener('touchend', emitScroll)
       ro.disconnect()
     }
   }, [studentViewOpened, phoneFollowerId, slideViewMode, studentCurriculumRemoteMode, currentIndex, sendToStudentView])
@@ -5734,6 +5849,8 @@ export default function CurriculumViewPage() {
     }
     if (!targetWin) {
       setStudentViewOpened(false)
+      setStudentViewerReady(false)
+      setPhoneRemoteOpen(false)
       projectorPendingRef.current = false
       toast({
         title: tr('Không mở được giao diện học sinh', 'Cannot open student view', '无法打开学生界面', '生徒画面を開けません', '학생 화면을 열 수 없습니다'),
@@ -5897,6 +6014,8 @@ export default function CurriculumViewPage() {
       }
       if (studentViewWindowRef.current === opened) studentViewWindowRef.current = null
       setStudentViewOpened(false)
+      setStudentViewerReady(false)
+      setPhoneRemoteOpen(false)
       reviewGateRef.current = true
       setReviewIsGate(true)
       prepareLessonReview()
@@ -5949,6 +6068,8 @@ export default function CurriculumViewPage() {
     if (!targetWin || targetWin.closed) {
       studentViewWindowRef.current = null
       setStudentViewOpened(false)
+      setStudentViewerReady(false)
+      setPhoneRemoteOpen(false)
       toast({
         title: tr('Chưa có giao diện học sinh đang mở', 'Student view is not open yet', '学生界面尚未打开', '生徒画面はまだ開いていません', '학생 화면이 아직 열려 있지 않습니다'),
         description: tr('Hãy bấm "Mở giao diện học sinh" để mở lần đầu.', 'Click "Open student interface" for the first launch.', '请点击“打开学生界面”进行首次打开。', '初回は「生徒画面を開く」を押してください。', '처음에는 "학생 인터페이스 열기"를 눌러 주세요.'),
@@ -6595,6 +6716,7 @@ export default function CurriculumViewPage() {
           studentViewWindowRef.current = src as Window
           setStudentViewOpened(true)
         }
+        setStudentViewerReady(true)
         flushPendingProjectorRef.current(studentViewWindowRef.current)
       }
       if (e.data?.type === 'request-curriculum' && e.source) {
@@ -6615,6 +6737,13 @@ export default function CurriculumViewPage() {
               personalViewSubMode,
               hasOriginalSlides,
               slides: compactedSlides.map((s, i) => toStudentSlidePayload(s, i)),
+              slideGalleryUrls: slides.map((item) => expandedSlideGalleryUrl(
+                item,
+                infographicSourceView,
+                lessonInfographic?.imageUrl,
+                curriculumInfographic?.imageUrl,
+                activeVisualInfographic,
+              )),
               worksheetId: !!worksheetId,
               ...(!worksheetId
                 ? {
@@ -6745,6 +6874,22 @@ export default function CurriculumViewPage() {
             }))
         }
         setInfographicDrawStrokesBySlide((prev) => foldInfographicStrokesToCurriculumKey({ ...prev, ...normalized }))
+      }
+      if (e.data?.type === 'set-auto-play' && typeof e.data?.value === 'boolean' && e.source && e.source !== window) {
+        studentViewWindowRef.current = e.source as Window
+        setStudentViewOpened(true)
+        setRemoteAutoPlay(e.data.value)
+        sendToStudentViewRef.current({ type: 'set-auto-play', value: e.data.value })
+      }
+      if (
+        e.data?.type === 'set-auto-play-interval' &&
+        typeof e.data?.ms === 'number' &&
+        e.data.ms >= 1000 &&
+        e.source &&
+        e.source !== window
+      ) {
+        setRemoteAutoPlayIntervalMs(e.data.ms)
+        sendToStudentViewRef.current({ type: 'set-auto-play-interval', ms: e.data.ms })
       }
       if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number' && e.source === studentViewWindowRef.current) {
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
@@ -6945,7 +7090,7 @@ export default function CurriculumViewPage() {
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen, openQuizPopupFresh, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, studentCurriculumRemoteMode, commitCurrentSlideDraft, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, upsertInfographicStroke, appendInfographicStrokePoint, appendInfographicStrokePoints, clearInfographicStrokes, undoInfographicStroke, compactSlidesForStudentWire])
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, quizPopupOpen, openQuizPopupFresh, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, studentCurriculumRemoteMode, commitCurrentSlideDraft, activeVisualInfographic, lessonInfographic, curriculumInfographic, infographicSourceView, leftPanelMode, infographicDrawStrokesBySlide, upsertInfographicStroke, appendInfographicStrokePoint, appendInfographicStrokePoints, clearInfographicStrokes, undoInfographicStroke, compactSlidesForStudentWire])
 
   useEffect(() => {
     if (worksheetId) return
@@ -7131,13 +7276,21 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     if (!visualFullscreenOpen && !infographicFullscreenOpen) return
     const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      const tag = (el?.tagName || '').toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || el?.isContentEditable) return
+      if (visualFullscreenOpen && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault()
+        goExpandedImage(e.key === 'ArrowRight' ? 1 : -1)
+        return
+      }
       if (e.key !== 'Escape') return
       if (visualFullscreenOpen) closeTeacherVisualFullscreen()
       if (infographicFullscreenOpen) closeTeacherInfographicFullscreen()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visualFullscreenOpen, infographicFullscreenOpen, closeTeacherVisualFullscreen, closeTeacherInfographicFullscreen])
+  }, [visualFullscreenOpen, infographicFullscreenOpen, closeTeacherVisualFullscreen, closeTeacherInfographicFullscreen, goExpandedImage])
 
   const replaceLessonTextOnce = (haystack: string, from: string, to: string) => replaceCurriculumExercise(haystack, from, to)
 
@@ -7361,6 +7514,13 @@ export default function CurriculumViewPage() {
     personalViewSubMode,
     hasOriginalSlides,
     slides,
+    slideGalleryUrls: slides.map((item) => expandedSlideGalleryUrl(
+      item,
+      infographicSourceView,
+      lessonInfographic?.imageUrl,
+      curriculumInfographic?.imageUrl,
+      activeVisualInfographic,
+    )),
     curriculumInfographic: curriculumInfographic ?? null,
     lessonInfographic: lessonInfographic ?? null,
     studentCurriculumRightMode: studentCurriculumRemoteMode,
@@ -8393,7 +8553,7 @@ export default function CurriculumViewPage() {
           slideViewMode={slideViewMode}
           onSlideViewModeChange={(m) => setSlideViewMode(m)}
           onOpenStudentView={!phoneFollowerId && slides.length > 0 ? openStudentView : undefined}
-          onPhoneControl={!phoneFollowerId ? () => setPhoneRemoteOpen(true) : undefined}
+          onPhoneControl={!phoneFollowerId && studentViewerReady ? () => setPhoneRemoteOpen(true) : undefined}
           hideIndex
           hideInsert
           hideTeacherLeftButtons
@@ -9775,6 +9935,7 @@ export default function CurriculumViewPage() {
                                 visibleCount={preview ?? revealed}
                                 showCursor={sequentialSolutionLeaderBlockIndex === -1}
                                 penWhenEmpty={sequentialSolutionLeaderBlockIndex === -1}
+                                pendingClassName="text-amber-200/40"
                               />
                             )
                           })()}
@@ -9854,6 +10015,7 @@ export default function CurriculumViewPage() {
                                               visibleCount={headerSplit.headerVisible}
                                               showCursor={headerIsLeader}
                                               penWhenEmpty={headerIsLeader}
+                                              pendingClassName="text-amber-200/40"
                                             />
                                           ) : (
                                             b.header
@@ -9869,6 +10031,7 @@ export default function CurriculumViewPage() {
                                                   visibleCount={headerSplit.headerVisible}
                                                   showCursor={headerIsLeader}
                                                   penWhenEmpty={headerIsLeader}
+                                                  pendingClassName="text-amber-200/40"
                                                 />
                                               ) : (
                                                 b.header
@@ -10316,6 +10479,7 @@ export default function CurriculumViewPage() {
                                 }
                                 showCursor={sequentialSolutionLeaderBlockIndex === -1 && currentIndex === idx}
                                 penWhenEmpty={sequentialSolutionLeaderBlockIndex === -1 && currentIndex === idx}
+                                pendingClassName="text-amber-200/40"
                               />
                             ) : (
                               s?.title ?? ''
@@ -10734,6 +10898,7 @@ export default function CurriculumViewPage() {
           [lessonInfographic?.imageUrl, curriculumInfographic?.imageUrl],
           infographicSourceView !== 'visual'
         )
+        const hasAny = cells.some((cell) => cell.visualEmbed || cell.imageUrl)
         const showSingleCell = teacherExpandedCellIndex != null && layout > 1
         const displayCells = showSingleCell && cells[teacherExpandedCellIndex] ? [cells[teacherExpandedCellIndex]] : cells
         const displayIndices = showSingleCell && teacherExpandedCellIndex != null ? [teacherExpandedCellIndex] : cells.map((_, i) => i)
@@ -10743,24 +10908,35 @@ export default function CurriculumViewPage() {
             : !showSingleCell && layout === 4
               ? 'grid min-h-0 grid-cols-2 grid-rows-2 gap-2'
               : ''
+        const emptyImageLabel = tr('Slide này chưa có ảnh', 'This slide has no image', '这张幻灯片没有图片', 'このスライドに画像はありません', '이 슬라이드에는 이미지가 없습니다')
+        const galleryUrls = slides.map((item) => expandedSlideGalleryUrl(
+          item,
+          infographicSourceView,
+          lessonInfographic?.imageUrl,
+          curriculumInfographic?.imageUrl,
+          activeVisualInfographic,
+        ))
+        const gallery = Boolean(galleryUrls[currentIndex])
         return (
           <div ref={teacherVisualOverlayRef} className="fixed inset-0 z-[105] flex min-h-0 flex-col bg-black">
-            <div className="z-20 flex h-14 w-full shrink-0 items-center justify-between bg-black/70 px-4">
-              <span className="text-white/80 text-sm">{currentIndex + 1}/{slides.length} {s.title}</span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={closeTeacherVisualFullscreen}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium transition-colors"
-                  title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
-                >
-                  <X className="h-5 w-5" />
-                  {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
-                </button>
-              </div>
+            <div className="z-20 flex h-12 w-full shrink-0 items-center justify-between gap-2 bg-black/80 px-3 sm:h-14 sm:px-4">
+              <span className="min-w-0 truncate text-sm text-white/80">{currentIndex + 1}/{slides.length} {s.title}</span>
+              <button
+                type="button"
+                onClick={closeTeacherVisualFullscreen}
+                className="flex h-11 shrink-0 items-center gap-2 rounded-lg bg-white/20 px-3 text-sm font-medium text-white transition-colors hover:bg-white/30 sm:px-4"
+                title={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+              >
+                <X className="h-5 w-5" />
+                <span className="hidden sm:inline">{tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}</span>
+              </button>
             </div>
             <div
-              className="flex min-h-0 flex-1 flex-col px-4 pb-4"
+              className="relative flex min-h-0 flex-1 flex-col"
+              {...expandedImageSwipe}
+            >
+            <div
+              className="flex min-h-0 flex-1 flex-col px-2 pb-2 sm:px-4 sm:pb-4"
               onClick={(e) => {
                 if (e.target === e.currentTarget) closeTeacherVisualFullscreen()
               }}
@@ -10773,7 +10949,61 @@ export default function CurriculumViewPage() {
                   )}
                   onClick={(e) => e.stopPropagation()}
                 >
-                {displayCells.map((cell, i) => {
+                {gallery ? (
+                  <div className="flex min-h-0 w-full flex-1 flex-col">
+                    <div className="relative min-h-0 flex-1">
+                      <ExpandedImageStage urls={galleryUrls} index={currentIndex} emptyLabel={emptyImageLabel} />
+                      <div
+                        data-expanded-image-draw
+                        data-teacher-infographic-draw-fullscreen-stage
+                        className="absolute inset-0 z-[3] touch-none"
+                        ref={(node) => { teacherInfographicOverlayStageRef.current = node }}
+                        onPointerDown={(e) => startInfographicDrawing('fullscreen', e)}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- bounds for strokes on the large slide image */}
+                        <img
+                          ref={(node) => { teacherInfographicOverlayImgRef.current = node }}
+                          src={galleryUrls[currentIndex]}
+                          alt=""
+                          draggable={false}
+                          className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain opacity-0"
+                          referrerPolicy="no-referrer"
+                        />
+                        <canvas
+                          ref={(node) => { teacherInfographicOverlayCanvasRef.current = node }}
+                          className="pointer-events-none absolute"
+                          aria-hidden
+                        />
+                      </div>
+                    </div>
+                    <div
+                      data-expanded-image-draw
+                      className="z-30 flex w-full shrink-0 flex-wrap items-center justify-center gap-1.5 border-t border-white/20 bg-black/80 px-2 py-1.5 text-white"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button type="button" onClick={() => setInfographicDrawTool('pen')} className={cn('rounded px-2 py-1 text-xs', infographicDrawTool === 'pen' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Vẽ', 'Draw', '画笔', '描画', '그리기')}</button>
+                      <button type="button" onClick={() => setInfographicDrawTool('eraser')} className={cn('rounded px-2 py-1 text-xs', infographicDrawTool === 'eraser' ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Tẩy', 'Erase', '橡皮', '消しゴム', '지우기')}</button>
+                      <button type="button" onClick={() => setInfographicDrawBrushPx(3)} className={cn('rounded px-2 py-1 text-xs', infographicDrawBrushPx === 3 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Nhỏ', 'S', '细', '細', '얇게')}</button>
+                      <button type="button" onClick={() => setInfographicDrawBrushPx(5)} className={cn('rounded px-2 py-1 text-xs', infographicDrawBrushPx === 5 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('Vừa', 'M', '中', '中', '중간')}</button>
+                      <button type="button" onClick={() => setInfographicDrawBrushPx(7)} className={cn('rounded px-2 py-1 text-xs', infographicDrawBrushPx === 7 ? 'bg-white/30' : 'hover:bg-white/15')}>{tr('To', 'L', '粗', '太', '굵게')}</button>
+                      <div className="flex items-center gap-1 px-1">
+                        {INFOGRAPHIC_DRAW_COLORS.map((color) => (
+                          <button
+                            key={`expanded-draw-${color}`}
+                            type="button"
+                            onClick={() => setInfographicDrawColor(color)}
+                            className={cn('h-4 w-4 rounded-full border', infographicDrawColor === color ? 'scale-110 border-white' : 'border-white/40')}
+                            style={{ backgroundColor: color }}
+                            title={tr('Màu nét vẽ', 'Stroke color', '画笔颜色', '描画色', '펜 색상')}
+                          />
+                        ))}
+                      </div>
+                      <button type="button" onClick={() => { undoInfographicStroke(activeInfographicStrokeKey); sendToStudentView({ type: 'infographic-draw-undo', slideIndex: activeInfographicStrokeKey }) }} className="rounded px-2 py-1 text-xs hover:bg-white/15">{tr('Undo', 'Undo', '撤销', '元に戻す', '실행 취소')}</button>
+                      <button type="button" onClick={() => { clearInfographicStrokes(activeInfographicStrokeKey); sendToStudentView({ type: 'infographic-draw-clear', slideIndex: activeInfographicStrokeKey }) }} className="rounded px-2 py-1 text-xs hover:bg-white/15">{tr('Xóa nét', 'Clear', '清除', 'クリア', '지우기')}</button>
+                    </div>
+                  </div>
+                ) : hasAny ? displayCells.map((cell, i) => {
                   const cellFillClass =
                     showSingleCell || layout === 1 ? 'min-h-0 w-full flex-1 basis-0' : 'h-full min-h-0 min-w-0'
                   return (
@@ -10804,8 +11034,20 @@ export default function CurriculumViewPage() {
                     )}
                   </div>
                   )
-                })}
+                }) : (
+                  <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-white/70">
+                    {tr('Slide này chưa có ảnh', 'This slide has no image', '这张幻灯片没有图片', 'このスライドに画像はありません', '이 슬라이드에는 이미지가 없습니다')}
+                  </div>
+                )}
                 </div>
+            </div>
+            <ExpandedImageNav
+              index={currentIndex}
+              count={slides.length}
+              onPrev={() => goExpandedImage(-1)}
+              onNext={() => goExpandedImage(1)}
+              tr={tr}
+            />
             </div>
           </div>
         )

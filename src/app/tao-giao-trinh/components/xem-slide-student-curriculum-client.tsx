@@ -87,6 +87,7 @@ export default function XemSlideStudentCurriculumClient() {
       syncedStudentCurriculumRightMode={data.studentCurriculumRightMode ?? null}
       syncedStudentCurriculumLeftPane={data.teacherSlideLeftPane ?? null}
       curriculumInfographic={data.curriculumInfographic ?? null}
+      slideGalleryUrls={data.slideGalleryUrls}
     />
   )
 }

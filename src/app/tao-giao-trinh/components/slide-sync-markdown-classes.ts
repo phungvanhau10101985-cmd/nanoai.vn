@@ -17,7 +17,8 @@ export const SLIDE_POINTER_CHAIN_HEADER_CLASS = 'mb-2 text-xs font-bold leading-
 export const SLIDE_POINTER_SINGLE_TITLE_CLASS =
   'mb-4 w-full break-words text-xl font-bold leading-tight md:mb-6 md:text-2xl lg:text-3xl'
 export const SLIDE_POINTER_SINGLE_BLOCKS_CLASS = 'space-y-4'
-export const SLIDE_POINTER_SINGLE_BLOCK_CLASS = 'relative overflow-hidden rounded-lg border'
+/** overflow-clip: bo góc vẫn cắt, nhưng không lập khung cuộn — overflow-hidden làm thẻ nháy mỗi ký tự trên Windows. */
+export const SLIDE_POINTER_SINGLE_BLOCK_CLASS = 'relative overflow-clip rounded-lg border'
 export const SLIDE_POINTER_SINGLE_HEADER_CLASS =
   'flex min-h-10 items-center gap-2 border-b px-4 py-2.5 text-xs font-bold leading-tight'
 export const SLIDE_POINTER_SINGLE_BODY_CLASS = 'p-2.5'

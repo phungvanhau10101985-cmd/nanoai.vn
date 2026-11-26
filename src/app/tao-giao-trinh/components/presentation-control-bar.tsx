@@ -102,7 +102,7 @@ export interface PresentationControlBarProps {
   phoneTeacher?: boolean
   /** MacBook: thanh điều khiển cuộn ngang khi không đủ chỗ. Windows không truyền prop này. */
   appleMacBar?: boolean
-  /** Giáo viên, khi giao diện học sinh đang mở: hiện mã QR điều khiển từ điện thoại. */
+  /** Giáo viên, chỉ khi giao diện học sinh đã mở xong: hiện mã QR điều khiển từ điện thoại. */
   onPhoneControl?: () => void
 }
 
