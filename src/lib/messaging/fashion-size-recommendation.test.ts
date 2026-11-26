@@ -149,6 +149,46 @@ test('a named listed size is not replaced when the product has no body chart', (
   assert.match(fashionSizeRecommendationPrompt(result), /không kết luận vừa/)
 })
 
+test('usual worn size overrides the majority reference', () => {
+  const result = resolveFashionSizeRecommendation('Cao 1m70 nặng 87kg, mình thường mặc size L', [], {
+    name: 'Áo khoác nam',
+    categoryL1: 'Thời trang Nam',
+  })
+  assert.equal(result.preferUsualSize, true)
+  assert.equal(result.recommendedSize, 'L')
+  assert.equal(result.askUsualSize, false)
+  assert.match(fashionSizeRecommendationPrompt(result), /châu Á/)
+  assert.match(fashionSizeRecommendationPrompt(result), /size L/)
+  assert.doesNotMatch(fashionSizeRecommendationPrompt(result), /hay mặc size gì/)
+})
+
+test('a looser fit is one size above the size they usually wear', () => {
+  const result = resolveFashionSizeRecommendation('mình hay mặc size L, muốn rộng hơn', ['S', 'M', 'L', 'XL'], {
+    name: 'Áo khoác nam',
+    categoryL1: 'Thời trang Nam',
+  })
+  assert.equal(result.preferUsualSize, true)
+  assert.equal(result.usualSizeLooser, true)
+  assert.equal(result.recommendedSize, 'XL')
+})
+
+test('a bare size reply is the size they usually wear', () => {
+  const result = resolveFashionSizeRecommendation('XL', [], {
+    name: 'Áo khoác nam',
+    categoryL1: 'Thời trang Nam',
+  })
+  assert.equal(result.recommendedSize, 'XL')
+  assert.equal(result.preferUsualSize, true)
+})
+
+test('asking whether a listed size fits is not treated as the size they wear', () => {
+  const result = resolveFashionSizeRecommendation('Size 4XL có vừa 1m80 95kg không?', ['M', 'L', 'XL', 'XXL', '3XL', '4XL'], {
+    name: 'Áo bomber',
+  })
+  assert.equal(result.preferUsualSize, undefined)
+  assert.match(fashionSizeRecommendationPrompt(result), /không kết luận vừa/)
+})
+
 test('earlier height is kept when the latest line only has weight', () => {
   const text = sizeSignalTextFromRecentInbound('nặng 83kg', ['mình cao 1m75'])
   const result = resolveFashionSizeRecommendation(text, ['M-90-120kg', 'L-120-140kg'], { name: 'Áo' })

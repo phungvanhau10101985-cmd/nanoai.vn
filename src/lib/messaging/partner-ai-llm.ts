@@ -520,31 +520,31 @@ function formatPartnerAiTranscriptLines(chronological: PartnerAiTranscriptMsg[])
   return chronological.map((m) => formatPartnerAiOneTranscriptLine(m)).join('\n')
 }
 
-function buildRecentHumanShopFactsBlock(
-  chronological: PartnerAiTranscriptMsg[],
-  isFashionPartner: boolean
-): string {
-  const recentHumanReplies = chronological
-    .filter((m) => m.direction === 'outbound' && Boolean(m.sender_admin_id) && m.body.trim())
-    .slice(-6)
-
+/** Luật ưu tiên đứng yên — nằm trong prefix cache, trước ngữ cảnh shop. */
+function buildStableHumanShopPriorityRules(isFashionPartner: boolean): string {
   const originConvention = isFashionPartner
     ? `
 - Quy ước nguồn gốc của shop thời trang này: nếu chỉ ghi chung “xưởng trong nước”, “kho trong nước”, “hàng nội địa”, “xưởng” hoặc “kho” mà **không nêu tên quốc gia**, phải hiểu là **Trung Quốc / nội địa Trung Quốc**; tuyệt đối không tự suy thành Việt Nam chỉ vì cuộc chat dùng tiếng Việt.
 - Nếu nội dung ghi rõ quốc gia (ví dụ Việt Nam, Hàn Quốc, Nhật Bản...) thì giữ đúng quốc gia đã ghi.`
     : ''
 
-  const humanFacts =
-    recentHumanReplies.length > 0
-      ? `
-Các tin người thật gần đây (mới nhất ở cuối; nếu chúng mâu thuẫn nhau thì tin mới hơn thắng):
-${recentHumanReplies.map((m) => `- ${m.body.trim()}`).join('\n')}`
-      : '\nHiện không có tin người thật gần đây trong phần lịch sử đã tải.'
-
   return `[Thứ tự ưu tiên sự thật — bắt buộc]
 - Tin do **Shop (người thật)** trả lời là nguồn sự thật cao nhất. Khi tin người thật mâu thuẫn với dữ liệu kho, mô tả tự động hoặc tin AI cũ, phải trả lời theo tin người thật; không xin lỗi rồi quay lại khẳng định dữ liệu thấp ưu tiên.
-- Dữ liệu kho vẫn là nguồn chuẩn khi người thật chưa xác nhận khác. Không được coi tin **Shop (AI/hệ thống)** là lời xác nhận của người thật.${originConvention}
-${humanFacts}`
+- Dữ liệu kho vẫn là nguồn chuẩn khi người thật chưa xác nhận khác. Không được coi tin **Shop (AI/hệ thống)** là lời xác nhận của người thật.${originConvention}`
+}
+
+/** Danh sách tin người thật đổi theo hội thoại — đặt cuối system để không cắt prefix. */
+function buildVolatileHumanShopFacts(chronological: PartnerAiTranscriptMsg[]): string {
+  const recentHumanReplies = chronological
+    .filter((m) => m.direction === 'outbound' && Boolean(m.sender_admin_id) && m.body.trim())
+    .slice(-6)
+
+  if (recentHumanReplies.length > 0) {
+    return `
+Các tin người thật gần đây (mới nhất ở cuối; nếu chúng mâu thuẫn nhau thì tin mới hơn thắng):
+${recentHumanReplies.map((m) => `- ${m.body.trim()}`).join('\n')}`
+  }
+  return '\nHiện không có tin người thật gần đây trong phần lịch sử đã tải.'
 }
 
 /** Tin shop **gần nhất** trước cụm tin khách liên tiếp ở cuối transcript («vừa tư vấn»). */
@@ -1059,7 +1059,9 @@ export async function buildPartnerAiContext(
       console.warn('[partner-ai-llm] transcript (early) PG failed', e)
     }
   }
-  const humanShopFactsBlock = buildRecentHumanShopFactsBlock(chronological, isFashionPartner)
+  const stableHumanShopPriorityRules = buildStableHumanShopPriorityRules(isFashionPartner)
+  const volatileHumanShopFacts = buildVolatileHumanShopFacts(chronological)
+  const humanShopFactsBlock = `${stableHumanShopPriorityRules}${volatileHumanShopFacts}`
 
   if (
     routeAllowsProductContext &&
@@ -1691,8 +1693,6 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
       : ''
   const salesConversionRouterBlock = `
 [Sales conversion router — bắt buộc áp dụng]
-- sales_stage: \`${partnerAiSalesStage}\`
-- cta_strategy: \`${partnerAiCtaStrategy}\`
 - Mục tiêu là giúp khách đi tới bước **bấm Mua ngay trên thẻ để tạo đơn ngay trong chat** khi phù hợp, nhưng vẫn trả lời đúng câu hỏi trước.
 - \`soft_explore\`: trả lời ngắn + mời khách xem thẻ sản phẩm; không ép chốt.
 - \`fit_question\`: trả lời lợi ích + hỏi tối đa **1 câu** để chốt size/dáng/nhu cầu; nếu đã có thẻ và thông tin đủ, có thể nhắc nhẹ bấm Mua ngay.
@@ -1700,6 +1700,11 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
 - \`buy_now\`: nếu JSON có \`products\` khác rỗng và shop đang dùng mua trong chat, kết tin phải có CTA rõ: **bấm “Mua ngay” trên thẻ để lên đơn/hoàn tất đơn trong chat**. Không thay CTA này bằng hỏi màu/size nếu form Mua ngay đã cho chọn.
 - \`no_cta\`: chỉ trả lời/hỏi rõ/chính sách, không thúc mua.
 `
+  const salesConversionStageBlock = `
+[Sales conversion — giá trị lượt này]
+- sales_stage: \`${partnerAiSalesStage}\`
+- cta_strategy: \`${partnerAiCtaStrategy}\`
+Áp dụng đúng hai giá trị này cho router phía trên.`
 
   /** Khối mặc định — luôn có; shop mở rộng qua `product_consultation_context`. */
   const khoContextInstructionForSystem =
@@ -1747,6 +1752,12 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 
   const fashionSizeWeightBlock = isFashionPartner ? FASHION_CHINESE_JIN_SIZE_WEIGHT_AI_PROMPT : ''
 
+  /** Phần đổi theo lượt nằm sau mọi luật đứng yên, để prefix tới hết ngữ cảnh shop vẫn hit. */
+  const cacheVolatileSystemTail = `
+${volatileHumanShopFacts}
+${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum}
+${salesConversionStageBlock}`
+
   const compactSingleProductBranch =
     cardConsultIsolatedThread ||
     inboundAnchoredProductConsultBranch ||
@@ -1762,34 +1773,34 @@ ${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}`
 - Khi cùng trả lời có cả **tổng quan/chất liệu/lợi ích** và **màu sắc/biến thể/cách dùng**, hai nhóm này là hai phần riêng dù toàn bộ message ngắn. Câu hỏi fit hoặc CTA là phần thứ ba riêng.
 - Chỉ có một phần nội dung thì viết một đoạn. Câu hỏi/CTA cuối khác phần trả lời chính thì luôn tách thành đoạn riêng.`
   const policySystem = `${compactBase}
-${humanShopFactsBlock}
+${stableHumanShopPriorityRules}
 ${alwaysIncludedShopAiContextBlock}
-${khoContextInstructionForSystem}
 ${salesConversionRouterBlock}
 Trả lời đúng câu hỏi chính sách/hỗ trợ trước, ngắn và rõ. Không đọc hay gửi catalog/thẻ sản phẩm; products = []. Không bịa chính sách, thời hạn hoặc cam kết ngoài dữ liệu shop.
 ${semanticMessageSectionsBlock}
-Đầu ra là một JSON đúng schema trong user prompt.`
+Đầu ra là một JSON đúng schema trong user prompt.
+${cacheVolatileSystemTail}`
   const compactSingleProductSystem = `${compactBase}
-${humanShopFactsBlock}${fashionSizeWeightBlock}
+${stableHumanShopPriorityRules}${fashionSizeWeightBlock}
 ${alwaysIncludedShopAiContextBlock}
-${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum}
 ${salesConversionRouterBlock}
 Chỉ dùng đúng một sản phẩm trong user prompt; không trộn lịch sử hoặc mặt hàng khác. Trả lời câu hỏi trước, diễn giải lợi ích từ dữ liệu thật, không bịa chất liệu/size/tồn/giá.
 Nếu hỏi chất liệu, trả lời từ material_note/mô tả và nhắc xem ảnh đính kèm khi hệ thống có ảnh; không dán URL. nan/null/n/a là chưa có chất liệu. Không thêm chữ thật nếu dữ liệu không có. Nếu hỏi size, kết quả deterministic trong user prompt thắng mọi suy đoán: có bảng size trong thông tin sản phẩm thì dùng size đó; size là số chiều cao hoặc size giày thì chỉ dùng số có trong danh sách; không có bảng thì tư vấn theo chuẩn size tham khảo số đông và hỏi khách hay mặc size gì. Không nói sẽ kiểm tra xưởng khi khối chọn size đã có size tham khảo.
 Câu hỏi fit cuối tin (tối đa một câu, đúng nhóm hàng đang tư vấn): quần áo/váy/đầm/áo khoác → **chiều cao và cân nặng (kg)**, khi đã tư vấn size thì kèm hỏi **hay mặc size gì**; giày/dép/sandal/boot/sneaker → **size khách thường đi**, **cấm** hỏi chiều cao hoặc cân nặng để tư vấn giày; túi/ví/ba lô → mục đích dùng hoặc kích thước cần đựng, không hỏi size giày.
-CTA vẫn theo cta_strategy ở trên: ngắn, tự nhiên, không lặp nguyên văn; products tối đa một thẻ đúng inventory/SKU.
+CTA vẫn theo cta_strategy của lượt này: ngắn, tự nhiên, không lặp nguyên văn; products tối đa một thẻ đúng inventory/SKU.
 ${semanticMessageSectionsBlock}
-Đầu ra là một JSON đúng schema trong user prompt; message súc tích, tối đa một câu hỏi.`
+Đầu ra là một JSON đúng schema trong user prompt; message súc tích, tối đa một câu hỏi.
+${cacheVolatileSystemTail}`
   const broadCatalogSystem = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
 ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
 ${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
-${humanShopFactsBlock}${fashionSizeWeightBlock}
+${stableHumanShopPriorityRules}${fashionSizeWeightBlock}
 ${alwaysIncludedShopAiContextBlock}
 ${salesDefaultBlock}${salesConversionRouterBlock}
-${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum} Chỉ giới thiệu sản phẩm từ danh sách đó. Khi giới thiệu hoặc so sánh mặt hàng cụ thể, ưu tiên nói **lợi ích cho khách** (thẩm mỹ, độ phù hợp, sự thoải mái…) xuất phát từ thông tin trong kho, không chỉ đọc giá/mã. Nếu không có đúng sản phẩm trong danh sách, nói rõ chưa thấy thông tin khớp và chuyển hướng tư vấn: hỏi khách có muốn xem sản phẩm tương tự đang có trong kho không.
+Chỉ giới thiệu sản phẩm từ danh sách đó. Khi giới thiệu hoặc so sánh mặt hàng cụ thể, ưu tiên nói **lợi ích cho khách** (thẩm mỹ, độ phù hợp, sự thoải mái…) xuất phát từ thông tin trong kho, không chỉ đọc giá/mã. Nếu không có đúng sản phẩm trong danh sách, nói rõ chưa thấy thông tin khớp và chuyển hướng tư vấn: hỏi khách có muốn xem sản phẩm tương tự đang có trong kho không.
 Khi khách hỏi về chất liệu/vải/vật liệu: ưu tiên trả lời theo trường "Chất liệu (đã lưu/kho)" hoặc mô tả/ghi chú trong dòng kho nếu có; không bịa chất liệu ngoài dữ liệu đã cho. nan/null/n/a là chưa có. Không thêm chữ thật nếu tên, mô tả và chất liệu không có chữ thật.
 Trong mỗi dòng kho, **ảnh chính sản phẩm (URL)** là ảnh gốc shop khai báo; hệ thống dùng đúng ảnh đó làm nguồn để tạo (1) ảnh chi tiết chất liệu/màu và (2) ảnh **đời thường / góc tự nhiên** (nhìn sản phẩm chân thực) — không dùng ảnh khác làm nguồn, và **không** gọi các ảnh sinh ra là "ảnh tham khảo" khi nói với khách.
 Nếu trong kho có "Ảnh chi tiết chất liệu/màu (đã lưu)" kèm URL, đó là ảnh phóng chi tiết chất liệu/màu **sinh từ ảnh chính** — có callout ưu điểm chất liệu trên ảnh; hệ thống cũng gửi kèm đoạn copy ưu điểm trong tin ảnh — nhắc khách xem ảnh đính kèm (không cần dán lại URL trong message).
@@ -1808,7 +1819,8 @@ Nếu trong tin nhắn khách hoặc ngữ cảnh hệ thống có dòng [Custom
 Định dạng đầu ra: một đối tượng JSON đúng schema ở cuối prompt user — không bọc markdown, không giải thích ngoài JSON.
 Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trường \`message\` trong JSON: **súc tích**, đúng ý khách; có thể gạch đầu dòng khi cần — **không** văn mẫu kiểu chatbot, **không** tự giới thiệu vai trò kỹ thuật.
 Giọng tư vấn **mở, nhẹ** (như nhân viên thật): ưu tiên làm rõ lo lắng / nhu cầu khi cần; tránh hối mua hoặc bắt chọn màu–size trong mọi tin. Đọc lịch sử — nếu vừa hỏi khách chọn màu (hoặc tương tự) gần đây thì **đừng** lặp lại; chuyển sang trả lời nội dung khách đang hỏi hoặc bổ sung thông tin hữu ích.
-${semanticMessageSectionsBlock}`
+${semanticMessageSectionsBlock}
+${cacheVolatileSystemTail}`
   const itFeatureChatOverride =
     isItPartner && partnerAiRouteIntent !== 'policy_or_order_support'
       ? `
@@ -2033,14 +2045,16 @@ Trả lời bằng một JSON hợp lệ duy nhất, không markdown:
       ? `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}
-${humanShopFactsBlock}
+${stableHumanShopPriorityRules}
 ${alwaysIncludedShopAiContextBlock}
 [Nhánh chính sách / hỗ trợ đơn — ý định khách thắng mọi neo sản phẩm]
 - Trả lời giao hàng, đổi trả, hủy/hoàn từ ngữ cảnh shop và FAQ. Cọc và % chỉ từ [Ngữ cảnh shop bắt buộc], không từ cài đặt thanh toán hay code.
 - Cấm bịa tỷ lệ cọc, thời gian giao, điều kiện đổi trả hoặc cam kết hoàn tiền.
 - Hỏi chính sách chung không được hỏi mã đơn. Chỉ hỏi mã đơn/SĐT khi khách thực sự tra cứu một đơn cụ thể.
 - Không đọc catalog, không gửi thẻ sản phẩm; JSON products luôn là [].
-${salesConversionRouterBlock}`
+${salesConversionRouterBlock}
+${volatileHumanShopFacts}
+${salesConversionStageBlock}`
       : system
 
   return {

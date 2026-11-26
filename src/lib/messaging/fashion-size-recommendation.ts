@@ -20,6 +20,9 @@ export type FashionSizeRecommendation = {
   askUsualSize: boolean
   /** Size trên chuẩn số đông trước khi kéo về size có trong thông tin sản phẩm. */
   referenceSize: string | null
+  /** Khách đã nói size hay mặc — chốt size đó, không hỏi lại số đo. */
+  preferUsualSize?: boolean
+  usualSizeLooser?: boolean
 }
 
 export type FashionSizeProductContext = {
@@ -448,7 +451,63 @@ function productListResult(
   }
 }
 
-export function resolveFashionSizeRecommendation(
+function bumpApparelOrShoeSize(size: string): string {
+  if (/^\d{2}$/.test(size)) {
+    const n = Number(size)
+    if (n >= 32 && n <= 49) return String(n + 1)
+  }
+  const index = SIZE_ORDER.indexOf(canonicalSize(size))
+  if (index >= 0 && index < SIZE_ORDER.length - 1) return SIZE_ORDER[index + 1]
+  return canonicalSize(size)
+}
+
+function foldSizeText(raw: string): string {
+  return raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+}
+
+/** Size khách hay mặc. Câu «size X có vừa không» không tính. */
+function extractUsualWornSize(raw: string): { size: string; looser: boolean } | null {
+  const text = foldSizeText(raw)
+  const looser = /rong hon|thoai mai hon|dong hon/.test(text)
+  const token = '(5xl|4xl|3xl|xxxl|2xl|xxl|xl|xs|s|m|l|3[2-9]|4[0-9]|50)'
+  const worn = text.match(
+    new RegExp(`(?:thuong|hay)\\s*(?:mac|di|dung)\\s*(?:size|sz|co)?\\s*${token}\\b`, 'u')
+  )
+  if (worn) return { size: canonicalSize(worn[1]), looser }
+  if (/co vua|duoc khong|vua khong|vua ko/.test(text)) return null
+  const stated = text.match(new RegExp(`(?:^|[^a-z0-9])(?:mac|di)\\s+(?:size|sz|co)\\s+${token}\\b`, 'u'))
+  if (stated) return { size: canonicalSize(stated[1]), looser }
+  const trimmed = text.trim()
+  const bare =
+    trimmed.match(new RegExp(`^(?:size|sz|co)\\s+${token}\\s*(?:nhe|nha|a)?[.!]?$`, 'u')) ||
+    trimmed.match(new RegExp(`^${token}\\s*(?:nhe|nha|a)?[.!]?$`, 'u'))
+  if (bare) return { size: canonicalSize(bare[1]), looser }
+  return null
+}
+
+function applyUsualSizeChoice(text: string, result: FashionSizeRecommendation): FashionSizeRecommendation {
+  const usual = extractUsualWornSize(text)
+  if (!usual) return result
+  const chosen = usual.looser ? bumpApparelOrShoeSize(usual.size) : usual.size
+  return {
+    ...result,
+    status: 'exact',
+    source: result.source ?? 'reference',
+    recommendedSize: chosen,
+    referenceSize:
+      result.recommendedSize && result.recommendedSize !== chosen ? result.recommendedSize : result.referenceSize,
+    askUsualSize: false,
+    preferUsualSize: true,
+    usualSizeLooser: usual.looser,
+    candidateSizes: [chosen],
+  }
+}
+
+function resolveFashionSizeRecommendationCore(
   customerMessage: string,
   sizes: string[] | null | undefined,
   context?: FashionSizeProductContext
@@ -566,10 +625,27 @@ export function resolveFashionSizeRecommendation(
   return emptyResult(signals, ranges)
 }
 
+export function resolveFashionSizeRecommendation(
+  customerMessage: string,
+  sizes: string[] | null | undefined,
+  context?: FashionSizeProductContext
+): FashionSizeRecommendation {
+  return applyUsualSizeChoice(
+    customerMessage,
+    resolveFashionSizeRecommendationCore(customerMessage, sizes, context)
+  )
+}
+
 export function fashionSizeRecommendationPrompt(result: FashionSizeRecommendation): string {
   const ask = result.askUsualSize
     ? 'Kèm đúng một câu hỏi: khách hay mặc size gì (nếu khách chưa nói).'
     : ''
+  if (result.preferUsualSize && result.recommendedSize) {
+    const fit = result.usualSizeLooser
+      ? `Khách muốn rộng hơn nên chốt size ${result.recommendedSize}, lớn hơn một size so với size hay mặc.`
+      : `Khách hay mặc size này. Hàng thiết kế cho người châu Á nên chốt đúng size ${result.recommendedSize}. Khách không nói muốn rộng hơn thì đi đúng size hay mặc.`
+    return `\n\n[Kết quả chọn size — size khách hay mặc]\n${fit} Không hỏi lại chiều cao, cân nặng hay số đo. Không đổi sang size khác.`
+  }
   if (result.source === 'product' && result.recommendedSize && /^\d{3}$/.test(result.recommendedSize)) {
     const listed = result.candidateSizes.join(', ')
     const min = result.candidateSizes[0]
@@ -633,12 +709,12 @@ export function fashionSizeRecommendationPrompt(result: FashionSizeRecommendatio
       result.referenceSize && result.referenceSize !== result.recommendedSize
         ? ` Chuẩn số đông là ${result.referenceSize}; thông tin sản phẩm không có size đó nên gợi ý size ${result.recommendedSize} (size gần nhất còn trong thông tin sản phẩm).`
         : ` Gợi ý size ${result.recommendedSize}.`
-    return `\n\n[Kết quả chọn size — chuẩn tham khảo số đông]\nThông tin sản phẩm không có bảng size. Theo chuẩn size tham khảo của số đông người dùng.${snapped} Nói rõ đây là size tham khảo, không phải số đo xưởng của riêng mã này. ${ask} Cấm nói «không dám chốt», «chưa có bảng size», «em sẽ kiểm tra bảng size xưởng».`
+    return `\n\n[Kết quả chọn size — chuẩn tham khảo số đông]\nThông tin sản phẩm không có bảng size. Theo chuẩn size tham khảo của số đông người dùng.${snapped} Nói rõ đây là thông tin tham khảo. ${ask} Khi khách trả lời size hay mặc thì chọn đúng size đó vì hàng thiết kế cho người châu Á. Muốn rộng hơn thì lớn hơn một size. Không hỏi lại chiều cao hoặc cân nặng đã có. Cấm nói «không phải số đo riêng của mã», «không dám chốt», «chưa có bảng size», «em sẽ kiểm tra bảng size xưởng».`
   }
   if (result.status === 'boundary' && result.source === 'reference') {
     return `\n\n[Kết quả chọn size — chuẩn tham khảo số đông, ranh giới]\nThông tin sản phẩm không có bảng size. Số đo nằm giữa các size ${result.candidateSizes.join(
       ' / '
-    )} trên chuẩn tham khảo số đông. Nêu các size đó là tham khảo, không chốt một size. ${ask} Cấm nói sẽ kiểm tra bảng size xưởng.`
+    )} trên chuẩn tham khảo số đông. Nêu các size đó là thông tin tham khảo, không chốt một size. ${ask} Khi khách trả lời size hay mặc thì chọn đúng size đó vì hàng thiết kế cho người châu Á. Muốn rộng hơn thì lớn hơn một size. Không hỏi lại số đo. Cấm nói sẽ kiểm tra bảng size xưởng.`
   }
   if (result.source === 'reference' && result.askUsualSize) {
     return `\n\n[Kết quả chọn size — chưa đủ để chốt chuẩn tham khảo]\nThông tin sản phẩm không có bảng size và số đo chưa đủ để chọn một cỡ trên chuẩn số đông. ${ask} Không nói sẽ kiểm tra bảng size xưởng.`
@@ -699,7 +775,10 @@ export function finalizeFashionSizeCustomerMessage(
   }
   raw = enforceFashionSizeRecommendation(raw, result)
   raw = rewriteUnlistedShoeSize(raw, result)
+  if (result.source === 'reference' && !result.preferUsualSize) {
+    raw = raw.replace(/không phải số đo riêng của mã này/giu, 'đây là thông tin tham khảo')
+  }
   if (!result.askUsualSize || USUAL_SIZE_RE.test(raw)) return raw.trim()
   const who = whoFromMessage(raw)
-  return `${raw.trim()} ${who} hay mặc size gì để em đối chiếu thêm nhé?`.trim()
+  return `${raw.trim()} ${who} hay mặc size gì ạ?`.trim()
 }

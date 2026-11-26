@@ -22,6 +22,7 @@ import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { guestChatSameOriginImageSrc } from '@/lib/messaging/guest-chat-image-src'
 import { nextShopImageRetrySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { itFeatureOpenButtonsFromPayload } from '@/lib/messaging/partner-ai-it-feature-link-reply'
+import { humanZaloButtonFromPayload } from '@/lib/messaging/partner-ai-human-zalo-handoff'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 
@@ -908,6 +909,7 @@ export function CustomerCareMessageBody({
   const onViolet = tone === 'onViolet'
   const productCards = aiProductCardsFromPayload(row.raw_payload)
   const featureOpens = itFeatureOpenButtonsFromPayload(row.raw_payload)
+  const zaloOpen = humanZaloButtonFromPayload(row.raw_payload)
   const visionCards = showVisionCandidates ? visionCandidateCardsFromPayload(row.raw_payload) : []
   /**
    * `VisionCandidateCard.product_url` là optional, còn `PartnerAiProductCard.product_url` bắt buộc string.
@@ -954,6 +956,16 @@ export function CustomerCareMessageBody({
               : 'break-all text-primary underline underline-offset-2 hover:text-primary/90'
           }
         />
+      ) : null}
+      {zaloOpen ? (
+        <a
+          href={zaloOpen.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-8 items-center rounded-md bg-[#0068FF] px-3 text-xs font-medium text-white hover:bg-[#0054d1]"
+        >
+          {zaloOpen.buttonLabel}
+        </a>
       ) : null}
       {featureOpens.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">

@@ -6,13 +6,24 @@ import {
   fetchCustomerCareConversationByIdPg,
   fetchCustomerCareTranscriptLinesFromPg,
   fetchLastOutboundCustomerCareMessageBodyPg,
+  fetchOutboundPayloadsAndBodiesNewestFirstPg,
   fetchRecentInboundCustomerCareMessageBodiesPg,
   fetchTwoCareMessagesImmediatelyBeforePg,
   mergeCustomerCareMessageRawPayloadPatchPg,
 } from '@/lib/db/customer-care-pg'
 import { fetchGuestGenderForPartnerConsultCachePg } from '@/lib/db/partner-product-consult-cache-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
-import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
+import {
+  fetchMessagingPartnerByIdFromPg,
+  fetchMessagingPartnerShopTrackingExtrasFromPg,
+} from '@/lib/db/messaging-partners-pg'
+import { resolvePartnerShopZaloClickUrl } from '@/lib/partner-website/shop/partner-shop-chat-widgets'
+import {
+  classifyHumanZaloHandoff,
+  HUMAN_ZALO_HANDOFF_SOURCE,
+  humanZaloButtonFromPayload,
+  humanZaloHandoffCopy,
+} from '@/lib/messaging/partner-ai-human-zalo-handoff'
 import { notifyPartnerOwnerChatNeedsReply } from '@/lib/messaging/partner-admin-notifications'
 import {
   cancelPendingAiJobsForConversationPg,
@@ -233,6 +244,39 @@ async function runInstantChatOrderFollowup(ctx: {
     rawPayload,
   })
   if (err.error) console.error('[partner-ai] instant chat order follow-up deliver', err.error)
+}
+
+async function runInstantHumanZaloHandoff(ctx: {
+  conversationId: string
+  settings: SettingsRow
+  body: string
+  href: string
+  buttonLabel: string
+}) {
+  let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
+  try {
+    conv = await fetchCustomerCareConversationByIdPg(ctx.conversationId)
+  } catch (e) {
+    console.warn('[partner-ai] runInstantHumanZaloHandoff PG conv failed', e)
+  }
+  if (!conv) return
+  await sleep(typingDelayMs(ctx.settings))
+  let gender: GuestProfileGender | null = null
+  try {
+    gender = await fetchGuestGenderForPartnerConsultCachePg(conv.linked_user_id)
+  } catch (e) {
+    console.warn('[partner-ai] human zalo gender', e)
+  }
+  const err = await deliverAutomatedPartnerMessage({
+    conversation: conv,
+    settings: ctx.settings,
+    body: enforceConfiguredGenderAddressing(ctx.body, gender),
+    rawPayload: {
+      source: HUMAN_ZALO_HANDOFF_SOURCE,
+      zalo_personal_open: { href: ctx.href, button_label: ctx.buttonLabel },
+    } as unknown as Json,
+  })
+  if (err.error) console.error('[partner-ai] human zalo handoff deliver', err.error)
 }
 
 async function runInstantConsultPhoneReply(ctx: {
@@ -478,6 +522,58 @@ export async function handlePartnerInboundForAi(input: {
         channel: input.channel,
         settings,
       })
+    }
+
+    if (isPgConfigured()) {
+      try {
+        const outbound = await fetchOutboundPayloadsAndBodiesNewestFirstPg(input.conversationId, 8)
+        const alreadyHanded = outbound.some((row) => humanZaloButtonFromPayload(row.raw_payload))
+        if (!alreadyHanded) {
+          const probe = stripInboundBodyForIntentClassify(
+            typeof input.intentClassifyText === 'string' && input.intentClassifyText.trim()
+              ? input.intentClassifyText
+              : input.inboundBody
+          )
+          const recentInbound = await fetchRecentInboundCustomerCareMessageBodiesPg(input.conversationId, 8)
+          const reason = classifyHumanZaloHandoff({
+            inbound: probe,
+            priorInbound: recentInbound.slice(1),
+            lastOutboundBody: outbound[0]?.body ?? null,
+          })
+          if (reason) {
+            const extras = await fetchMessagingPartnerShopTrackingExtrasFromPg(input.partnerId)
+            const href = resolvePartnerShopZaloClickUrl({
+              zaloOpen: 'personal',
+              zaloPersonalUrl: extras.zalo_personal_url,
+            })
+            if (href) {
+              let phoneLocale = normalizeWebLocale(input.widgetUiLocale ?? null)
+              if (input.channel === 'widget' && phoneLocale === null) {
+                try {
+                  phoneLocale = normalizeWebLocale(
+                    (await fetchConversationUiLocaleFromPg(input.conversationId)) ?? null
+                  )
+                } catch {
+                  phoneLocale = null
+                }
+              }
+              const copy = humanZaloHandoffCopy(phoneLocale, href)
+              await cancelPendingAiJobsForConversation(input.conversationId)
+              void runInstantHumanZaloHandoff({
+                conversationId: input.conversationId,
+                settings,
+                body: copy.body,
+                href,
+                buttonLabel: copy.buttonLabel,
+              })
+              const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
+              return { show: true, maxWaitMs: typingHi + 10_000 }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[partner-ai-inbound] human zalo handoff', e)
+      }
     }
 
     let routeDecision = await classifyPartnerInboundIntent({

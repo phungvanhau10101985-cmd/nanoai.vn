@@ -57,13 +57,13 @@ test('clarify phone gets a zalo reply; order and purchase do not', () => {
   )
 })
 
-test('phone reply names the zalo number and asks what they need, without a garment menu', () => {
+test('phone reply confirms the number and does not attach Zalo', () => {
   const reply = formatCustomerPhoneLeadReply({
     phone: '0522656868',
     zaloDial: '0901234567',
   })
   assert.match(reply, /0522656868/)
-  assert.match(reply, /Zalo số 0901234567/)
+  assert.doesNotMatch(reply, /Zalo/)
   assert.match(reply, /muốn xem món gì/)
   assert.doesNotMatch(reply, /áo sơ mi|quần tây/)
 
@@ -74,9 +74,8 @@ test('phone reply names the zalo number and asks what they need, without a garme
   })
   assert.match(withSku, /K4627/)
   assert.match(withSku, /size, màu hay giá/)
+  assert.doesNotMatch(withSku, /Zalo/)
 
-  const noZalo = formatCustomerPhoneLeadReply({ phone: '0522656868' })
-  assert.doesNotMatch(noZalo, /Zalo số/)
   assert.equal(formatPhoneLeadPromptNote({ phone: '0522656868' }), '')
-  assert.match(formatPhoneLeadPromptNote({ phone: '0522656868', zaloDial: '0901234567' }), /0901234567/)
+  assert.equal(formatPhoneLeadPromptNote({ phone: '0522656868', zaloDial: '0901234567' }), '')
 })

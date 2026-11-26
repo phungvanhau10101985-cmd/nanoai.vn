@@ -63,7 +63,7 @@ export function zaloContactFromShopGuidance(raw: string | null | undefined): { d
 
 /**
  * Tin có SĐT nhưng đang tra đơn, hỏi chính sách hoặc chốt mua thì không đổi câu trả lời.
- * Chỉ nhánh làm rõ mới nhận tin Zalo ngay.
+ * Chỉ nhánh làm rõ mới nhận số và hỏi khách đang xem gì. Zalo cá nhân đi nhánh riêng.
  */
 export function phoneLeadShouldTakeConsultReply(input: {
   hasPhone: boolean
@@ -81,33 +81,7 @@ export function phoneLeadShouldTakeConsultReply(input: {
   )
 }
 
-function zaloSentence(dial: string | null, href: string | null, locale: string): string {
-  if (locale.startsWith('en')) {
-    if (dial) return `If you need a faster reply, message the shop on Zalo at ${dial}.`
-    if (href) return `If you need a faster reply, message the shop on Zalo: ${href}.`
-    return ''
-  }
-  if (locale.startsWith('zh')) {
-    if (dial) return `如果比较急，请发 Zalo 到 ${dial}，这样最快。`
-    if (href) return `如果比较急，请通过 Zalo 联系店铺：${href}。`
-    return ''
-  }
-  if (locale.startsWith('ja')) {
-    if (dial) return `お急ぎなら Zalo の ${dial} へメッセージください。いちばん早くご案内できます。`
-    if (href) return `お急ぎならショップの Zalo へどうぞ：${href}`
-    return ''
-  }
-  if (locale.startsWith('ko')) {
-    if (dial) return `급하시면 Zalo ${dial} 로 메시지 주세요. 거기서 가장 빨리 안내해 드려요.`
-    if (href) return `급하시면 샵 Zalo로 연락 주세요: ${href}`
-    return ''
-  }
-  if (dial) return `Nếu anh/chị cần gấp thì nhắn Zalo số ${dial} để được tư vấn nhanh nhất nhé.`
-  if (href) return `Nếu anh/chị cần gấp thì nhắn Zalo shop tại ${href} để được tư vấn nhanh nhất nhé.`
-  return ''
-}
-
-/** Xác nhận số, chỉ đường Zalo khi gấp, và hỏi đang cần tư vấn gì — không menu loại hàng. */
+/** Xác nhận số và hỏi đang cần tư vấn gì — không menu loại hàng, không gắn Zalo. */
 export function formatCustomerPhoneLeadReply(input: {
   phone: string
   zaloDial?: string | null
@@ -115,40 +89,37 @@ export function formatCustomerPhoneLeadReply(input: {
   sku?: string | null
   locale?: string | null
 }): string {
+  void input.zaloDial
+  void input.zaloHref
   const loc = String(input.locale ?? '').trim().toLowerCase().slice(0, 8)
   const phone = input.phone.trim()
   const sku = input.sku?.trim() || ''
-  const zalo = zaloSentence(input.zaloDial?.trim() || null, input.zaloHref?.trim() || null, loc)
-  const gap = zalo ? ` ${zalo}` : ''
   if (loc.startsWith('en')) {
     if (sku) {
-      return `I've noted ${phone}. I'm holding style ${sku} for you.${gap} Would you like the size, color, or price of this piece?`
+      return `I've noted ${phone}. I'm holding style ${sku} for you. Would you like the size, color, or price of this piece?`
     }
-    return `I've noted ${phone}.${gap} If it's not urgent, tell me what you'd like advice on — a product code or a photo works too.`
+    return `I've noted ${phone}. If it's not urgent, tell me what you'd like advice on — a product code or a photo works too.`
   }
   if (loc.startsWith('zh')) {
     if (sku) {
-      return `已记下号码 ${phone}。款号 ${sku} 我先帮您留着。${gap}您想先了解这款的尺码、颜色还是价格？`
+      return `已记下号码 ${phone}。款号 ${sku} 我先帮您留着。您想先了解这款的尺码、颜色还是价格？`
     }
-    return `已记下号码 ${phone}。${gap}不急的话，告诉我您想咨询哪一款，发商品编码或照片都可以。`
+    return `已记下号码 ${phone}。不急的话，告诉我您想咨询哪一款，发商品编码或照片都可以。`
   }
   if (loc.startsWith('ja')) {
     if (sku) {
-      return `${phone} を承りました。品番 ${sku} は押さえておきます。${gap}サイズ、色、価格のどれからご案内しましょうか。`
+      return `${phone} を承りました。品番 ${sku} は押さえておきます。サイズ、色、価格のどれからご案内しましょうか。`
     }
-    return `${phone} を承りました。${gap}急ぎでなければ、見たい商品を教えてください。品番か写真でも大丈夫です。`
+    return `${phone} を承りました。急ぎでなければ、見たい商品を教えてください。品番か写真でも大丈夫です。`
   }
   if (loc.startsWith('ko')) {
     if (sku) {
-      return `${phone} 번호 확인했습니다. ${sku} 상품은 제가 잡아 둘게요.${gap}사이즈, 색상, 가격 중 어떤 걸 먼저 볼까요?`
+      return `${phone} 번호 확인했습니다. ${sku} 상품은 제가 잡아 둘게요. 사이즈, 색상, 가격 중 어떤 걸 먼저 볼까요?`
     }
-    return `${phone} 번호 확인했습니다.${gap}급하지 않으시면 어떤 상품을 보고 싶으신지 알려 주세요. 상품 코드나 사진도 좋습니다.`
+    return `${phone} 번호 확인했습니다. 급하지 않으시면 어떤 상품을 보고 싶으신지 알려 주세요. 상품 코드나 사진도 좋습니다.`
   }
   if (sku) {
-    return `Dạ em nhận số ${phone} rồi ạ. Mẫu ${sku} em đang giữ giúp anh/chị.${gap} Về mẫu này, anh/chị muốn hỏi size, màu hay giá ạ?`
-  }
-  if (zalo) {
-    return `Dạ em nhận số ${phone} rồi ạ.${gap} Còn không gấp, anh/chị đang muốn xem món gì cứ nói em, gửi mã hoặc ảnh cũng được ạ.`
+    return `Dạ em nhận số ${phone} rồi ạ. Mẫu ${sku} em đang giữ giúp anh/chị. Về mẫu này, anh/chị muốn hỏi size, màu hay giá ạ?`
   }
   return `Dạ em nhận số ${phone} rồi ạ. Anh/chị đang muốn xem món gì cứ nói em, gửi mã hoặc ảnh cũng được ạ.`
 }
@@ -158,14 +129,10 @@ export function formatPhoneLeadPromptNote(input: {
   zaloDial?: string | null
   zaloHref?: string | null
 }): string {
-  const phone = input.phone.trim()
-  const dial = input.zaloDial?.trim() || ''
-  const href = input.zaloHref?.trim() || ''
-  if (!dial && !href) return ''
-  const where = dial ? `số ${dial}` : href
-  return `
-
-[Bắt buộc] Khách vừa để lại số ${phone}. Thêm đúng một câu tự nhiên: nếu cần gấp thì nhắn Zalo ${where} để được tư vấn nhanh nhất. Sau đó trả lời đúng ý khách đang hỏi. Không hỏi lại loại áo quần. Không biến cả tin thành xin số.`
+  void input.phone
+  void input.zaloDial
+  void input.zaloHref
+  return ''
 }
 
 type PhoneLeadRaw = {
