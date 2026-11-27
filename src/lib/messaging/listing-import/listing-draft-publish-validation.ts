@@ -3,6 +3,10 @@
  * Khớp cấu trúc `excelExportRowFromProductData`: `images` = thư viện, `gallery` = ảnh chi tiết/mô tả.
  */
 
+import {
+  findMajorWorldBrandInProductData,
+  listingImportMajorBrandBlockMessage,
+} from '@/lib/messaging/listing-import/listing-import-major-brand';
 import { CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy';
 
 function trimStr(v: unknown): string {
@@ -203,6 +207,9 @@ export function getListingDraftPublishBlockers(pd: Record<string, unknown> | und
   if (String(pd._taxonomy_error || '') === 'CATEGORY_AUTO_CREATE_DISABLED') {
     issues.push(CATEGORY_AUTO_CREATE_DISABLED_MESSAGE);
   }
+
+  const majorBrand = findMajorWorldBrandInProductData(pd);
+  if (majorBrand) issues.push(listingImportMajorBrandBlockMessage(majorBrand));
 
   const cn = trimStr(pd.chinese_name);
   const shopCn = trimStr(pd.shop_name_chinese);

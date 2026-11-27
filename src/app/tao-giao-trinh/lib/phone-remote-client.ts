@@ -122,11 +122,12 @@ export function createPhoneCommandQueue(sessionId: string) {
       const urgent = type === 'mouse-click' || type === 'control-press' || type === 'slide-go' || type === 'student-curriculum-right-mode' || type === 'student-curriculum-left-pane' || type === 'set-auto-play' || type === 'set-auto-play-interval' || type.startsWith('teacher-timer-') || (type.startsWith('whiteboard-') && type !== 'whiteboard-sim') || type.endsWith('-open') || type.endsWith('-close') || type === 'infographic-draw-undo' || type === 'infographic-draw-clear' || type === 'infographic-draw-end' || (type === 'worksheet-answer-reveal' && msg.control === true)
       if (urgent) {
         if (timer != null) window.clearTimeout(timer)
-        timer = window.setTimeout(flush, 0)
+        timer = null
+        flush()
         return
       }
       if (timer != null) return
-      const delay = type === 'mouse-pos' || type === 'chain-pane-scroll' || type === 'whiteboard-sim' ? 32 : 90
+      const delay = type === 'mouse-pos' || type === 'chain-pane-scroll' || type === 'whiteboard-sim' ? 16 : 40
       timer = window.setTimeout(flush, delay)
     },
     stop() {

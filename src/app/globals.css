@@ -562,3 +562,11 @@
     color: #3f1d2e;
   }
 }
+
+/* Phần đã gõ (giáo viên) và phần chưa gõ (học sinh). Cả câu vẫn một text node. */
+::highlight(pw-typed) {
+  color: var(--pw-reveal-ink);
+}
+::highlight(pw-untyped) {
+  color: transparent;
+}

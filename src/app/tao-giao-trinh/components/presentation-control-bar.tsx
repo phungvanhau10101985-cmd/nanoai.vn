@@ -104,6 +104,8 @@ export interface PresentationControlBarProps {
   appleMacBar?: boolean
   /** Giáo viên, chỉ khi giao diện học sinh đã mở xong: hiện mã QR điều khiển từ điện thoại. */
   onPhoneControl?: () => void
+  /** Học sinh: nút điện thoại đứng sát bên trái nút Giao diện giáo viên. */
+  phoneControlLeading?: boolean
 }
 
 export function PresentationControlBar({
@@ -156,6 +158,7 @@ export function PresentationControlBar({
   phoneTeacher = false,
   appleMacBar = false,
   onPhoneControl,
+  phoneControlLeading = false,
 }: PresentationControlBarProps) {
   const isStudent = variant === 'student'
   const isTeacher = variant === 'teacher'
@@ -201,6 +204,25 @@ export function PresentationControlBar({
   const isRealTeacherBar = isTeacher && teacherTimerInteractive
   // Student view: prioritize keeping right controls visible on narrow widths.
   const prioritizeRightControls = hideIndex || isStudent
+  const showLeadingPhone = !!onPhoneControl && phoneControlLeading
+  const phoneButton = onPhoneControl ? (
+    <button
+      type="button"
+      data-control="dieu-khien-dt"
+      onClick={onPhoneControl}
+      className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-sky-400/50 bg-sky-500/20 px-2.5 text-xs font-medium text-sky-100 hover:bg-sky-500/30"
+      title={tr(
+        'Quét mã để điều khiển slide từ điện thoại. Điện thoại đăng nhập đúng tài khoản giáo viên.',
+        'Show a QR code. The phone signs in as this teacher and controls the student screen.',
+        '显示二维码。手机以该教师账号登录并控制学生画面。',
+        'QRを表示。スマホがこの教師アカウントでログインし、生徒画面を操作します。',
+        'QR을 표시합니다. 휴대폰이 이 교사 계정으로 로그인하고 학생 화면을 조작합니다.'
+      )}
+    >
+      <Smartphone className="h-4 w-4 shrink-0" />
+      {phoneStudent ? null : tr('Điều khiển ĐT', 'Phone remote', '手机操控', 'スマホ操作', '폰 조작')}
+    </button>
+  ) : null
 
   if (printHidden) return null
 
@@ -231,6 +253,7 @@ export function PresentationControlBar({
         </span>
       )}
       <div className={cn(SHARED_LAYOUT.rightGroup, phoneStudent ? 'min-w-0 flex-1 !flex-nowrap justify-start gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : phoneTeacher ? 'w-max shrink-0 !flex-nowrap justify-start gap-1.5' : prioritizeRightControls && 'ml-auto w-full md:w-max justify-end', appleMacBar && !phoneStudent && !phoneTeacher && 'ml-0 w-max max-w-none shrink-0 justify-start')}>
+        {showLeadingPhone ? phoneButton : null}
         {onOpenTeacherView && (
           <span className={cn(shareButtonClickableWhenParentDisabled && 'pointer-events-auto')}>
             <button
@@ -293,24 +316,7 @@ export function PresentationControlBar({
           </>
         )}
 
-        {onPhoneControl ? (
-          <button
-            type="button"
-            data-control="dieu-khien-dt"
-            onClick={onPhoneControl}
-            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-sky-400/50 bg-sky-500/20 px-2.5 text-xs font-medium text-sky-100 hover:bg-sky-500/30"
-            title={tr(
-              'Quét mã để điều khiển slide từ điện thoại. Điện thoại đăng nhập đúng tài khoản giáo viên.',
-              'Show a QR code. The phone signs in as this teacher and controls the student screen.',
-              '显示二维码。手机以该教师账号登录并控制学生画面。',
-              'QRを表示。スマホがこの教師アカウントでログインし、生徒画面を操作します。',
-              'QR을 표시합니다. 휴대폰이 이 교사 계정으로 로그인하고 학생 화면을 조작합니다.'
-            )}
-          >
-            <Smartphone className="h-4 w-4 shrink-0" />
-            {tr('Điều khiển ĐT', 'Phone remote', '手机操控', 'スマホ操作', '폰 조작')}
-          </button>
-        ) : null}
+        {showLeadingPhone ? null : phoneButton}
         {/* 1. Đồng hồ giáo viên – student ẩn hẳn để không tạo khoảng trống */}
         {!hideTeacherTimer && (
           <div

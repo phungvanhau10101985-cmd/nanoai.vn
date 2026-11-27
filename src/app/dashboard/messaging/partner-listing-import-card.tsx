@@ -20,6 +20,7 @@ import {
   parsedListingRowsToLinkExportPayload,
   type ParsedTaobaoCardRow,
 } from '@/lib/messaging/listing-import/taobao-cards-html-parse';
+import { dropListingRowsWithMajorBrands } from '@/lib/messaging/listing-import/listing-import-major-brand';
 import { listingImportClient, type ListingImportQueueRunsResponse as AdminListingImportQueueRunsResponse } from '@/lib/messaging/listing-import/listing-import-client';
 import { listingImportRunIsSharedLive } from '@/lib/messaging/listing-import/listing-import-types';
 import {
@@ -631,6 +632,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
   const [dbLookupPending, setDbLookupPending] = useState(false);
   const [dbLookupError, setDbLookupError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [brandNotice, setBrandNotice] = useState<string | null>(null);
   const headerSelectAllRef = useRef<HTMLInputElement>(null);
   const listingDraftPublishInFlightRef = useRef(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(() => new Set());
@@ -872,6 +874,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
 
   const parse = useCallback(() => {
     setError(null);
+    setBrandNotice(null);
     setSelectedRowKeys(new Set());
     setFallbackShopInput('');
     try {
@@ -882,20 +885,30 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
     setDbLookupError(null);
     setPresenceFetchKey(null);
     setDbExistingSet(new Set());
-    const t = raw.trim();
-    if (!t) {
+    const pasted = raw.trim();
+    if (!pasted) {
       setRows([]);
       setError('Hãy dán HTML hoặc đoạn DOM (View Source / Copy outerHTML) vào ô bên dưới.');
       return;
     }
     try {
-      const out = parseTaobaoListingHtml(t);
-      setRows(out);
+      const out = parseTaobaoListingHtml(pasted);
+      const branded = dropListingRowsWithMajorBrands(out);
+      setRows(branded.kept);
       setShopFilter('');
       setTitleFilter('');
       setPriceVndMinInput('');
       setPriceVndMaxInput('');
-      if (out.length === 0) {
+      if (branded.dropped > 0) {
+        const shown = branded.brands.slice(0, 8).join(', ');
+        const more = branded.brands.length > 8 ? '…' : '';
+        setBrandNotice(
+          t.listingImportMajorBrandDropped
+            .replace('{n}', String(branded.dropped))
+            .replace('{brands}', `${shown}${more}`),
+        );
+      }
+      if (branded.kept.length === 0 && branded.dropped === 0) {
         setError(
           'Không trích được dòng nào. Taobao listing PC 2025+: `<a class="doubleCardWrapperAdapt…">`, `id="item_id_…"`, `mainPic`/`priceInt`. 1688 selloffer (s.1688.com): `<a class="search-offer-wrapper…">`, `offerId=` / `detail.m.1688.com`, `img.main-img`, `offer-title-row`. Cũng hỗ trợ cardContainer / mainImage / ảnh alicdn kèm giá-tiêu đề. Hoặc dán **bảng text backend 1688** (dòng `商品信息`, `ID: …`, hàng tab giá). Copy outerHTML `#content_items_wrapper` hoặc nhiều card; nếu không có `item.htm`/`offerId`/ảnh hoặc chỉ text SPA (và không khớp bảng text 1688) thì không có dữ liệu.',
         );
@@ -906,7 +919,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
       setDbExistingSet(new Set());
       setError(e instanceof Error ? e.message : 'Lỗi parse');
     }
-  }, [raw]);
+  }, [raw, t]);
 
   const shopFilterTrimmed = shopFilter.trim();
   const fallbackShopTrimmed = useMemo(() => fallbackShopInput.trim(), [fallbackShopInput]);
@@ -3334,6 +3347,12 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
       {error && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-sm px-4 py-3">
           {error}
+        </div>
+      )}
+
+      {brandNotice && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 text-amber-950 text-sm px-4 py-3">
+          {brandNotice}
         </div>
       )}
 

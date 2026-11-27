@@ -195,12 +195,15 @@ export function PartnerWebsiteDashboardClient({
   const partnerTitle =
     website?.title?.trim() || partner?.brand_name || partner?.display_name || 'Website'
 
+  const loadWebsiteSeq = useRef(0)
   const loadWebsite = useCallback(
-    async (pid: string) => {
+    async (pid: string, options?: { omitProject?: boolean }) => {
+      const seq = ++loadWebsiteSeq.current
       setProvisioning(true)
       try {
+        const omit = options?.omitProject ? '&omitProject=1' : ''
         const res = await fetch(
-          `/api/messaging/partner-website/${encodeURIComponent(pid)}?locale=${encodeURIComponent(locale)}`
+          `/api/messaging/partner-website/${encodeURIComponent(pid)}?locale=${encodeURIComponent(locale)}${omit}`
         )
         const json = (await res.json().catch(() => ({}))) as {
           website?: PartnerWebsiteRow | null
@@ -208,6 +211,7 @@ export function PartnerWebsiteDashboardClient({
           autoProvisioned?: boolean
           error?: string
         }
+        if (seq !== loadWebsiteSeq.current) return
         if (!res.ok) {
           toast({ title: json.error || t.errorGeneric, variant: 'destructive' })
           return
@@ -227,7 +231,7 @@ export function PartnerWebsiteDashboardClient({
           }
         }
       } finally {
-        setProvisioning(false)
+        if (seq === loadWebsiteSeq.current) setProvisioning(false)
       }
     },
     [locale, t.errorGeneric, toast]
@@ -305,14 +309,18 @@ export function PartnerWebsiteDashboardClient({
 
   const applyShopLookRef = useRef(applyShopLook)
   applyShopLookRef.current = applyShopLook
+  const loadWebsiteRef = useRef(loadWebsite)
+  loadWebsiteRef.current = loadWebsite
   const galleryApplyDoneRef = useRef(false)
+  const reviewsSlim = embeddedSectionId === 'partner-website-reviews-qa'
 
   useEffect(() => {
     if (!partnerId) return
     let cancelled = false
+    const omitProject = reviewsSlim
     void (async () => {
-      await loadWebsite(partnerId)
-      if (cancelled || galleryApplyDoneRef.current || typeof window === 'undefined') return
+      await loadWebsiteRef.current(partnerId, { omitProject })
+      if (cancelled || omitProject || galleryApplyDoneRef.current || typeof window === 'undefined') return
       const params = new URLSearchParams(window.location.search)
       const presetRaw = params.get(PW_SAMPLE_APPLY_PRESET_PARAM) || ''
       if (!isShopTemplatePresetId(presetRaw)) return
@@ -333,7 +341,7 @@ export function PartnerWebsiteDashboardClient({
     }
     // Only refetch when the workspace changes — not when parent re-renders (section click).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadWebsite identity is unstable (toast)
-  }, [partnerId])
+  }, [partnerId, reviewsSlim])
 
   function onPartnerChange(nextId: string) {
     setPartnerId(nextId)
@@ -350,7 +358,7 @@ export function PartnerWebsiteDashboardClient({
       setPreviewVersion(String(Date.now()))
       setLiveTheme(null)
     }
-    void loadWebsite(nextId)
+    void loadWebsite(nextId, { omitProject: embeddedSectionId === 'partner-website-reviews-qa' })
     if (embeddedSectionId) return
     const slug = nextPartner?.slug ?? lockedPartnerSlug
     if (slug) {
@@ -748,6 +756,7 @@ export function PartnerWebsiteDashboardClient({
               ) : null}
 
               <div className="flex min-h-0 flex-1 flex-col gap-2">
+            {reviewsSlim ? null : (
             <div
               id="partner-website-editor"
               className={cn(
@@ -1031,7 +1040,9 @@ export function PartnerWebsiteDashboardClient({
               </CardContent>
             </Card>
             </div>
+            )}
 
+            {reviewsSlim ? null : (
             <div className={sectionWrapClass('partner-website-categories')}>
             <PartnerWebsiteCategoriesPanel
               locale={locale}
@@ -1043,6 +1054,7 @@ export function PartnerWebsiteDashboardClient({
               }
             />
             </div>
+            )}
 
             <div className={sectionWrapClass('partner-website-reviews-qa')}>
             <PartnerWebsiteReviewsQaPanel
@@ -1057,6 +1069,8 @@ export function PartnerWebsiteDashboardClient({
             />
             </div>
 
+            {reviewsSlim ? null : (
+            <>
             <div className={sectionWrapClass('partner-website-customers')}>
             <PartnerWebsiteCustomersPanel
               locale={locale}
@@ -1146,6 +1160,8 @@ export function PartnerWebsiteDashboardClient({
               sectionId="partner-website-leads"
             />
             </div>
+            </>
+            )}
           </div>
         </>
       )}

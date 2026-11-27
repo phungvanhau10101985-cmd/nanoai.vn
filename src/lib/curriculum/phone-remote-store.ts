@@ -28,6 +28,14 @@ type PhoneRemoteRow = {
   closingAt?: number | null
   /** Điện thoại đã tải xong giao diện giáo viên. */
   phoneReady?: boolean
+  /** Mốc lần tải này trên điện thoại. Mỗi lần mở trang là một mốc mới. */
+  phoneBoot?: number
+  /** Giờ server lúc điện thoại vừa tải xong một lần mới. */
+  phoneReadyServerAt?: number
+  /** Lần mở QR trên máy tính. Cùng số gửi lại không đẩy mốc. */
+  qrWatch?: number
+  /** Giờ server lúc máy tính mở QR. */
+  qrWatchAt?: number
 }
 
 type StoreBag = {
@@ -43,6 +51,51 @@ function bag(): StoreBag {
 
 function phoneKey(id: string): string {
   return `gtr:phone-remote:${id}`
+}
+
+function phoneCommandKey(id: string): string {
+  return `gtr:phone-remote:${id}:cmd`
+}
+
+type PhoneCommandTail = {
+  nextN: number
+  commands: Array<{ n: number; msg: PhoneRemoteCommand }>
+  index: number
+  indexGen: number
+}
+
+const commandWaiters = new Map<string, Set<() => void>>()
+
+function notifyPhoneCommandWaiters(id: string) {
+  const waiting = commandWaiters.get(id)
+  if (!waiting) return
+  commandWaiters.delete(id)
+  for (const wake of waiting) wake()
+}
+
+function waitForPhoneCommands(id: string, ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', finish)
+      const waiting = commandWaiters.get(id)
+      waiting?.delete(finish)
+      if (waiting && waiting.size === 0) commandWaiters.delete(id)
+      resolve()
+    }
+    const timer = setTimeout(finish, ms)
+    let waiting = commandWaiters.get(id)
+    if (!waiting) {
+      waiting = new Set()
+      commandWaiters.set(id, waiting)
+    }
+    waiting.add(finish)
+    if (signal?.aborted) finish()
+    else signal?.addEventListener('abort', finish)
+  })
 }
 
 function isClosed(row: PhoneRemoteRow, now = Date.now()): boolean {
@@ -118,9 +171,43 @@ async function persist(id: string, row: PhoneRemoteRow) {
   await redisSetEx(phoneKey(id), STORE_TTL_SEC, JSON.stringify(row))
 }
 
+async function writeCommandTail(id: string, row: PhoneRemoteRow) {
+  const tail: PhoneCommandTail = {
+    nextN: row.nextN,
+    commands: row.commands,
+    index: row.index,
+    indexGen: typeof row.indexGen === 'number' ? row.indexGen : 0,
+  }
+  await redisSetEx(phoneCommandKey(id), STORE_TTL_SEC, JSON.stringify(tail))
+}
+
+async function overlayCommandTail(id: string, row: PhoneRemoteRow): Promise<boolean> {
+  const raw = await redisGet(phoneCommandKey(id))
+  if (!raw) return false
+  try {
+    const tail = JSON.parse(raw) as PhoneCommandTail
+    if (!tail || typeof tail.nextN !== 'number' || !Array.isArray(tail.commands)) return false
+    if (tail.nextN <= row.nextN) return false
+    row.commands = tail.commands
+    row.nextN = tail.nextN
+    if (typeof tail.indexGen === 'number' && tail.indexGen > (row.indexGen || 0)) {
+      row.indexGen = tail.indexGen
+      if (typeof tail.index === 'number' && Number.isFinite(tail.index)) {
+        row.index = Math.max(0, Math.floor(tail.index))
+      }
+    }
+    bag().rows.set(id, row)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function forget(id: string) {
   bag().rows.delete(id)
+  notifyPhoneCommandWaiters(id)
   await redisDel(phoneKey(id))
+  await redisDel(phoneCommandKey(id))
 }
 
 async function load(id: string): Promise<PhoneRemoteRow | null> {
@@ -141,6 +228,7 @@ async function load(id: string): Promise<PhoneRemoteRow | null> {
       return null
     }
     if (!Array.isArray(row.commands)) row.commands = []
+    await overlayCommandTail(id, row)
     bag().rows.set(id, row)
     return row
   } catch {
@@ -181,6 +269,10 @@ export async function createPhoneRemoteSession(input: {
     closed: false,
     closingAt: null,
     phoneReady: false,
+    phoneBoot: 0,
+    phoneReadyServerAt: 0,
+    qrWatch: 0,
+    qrWatchAt: 0,
   }
   await persist(id, row)
   return { id, secret }
@@ -232,6 +324,10 @@ export async function updatePhoneRemoteFromDesktop(input: {
   /** Chỉ bảng trắng. Không ghi đè slide. Bản slide cũng không ghi đè bảng đã có. */
   whiteboard?: Record<string, unknown>
   phoneReady?: boolean
+  /** Mốc một lần mở trang trên điện thoại. Cùng mốc gửi lại không tính là lần tải mới. */
+  phoneBoot?: number
+  /** Mốc lần mở QR trên máy tính. */
+  qrWatch?: number
 }): Promise<{ index: number; indexGen: number; revision: number; whiteboardGen: number; whiteboardApplied: boolean } | null> {
   return runLocked(input.id, async () => {
     const row = await load(input.id)
@@ -270,9 +366,22 @@ export async function updatePhoneRemoteFromDesktop(input: {
       row.indexGen += 1
       changed = true
     }
-    if (input.phoneReady) {
-      row.phoneReady = true
+    if (typeof input.qrWatch === 'number' && Number.isFinite(input.qrWatch) && input.qrWatch > 0 && input.qrWatch !== row.qrWatch) {
+      row.qrWatch = input.qrWatch
+      row.qrWatchAt = Date.now()
       changed = true
+    }
+    if (input.phoneReady) {
+      const boot = typeof input.phoneBoot === 'number' && Number.isFinite(input.phoneBoot) && input.phoneBoot > 0 ? input.phoneBoot : 0
+      const bootChanged = boot > 0 && boot !== row.phoneBoot
+      const first = row.phoneReady !== true
+      if (bootChanged || first) {
+        row.phoneReady = true
+        if (boot) row.phoneBoot = boot
+        const now = Date.now()
+        row.phoneReadyServerAt = Math.max(now, (row.qrWatchAt || 0) + 1)
+        changed = true
+      }
     }
     if (changed) await persist(input.id, row)
     return { index: row.index, indexGen: row.indexGen, revision: row.revision, whiteboardGen: row.whiteboardGen, whiteboardApplied }
@@ -307,7 +416,9 @@ export async function pushPhoneRemoteCommands(input: {
     if (row.commands.length > MAX_COMMANDS) {
       row.commands = row.commands.slice(row.commands.length - MAX_COMMANDS)
     }
-    await persist(input.id, row)
+    bag().rows.set(input.id, row)
+    notifyPhoneCommandWaiters(input.id)
+    await writeCommandTail(input.id, row)
     return batch.length
   })
 }
@@ -318,6 +429,7 @@ export async function setPhoneRemoteStudentOpen(input: { id: string; userId: str
     const row = await load(input.id)
     if (!row || row.userId !== input.userId) return false
     if (input.alive) {
+      if (row.closingAt == null && !row.closed) return true
       row.closingAt = null
       row.closed = false
       await persist(input.id, row)
@@ -330,9 +442,33 @@ export async function pullPhoneRemoteCommands(input: {
   id: string
   userId: string
   after: number
+  /** Màn học sinh giữ kết nối ngắn đến khi có lệnh, thay vì hỏi lại theo nhịp. */
+  waitMs?: number
+  signal?: AbortSignal
 }): Promise<Array<{ n: number; msg: PhoneRemoteCommand }> | null> {
-  const row = await load(input.id)
-  if (!row || row.userId !== input.userId) return null
-  const after = Number.isFinite(input.after) ? input.after : 0
-  return row.commands.filter((c) => c.n > after).slice(0, 40)
+  const read = async () => {
+    const row = await load(input.id)
+    if (!row || row.userId !== input.userId) return null
+    const after = Number.isFinite(input.after) ? input.after : 0
+    return row.commands.filter((c) => c.n > after).slice(0, 40)
+  }
+  const first = await read()
+  const waitMs = Math.max(0, Math.min(400, Math.floor(input.waitMs || 0)))
+  if (!first || first.length > 0 || waitMs <= 0 || input.signal?.aborted) return first
+  let tick: ReturnType<typeof setInterval> | null = null
+  const pending = waitForPhoneCommands(input.id, waitMs, input.signal)
+  const again = await read()
+  if (again && again.length > 0) notifyPhoneCommandWaiters(input.id)
+  else {
+    tick = setInterval(() => {
+      const row = bag().rows.get(input.id)
+      if (!row || row.userId !== input.userId) return
+      void overlayCommandTail(input.id, row).then((advanced) => {
+        if (advanced) notifyPhoneCommandWaiters(input.id)
+      })
+    }, 40)
+  }
+  await pending
+  if (tick) clearInterval(tick)
+  return read()
 }

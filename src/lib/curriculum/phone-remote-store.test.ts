@@ -276,4 +276,59 @@ describe('phone remote login key', () => {
     const still = await readPhoneRemoteForUser(created.id, userId)
     assert.equal((still?.snapshot.whiteboard as { objects?: { id?: string }[] })?.objects?.[0]?.id, 'lab')
   })
+
+  it('wakes a waiting student pull as soon as the phone sends', async () => {
+    const userId = '33333333-3333-4333-8333-333333333333'
+    const created = await createPhoneRemoteSession({
+      userId,
+      email: 'teacher@example.com',
+      snapshot: { topic: 'Wake' },
+      index: 0,
+    })
+    assert.equal('error' in created, false)
+    if ('error' in created) return
+    const pending = pullPhoneRemoteCommands({ id: created.id, userId, after: 0, waitMs: 400 })
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    await pushPhoneRemoteCommands({ id: created.id, userId, commands: [{ type: 'slide-go', index: 2 }] })
+    const pulled = await pending
+    assert.equal(pulled?.length, 1)
+    assert.equal(pulled?.[0]?.msg.type, 'slide-go')
+    assert.equal(pulled?.[0]?.msg.index, 2)
+  })
+
+  it('closes the desktop QR only after a phone load newer than the open', async () => {
+    const userId = '44444444-4444-4444-8444-444444444444'
+    const created = await createPhoneRemoteSession({
+      userId,
+      email: 'teacher@example.com',
+      snapshot: { topic: 'QR' },
+      index: 0,
+    })
+    assert.equal('error' in created, false)
+    if ('error' in created) return
+    await updatePhoneRemoteFromDesktop({ id: created.id, userId, qrWatch: 11 })
+    const opened = await readPhoneRemoteForUser(created.id, userId)
+    const watchAt = opened?.qrWatchAt || 0
+    assert.ok(watchAt > 0)
+    await updatePhoneRemoteFromDesktop({ id: created.id, userId, qrWatch: 11 })
+    const reopened = await readPhoneRemoteForUser(created.id, userId)
+    assert.equal(reopened?.qrWatchAt, watchAt)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await updatePhoneRemoteFromDesktop({ id: created.id, userId, phoneReady: true, phoneBoot: 100 })
+    const loaded = await readPhoneRemoteForUser(created.id, userId)
+    const readyAt = loaded?.phoneReadyServerAt || 0
+    assert.ok(readyAt > watchAt)
+    await updatePhoneRemoteFromDesktop({ id: created.id, userId, phoneReady: true, phoneBoot: 100 })
+    const retry = await readPhoneRemoteForUser(created.id, userId)
+    assert.equal(retry?.phoneReadyServerAt, readyAt)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await updatePhoneRemoteFromDesktop({ id: created.id, userId, qrWatch: 22 })
+    const again = await readPhoneRemoteForUser(created.id, userId)
+    assert.ok((again?.qrWatchAt || 0) > readyAt)
+    assert.ok((again?.phoneReadyServerAt || 0) <= (again?.qrWatchAt || 0))
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await updatePhoneRemoteFromDesktop({ id: created.id, userId, phoneReady: true, phoneBoot: 200 })
+    const scanned = await readPhoneRemoteForUser(created.id, userId)
+    assert.ok((scanned?.phoneReadyServerAt || 0) > (scanned?.qrWatchAt || 0))
+  })
 })

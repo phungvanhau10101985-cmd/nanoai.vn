@@ -971,21 +971,41 @@ function asNumberRecord(value: unknown): Record<string, number> | null {
   return out
 }
 
+function slideDeckTextSig(rows: Array<{ title?: string; blocks?: Array<{ header?: string; content?: string }> }>): string {
+  let out = ''
+  for (const row of rows) {
+    out += `${row?.title ?? ''}\n`
+    for (const block of row?.blocks ?? []) out += `${block?.header ?? ''}|${block?.content ?? ''}\n`
+    out += '\u0001'
+  }
+  return out
+}
+
 /** Lệnh gõ thường chỉ tiến lên. Bản rỗng hoặc số nhỏ hơn không được kéo chữ về đầu. */
 function mergeTypingReveal(
   prev: Record<string, number>,
   incoming: Record<string, number>,
   exact: boolean
 ): Record<string, number> {
-  if (exact) return { ...incoming }
+  if (exact) {
+    const keys = new Set([...Object.keys(prev), ...Object.keys(incoming)])
+    for (const key of keys) {
+      if ((prev[key] ?? 0) !== (incoming[key] ?? 0)) return { ...incoming }
+    }
+    return prev
+  }
   const incomingKeys = Object.keys(incoming)
   if (incomingKeys.length === 0) return prev
+  let changed = false
   const next = { ...prev }
   for (const key of incomingKeys) {
     const value = incoming[key] ?? 0
-    next[key] = Math.max(prev[key] ?? 0, value)
+    if (value > (next[key] ?? 0)) {
+      next[key] = value
+      changed = true
+    }
   }
-  return next
+  return changed ? next : prev
 }
 
 function isTypingHeartbeat(msg: Record<string, unknown>): boolean {
@@ -1170,6 +1190,8 @@ export default function CurriculumViewPage() {
     if (leftPanelMode === 'slide') setLeftPanelMode('curriculum')
   }, [leftPanelMode])
   const [visualFullscreenOpen, setVisualFullscreenOpen] = useState(false)
+  /** Điện thoại chỉ nhớ ảnh máy tính đang mở. Không phóng ảnh trên chính máy đó. */
+  const [desktopImageOpen, setDesktopImageOpen] = useState(false)
   const [infographicFullscreenOpen, setInfographicFullscreenOpen] = useState(false)
   const [teacherExpandedCellIndex, setTeacherExpandedCellIndex] = useState<number | null>(null)
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
@@ -1526,6 +1548,7 @@ export default function CurriculumViewPage() {
   currentIndexRef.current = currentIndex
   const phoneFollowerIdRef = useRef(phoneFollowerId)
   phoneFollowerIdRef.current = phoneFollowerId
+  const phoneBootRef = useRef(Date.now())
   const phoneQueueRef = useRef<ReturnType<typeof createPhoneCommandQueue> | null>(null)
   const sendToStudentViewRef = useRef<(msg: Record<string, unknown>) => void>(() => {})
   const publishSessionCommandRef = useRef<(msg: Record<string, unknown>) => void>(() => {})
@@ -1557,6 +1580,8 @@ export default function CurriculumViewPage() {
   const commitWhiteboardRef = useRef<(next: WhiteboardState) => void>(() => {})
   const applySharedWhiteboardRef = useRef<(raw: unknown) => void>(() => {})
   const chainProgrammaticScrollUntilRef = useRef(0)
+  /** Máy này vừa cuộn bằng tay. Lệnh cuộn từ máy khác không kéo ngược trong lúc đó. */
+  const localChainScrollHostUntilRef = useRef(0)
   const visualAutoFillBlockedRef = useRef<Record<number, { visualInput1?: boolean; visualInput2?: boolean; visualInput3?: boolean; visualInput4?: boolean }>>({})
   const visualAutoFillInitializedRef = useRef<Record<number, boolean>>({})
   const visualManualEditedRef = useRef<Record<number, boolean>>({})
@@ -1671,6 +1696,39 @@ export default function CurriculumViewPage() {
   const teacherLeftColumnScrollRef = useRef<HTMLDivElement | null>(null)
   /** Khối nội dung slide (con trực tiếp trong vùng cuộn) — rel chuột theo bbox toàn khối để khớp xuống dòng với HS */
   const teacherSlideContentLayoutRef = useRef<HTMLDivElement | null>(null)
+  const applyTeacherChainScrollRef = useRef<(data: Record<string, unknown>) => void>(() => {})
+  applyTeacherChainScrollRef.current = (data) => {
+    const pane = teacherSlideContentPaneRef.current
+    if (!pane || !data || data.gesture !== true) return
+    if (Date.now() < localChainScrollHostUntilRef.current) return
+    if (data.anchor === 'start') {
+      if (Math.abs(pane.scrollTop) <= 1) return
+      chainProgrammaticScrollUntilRef.current = Date.now() + 500
+      pane.scrollTop = 0
+      return
+    }
+    const rel = Number(data.rel)
+    let el: HTMLElement | null = null
+    if (data.anchor === 'prose') {
+      el = pane.querySelector(
+        `[data-pointer-prose-root][data-slide-index="${data.slideIndex}"][data-block-index="${data.blockIndex}"]`
+      )
+    } else if (data.anchor === 'sync' && typeof data.syncId === 'string' && /^slide-[\w-]+$/.test(data.syncId)) {
+      el = pane.querySelector(`[data-pointer-sync-id="${CSS.escape(data.syncId)}"]`)
+    } else if (data.anchor === 'card' && typeof data.slideIndex === 'number') {
+      el = document.getElementById(`teacher-chain-slide-${data.slideIndex}`)
+    } else if (data.anchor === 'layout') {
+      el = teacherSlideContentLayoutRef.current
+    }
+    if (!el || !pane.contains(el)) return
+    const rect = el.getBoundingClientRect()
+    const line = pane.getBoundingClientRect().top + pane.clientTop + 1
+    const usedRel = Number.isFinite(rel) ? rel : 0
+    const delta = rect.top - (line - usedRel * rect.height)
+    if (Math.abs(delta) < 28) return
+    chainProgrammaticScrollUntilRef.current = Date.now() + 500
+    pane.scrollTop += delta
+  }
   /** Chỉ phần thân slide (sau tiêu đề / toolbar) — map chuột ảo khớp chữ, không gồm toolbar & hàng tiêu đề */
   const teacherSlidePointerSyncRef = useRef<HTMLDivElement | null>(null)
   const teacherInfographicOverlayRef = useRef<HTMLDivElement | null>(null)
@@ -1821,8 +1879,14 @@ export default function CurriculumViewPage() {
   const phoneSessionIdRef = useRef(phoneSessionId)
   phoneSessionIdRef.current = phoneSessionId
   const [phoneLoginUrl, setPhoneLoginUrl] = useState<string | null>(null)
+  const phoneLoginUrlRef = useRef<string | null>(null)
+  phoneLoginUrlRef.current = phoneLoginUrl
   const [phoneRemoteBusy, setPhoneRemoteBusy] = useState(false)
   const [phoneRemoteError, setPhoneRemoteError] = useState('')
+  const [studentPhoneAsk, setStudentPhoneAsk] = useState(0)
+  const [phoneLinkReady, setPhoneLinkReady] = useState(false)
+  const phoneLinkReadyRef = useRef(false)
+  phoneLinkReadyRef.current = phoneLinkReady
   const phoneImageActionsRef = useRef<HTMLDivElement | null>(null)
   const phoneSnapshotRef = useRef<() => Record<string, unknown>>(() => ({}))
   const applyPhoneCommandRef = useRef<(msg: Record<string, unknown>) => void>(() => {})
@@ -2237,6 +2301,9 @@ export default function CurriculumViewPage() {
       typingSource: typeof msg.typingSource === 'string' && msg.typingSource
         ? msg.typingSource
         : typingClientIdRef.current,
+      wireId: typeof msg.wireId === 'string' && msg.wireId
+        ? msg.wireId
+        : `${typingClientIdRef.current}:${syncSeqRef.current++}`,
     }
     if (phoneFollowerIdRef.current) {
       deliverStudentWindow(payload)
@@ -3578,6 +3645,7 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     persistSlidesRef.current = async (updatedSlides: SlideItem[], curriculumInfographicOverride?: SlideInfographic, opts?: { quiet?: boolean }) => {
       if (!curriculumId || updatedSlides.length === 0) return
+      if (updatedSlides.some((slide) => slide.teacherNotes === 'pending-lesson-slides')) return
       const requestId = ++lastRequestedSaveIdRef.current
       const payload = updatedSlides.map((s) => ({
         title: s.title,
@@ -3742,11 +3810,13 @@ export default function CurriculumViewPage() {
         duration: 2000,
       })
     } catch (e) {
-      toast({
-        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
-        description: e instanceof Error ? e.message : String(e),
-        variant: 'destructive',
-      })
+      if (!quiet) {
+        toast({
+          title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+          description: e instanceof Error ? e.message : String(e),
+          variant: 'destructive',
+        })
+      }
     } finally {
       setInfographicGenerating(false)
     }
@@ -3884,11 +3954,13 @@ export default function CurriculumViewPage() {
         duration: 2000,
       })
     } catch (e) {
-      toast({
-        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
-        description: e instanceof Error ? e.message : String(e),
-        variant: 'destructive',
-      })
+      if (!quiet) {
+        toast({
+          title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+          description: e instanceof Error ? e.message : String(e),
+          variant: 'destructive',
+        })
+      }
     } finally {
       setLessonInfographicGenerating(false)
     }
@@ -3964,21 +4036,22 @@ export default function CurriculumViewPage() {
     if (!confirmInfographicAction('curriculum', hasCurriculumInfographic)) return
     void generateCurriculumInfographic()
   }, [hasCurriculumInfographic, confirmInfographicAction, generateCurriculumInfographic])
-  const generateSlideAssistant = useCallback(async (opts?: { index?: number; quiet?: boolean; reveal?: boolean; force?: boolean }) => {
+  const generateSlideAssistant = useCallback(async (opts?: { index?: number; quiet?: boolean; reveal?: boolean; force?: boolean }): Promise<boolean> => {
     const quiet = opts?.quiet === true
     const reveal = opts?.reveal === true
     const forceMedium = quiet || opts?.force === true
-    if (!curriculumId || worksheetId) return
+    if (!curriculumId || worksheetId) return false
     const slideIndex = typeof opts?.index === 'number' ? opts.index : currentIndexRef.current
     const slide = slidesRef.current[slideIndex]
-    if (!slide) return
+    if (!slide) return false
+    if (slide.teacherNotes === 'pending-lesson-slides') return false
     const existed = Boolean(slide.assistantImage?.imageUrl)
-    if (quiet && existed && opts?.force !== true) return
+    if (quiet && existed && opts?.force !== true) return true
     const inflightKey = `${curriculumId}:${slideIndex}`
-    if (slideImageInflight.has(inflightKey)) return
+    if (slideImageInflight.has(inflightKey)) return false
     const lessonText = slidePlainTextForInfographic(slide).trim()
     if (lessonText.length < 40) {
-      if (quiet) return
+      if (quiet) return false
       toast({
         title: tr('Slide còn quá ngắn', 'This slide is too short', '这张幻灯片太短', 'このスライドは短すぎます', '이 슬라이드가 너무 짧습니다'),
         description: tr(
@@ -3990,7 +4063,7 @@ export default function CurriculumViewPage() {
         ),
         variant: 'destructive',
       })
-      return
+      return false
     }
     if (!quiet) setSlideAssistantGenerating(true)
     if (!quiet) toast({
@@ -4078,12 +4151,16 @@ export default function CurriculumViewPage() {
             ),
         duration: 2000,
       })
+      return true
     } catch (e) {
-      toast({
-        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
-        description: e instanceof Error ? e.message : String(e),
-        variant: 'destructive',
-      })
+      if (!quiet) {
+        toast({
+          title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+          description: e instanceof Error ? e.message : String(e),
+          variant: 'destructive',
+        })
+      }
+      return false
     } finally {
       slideImageInflight.delete(inflightKey)
       if (!quiet) setSlideAssistantGenerating(false)
@@ -4249,18 +4326,34 @@ export default function CurriculumViewPage() {
   generateSlideAssistantRef.current = generateSlideAssistant
   generateLessonInfographicRef.current = generateLessonInfographic
   generateCurriculumInfographicRef.current = generateCurriculumInfographic
+  const curriculumLessonCountRef = useRef(curriculumLessonCount)
+  curriculumLessonCountRef.current = curriculumLessonCount
+  const lessonSlidesPending = slides.some((slide) => slide.teacherNotes === 'pending-lesson-slides')
   useEffect(() => {
-    if (worksheetId || !curriculumId || slides.length === 0 || curriculumLessonCount == null) return
-    const key = `${curriculumId}:${activeLessonNo ?? 0}`
+    if (worksheetId || !curriculumId || slides.length === 0 || lessonSlidesPending) return
+    const key = `${curriculumId}:${activeLessonNo ?? 0}:${slides.length}:ready`
     if (backgroundInfographicJobs.has(key)) return
     backgroundInfographicJobs.add(key)
-    const lessonCount = curriculumLessonCount
     const lessonNo = activeLessonNo
     void (async () => {
+      const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+      const paintSlide = async (index: number, reveal: boolean) => {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          if (String(slidesRef.current[index]?.assistantImage?.imageUrl ?? '')) return
+          const ok = await generateSlideAssistantRef.current({ index, quiet: true, reveal })
+          if (ok || String(slidesRef.current[index]?.assistantImage?.imageUrl ?? '')) return
+          if (attempt < 2) await pause(1500 * (attempt + 1))
+        }
+      }
       await Promise.resolve()
       const first = Math.max(0, Math.min(currentIndexRef.current, Math.max(0, slidesRef.current.length - 1)))
       try {
-        await generateSlideAssistantRef.current({ index: first, quiet: true, reveal: true })
+        await paintSlide(first, true)
+        let lessonCount = curriculumLessonCountRef.current
+        for (let wait = 0; wait < 8 && lessonCount == null; wait += 1) {
+          await pause(500)
+          lessonCount = curriculumLessonCountRef.current
+        }
         if (lessonCount !== 1 && lessonNo && lessonNo > 0) {
           await generateLessonInfographicRef.current({ quiet: true })
         }
@@ -4268,13 +4361,13 @@ export default function CurriculumViewPage() {
         const total = slidesRef.current.length
         for (let i = 0; i < total; i += 1) {
           if (i === first) continue
-          await generateSlideAssistantRef.current({ index: i, quiet: true, reveal: false })
+          await paintSlide(i, false)
         }
       } catch {
         backgroundInfographicJobs.delete(key)
       }
     })()
-  }, [worksheetId, curriculumId, activeLessonNo, curriculumLessonCount, slides.length])
+  }, [worksheetId, curriculumId, activeLessonNo, slides.length, lessonSlidesPending])
 
   const openTeacherWhiteboard = useCallback(() => {
     setLeftPanelMode('whiteboard')
@@ -4404,6 +4497,7 @@ export default function CurriculumViewPage() {
 
   const openTeacherVisualFullscreen = useCallback((cellIndex?: number) => {
     if (phoneFollowerIdRef.current) {
+      setDesktopImageOpen(true)
       setInfographicFullscreenOpen(false)
       setTeacherExpandedCellIndex(typeof cellIndex === 'number' ? cellIndex : null)
       setVisualFullscreenOpen(true)
@@ -4480,6 +4574,7 @@ export default function CurriculumViewPage() {
   }, [sendToStudentView, sendCurriculumDataToStudent, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
 
   const closeTeacherVisualFullscreen = useCallback(() => {
+    setDesktopImageOpen(false)
     setVisualFullscreenOpen(false)
     setTeacherExpandedCellIndex(null)
     sendToStudentView({ type: 'visual-fullscreen-close' })
@@ -5506,6 +5601,7 @@ export default function CurriculumViewPage() {
 
   useEffect(() => {
     if (!studentViewOpened) return
+    if (phoneFollowerId) return
     if (slideViewMode !== 'single') return
     const el = teacherSlideContentLayoutRef.current
     if (!el) return
@@ -5532,7 +5628,7 @@ export default function CurriculumViewPage() {
     const ro = new ResizeObserver(() => emit())
     ro.observe(el)
     return () => ro.disconnect()
-  }, [studentViewOpened, slideViewMode, sendToStudentView, currentIndex])
+  }, [studentViewOpened, phoneFollowerId, slideViewMode, sendToStudentView, currentIndex])
 
   useEffect(() => {
     const wasOpen = expandedImageWasOpenRef.current
@@ -5560,7 +5656,7 @@ export default function CurriculumViewPage() {
       const bias = alignTop ? 8 : Math.max(56, Math.round(container.clientHeight * 0.18))
       const extra = alignTop ? 0 : Math.max(16, Math.min(180, Math.round(eRect.height * 0.1)))
       const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight)
-      if (narrowTeacherLayout || alignTop) chainProgrammaticScrollUntilRef.current = Date.now() + 400
+      chainProgrammaticScrollUntilRef.current = Date.now() + 900
       container.scrollTo({
         top: Math.min(maxScroll, Math.max(0, elTop - bias + extra)),
         behavior: alignTop || narrowTeacherLayout ? 'auto' : 'smooth',
@@ -5657,8 +5753,9 @@ export default function CurriculumViewPage() {
       }
       return { type: 'chain-pane-scroll', anchor: 'start', rel: 0 }
     }
-    const emit = (fromResize: boolean) => {
-      if (phoneFollowerId && Date.now() < chainProgrammaticScrollUntilRef.current) return
+    const emit = () => {
+      if (Date.now() < chainProgrammaticScrollUntilRef.current) return
+      if (Date.now() >= localChainScrollHostUntilRef.current) return
       const msg = readAnchor() as {
         anchor?: string
         slideIndex?: number
@@ -5678,29 +5775,32 @@ export default function CurriculumViewPage() {
         prev.slideIndex === slideIndex &&
         prev.blockIndex === blockIndex &&
         prev.syncId === syncId
-      const relSlack = fromResize ? 0.012 : 0.004
+      const relSlack = 0.02
       if (sameAnchor && Math.abs(prev.rel - rel) < relSlack) return
       chainScrollWireRef.current = { anchor, slideIndex, blockIndex, syncId, rel }
-      sendTickToStudent('chain-pane-scroll', msg as Record<string, unknown>, 32)
+      sendTickToStudent('chain-pane-scroll', { ...msg, gesture: true } as Record<string, unknown>, 48)
     }
-    emit(false)
-    const retrySoon = window.setTimeout(() => emit(false), 140)
-    const retryLater = window.setTimeout(() => emit(false), 420)
-    const emitScroll = () => emit(false)
+    let gestureUntil = 0
+    const markGesture = () => {
+      gestureUntil = Date.now() + 800
+    }
+    const emitScroll = () => {
+      if (Date.now() < chainProgrammaticScrollUntilRef.current) return
+      if (Date.now() > gestureUntil) return
+      localChainScrollHostUntilRef.current = Date.now() + 1600
+      emit()
+    }
+    scrollEl.addEventListener('wheel', markGesture, { passive: true })
+    scrollEl.addEventListener('touchmove', markGesture, { passive: true })
+    scrollEl.addEventListener('pointerdown', markGesture)
+    scrollEl.addEventListener('keydown', markGesture)
     scrollEl.addEventListener('scroll', emitScroll, { passive: true })
-    scrollEl.addEventListener('touchmove', emitScroll, { passive: true })
-    scrollEl.addEventListener('touchend', emitScroll, { passive: true })
-    const ro = new ResizeObserver(() => emit(true))
-    ro.observe(scrollEl)
-    const content = scrollEl.firstElementChild
-    if (content) ro.observe(content)
     return () => {
-      window.clearTimeout(retrySoon)
-      window.clearTimeout(retryLater)
+      scrollEl.removeEventListener('wheel', markGesture)
+      scrollEl.removeEventListener('touchmove', markGesture)
+      scrollEl.removeEventListener('pointerdown', markGesture)
+      scrollEl.removeEventListener('keydown', markGesture)
       scrollEl.removeEventListener('scroll', emitScroll)
-      scrollEl.removeEventListener('touchmove', emitScroll)
-      scrollEl.removeEventListener('touchend', emitScroll)
-      ro.disconnect()
     }
   }, [studentViewOpened, phoneFollowerId, slideViewMode, studentCurriculumRemoteMode, currentIndex, sendToStudentView])
 
@@ -6891,7 +6991,7 @@ export default function CurriculumViewPage() {
         setRemoteAutoPlayIntervalMs(e.data.ms)
         sendToStudentViewRef.current({ type: 'set-auto-play-interval', ms: e.data.ms })
       }
-      if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number' && e.source === studentViewWindowRef.current) {
+      if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number' && e.source === studentViewWindowRef.current && typeof e.data?.wireId !== 'string') {
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
         const block = typeof e.data.blockIndex === 'number'
           ? Math.max(0, Math.floor(e.data.blockIndex))
@@ -6956,6 +7056,10 @@ export default function CurriculumViewPage() {
       }
       if ((e.data?.type === 'mouse-pos' || e.data?.type === 'mouse-click') && e.data?.fromStudent && e.source === studentViewWindowRef.current) {
         placeRemotePointerRef.current(e.data, e.data.type === 'mouse-click')
+        queueOtherTeacherRef.current(e.data)
+      }
+      if (e.data?.type === 'chain-pane-scroll' && e.data?.fromStudent && e.source === studentViewWindowRef.current) {
+        applyTeacherChainScrollRef.current(e.data)
         queueOtherTeacherRef.current(e.data)
       }
       if (e.data?.type === 'curriculum-data') {
@@ -7376,16 +7480,16 @@ export default function CurriculumViewPage() {
     typableKeys.push(...typableIdx.map((bi) => `${currentIndex}-${bi}`))
     const typingOn = typableKeys.length > 0 && answerTypingEnabled[typableKeys[0]] !== false
     const slidePaused = typableKeys.length > 0 && typableKeys.every((k) => answerTypingPaused[k] === true)
-    const dockBtn = 'flex h-8 items-center rounded-lg border px-2 text-[11px] font-medium'
-    const dockIcon = 'flex h-8 w-8 items-center justify-center rounded-lg border border-white/35 bg-white/10 text-white'
+    const dockBtn = 'flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg border px-1 text-[11px] font-medium'
+    const dockNav = 'flex h-9 w-8 shrink-0 items-center justify-center rounded-lg border border-white/35 bg-white/10 text-white'
     return (
       <div
-        className="absolute bottom-2 left-1/2 z-40 flex w-[min(98%,720px)] -translate-x-1/2 flex-col gap-1"
+        className="absolute bottom-2 left-1/2 z-40 flex w-[min(100%,720px)] -translate-x-1/2 flex-col gap-1 px-1"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-1 rounded-xl border border-white/25 bg-black/75 p-1.5 text-white shadow-lg backdrop-blur-sm">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+        <div className="flex flex-nowrap items-center gap-0.5 rounded-xl border border-white/25 bg-black/75 px-1 py-1.5 text-white shadow-lg backdrop-blur-sm">
+          <div className="flex flex-1 flex-nowrap items-center gap-0.5">
             <TeacherPhoneAutoPlayPicker
               running={remoteAutoPlay}
               intervalSeconds={remoteAutoPlayIntervalMs / 1000}
@@ -7458,9 +7562,33 @@ export default function CurriculumViewPage() {
               </button>
             )}
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            <button type="button" className={dockIcon} disabled={beatAtStart} onClick={() => sendSlideControl('slide-prev')}><ChevronLeft className="h-4 w-4" /></button>
-            <button type="button" className={dockIcon} disabled={beatAtEnd} onClick={() => sendSlideControl('slide-next')}><ChevronRight className="h-4 w-4" /></button>
+          <div className="ml-auto flex shrink-0 items-center gap-0.5">
+            {phoneFollowerId ? (
+              <button
+                type="button"
+                aria-pressed={desktopImageOpen}
+                className={cn(dockBtn, 'shrink-0', desktopImageOpen ? 'border-amber-400/70 bg-amber-500/25 text-amber-100' : 'border-white/35 bg-white/10 text-white')}
+                onClick={() => {
+                  const nextOpen = !desktopImageOpen
+                  setDesktopImageOpen(nextOpen)
+                  claimTypingDriver()
+                  const reveal = { ...answerRevealProgressRef.current }
+                  if (nextOpen) {
+                    publishSessionCommand({ type: 'infographic-fullscreen-close' })
+                    publishSessionCommand({ type: 'presentation-mode', mode: 'slide-interaction' })
+                    publishSessionCommand({ type: 'visual-fullscreen-open', worksheetAnswerReveal: reveal })
+                  } else {
+                    publishSessionCommand({ type: 'visual-fullscreen-close', worksheetAnswerReveal: reveal })
+                  }
+                }}
+              >
+                {desktopImageOpen
+                  ? tr('Đóng ảnh', 'Close image', '关闭图片', '画像を閉じる', '이미지 닫기')
+                  : tr('Mở ảnh', 'Open image', '打开图片', '画像を開く', '이미지 열기')}
+              </button>
+            ) : null}
+            <button type="button" className={dockNav} disabled={beatAtStart} onClick={() => sendSlideControl('slide-prev')}><ChevronLeft className="h-5 w-5" /></button>
+            <button type="button" className={dockNav} disabled={beatAtEnd} onClick={() => sendSlideControl('slide-next')}><ChevronRight className="h-5 w-5" /></button>
           </div>
         </div>
       </div>
@@ -7638,8 +7766,16 @@ export default function CurriculumViewPage() {
       deliverStudentWindow(msg)
     }
     if (fromSelf) return
-    if (type === 'mouse-pos' || type === 'mouse-click' || type === 'chain-pane-scroll') {
-      if (type !== 'chain-pane-scroll') placeRemotePointerRef.current(msg, type === 'mouse-click')
+    if (type === 'chain-pane-scroll') {
+      if (msg.gesture !== true) return
+      const studentPane = studentViewWindowRef.current
+      if (msg.fromStudent === true && studentPane && !studentPane.closed) return
+      applyTeacherChainScrollRef.current(msg)
+      relayStudent()
+      return
+    }
+    if (type === 'mouse-pos' || type === 'mouse-click') {
+      placeRemotePointerRef.current(msg, type === 'mouse-click')
       relayStudent()
       return
     }
@@ -7733,11 +7869,36 @@ export default function CurriculumViewPage() {
       }
       relayStudent()
     } else if (type === 'visual-fullscreen-open') {
+      setDesktopImageOpen(true)
+      if (phoneFollowerIdRef.current) return
+      const reveal = asNumberRecord(msg.worksheetAnswerReveal)
+      if (reveal && Object.keys(reveal).length > 0) {
+        setAnswerRevealProgress((prev) => mergeTypingReveal(prev, reveal, false))
+      }
       setInfographicFullscreenOpen(false)
       setTeacherExpandedCellIndex(typeof msg.cellIndex === 'number' ? msg.cellIndex : null)
+      if (leftPanelModeRef.current !== 'visual') {
+        layoutPaneRef.current = true
+        leftPanelModeRef.current = 'visual'
+        setLeftPanelMode('visual')
+      }
       setVisualFullscreenOpen(true)
       relayStudent()
     } else if (type === 'visual-fullscreen-close') {
+      setDesktopImageOpen(false)
+      if (phoneFollowerIdRef.current) return
+      const reveal = asNumberRecord(msg.worksheetAnswerReveal)
+      if (reveal && Object.keys(reveal).length > 0) {
+        setAnswerRevealProgress((prev) => mergeTypingReveal(prev, reveal, false))
+        deliverStudentWindow({
+          type: 'worksheet-answer-reveal',
+          worksheetAnswerReveal: reveal,
+          typingSpeedMs: answerTypingSpeedMsRef.current,
+          control: true,
+          typingExact: false,
+          typingFill: true,
+        })
+      }
       setVisualFullscreenOpen(false)
       setTeacherExpandedCellIndex(null)
       relayStudent()
@@ -7863,26 +8024,71 @@ export default function CurriculumViewPage() {
     }
   }, [phoneFollowerId, phoneSessionId])
 
+  const phoneLessonOnScreen = Boolean(phoneFollowerId && (content.trim() || slides.length > 0))
   useEffect(() => {
-    if (!phoneRemoteOpen || !phoneSessionId || phoneFollowerId) return
+    if (!phoneLessonOnScreen || !phoneFollowerId) return
     let stop = false
+    const send = () => {
+      if (stop) return
+      void fetch('/api/giao-trinh/phone-remote', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: phoneFollowerId, phoneReady: true, phoneBoot: phoneBootRef.current }),
+      }).catch(() => { /* lần sau */ })
+    }
+    send()
+    const again = window.setTimeout(send, 1200)
+    return () => {
+      stop = true
+      window.clearTimeout(again)
+    }
+  }, [phoneLessonOnScreen, phoneFollowerId])
+
+  useEffect(() => {
+    if (!phoneSessionId || phoneFollowerId || !phoneRemoteOpen) return
+    const nonce = Date.now()
+    let stop = false
+    const arm = () => {
+      if (stop) return
+      void fetch('/api/giao-trinh/phone-remote', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: phoneSessionId, qrWatch: nonce }),
+      }).catch(() => { /* lần sau */ })
+    }
     const tick = async () => {
       try {
-        const res = await fetch(`/api/giao-trinh/phone-remote?id=${encodeURIComponent(phoneSessionId)}&live=1`, { credentials: 'same-origin' })
+        const res = await fetch(`/api/giao-trinh/phone-remote?id=${encodeURIComponent(phoneSessionId)}&live=1`, { credentials: 'same-origin', cache: 'no-store' })
         if (!res.ok || stop) return
         const data = await res.json().catch(() => null)
-        if (data?.phoneReady) setPhoneRemoteOpen(false)
+        if (!data?.ok || stop) return
+        if (data.qrWatch !== nonce) {
+          arm()
+          return
+        }
+        const at = typeof data.phoneReadyServerAt === 'number' ? data.phoneReadyServerAt : 0
+        const watchAt = typeof data.qrWatchAt === 'number' ? data.qrWatchAt : 0
+        if (watchAt > 0 && at > watchAt) {
+          setPhoneLinkReady(true)
+          setPhoneRemoteOpen(false)
+          sendToStudentView({ type: 'phone-remote-ready', id: phoneSessionId, phoneReadyServerAt: at })
+        }
       } catch {
         /* lần sau kiểm tra tiếp */
       }
     }
+    arm()
     void tick()
-    const id = window.setInterval(() => { void tick() }, 500)
+    const id = window.setInterval(() => { void tick() }, 300)
     return () => {
       stop = true
       window.clearInterval(id)
     }
-  }, [phoneRemoteOpen, phoneSessionId, phoneFollowerId])
+  }, [phoneSessionId, phoneFollowerId, phoneRemoteOpen, sendToStudentView])
 
   useEffect(() => {
     if (phoneFollowerId || typeof window === 'undefined') return
@@ -7912,7 +8118,42 @@ export default function CurriculumViewPage() {
   }, [phoneFollowerId, phoneSessionId, phoneLoginUrl])
 
   useEffect(() => {
-    if (!phoneRemoteOpen || phoneLoginUrl || phoneFollowerId) return
+    if (phoneFollowerId) return
+    const onAsk = (data: { type?: string } | null) => {
+      if (data?.type !== 'student-request-phone-remote') return
+      if (phoneSessionIdRef.current && phoneLoginUrlRef.current) {
+        sendToStudentViewRef.current({
+          type: 'phone-remote-login',
+          id: phoneSessionIdRef.current,
+          loginUrl: phoneLoginUrlRef.current,
+        })
+        return
+      }
+      setStudentPhoneAsk((n) => n + 1)
+    }
+    const onMsg = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      onAsk(event.data)
+    }
+    window.addEventListener('message', onMsg)
+    let channel: BroadcastChannel | null = null
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel(getPresentationBroadcastChannelName(presentationSyncId))
+      channel.addEventListener('message', (event) => onAsk(event.data))
+    }
+    return () => {
+      window.removeEventListener('message', onMsg)
+      channel?.close()
+    }
+  }, [phoneFollowerId, presentationSyncId])
+
+  useEffect(() => {
+    if (studentPhoneAsk === 0 || !phoneSessionId || !phoneLoginUrl || phoneFollowerId) return
+    sendToStudentView({ type: 'phone-remote-login', id: phoneSessionId, loginUrl: phoneLoginUrl })
+  }, [studentPhoneAsk, phoneSessionId, phoneLoginUrl, phoneFollowerId, sendToStudentView])
+
+  useEffect(() => {
+    if ((!phoneRemoteOpen && studentPhoneAsk === 0) || phoneLoginUrl || phoneFollowerId) return
     let cancel = false
     setPhoneRemoteBusy(true)
     setPhoneRemoteError('')
@@ -7949,15 +8190,15 @@ export default function CurriculumViewPage() {
       }
     })()
     return () => { cancel = true }
-  }, [phoneRemoteOpen, phoneLoginUrl, phoneFollowerId, tr])
+  }, [phoneRemoteOpen, studentPhoneAsk, phoneLoginUrl, phoneFollowerId, tr])
 
   useEffect(() => {
     if (!phoneSessionId || phoneFollowerId) return
-    const send = () => sendToStudentView({ type: 'phone-remote-bind', id: phoneSessionId })
+    const send = () => sendToStudentView({ type: 'phone-remote-bind', id: phoneSessionId, phoneReady: phoneLinkReady })
     send()
     const id = window.setInterval(send, 2000)
     return () => window.clearInterval(id)
-  }, [phoneSessionId, phoneFollowerId, sendToStudentView])
+  }, [phoneSessionId, phoneFollowerId, phoneLinkReady, sendToStudentView])
 
   useEffect(() => {
     const remoteId = phoneSessionId || phoneFollowerId
@@ -8035,7 +8276,7 @@ export default function CurriculumViewPage() {
       }
     }
     void tick()
-    const id = window.setInterval(() => { void tick() }, 280)
+    const id = window.setInterval(() => { void tick() }, 100)
     return () => {
       stop = true
       window.clearInterval(id)
@@ -8123,12 +8364,14 @@ export default function CurriculumViewPage() {
           const snap = body.snapshot as Record<string, unknown>
           const sl = Array.isArray(snap.slides) ? (snap.slides as SlideItem[]) : []
           if (sl.length > 0 || (typeof snap.content === 'string' && snap.content.trim())) {
-            const sanitized = withoutAutoAddedReviewSlides(sl.map((s) => normalizeSlideVisualInputs(s)))
+          const sanitized = withoutAutoAddedReviewSlides(sl.map((s) => normalizeSlideVisualInputs(s)))
+          if (slideDeckTextSig(sanitized) !== slideDeckTextSig(slidesRef.current)) {
             setSlides(sanitized)
             slidesRef.current = sanitized
             setSlideTitles(sanitized.map((s) => s?.title ?? ''))
-            if (typeof snap.content === 'string') setContent(snap.content)
-            if (typeof snap.topic === 'string') setTopic(snap.topic)
+          }
+          if (typeof snap.content === 'string') setContent(snap.content)
+          if (typeof snap.topic === 'string') setTopic(snap.topic)
             if (snap.studentCurriculumRightMode === 'markdown-all' || snap.studentCurriculumRightMode === 'single-slide') {
               setStudentCurriculumRemoteMode(snap.studentCurriculumRightMode)
             }
@@ -8302,9 +8545,15 @@ export default function CurriculumViewPage() {
       setPersonalViewSubMode(snap.personalViewSubMode === 'original' ? 'original' : 'current')
       setHasOriginalSlides(Boolean(snap.hasOriginalSlides))
       const ci = snap.curriculumInfographic
-      if (ci && typeof ci === 'object' && typeof (ci as SlideInfographic).imageUrl === 'string') setCurriculumInfographic(ci as SlideInfographic)
+      if (ci && typeof ci === 'object' && typeof (ci as SlideInfographic).imageUrl === 'string') {
+        const nextInfo = ci as SlideInfographic
+        setCurriculumInfographic((prev) => (prev?.imageUrl === nextInfo.imageUrl ? prev : nextInfo))
+      }
       const li = snap.lessonInfographic
-      if (li && typeof li === 'object' && typeof (li as SlideInfographic).imageUrl === 'string') setLessonInfographic(li as SlideInfographic)
+      if (li && typeof li === 'object' && typeof (li as SlideInfographic).imageUrl === 'string') {
+        const nextLesson = li as SlideInfographic
+        setLessonInfographic((prev) => (prev?.imageUrl === nextLesson.imageUrl ? prev : nextLesson))
+      }
       if (snap.studentCurriculumRightMode === 'markdown-all' || snap.studentCurriculumRightMode === 'single-slide') {
         setStudentCurriculumRemoteMode(snap.studentCurriculumRightMode)
       }
@@ -8316,9 +8565,11 @@ export default function CurriculumViewPage() {
         if (snap.infographicSourceView !== infographicSourceView) layoutPaneRef.current = true
         setInfographicSourceView(snap.infographicSourceView)
       }
-      setSlideTitles(sanitized.map((s) => s?.title ?? ''))
-      setSlides(sanitized)
-      slidesRef.current = sanitized
+      if (slideDeckTextSig(sanitized) !== slideDeckTextSig(slidesRef.current)) {
+        setSlideTitles(sanitized.map((s) => s?.title ?? ''))
+        setSlides(sanitized)
+        slidesRef.current = sanitized
+      }
       hasHydratedFromCurriculumRef.current = true
       const max = Math.max(0, sanitized.length - 1)
       const idx = Math.max(0, Math.min(Math.floor(index) || 0, max))
@@ -8381,8 +8632,9 @@ export default function CurriculumViewPage() {
         const rawIndex = Number(data.index) || 0
         const held = slideFollowHoldRef.current
         const blocked = Boolean(held && Date.now() < held.until && rawIndex !== held.index)
-        const snapIndex = gen < seenGenRef.current || blocked ? currentIndexRef.current : rawIndex
-        if (gen > seenGenRef.current && !blocked) seenGenRef.current = gen
+        const indexIsNewer = gen > seenGenRef.current && !blocked
+        if (indexIsNewer) seenGenRef.current = gen
+        const snapIndex = indexIsNewer ? rawIndex : currentIndexRef.current
         const firstLoad = revisionRef.current === 0
         revisionRef.current = Number(data.revision) || 1
         seenRevisionRef.current = revisionRef.current
@@ -8390,14 +8642,6 @@ export default function CurriculumViewPage() {
         const takeBoard = firstLoad || boardGen > seenWhiteboardGenRef.current
         if (boardGen > seenWhiteboardGenRef.current) seenWhiteboardGenRef.current = boardGen
         applySnap(data.snapshot as Record<string, unknown>, snapIndex, takeBoard)
-        window.requestAnimationFrame(() => {
-          void fetch('/api/giao-trinh/phone-remote', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ id: phoneFollowerId, phoneReady: true }),
-          })
-        })
         return
       }
       if (
@@ -9766,7 +10010,7 @@ export default function CurriculumViewPage() {
                   </div>
                 )
               })()}
-              <div ref={teacherSlideContentPaneRef} data-teacher-phone-slide={narrowTeacherLayout ? '' : undefined} className={cn('flex min-h-0 flex-1 items-start justify-start overflow-y-auto overflow-x-hidden overscroll-y-contain', narrowTeacherLayout ? 'px-2 py-1' : 'px-3 py-2')}>
+              <div ref={teacherSlideContentPaneRef} data-teacher-phone-slide={narrowTeacherLayout ? '' : undefined} className={cn('flex min-h-0 flex-1 items-start justify-start overflow-y-auto overflow-x-hidden overscroll-y-contain [overflow-anchor:none]', narrowTeacherLayout ? 'px-2 py-1' : 'px-3 py-2')}>
                 {(() => {
                   const s = slides[currentIndex]
                   const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])

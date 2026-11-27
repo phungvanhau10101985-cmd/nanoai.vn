@@ -101,8 +101,16 @@ export function useReviewSlidePhoneBoard(input: {
   const phoneFollowerIdRef = useRef(phoneFollowerId)
   phoneFollowerIdRef.current = phoneFollowerId
   const [phoneLoginUrl, setPhoneLoginUrl] = useState<string | null>(null)
+  const phoneLoginUrlRef = useRef<string | null>(null)
+  phoneLoginUrlRef.current = phoneLoginUrl
   const [phoneRemoteBusy, setPhoneRemoteBusy] = useState(false)
   const [phoneRemoteError, setPhoneRemoteError] = useState('')
+  const [phoneArmed, setPhoneArmed] = useState(false)
+  const [phoneLinkReady, setPhoneLinkReady] = useState(false)
+  const phoneLinkReadyRef = useRef(false)
+  phoneLinkReadyRef.current = phoneLinkReady
+  const phoneBootRef = useRef(Date.now())
+  const phoneReadySentRef = useRef(false)
   const phoneQueueRef = useRef<ReturnType<typeof createPhoneCommandQueue> | null>(null)
   const [whiteboardState, setWhiteboardState] = useState<WhiteboardState>(() => emptyWhiteboardState())
   const whiteboardStateRef = useRef(whiteboardState)
@@ -268,7 +276,7 @@ export function useReviewSlidePhoneBoard(input: {
   }, [phoneFollowerId, phoneSessionId, phoneLoginUrl])
 
   useEffect(() => {
-    if (!phoneRemoteOpen || phoneLoginUrl || phoneFollowerId) return
+    if ((!phoneRemoteOpen && !phoneArmed) || phoneLoginUrl || phoneFollowerId) return
     let cancel = false
     setPhoneRemoteBusy(true)
     setPhoneRemoteError('')
@@ -307,36 +315,74 @@ export function useReviewSlidePhoneBoard(input: {
       }
     })()
     return () => { cancel = true }
-  }, [phoneRemoteOpen, phoneLoginUrl, phoneFollowerId, tr, snapshotRef])
+  }, [phoneRemoteOpen, phoneArmed, phoneLoginUrl, phoneFollowerId, tr, snapshotRef])
+
+  const armPhoneSession = useCallback(() => {
+    const id = phoneSessionIdRef.current
+    const loginUrl = phoneLoginUrlRef.current
+    if (id && loginUrl) {
+      routeOutgoing({ type: 'phone-remote-login', id, loginUrl })
+      return
+    }
+    setPhoneArmed(true)
+  }, [routeOutgoing])
 
   useEffect(() => {
-    if (!phoneRemoteOpen || !phoneSessionId || phoneFollowerId) return
+    if (!phoneArmed || !phoneSessionId || !phoneLoginUrl || phoneFollowerId) return
+    routeOutgoing({ type: 'phone-remote-login', id: phoneSessionId, loginUrl: phoneLoginUrl })
+  }, [phoneArmed, phoneSessionId, phoneLoginUrl, phoneFollowerId, routeOutgoing])
+
+  useEffect(() => {
+    if (!phoneSessionId || phoneFollowerId || !phoneRemoteOpen) return
+    const nonce = Date.now()
     let stop = false
+    const arm = () => {
+      if (stop) return
+      void fetch('/api/giao-trinh/phone-remote', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: phoneSessionId, qrWatch: nonce }),
+      }).catch(() => { /* lần sau */ })
+    }
     const tick = async () => {
       try {
-        const res = await fetch(`/api/giao-trinh/phone-remote?id=${encodeURIComponent(phoneSessionId)}&live=1`, { credentials: 'same-origin' })
+        const res = await fetch(`/api/giao-trinh/phone-remote?id=${encodeURIComponent(phoneSessionId)}&live=1`, { credentials: 'same-origin', cache: 'no-store' })
         if (!res.ok || stop) return
         const data = await res.json().catch(() => null)
-        if (data?.phoneReady) setPhoneRemoteOpen(false)
+        if (!data?.ok || stop) return
+        if (data.qrWatch !== nonce) {
+          arm()
+          return
+        }
+        const at = typeof data.phoneReadyServerAt === 'number' ? data.phoneReadyServerAt : 0
+        const watchAt = typeof data.qrWatchAt === 'number' ? data.qrWatchAt : 0
+        if (watchAt > 0 && at > watchAt) {
+          setPhoneLinkReady(true)
+          setPhoneRemoteOpen(false)
+          routeOutgoing({ type: 'phone-remote-ready', id: phoneSessionId, phoneReadyServerAt: at })
+        }
       } catch {
         /* lần sau */
       }
     }
+    arm()
     void tick()
-    const id = window.setInterval(() => { void tick() }, 500)
+    const id = window.setInterval(() => { void tick() }, 300)
     return () => {
       stop = true
       window.clearInterval(id)
     }
-  }, [phoneRemoteOpen, phoneSessionId, phoneFollowerId])
+  }, [phoneSessionId, phoneFollowerId, phoneRemoteOpen, routeOutgoing])
 
   useEffect(() => {
     if (!phoneSessionId || phoneFollowerId) return
-    const send = () => routeOutgoing({ type: 'phone-remote-bind', id: phoneSessionId })
+    const send = () => routeOutgoing({ type: 'phone-remote-bind', id: phoneSessionId, phoneReady: phoneLinkReady })
     send()
     const id = window.setInterval(send, 2000)
     return () => window.clearInterval(id)
-  }, [phoneSessionId, phoneFollowerId, routeOutgoing])
+  }, [phoneSessionId, phoneFollowerId, phoneLinkReady, routeOutgoing])
 
   useEffect(() => {
     const remoteId = phoneSessionId || phoneFollowerId
@@ -614,14 +660,20 @@ export function useReviewSlidePhoneBoard(input: {
         if (takeBoard) applySharedWhiteboard((data.snapshot as { whiteboard?: unknown }).whiteboard)
         whiteboardLinkReadyRef.current = true
         setWhiteboardLinkReady(true)
-        window.requestAnimationFrame(() => {
-          void fetch('/api/giao-trinh/phone-remote', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ id: phoneFollowerId, phoneReady: true }),
-          })
-        })
+        if (!phoneReadySentRef.current) {
+          phoneReadySentRef.current = true
+          const sendReady = () => {
+            void fetch('/api/giao-trinh/phone-remote', {
+              method: 'POST',
+              credentials: 'same-origin',
+              keepalive: true,
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ id: phoneFollowerId, phoneReady: true, phoneBoot: phoneBootRef.current }),
+            }).catch(() => { /* lần sau */ })
+          }
+          window.setTimeout(sendReady, 0)
+          window.setTimeout(sendReady, 1200)
+        }
         return
       }
       if (
@@ -652,6 +704,7 @@ export function useReviewSlidePhoneBoard(input: {
     clientIdRef,
     phoneRemoteOpen,
     setPhoneRemoteOpen,
+    armPhoneSession,
     phoneLoginUrl,
     phoneRemoteBusy,
     phoneRemoteError,

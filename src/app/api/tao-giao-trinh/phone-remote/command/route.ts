@@ -36,10 +36,14 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const id = (url.searchParams.get('id') || '').trim()
   const after = Number(url.searchParams.get('after') || '0')
+  const waitRaw = Number(url.searchParams.get('wait') || '0')
+  const waitMs = Number.isFinite(waitRaw) ? Math.max(0, Math.min(400, Math.floor(waitRaw))) : 0
   const commands = await pullPhoneRemoteCommands({
     id,
     userId: user.id,
     after: Number.isFinite(after) ? after : 0,
+    waitMs,
+    signal: req.signal,
   })
   if (!commands) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
   return NextResponse.json({ ok: true, commands })

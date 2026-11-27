@@ -24,6 +24,11 @@ import { applyListingYearSanitizeToProductData } from '@/lib/messaging/listing-i
 import { scrapePandamallForImport } from '@/lib/messaging/listing-import/pandamall-scraper'
 import { stampScrapedCostCny } from '@/lib/messaging/listing-import/import-cost'
 import { mergeListingOverlayIntoProductData, preferListingChineseName } from '@/lib/messaging/listing-import/scrape-common'
+import {
+  findMajorWorldBrandInFields,
+  findMajorWorldBrandInProductData,
+  listingImportMajorBrandBlockMessage,
+} from '@/lib/messaging/listing-import/listing-import-major-brand'
 import { scrapeVipomallForImport } from '@/lib/messaging/listing-import/vipomall-scraper'
 import { CATEGORY_AUTO_CREATE_DISABLED, CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy'
 
@@ -75,6 +80,33 @@ export async function executeOneListingImport(input: {
   const taxonomyFailMessage = CATEGORY_AUTO_CREATE_DISABLED_MESSAGE
 
   try {
+    const blockBrand = async (brand: string) => {
+      const message = listingImportMajorBrandBlockMessage(brand)
+      await updateListingImportDraftFromPg(input.partnerId, draft.id, {
+        status: 'error',
+        message,
+        errors: [message],
+        finished: true,
+      })
+      return {
+        ok: false as const,
+        job_id: jobId,
+        draft_id: draft.id,
+        draft_status: 'error' as const,
+        error: message,
+        message,
+        errors: [message],
+      }
+    }
+
+    const preBrand = findMajorWorldBrandInFields([
+      input.overlay?.chinese_name,
+      input.overlay?.shop_name_chinese,
+      input.overlay?.title,
+      input.overlay?.name,
+    ])
+    if (preBrand) return await blockBrand(preBrand)
+
     const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(input.partnerId)
 
     await updateListingImportDraftFromPg(input.partnerId, draft.id, {
@@ -88,6 +120,8 @@ export async function executeOneListingImport(input: {
         : await scrapeVipomallForImport(sourceUrl, input.partnerId)
     const productData = { ...scraped.productData }
     mergeListingOverlayIntoProductData(productData, input.overlay)
+    const scrapedBrand = findMajorWorldBrandInProductData(productData)
+    if (scrapedBrand) return await blockBrand(scrapedBrand)
     stampScrapedCostCny(productData)
     preferListingChineseName(productData)
     const warnings = [...(scraped.warnings || [])]

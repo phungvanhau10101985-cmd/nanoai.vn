@@ -1302,6 +1302,26 @@ export default function GiaoVienWorksheetPage() {
   useEffect(() => {
     if (!studentViewerReady) phoneBoard.setPhoneRemoteOpen(false)
   }, [studentViewerReady, phoneBoard.setPhoneRemoteOpen])
+  useEffect(() => {
+    if (phoneFollowerId) return
+    const onAsk = (data: { type?: string } | null) => {
+      if (data?.type === 'student-request-phone-remote') phoneBoard.armPhoneSession()
+    }
+    const onMsg = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      onAsk(event.data)
+    }
+    window.addEventListener('message', onMsg)
+    let channel: BroadcastChannel | null = null
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel(getPresentationBroadcastChannelName(presentationSyncId))
+      channel.addEventListener('message', (event) => onAsk(event.data))
+    }
+    return () => {
+      window.removeEventListener('message', onMsg)
+      channel?.close()
+    }
+  }, [phoneFollowerId, presentationSyncId, phoneBoard.armPhoneSession])
   const sendToStudentView = useCallback((msg: Record<string, unknown>) => {
     phoneBoard.routeOutgoing(msg)
   }, [phoneBoard.routeOutgoing])

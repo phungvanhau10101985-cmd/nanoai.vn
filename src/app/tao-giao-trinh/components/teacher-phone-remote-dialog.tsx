@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
-import { X } from 'lucide-react'
+import { Check, Copy, X } from 'lucide-react'
 import {
   isPhoneRemoteShareMobile,
   phoneRemoteFacebookShareUrl,
@@ -33,6 +33,8 @@ export function TeacherPhoneRemoteDialog({
   layerClassName?: string
 }) {
   const [qr, setQr] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const payload = loginUrl ? phoneRemoteQrPayload(loginUrl) : null
   useEffect(() => {
     if (!open || !payload) {
@@ -60,6 +62,25 @@ export function TeacherPhoneRemoteDialog({
       cancel = true
     }
   }, [open, payload])
+
+  useEffect(() => {
+    if (open) return
+    setCopied(false)
+    if (copiedTimer.current) clearTimeout(copiedTimer.current)
+  }, [open])
+
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current)
+  }, [])
+
+  function copyLink() {
+    if (!payload) return
+    void navigator.clipboard.writeText(payload).then(() => {
+      setCopied(true)
+      if (copiedTimer.current) clearTimeout(copiedTimer.current)
+      copiedTimer.current = setTimeout(() => setCopied(false), 1800)
+    }).catch(() => {})
+  }
 
   if (!open) return null
   const localHost = !!loginUrl && /\/\/(localhost|127\.0\.0\.1)([:/]|$)/i.test(loginUrl)
@@ -107,12 +128,12 @@ export function TeacherPhoneRemoteDialog({
                 'Zalo 또는 Facebook Messenger로 링크를 휴대폰에 보내세요.'
               )}
             </p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               <a
                 href={phoneRemoteZaloShareUrl(payload)}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0068FF] px-3 text-sm font-semibold text-white hover:bg-[#0057d6]"
+                className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0068FF] px-3 text-sm font-semibold text-white hover:bg-[#0057d6]"
                 onClick={() => {
                   void navigator.clipboard.writeText(payload).catch(() => {})
                 }}
@@ -124,7 +145,7 @@ export function TeacherPhoneRemoteDialog({
                 href={phoneRemoteFacebookShareUrl(payload)}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#0084FF] px-3 text-sm font-semibold text-white hover:bg-[#006fd6]"
+                className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#0084FF] px-3 text-sm font-semibold text-white hover:bg-[#006fd6]"
                 onClick={(event) => {
                   void navigator.clipboard.writeText(payload).catch(() => {})
                   if (!isPhoneRemoteShareMobile(navigator.userAgent)) return
@@ -135,6 +156,17 @@ export function TeacherPhoneRemoteDialog({
                 <MessengerMark />
                 {tr('Messenger', 'Messenger', 'Messenger', 'Messenger', 'Messenger')}
               </a>
+              <button
+                type="button"
+                onClick={copyLink}
+                aria-label={tr('Sao chép link', 'Copy link', '复制链接', 'リンクをコピー', '링크 복사')}
+                className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-sm font-semibold text-white ${copied ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-600 hover:bg-slate-500'}`}
+              >
+                {copied ? <Check className="h-4 w-4 shrink-0" aria-hidden /> : <Copy className="h-4 w-4 shrink-0" aria-hidden />}
+                {copied
+                  ? tr('Đã chép', 'Copied', '已复制', 'コピー済み', '복사됨')
+                  : tr('Copy link', 'Copy link', '复制', 'コピー', '복사')}
+              </button>
             </div>
             <a href={payload} className="mt-3 block break-all text-xs leading-relaxed text-sky-300 underline" target="_blank" rel="noreferrer">
               {payload}

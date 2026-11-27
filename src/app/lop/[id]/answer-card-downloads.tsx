@@ -5,8 +5,21 @@ import { QrCode } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { phoneOpenableUrl } from '@/app/tao-giao-trinh/lib/phone-remote-client'
 import { fillAnswerCardText } from '@/lib/lop/answer-card'
 import { downloadAnswerCardsDocx, downloadAnswerCardsPdf, type AnswerCardExportItem } from '@/lib/lop/answer-card-export'
+
+/** Cùng link mã QR lớp: quét xong chọn Google hoặc mã định danh. */
+async function printedClassJoinUrl(joinCode: string): Promise<string> {
+  const code = joinCode.trim().toUpperCase()
+  if (code.length < 4) return ''
+  try {
+    const url = await phoneOpenableUrl(`/lop/chon-vao?code=${encodeURIComponent(code)}`)
+    return url.startsWith('https://') ? url : ''
+  } catch {
+    return ''
+  }
+}
 
 type ExportContextValue = {
   className: string
@@ -127,14 +140,20 @@ export function AnswerCardClassFileButtons({ cards }: { cards: AnswerCardExportI
         type="button"
         variant="secondary"
         disabled={disabled}
-        onClick={() => void run('docx', () => downloadAnswerCardsDocx(className, exportCards(), t.answerCardFoldHint, places))}
+        onClick={() => void run('docx', async () => {
+          const joinUrl = await printedClassJoinUrl(joinCode)
+          await downloadAnswerCardsDocx(className, exportCards(), t.answerCardFoldHint, places, joinUrl)
+        })}
       >
         {exporting === 'docx' ? t.answerCardsExporting : t.answerCardsDownloadDocx}
       </Button>
       <Button
         type="button"
         disabled={disabled}
-        onClick={() => void run('pdf', () => downloadAnswerCardsPdf(className, exportCards(), t.answerCardFoldHint, places))}
+        onClick={() => void run('pdf', async () => {
+          const joinUrl = await printedClassJoinUrl(joinCode)
+          await downloadAnswerCardsPdf(className, exportCards(), t.answerCardFoldHint, places, joinUrl)
+        })}
       >
         {exporting === 'pdf' ? t.answerCardsExporting : t.answerCardsDownloadPdf}
       </Button>
@@ -153,7 +172,10 @@ export function AnswerCardStudentButton({ card }: { card: AnswerCardExportItem }
       size="sm"
       className="h-8 shrink-0"
       disabled={exporting !== ''}
-      onClick={() => void run(key, () => downloadAnswerCardsPdf(className, [card], t.answerCardFoldHint, places))}
+      onClick={() => void run(key, async () => {
+        const joinUrl = await printedClassJoinUrl(joinCode)
+        await downloadAnswerCardsPdf(className, [card], t.answerCardFoldHint, places, joinUrl)
+      })}
     >
       <QrCode className="mr-1 h-3.5 w-3.5" aria-hidden />
       {exporting === key ? t.answerCardsExporting : t.answerCardsOneQr}

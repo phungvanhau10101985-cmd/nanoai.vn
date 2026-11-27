@@ -21,6 +21,12 @@ import type {
   ImportedQuestionDraft,
   ImportedReviewDraft,
 } from '@/lib/partner-website/reviews/partner-reviews-qa-excel'
+import {
+  replyMatchesShopVoice,
+  rewriteForeignShopHosts,
+  shopVoiceForPartner,
+  type ShopVoice,
+} from '@/lib/partner-website/reviews/partner-review-shop-voice'
 
 /**
  * W1.5 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md): đánh giá + hỏi đáp sản phẩm.
@@ -104,6 +110,14 @@ const ANSWER_SELECT = `id::text, question_id::text, partner_id::text, answer_typ
 const ANSWER_SLOT_ORDER = `order by case reply_slot
     when 'admin' then 0 when 'user_one' then 1 when 'user_two' then 2 else 3 end,
     created_at asc, id asc`
+
+function brandReviewRow(row: PartnerReviewRow, voice: ShopVoice | null): PartnerReviewRow {
+  if (!voice) return row
+  const merchantReplyBy = rewriteForeignShopHosts(row.merchantReplyBy, voice)
+  const merchantReply = rewriteForeignShopHosts(row.merchantReply, voice)
+  if (merchantReplyBy === row.merchantReplyBy && merchantReply === row.merchantReply) return row
+  return { ...row, merchantReplyBy, merchantReply }
+}
 
 function mapReviewRow(r: ReviewDbRow): PartnerReviewRow {
   return {
@@ -510,9 +524,10 @@ export async function fetchPartnerProductReviewsPageFromPg(input: {
       : []
     const votedIds = new Set(voted.map((v) => v.review_id))
     const viewerSet = new Set(viewerKeys)
+    const voice = await shopVoiceForPartner(input.partnerId)
     return {
       rows: rows.map((r) => {
-        const mapped = mapReviewRow(r)
+        const mapped = brandReviewRow(mapReviewRow(r), voice)
         return {
           ...mapped,
           userHasVoted: votedIds.has(r.id),
@@ -681,7 +696,8 @@ export async function fetchPartnerProductReviewsForAdminFromPg(input: {
       `select count(*)::int as c from public.messaging_partner_product_reviews where ${where}`,
       params.slice(0, limitIdx - 1)
     )
-    return { rows: rows.map(mapReviewRow), total: totalRow?.c ?? 0 }
+    const voice = await shopVoiceForPartner(input.partnerId)
+    return { rows: rows.map((row) => brandReviewRow(mapReviewRow(row), voice)), total: totalRow?.c ?? 0 }
   } catch (e) {
     console.warn('[fetchPartnerProductReviewsForAdminFromPg]', e)
     return null
@@ -707,50 +723,71 @@ export async function updatePartnerProductReviewFromPg(
   patch: AdminReviewPatch
 ): Promise<PartnerReviewRow | null> {
   if (!isPgConfigured()) return null
-  const sets: string[] = []
-  const params: unknown[] = [partnerId, reviewId]
-  let p = 3
-
-  if (patch.isActive !== undefined) {
-    sets.push(`is_active = $${p++}`)
-    params.push(patch.isActive)
-  }
-  if (patch.rating !== undefined) {
-    sets.push(`rating = $${p++}`)
-    params.push(clampRating(patch.rating))
-  }
-  if (patch.title !== undefined) {
-    sets.push(`title = $${p++}`)
-    params.push(patch.title.trim().slice(0, 200))
-  }
-  if (patch.content !== undefined) {
-    sets.push(`content = $${p++}`)
-    params.push(patch.content.trim().slice(0, 4000))
-  }
-  if (patch.merchantReply !== undefined) {
-    sets.push(`merchant_reply = $${p++}`)
-    params.push(patch.merchantReply.trim().slice(0, 2000))
-    sets.push(`merchant_reply_at = now()`)
-  }
-  if (patch.merchantReplyBy !== undefined) {
-    sets.push(`merchant_reply_by = $${p++}`)
-    params.push(patch.merchantReplyBy.trim().slice(0, 200))
-  }
-  if (patch.reviewerName !== undefined) {
-    sets.push(`reviewer_name = $${p++}`)
-    params.push(patch.reviewerName.trim().slice(0, 200))
-  }
-  if (patch.usefulCount !== undefined) {
-    sets.push(`useful_count = $${p++}`)
-    params.push(Math.max(0, Math.round(Number(patch.usefulCount)) || 0))
-  }
-  if (patch.importGroup !== undefined) {
-    sets.push(`import_group = $${p++}`)
-    params.push(Math.max(0, Math.round(Number(patch.importGroup)) || 0))
-  }
-  if (!sets.length) return null
-
   try {
+    const current = await pgQueryOne<ReviewDbRow>(
+      `select ${REVIEW_SELECT}
+       from public.messaging_partner_product_reviews
+       where id = $2::uuid and ${OWN_REAL_OR_SHARED_IMPORT_SQL}`,
+      [partnerId, reviewId]
+    )
+    if (!current) return null
+    const voice = await shopVoiceForPartner(partnerId)
+    const next: AdminReviewPatch = { ...patch }
+    if (
+      next.merchantReplyBy !== undefined &&
+      replyMatchesShopVoice(current.merchant_reply_by ?? '', next.merchantReplyBy, voice)
+    ) {
+      delete next.merchantReplyBy
+    }
+    if (
+      next.merchantReply !== undefined &&
+      replyMatchesShopVoice(current.merchant_reply ?? '', next.merchantReply, voice)
+    ) {
+      delete next.merchantReply
+    }
+
+    const sets: string[] = []
+    const params: unknown[] = [partnerId, reviewId]
+    let p = 3
+    if (next.isActive !== undefined) {
+      sets.push(`is_active = $${p++}`)
+      params.push(next.isActive)
+    }
+    if (next.rating !== undefined) {
+      sets.push(`rating = $${p++}`)
+      params.push(clampRating(next.rating))
+    }
+    if (next.title !== undefined) {
+      sets.push(`title = $${p++}`)
+      params.push(next.title.trim().slice(0, 200))
+    }
+    if (next.content !== undefined) {
+      sets.push(`content = $${p++}`)
+      params.push(next.content.trim().slice(0, 4000))
+    }
+    if (next.merchantReply !== undefined) {
+      sets.push(`merchant_reply = $${p++}`)
+      params.push(next.merchantReply.trim().slice(0, 2000))
+      sets.push(`merchant_reply_at = now()`)
+    }
+    if (next.merchantReplyBy !== undefined) {
+      sets.push(`merchant_reply_by = $${p++}`)
+      params.push(next.merchantReplyBy.trim().slice(0, 200))
+    }
+    if (next.reviewerName !== undefined) {
+      sets.push(`reviewer_name = $${p++}`)
+      params.push(next.reviewerName.trim().slice(0, 200))
+    }
+    if (next.usefulCount !== undefined) {
+      sets.push(`useful_count = $${p++}`)
+      params.push(Math.max(0, Math.round(Number(next.usefulCount)) || 0))
+    }
+    if (next.importGroup !== undefined) {
+      sets.push(`import_group = $${p++}`)
+      params.push(Math.max(0, Math.round(Number(next.importGroup)) || 0))
+    }
+    if (!sets.length) return brandReviewRow(mapReviewRow(current), voice)
+
     const row = await pgQueryOne<ReviewDbRow>(
       `update public.messaging_partner_product_reviews
        set ${sets.join(', ')}
@@ -758,7 +795,7 @@ export async function updatePartnerProductReviewFromPg(
        returning ${REVIEW_SELECT}`,
       params
     )
-    return row ? mapReviewRow(row) : null
+    return row ? brandReviewRow(mapReviewRow(row), voice) : null
   } catch (e) {
     console.warn('[updatePartnerProductReviewFromPg]', e)
     return null

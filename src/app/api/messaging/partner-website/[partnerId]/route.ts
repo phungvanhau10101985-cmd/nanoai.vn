@@ -176,9 +176,10 @@ export async function GET(
   }
 
   const locale = normalizeWebLocale(req.nextUrl.searchParams.get('locale')) ?? 'vi'
-  let website = await fetchPartnerWebsiteByPartnerIdPg(pid)
+  const omitProject = req.nextUrl.searchParams.get('omitProject') === '1'
+  let website = await fetchPartnerWebsiteByPartnerIdPg(pid, { omitProject })
 
-  if (website?.renderMode === 'template') {
+  if (!omitProject && website?.renderMode === 'template') {
     const synced = await syncPartnerWebsiteFullLandingPg({
       partnerId: pid,
       locale,

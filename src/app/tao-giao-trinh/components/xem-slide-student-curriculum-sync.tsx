@@ -71,6 +71,19 @@ function readSlideGalleryUrls(raw: unknown): string[] | undefined {
   return urls.some((url) => url.length > 0) ? urls : undefined
 }
 
+function acceptWire(seen: Set<string>, data: { wireId?: unknown } | null | undefined): boolean {
+  const id = data && typeof data.wireId === 'string' ? data.wireId : ''
+  if (!id) return true
+  if (seen.has(id)) return false
+  seen.add(id)
+  if (seen.size > 180) {
+    const keep = Array.from(seen).slice(-90)
+    seen.clear()
+    for (const item of keep) seen.add(item)
+  }
+  return true
+}
+
 function keepGalleryUrls(prev: string[] | undefined, incoming: string[] | undefined): string[] | undefined {
   if (!incoming) return prev
   if (!prev || prev.length !== incoming.length) return incoming
@@ -170,6 +183,7 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
   const [shareLoading, setShareLoading] = useState(() => !!searchParams.get('share'))
   const [typingSpeedMs, setTypingSpeedMs] = useState(55)
   const processedSyncSeqRef = useRef<Set<number>>(new Set())
+  const seenWireRef = useRef<Set<string>>(new Set())
   const typingClockRef = useRef({
     armed: false,
     lastTeacherAt: 0,
@@ -177,6 +191,7 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
     visibility: {} as Record<string, boolean>,
   })
   const slideHoldRef = useRef<{ index: number; until: number } | null>(null)
+  const followedSlideRef = useRef(-1)
   const phoneBoundRef = useRef(false)
 
   useEffect(() => {
@@ -296,6 +311,7 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
       typingOn?: unknown
       control?: unknown
       typingExact?: unknown
+      typingFill?: unknown
     }) => {
       const wr = payload.worksheetAnswerReveal
       const wte = payload.worksheetAnswerTypingEnabled
@@ -323,9 +339,23 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
         if (wr != null && typeof wr === 'object') {
           const incoming = wr as Record<string, number>
           const exact = payload.control === true && payload.typingExact === true
+          const fill = payload.control === true && payload.typingFill === true
           const keys = Object.keys(incoming)
           if (held && payload.control !== true) progress = d.answerRevealProgress
           else if (exact) progress = { ...incoming }
+          else if (fill) {
+            const merged = { ...d.answerRevealProgress }
+            let changed = false
+            for (const key of keys) {
+              const value = incoming[key]
+              if (typeof value !== 'number' || !Number.isFinite(value)) continue
+              if (value > (merged[key] ?? 0)) {
+                merged[key] = value
+                changed = true
+              }
+            }
+            progress = changed ? merged : d.answerRevealProgress
+          }
           else if (keys.length === 0) progress = d.answerRevealProgress
           else {
             const speedMs = typeof payload.typingSpeedMs === 'number' && payload.typingSpeedMs >= 15
@@ -375,8 +405,10 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
 
     const handler = (ev: MessageEvent) => {
       if (ev.origin !== window.location.origin) return
+      if (!acceptWire(seenWireRef.current, ev.data)) return
       if (ev.data?.type === 'slide-go' && typeof ev.data.index === 'number') {
         const index = ev.data.index
+        followedSlideRef.current = index
         const hasBlock = typeof ev.data.blockIndex === 'number' && Number.isFinite(ev.data.blockIndex)
         const blockIndex = hasBlock ? Math.max(0, Math.floor(ev.data.blockIndex)) : null
         slideHoldRef.current = { index, until: Date.now() + 1500 }
@@ -403,8 +435,10 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
     if (typeof BroadcastChannel !== 'undefined') {
       channel = new BroadcastChannel(channelName)
       channel.addEventListener('message', (event) => {
+        if (!acceptWire(seenWireRef.current, event.data)) return
         if (event.data?.type === 'slide-go' && typeof event.data.index === 'number') {
           const index = event.data.index
+          followedSlideRef.current = index
           const hasBlock = typeof event.data.blockIndex === 'number' && Number.isFinite(event.data.blockIndex)
           const blockIndex = hasBlock ? Math.max(0, Math.floor(event.data.blockIndex)) : null
           slideHoldRef.current = { index, until: Date.now() + 1500 }
@@ -455,8 +489,8 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
     if (shareCode) return
     let phoneId = ''
     let revision = 0
-    let lastIndex = -1
     let seenGen = 0
+    let sentMode = ''
     const take = (raw: { type?: string; id?: string } | null) => {
       if (raw?.type === 'phone-remote-bind' && typeof raw.id === 'string' && raw.id.trim()) {
         phoneId = raw.id.trim()
@@ -505,32 +539,51 @@ export function useCurriculumStudentSlideSync(locale: 'vi' | 'en' | 'zh' | 'ja' 
               if (!prev) return prev
               const useIndex = newer && typeof body.index === 'number' ? body.index : prev.currentIndex
               const compacted = compactSlidesForStudentRuntime(sl, useIndex, mode === 'markdown-all')
+              const slides = compacted.length > 0 && !sameSlideList(prev.slides, compacted) ? compacted : prev.slides
+              const content = typeof snap.content === 'string' ? snap.content : prev.content
+              const topic = typeof snap.topic === 'string' ? snap.topic : prev.topic
+              const rightMode = mode ?? prev.studentCurriculumRightMode
+              const incomingInfo = snap.curriculumInfographic
+              const info = incomingInfo && incomingInfo.imageUrl === prev.curriculumInfographic?.imageUrl
+                ? prev.curriculumInfographic
+                : (incomingInfo ?? prev.curriculumInfographic)
+              const gallery = keepGalleryUrls(prev.slideGalleryUrls, readSlideGalleryUrls(snap.slideGalleryUrls))
+              if (
+                slides === prev.slides &&
+                content === prev.content &&
+                topic === prev.topic &&
+                useIndex === prev.currentIndex &&
+                rightMode === prev.studentCurriculumRightMode &&
+                info === prev.curriculumInfographic &&
+                gallery === prev.slideGalleryUrls
+              ) return prev
               return {
                 ...prev,
-                slides: compacted.length > 0 && !sameSlideList(prev.slides, compacted) ? compacted : prev.slides,
-                content: typeof snap.content === 'string' ? snap.content : prev.content,
-                topic: typeof snap.topic === 'string' ? snap.topic : prev.topic,
+                slides,
+                content,
+                topic,
                 currentIndex: useIndex,
-                studentCurriculumRightMode: mode ?? prev.studentCurriculumRightMode,
-                curriculumInfographic: snap.curriculumInfographic ?? prev.curriculumInfographic,
-                slideGalleryUrls: keepGalleryUrls(prev.slideGalleryUrls, readSlideGalleryUrls(snap.slideGalleryUrls)),
+                studentCurriculumRightMode: rightMode,
+                curriculumInfographic: info,
+                slideGalleryUrls: gallery,
               }
             })
-            if (mode) {
+            if (mode && mode !== sentMode) {
+              sentMode = mode
               window.dispatchEvent(new MessageEvent('message', { origin: window.location.origin, data: { type: 'student-curriculum-right-mode', mode } }))
             }
-            if (newer && typeof body.index === 'number' && body.index !== lastIndex) {
-              lastIndex = body.index
+            if (newer && typeof body.index === 'number' && body.index !== followedSlideRef.current) {
+              followedSlideRef.current = body.index
               window.dispatchEvent(new MessageEvent('message', { origin: window.location.origin, data: { type: 'slide-go', index: body.index } }))
             }
             return
           }
         }
         const liveGen = typeof live.indexGen === 'number' ? live.indexGen : 0
-        if (liveGen > seenGen && typeof live.index === 'number' && live.index !== lastIndex) {
+        if (liveGen > seenGen && typeof live.index === 'number' && live.index !== followedSlideRef.current) {
           seenGen = liveGen
           const index = live.index
-          lastIndex = index
+          followedSlideRef.current = index
           setData((prev) => (prev && prev.currentIndex !== index ? { ...prev, currentIndex: index } : prev))
           window.dispatchEvent(new MessageEvent('message', { origin: window.location.origin, data: { type: 'slide-go', index } }))
         }

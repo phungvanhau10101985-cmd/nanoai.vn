@@ -1799,6 +1799,8 @@ export type Dictionary = {
     inventoryOpenApiHint: string
     listingImportTitle: string
     listingImportIntro: string
+    /** {n} số dòng bị loại, {brands} tên thương hiệu */
+    listingImportMajorBrandDropped: string
     listingImportCookieTitle: string
     listingImportCookieHint: string
     listingImportCookiePaste: string
@@ -6863,6 +6865,8 @@ export const VI_DICTIONARY: Dictionary = {
     listingImportTitle: 'Cào listing Taobao / 1688',
     listingImportIntro:
       'Dán HTML listing Taobao/Tmall/1688 (cùng mặt admin 188), chọn dòng, lấy thông tin qua Vipomall/PandaMall, rồi đăng lên kho shop. Mọi workspace cùng một engine — không khóa slug 188.',
+    listingImportMajorBrandDropped:
+      'Đã loại {n} sản phẩm vì tên chứa thương hiệu lớn ({brands}). Không đưa vào danh sách cào để tránh chính sách hàng giả.',
     listingImportCookieTitle: 'Cookie scrape + tài khoản PandaMall',
     listingImportCookieHint:
       'Dán JSON cookie Chrome (EditThisCookie / Cookie-Editor) khi đã đăng nhập vipomall.vn / pandamall.vn. Không dùng cookie shop NanoAI.',

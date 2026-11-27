@@ -12,6 +12,7 @@ import {
   saveListingImportQueueFromPg,
 } from '@/lib/db/messaging-partner-listing-import-pg'
 import { executeOneListingImport } from '@/lib/messaging/listing-import/execute-one'
+import { findMajorWorldBrandInFields } from '@/lib/messaging/listing-import/listing-import-major-brand'
 import { explainCategoryAutoCreateDisabled } from '@/lib/partner-website/category/partner-category-auto-create-copy'
 import { inferListingImportSource } from '@/lib/messaging/listing-import/listing-import-urls'
 import {
@@ -285,6 +286,7 @@ export async function enqueueListingImport(
   }
 
   let added = 0
+  let brandSkipped = 0
   let finalToken = ''
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -303,9 +305,14 @@ export async function enqueueListingImport(
         return { retry: true as const }
       }
       let n = 0
+      let skippedBrand = 0
       for (const raw of tasks) {
         const url = (raw.url || '').trim()
         if (url.length < 10) continue
+        if (findMajorWorldBrandInFields([raw.chinese_name, raw.shop_name_chinese, raw.label])) {
+          skippedBrand += 1
+          continue
+        }
         const src = inferListingImportSource(url, raw.source)
         const priceRaw = raw.price
         let price: number | null = null
@@ -331,15 +338,22 @@ export async function enqueueListingImport(
         })
         n += 1
       }
-      if (n === 0) throw new Error('Không có link hợp lệ (URL quá ngắn).')
+      if (n === 0) {
+        throw new Error(
+          skippedBrand > 0
+            ? `Đã loại ${skippedBrand} link vì tên chứa thương hiệu lớn — không cào để tránh chính sách hàng giả.`
+            : 'Không có link hợp lệ (URL quá ngắn).',
+        )
+      }
       await saveQueue(partnerId, q)
-      return { retry: false as const, token: q.queue_token, added: n }
+      return { retry: false as const, token: q.queue_token, added: n, brandSkipped: skippedBrand }
     })
     if (result.retry) {
       token = null
       continue
     }
     added = result.added
+    brandSkipped = result.brandSkipped
     finalToken = result.token
     break
   }
@@ -349,7 +363,9 @@ export async function enqueueListingImport(
   } catch (e) {
     console.warn('[listing-import enqueue resume]', e)
   }
-  return { queue_token: finalToken, added, message: `Đã thêm ${added} link vào hàng đợi.` }
+  const brandNote =
+    brandSkipped > 0 ? ` Đã loại ${brandSkipped} link vì tên chứa thương hiệu lớn.` : ''
+  return { queue_token: finalToken, added, message: `Đã thêm ${added} link vào hàng đợi.${brandNote}` }
 }
 
 export async function pauseListingImport(partnerId: string, token: string): Promise<{ queue_token: string; message: string }> {

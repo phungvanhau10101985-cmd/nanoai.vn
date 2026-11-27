@@ -351,7 +351,7 @@ export function PartnerWebsiteReviewsQaPanel({
   const [savedReviewId, setSavedReviewId] = useState<string | null>(null)
   const [importingReviews, setImportingReviews] = useState(false)
   const [emptyGroups, setEmptyGroups] = useState<Array<{ ratingGroupId: number; depth: number; name: string; path: string }>>([])
-  const [deletingAllReviews, setDeletingAllReviews] = useState(false)
+  const [emptyGroupsOpen, setEmptyGroupsOpen] = useState(false)
   const [viewReview, setViewReview] = useState<ReviewRow | null>(null)
 
   const [questions, setQuestions] = useState<QuestionRow[]>([])
@@ -379,6 +379,8 @@ export function PartnerWebsiteReviewsQaPanel({
   const pendingReviewResaveRef = useRef<Set<string>>(new Set())
   const pendingQuestionResaveRef = useRef<Set<string>>(new Set())
   const resizeRef = useRef<{ key: string; startX: number; startW: number } | null>(null)
+  const onToastRef = useRef(onToast)
+  onToastRef.current = onToast
   const { schedule, flush } = useDebouncedSave()
   const basePath = `/api/messaging/partners/${encodeURIComponent(partnerId)}`
 
@@ -413,8 +415,9 @@ export function PartnerWebsiteReviewsQaPanel({
   }, [basePath])
 
   useEffect(() => {
+    if (!emptyGroupsOpen) return
     void loadEmptyGroups()
-  }, [loadEmptyGroups])
+  }, [emptyGroupsOpen, loadEmptyGroups])
 
   const loadReviews = useCallback(
     async (page: number, group: string, options?: { silent?: boolean }) => {
@@ -425,7 +428,7 @@ export function PartnerWebsiteReviewsQaPanel({
         const res = await fetch(`${basePath}/reviews?${qs.toString()}`)
         const json = (await res.json().catch(() => null)) as { reviews?: ReviewRow[]; total?: number } | null
         if (!res.ok || !json) {
-          onToast?.(t.reviewsAdminLoadFailed, 'destructive')
+          onToastRef.current?.(t.reviewsAdminLoadFailed, 'destructive')
           return
         }
         setReviews(json.reviews ?? [])
@@ -434,7 +437,7 @@ export function PartnerWebsiteReviewsQaPanel({
         if (!options?.silent) setReviewsLoading(false)
       }
     },
-    [basePath, onToast, t.reviewsAdminLoadFailed]
+    [basePath, t.reviewsAdminLoadFailed]
   )
 
   const loadQuestions = useCallback(
@@ -446,7 +449,7 @@ export function PartnerWebsiteReviewsQaPanel({
         const res = await fetch(`${basePath}/questions?${qs.toString()}`)
         const json = (await res.json().catch(() => null)) as { questions?: QuestionRow[]; total?: number } | null
         if (!res.ok || !json) {
-          onToast?.(t.reviewsAdminLoadFailed, 'destructive')
+          onToastRef.current?.(t.reviewsAdminLoadFailed, 'destructive')
           return
         }
         setQuestions(json.questions ?? [])
@@ -455,15 +458,24 @@ export function PartnerWebsiteReviewsQaPanel({
         if (!options?.silent) setQuestionsLoading(false)
       }
     },
-    [basePath, onToast, t.reviewsAdminLoadFailed]
+    [basePath, t.reviewsAdminLoadFailed]
   )
 
   useEffect(() => {
+    if (tab !== 'reviews') return
     void loadReviews(reviewsPage, reviewGroup)
-  }, [loadReviews, reviewsPage, reviewGroup])
+  }, [tab, loadReviews, reviewsPage, reviewGroup])
 
   useEffect(() => {
+    if (tab !== 'qa') return
     void loadQuestions(questionsPage, questionGroup)
+  }, [tab, loadQuestions, questionsPage, questionGroup])
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      void loadQuestions(questionsPage, questionGroup, { silent: true })
+    }, 1000)
+    return () => window.clearTimeout(id)
   }, [loadQuestions, questionsPage, questionGroup])
 
   function productHref(inventoryId: string | null, hash: string) {
@@ -710,27 +722,6 @@ export function PartnerWebsiteReviewsQaPanel({
     await loadReviews(reviewsPage, reviewGroup, { silent: true })
   }
 
-  async function deleteAllReviews() {
-    if (reviewsTotal <= 0) return
-    if (!window.confirm(fillCount(t.reviewsAdminDeleteAllConfirmCount, reviewsTotal))) return
-    setDeletingAllReviews(true)
-    try {
-      const res = await fetch(`${basePath}/reviews`, { method: 'DELETE' })
-      const json = (await res.json().catch(() => null)) as { deleted?: number } | null
-      if (!res.ok) {
-        onToast?.(t.reviewsAdminDeleteFailed, 'destructive')
-        return
-      }
-      onToast?.(fillCount(t.reviewsAdminDeletedCount, json?.deleted ?? reviewsTotal))
-      setReviewsPage(1)
-      setReviewEdit({})
-      reviewEditRef.current = {}
-      await loadReviews(1, reviewGroup)
-    } finally {
-      setDeletingAllReviews(false)
-    }
-  }
-
   async function importReviews(file: File) {
     setImportingReviews(true)
     try {
@@ -916,12 +907,16 @@ export function PartnerWebsiteReviewsQaPanel({
             <strong>{t.reviewsAdminDisplayLogicLabel}</strong> {t.reviewsAdminDisplayLogic}
           </div>
 
-          <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800">
-            <p className="mb-2 font-semibold text-gray-900">
-              {t.reviewsAdminEmptyGroupsTitle} ({emptyGroups.length})
-            </p>
-            <p className="mb-2 text-slate-600">{t.reviewsAdminEmptyGroupsHint}</p>
-            {emptyGroups.length === 0 ? (
+          <details
+            className="mb-4 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800"
+            onToggle={(e) => setEmptyGroupsOpen((e.currentTarget as HTMLDetailsElement).open)}
+          >
+            <summary className="cursor-pointer font-semibold text-gray-900">
+              {t.reviewsAdminEmptyGroupsTitle}
+              {emptyGroupsOpen ? ` (${emptyGroups.length})` : ''}
+            </summary>
+            <p className="mb-2 mt-2 text-slate-600">{t.reviewsAdminEmptyGroupsHint}</p>
+            {!emptyGroupsOpen ? null : emptyGroups.length === 0 ? (
               <p className="text-slate-500">{t.reviewsAdminEmptyGroupsNone}</p>
             ) : (
               <ul className="max-h-48 space-y-1 overflow-y-auto">
@@ -943,7 +938,7 @@ export function PartnerWebsiteReviewsQaPanel({
                 ))}
               </ul>
             )}
-          </div>
+          </details>
 
           <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
             <form
@@ -990,14 +985,6 @@ export function PartnerWebsiteReviewsQaPanel({
 
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm text-gray-600">{fillCount(t.reviewsAdminTotalRecords, reviewsTotal)}</span>
-            <button
-              type="button"
-              onClick={() => void deleteAllReviews()}
-              disabled={deletingAllReviews || reviewsTotal <= 0}
-              className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-sm text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {deletingAllReviews ? t.reviewsAdminDeleting : t.reviewsAdminDeleteAll}
-            </button>
           </div>
 
           <div className="w-full min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white">

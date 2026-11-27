@@ -32,6 +32,8 @@ export async function POST(req: Request) {
   const snapshot = asRecord(record.snapshot) ?? undefined
   const whiteboard = asRecord(record.whiteboard) ?? undefined
   const phoneReady = record.phoneReady === true
+  const phoneBoot = typeof record.phoneBoot === 'number' ? record.phoneBoot : undefined
+  const qrWatch = typeof record.qrWatch === 'number' ? record.qrWatch : undefined
 
   if (id) {
     const state = await updatePhoneRemoteFromDesktop({
@@ -44,6 +46,8 @@ export async function POST(req: Request) {
       seenWhiteboardGen: typeof record.seenWhiteboardGen === 'number' ? record.seenWhiteboardGen : undefined,
       whiteboard,
       phoneReady,
+      phoneBoot,
+      qrWatch,
     })
     if (!state) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 })
     return NextResponse.json({ ok: true, ...state })
@@ -78,6 +82,9 @@ export async function GET(req: Request) {
     revision: row.revision,
     whiteboardGen: row.whiteboardGen ?? 0,
     phoneReady: row.phoneReady === true,
+    phoneReadyServerAt: typeof row.phoneReadyServerAt === 'number' ? row.phoneReadyServerAt : 0,
+    qrWatch: typeof row.qrWatch === 'number' ? row.qrWatch : 0,
+    qrWatchAt: typeof row.qrWatchAt === 'number' ? row.qrWatchAt : 0,
     ...(live ? {} : { snapshot: row.snapshot }),
   })
 }

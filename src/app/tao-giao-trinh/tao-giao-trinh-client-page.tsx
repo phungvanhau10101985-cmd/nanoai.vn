@@ -163,66 +163,7 @@ function normalizeGradeLevelId(id: string): string {
   return canonicalGradeLevelId(id)
 }
 
-type LessonSlideForOpen = AISlideData & {
-  teacherNotes?: string
-  assistantImage?: SlideInfographic
-}
-
-function lessonSlidePlainText(slide: LessonSlideForOpen): string {
-  const parts: string[] = []
-  if (slide.title?.trim()) parts.push(slide.title.trim())
-  for (const block of slide.blocks ?? []) {
-    const header = (block.header ?? '').trim()
-    const content = (block.content ?? '').trim()
-    if (header || content) parts.push([header, content].filter(Boolean).join('\n'))
-  }
-  return parts.join('\n\n')
-}
-
-/** Ảnh slide đầu. Slide đã có ảnh, hoặc quá ngắn để vẽ, thì trả về nguyên danh sách. */
-async function ensureFirstLessonSlideImage(input: {
-  curriculumId: string
-  lessonNo: number
-  slides: LessonSlideForOpen[]
-  locale: string
-}): Promise<{ slides: LessonSlideForOpen[]; created: boolean } | { error: string }> {
-  const first = input.slides[0]
-  if (!first) return { error: 'Chưa có slide của tiết.' }
-  if (first.assistantImage?.imageUrl) return { slides: input.slides, created: false }
-  const lessonText = lessonSlidePlainText(first).trim()
-  if (lessonText.length < 40) return { slides: input.slides, created: false }
-  const res = await fetch('/api/curriculum-slide-infographic', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
-    body: JSON.stringify({
-      curriculumId: input.curriculumId,
-      topic: first.title || 'Slide',
-      lessonText,
-      outputLocale: input.locale,
-      scope: 'slide',
-      lessonNo: input.lessonNo,
-      slideIndex: 0,
-      regenerate: false,
-      imageEngine: 'gpt',
-      gptQuality: 'medium',
-    }),
-  })
-  let data: { success?: boolean; infographic?: SlideInfographic; error?: string; creditsCharged?: boolean }
-  try {
-    data = (await res.json()) as typeof data
-  } catch {
-    return { error: 'Phản hồi server không hợp lệ.' }
-  }
-  if (!res.ok || !data.success || !data.infographic?.imageUrl) {
-    return { error: data.error || 'Không tạo được ảnh slide đầu.' }
-  }
-  if (data.creditsCharged && typeof window !== 'undefined') {
-    window.dispatchEvent(new Event('credits-updated'))
-  }
-  const slides = input.slides.map((slide, index) => (index === 0 ? { ...slide, assistantImage: data.infographic } : slide))
-  return { slides, created: true }
-}
+const PENDING_LESSON_SLIDES_NOTE = 'pending-lesson-slides'
 
 function getWebLocaleFromCookie(): UiLocale {
   if (typeof document === 'undefined') return 'vi'
@@ -514,7 +455,7 @@ export default function TaoGiaoTrinhClientPage({
   const [aiSlides, setAiSlides] = useState<AISlideData[] | null>(null)
   const [curriculumSlides, setCurriculumSlides] = useState<AISlideData[] | null>(null)
   const [slideAnalysisLoading, setSlideAnalysisLoading] = useState(false)
-  /** Ảnh slide đầu và slide tiết chưa xong thì chưa mở cửa sổ giáo viên. */
+  /** Cửa sổ đã mở. Cờ này chỉ chặn bấm mở trùng trong lúc đổ slide vào cửa sổ đó. */
   const [lessonWindowPreparing, setLessonWindowPreparing] = useState(false)
   const lessonWindowPreparingRef = useRef(false)
   const [showSlideVersionDialog, setShowSlideVersionDialog] = useState(false)
@@ -548,6 +489,8 @@ export default function TaoGiaoTrinhClientPage({
   const selectedLessonNoRef = useRef<number | null>(null)
   const openSlidesInFlightRef = useRef(false)
   const versionChooseArmedRef = useRef(false)
+  const teacherSlideWindowRef = useRef<Window | null>(null)
+  const lessonPreparePromiseRef = useRef<Promise<{ success?: boolean; error?: string } | null> | null>(null)
   /** Infographic (một ảnh / giáo trình) theo từng bản lưu — gửi kèm curriculum-data tới cửa sổ GV */
   const [infographicShared, setInfographicShared] = useState<SlideInfographic | undefined>(undefined)
   const [infographicOriginal, setInfographicOriginal] = useState<SlideInfographic | undefined>(undefined)
@@ -1984,7 +1927,8 @@ export default function TaoGiaoTrinhClientPage({
       mode: SlideVersionChoice | null = null,
       curriculumInfographicSend?: SlideInfographic | undefined,
       lessonMarkdownOverride?: string | null,
-      lessonInfographicOverride?: SlideInfographic | undefined
+      lessonInfographicOverride?: SlideInfographic | undefined,
+      existingWindow?: Window | null
     ) => {
       if (curriculumId && !versionChooseArmedRef.current) {
         console.warn('[lesson-open] blocked open before choosing version', { curriculumId, mode })
@@ -2038,7 +1982,10 @@ export default function TaoGiaoTrinhClientPage({
             : mode === 'shared'
               ? (infographicShared ?? infographicOriginal ?? infographicPersonal)
               : infographicShared ?? infographicOriginal ?? infographicPersonal)
-      const w = openDetachedTeacherSlideWindow('/giao-trinh/giao-vien?t=' + Date.now())
+      const w = existingWindow && !existingWindow.closed
+        ? existingWindow
+        : openDetachedTeacherSlideWindow('/giao-trinh/giao-vien?t=' + Date.now())
+      teacherSlideWindowRef.current = w
       if (w) {
         const send = () => {
           try {
@@ -2059,7 +2006,7 @@ export default function TaoGiaoTrinhClientPage({
                   slideMode: mode === 'personal' ? 'personal' : mode === 'shared' ? 'shared' : mode === 'original' ? 'original' : null,
                   personalViewSubMode: 'current',
                   hasOriginalSlides: hasOriginalOrSharedVersion,
-                  slides,
+                  slides: activeOpenedSlidesRef.current ?? slides,
                   teacherTimerSeconds: 0,
                   teacherTimerRunning: false,
                   ...(resolvedInfographic ? { curriculumInfographic: resolvedInfographic } : {}),
@@ -2073,6 +2020,8 @@ export default function TaoGiaoTrinhClientPage({
         }
         setTimeout(send, 200)
         setTimeout(send, 700)
+        setTimeout(send, 1600)
+        setTimeout(send, 3200)
       }
     },
     [curriculumMarkdown, displayTopic, curriculumId, subjectId, gradeLevelId, hasOriginalOrSharedVersion, infographicShared, infographicOriginal, infographicPersonal, toast, tr, createMode, textbookSetId]
@@ -2236,44 +2185,32 @@ export default function TaoGiaoTrinhClientPage({
       handleLessonSelectOpenChange(false)
       return
     }
-    setLessonPreparingGroupId(groupId)
-    setLessonPreparingLessonNo(group.lessonNo)
+    selectedLessonNoRef.current = group.lessonNo
     if (pending.curriculumId) {
-      setSlideAnalysisLoading(true)
-      try {
-        const ensurePrepared = await ensureCurriculumLessonSlidesPreparedAction(
-          pending.curriculumId,
-          group.lessonNo
-        )
-        if (!ensurePrepared || !('success' in ensurePrepared) || !ensurePrepared.success) {
-          toast({
-            title: tr('Không chuẩn bị được slide tiết đã chọn', 'Cannot prepare selected lesson slides', '无法准备所选课时幻灯片', '選択した授業スライドを準備できません', '선택한 차시 슬라이드를 준비할 수 없습니다'),
-            description: 'error' in (ensurePrepared ?? {}) ? String((ensurePrepared as { error?: unknown }).error ?? '') : undefined,
-            variant: 'destructive',
-          })
-          handleLessonSelectOpenChange(false)
-          return
-        }
+      const curriculumForLesson = pending.curriculumId
+      const lessonNo = group.lessonNo
+      lessonPreparePromiseRef.current = ensureCurriculumLessonSlidesPreparedAction(curriculumForLesson, lessonNo)
+        .then((res) => res ?? null)
+        .catch(() => ({ error: 'Không chuẩn bị được slide tiết.' }))
+      void Promise.all([
+        getCurriculumLessonMetaAction(curriculumForLesson, 'shared'),
+        getCurriculumLessonMetaAction(curriculumForLesson, 'personal'),
+      ]).then(([sharedMeta, personalMeta]) => {
         setHasOriginalOrSharedVersion(true)
-        const sharedMeta = await getCurriculumLessonMetaAction(pending.curriculumId, 'shared')
-        const personalMeta = await getCurriculumLessonMetaAction(pending.curriculumId, 'personal')
         if (sharedMeta?.success) setInfographicShared(sharedMeta.curriculumInfographic)
         if (personalMeta?.success) setInfographicPersonal(personalMeta.curriculumInfographic)
-        selectedLessonNoRef.current = group.lessonNo
-        setLessonSelectOpen(false)
-        // Đóng popup chọn tiết trước, rồi mở popup chọn bản ở tick kế tiếp
-        // để tránh trường hợp Radix Dialog nuốt lần mở kế tiếp.
-        window.setTimeout(() => {
-          setShowSlideVersionDialog(true)
-        }, 0)
-        scheduleLessonIdleTrim()
-        return
-      } finally {
-        setSlideAnalysisLoading(false)
-        setLessonPreparingGroupId(null)
-        setLessonPreparingLessonNo(null)
-      }
+      })
+      setLessonSelectOpen(false)
+      // Đóng popup chọn tiết trước, rồi mở popup chọn bản ở tick kế tiếp
+      // để tránh trường hợp Radix Dialog nuốt lần mở kế tiếp.
+      window.setTimeout(() => {
+        setShowSlideVersionDialog(true)
+      }, 0)
+      scheduleLessonIdleTrim()
+      return
     }
+    setLessonPreparingGroupId(groupId)
+    setLessonPreparingLessonNo(group.lessonNo)
     if (!pending.slides || pending.slides.length === 0) {
         handleLessonSelectOpenChange(false)
       return
@@ -2326,7 +2263,7 @@ export default function TaoGiaoTrinhClientPage({
       if (e.data?.type !== 'request-curriculum') return
       const target = e.source as Window | null
       if (!target) return
-      const slidesToUse = aiSlides ?? activeOpenedSlidesRef.current ?? curriculumSlides ?? null
+      const slidesToUse = activeOpenedSlidesRef.current ?? aiSlides ?? curriculumSlides ?? null
       const contentForTeacher = activeOpenedLessonMarkdownRef.current ?? curriculumMarkdown
       const slides =
         curriculumId && slideVersionChoice === null
@@ -2521,11 +2458,73 @@ export default function TaoGiaoTrinhClientPage({
         return
       }
       if (lessonWindowPreparingRef.current) return
+      const popup = openDetachedTeacherSlideWindow('/giao-trinh/giao-vien?t=' + Date.now())
+      if (!popup) {
+        toast({
+          title: tr('Trình duyệt chặn cửa sổ tiết', 'The browser blocked the lesson window', '浏览器拦截了课时窗口', 'ブラウザが授業ウィンドウをブロックしました', '브라우저가 차시 창을 막았습니다'),
+          description: tr(
+            'Cho phép cửa sổ bật lên rồi bấm mở lại một lần.',
+            'Allow pop-ups, then open the lesson once more.',
+            '请允许弹出窗口，然后再次打开课时。',
+            'ポップアップを許可して、もう一度授業を開いてください。',
+            '팝업을 허용한 뒤 차시를 한 번 더 여세요.'
+          ),
+          variant: 'destructive',
+        })
+        return
+      }
+      teacherSlideWindowRef.current = popup
       lessonWindowPreparingRef.current = true
       setLessonWindowPreparing(true)
+      const waitingSlides = [{
+        title: tr(`Tiết ${selectedLessonNo}`, `Lesson ${selectedLessonNo}`, `第 ${selectedLessonNo} 课时`, `第${selectedLessonNo}時`, `${selectedLessonNo}차시`),
+        blocks: [{
+          header: tr('Nội dung', 'Content', '内容', '内容', '내용'),
+          content: tr(
+            'Đang tạo slide của tiết này.',
+            'Creating slides for this lesson.',
+            '正在创建本课时幻灯片。',
+            'この授業のスライドを作成しています。',
+            '이 차시 슬라이드를 만드는 중입니다.'
+          ),
+        }],
+        teacherNotes: PENDING_LESSON_SLIDES_NOTE,
+      }] as AISlideData[]
+      openGiaoVienWindow(waitingSlides, choice, infForChoice, null, undefined, popup)
+      beginTeachOpen(() => {})
+      window.setTimeout(() => {
+        try {
+          if (!popup.closed) popup.focus()
+        } catch {
+          /* ignore */
+        }
+      }, 50)
       void (async () => {
         try {
-          const res = await getCurriculumSlidesByLessonCachedAction(curriculumId, choice, selectedLessonNo)
+          const loadCached = () => getCurriculumSlidesByLessonCachedAction(curriculumId, choice, selectedLessonNo)
+          const readError = (value: unknown) =>
+            value && typeof value === 'object' && 'error' in value ? String((value as { error?: unknown }).error ?? '') : ''
+          let res = await loadCached()
+          if (!(res?.success && Array.isArray(res.slides) && res.slides.length > 0)) {
+            const inflight = lessonPreparePromiseRef.current
+            lessonPreparePromiseRef.current = null
+            const first = inflight
+              ? await inflight
+              : await ensureCurriculumLessonSlidesPreparedAction(curriculumId, selectedLessonNo)
+            const firstOk = Boolean(first && 'success' in first && first.success)
+            if (!firstOk) {
+              const retry = await ensureCurriculumLessonSlidesPreparedAction(curriculumId, selectedLessonNo)
+              if (!retry || !('success' in retry) || !retry.success) {
+                toast({
+                  title: tr('Chưa tạo được slide của tiết', 'Could not create this lesson’s slides', '未能创建该课时幻灯片', 'この授業のスライドを作成できません', '이 차시 슬라이드를 만들지 못했습니다'),
+                  description: readError(retry) || readError(first) || undefined,
+                  variant: 'destructive',
+                })
+                return
+              }
+            }
+            res = await loadCached()
+          }
           if (!(res?.success && Array.isArray(res.slides) && res.slides.length > 0)) {
             toast({
               title: tr('Không mở được tiết đã chọn', 'Cannot open selected lesson', '无法打开所选课时', '選択した授業を開けません', '선택한 차시를 열 수 없습니다'),
@@ -2533,81 +2532,14 @@ export default function TaoGiaoTrinhClientPage({
             })
             return
           }
-          const source = String((res as { source?: unknown }).source ?? '')
           console.log('[lesson-open] slide-source', {
             curriculumId,
             lessonNo: selectedLessonNo,
             mode: choice,
-            source,
+            source: String((res as { source?: unknown }).source ?? ''),
             generated: !!(res as { generated?: unknown }).generated,
             slideCount: res.slides.length,
           })
-          const loadedSlides = res.slides as LessonSlideForOpen[]
-          const prepared = await ensureFirstLessonSlideImage({
-            curriculumId,
-            lessonNo: selectedLessonNo,
-            slides: loadedSlides,
-            locale: getWebLocaleFromCookie(),
-          })
-          if ('error' in prepared) {
-            toast({
-              title: tr(
-                'Chưa mở cửa sổ giáo trình',
-                'Curriculum window stayed closed',
-                '课程窗口尚未打开',
-                'カリキュラム画面はまだ開いていません',
-                '교육과정 창은 아직 열리지 않았습니다'
-              ),
-              description: prepared.error,
-              variant: 'destructive',
-            })
-            return
-          }
-          if (prepared.created) {
-            const payload = prepared.slides.map((slide) => ({
-              title: slide.title,
-              blocks: (slide.blocks || []).map((block) => ({ header: block.header ?? 'Nội dung', content: block.content ?? '' })),
-              imageUrl: slide.imageUrl,
-              visualEmbed: slide.visualEmbed,
-              visualLayout: slide.visualLayout,
-              visualCells: slide.visualCells,
-              visualInput1: slide.visualInput1,
-              visualInput2: slide.visualInput2,
-              visualInput3: slide.visualInput3,
-              visualInput4: slide.visualInput4,
-              teacherNotes: slide.teacherNotes ?? '',
-              assistantImage: slide.assistantImage?.imageUrl
-                ? {
-                    summary: String(slide.assistantImage.summary ?? ''),
-                    mermaid: String(slide.assistantImage.mermaid ?? ''),
-                    imageUrl: slide.assistantImage.imageUrl,
-                    generatedAt: String(slide.assistantImage.generatedAt ?? ''),
-                  }
-                : undefined,
-            }))
-            const saved = choice === 'personal' || choice === 'original'
-              ? await saveUserCustomizedSlides({
-                  curriculumId,
-                  slides: payload,
-                  lessonNo: selectedLessonNo,
-                  lessonMode: choice === 'original' ? 'original' : 'personal',
-                })
-              : await saveSlidesToCurriculum({
-                  curriculumId,
-                  topic: displayTopic || 'Bài giảng',
-                  subjectId: subjectId || 'toan',
-                  gradeLevelId: gradeLevelId || 'lop-6',
-                  slides: payload,
-                  lessonNo: selectedLessonNo,
-                })
-            if (saved?.error) {
-              toast({
-                title: tr('Ảnh slide đầu đã tạo', 'First slide image is ready', '首张幻灯片图已生成', '最初のスライド画像はできました', '첫 슬라이드 이미지가 준비됨'),
-                description: saved.error,
-                variant: 'destructive',
-              })
-            }
-          }
           const curriculumInfographicFromCache =
             typeof (res as { curriculumInfographic?: unknown }).curriculumInfographic === 'object'
               ? ((res as { curriculumInfographic?: SlideInfographic }).curriculumInfographic ?? undefined)
@@ -2619,34 +2551,23 @@ export default function TaoGiaoTrinhClientPage({
           const lessonMarkdown = typeof (res as { lessonMarkdown?: unknown }).lessonMarkdown === 'string'
             ? String((res as { lessonMarkdown?: string }).lessonMarkdown || '')
             : ''
-          if (source === 'fallback-empty' || source === 'fallback-error') {
-            toast({
-              title: tr(
-                'Đang dùng fallback tạm',
-                'Using fallback slides',
-                '正在使用回退幻灯片',
-                'フォールバックスライドを使用中',
-                '대체 슬라이드 사용 중'
-              ),
-              description: tr(
-                'AI chưa trả JSON slide hợp lệ cho tiết này, hệ thống tạm dựng slide từ markdown tiết.',
-                'AI did not return valid JSON slides for this lesson, so temporary slides were built from lesson markdown.',
-                'AI未返回该课时的有效JSON幻灯片，系统已临时从课时Markdown生成。',
-                'AIがこの授業の有効なJSONスライドを返せなかったため、授業Markdownから暫定スライドを生成しました。',
-                'AI가 해당 차시의 유효한 JSON 슬라이드를 반환하지 않아 차시 마크다운 기반 임시 슬라이드를 사용합니다.'
-              ),
-              variant: 'destructive',
-            })
-          }
-          setAiSlides(prepared.slides)
-          beginTeachOpen(() => openGiaoVienWindow(
-            prepared.slides,
+          const openedSlides = res.slides as AISlideData[]
+          setAiSlides(openedSlides)
+          openGiaoVienWindow(
+            openedSlides,
             choice,
             curriculumInfographicFromCache ?? infForChoice,
             lessonMarkdown || null,
-            lessonInfographic
-          ))
+            lessonInfographic,
+            popup
+          )
           scheduleLessonIdleTrim()
+        } catch (e) {
+          toast({
+            title: tr('Không mở được tiết đã chọn', 'Cannot open selected lesson', '无法打开所选课时', '選択した授業を開けません', '선택한 차시를 열 수 없습니다'),
+            description: e instanceof Error ? e.message : undefined,
+            variant: 'destructive',
+          })
         } finally {
           lessonWindowPreparingRef.current = false
           setLessonWindowPreparing(false)
@@ -5072,7 +4993,7 @@ export default function TaoGiaoTrinhClientPage({
                   <Button variant="outline" size="sm" onClick={() => void handleOpenSlides()} disabled={slideAnalysisLoading || lessonWindowPreparing} className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-950/30">
                     <Presentation className="h-3.5 w-3.5 mr-1" />
                     {lessonWindowPreparing
-                      ? tr('Đang tạo ảnh slide đầu và mở slide tiết...', 'Creating the first slide image and opening the lesson slides...', '正在生成首张幻灯片图并打开课时幻灯片...', '最初のスライド画像を作成し、授業スライドを開いています...', '첫 슬라이드 이미지를 만들고 차시 슬라이드를 여는 중...')
+                      ? tr('Đang mở tiết...', 'Opening the lesson...', '正在打开课时...', '授業を開いています...', '차시를 여는 중...')
                       : slideAnalysisLoading
                       ? tr('Đang tải dữ liệu chọn tiết/bản...', 'Loading lesson/version options...', '正在加载课时/版本选项...', '授業/版の選択肢を読み込み中...', '차시/버전 선택 항목 로딩 중...')
                       : tr('Xem slide giáo trình', 'View curriculum slides', '查看课程幻灯片', '授業スライドを表示', '교과 슬라이드 보기')}

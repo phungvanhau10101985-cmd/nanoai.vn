@@ -1762,6 +1762,8 @@ const EN_DICTIONARY: Dictionary = {
     listingImportTitle: 'Scrape Taobao / 1688 listings',
     listingImportIntro:
       'Paste Taobao/Tmall/1688 listing HTML (same as 188 admin), pick rows, fetch via Vipomall/PandaMall, then publish to this shop inventory. One engine for every workspace.',
+    listingImportMajorBrandDropped:
+      'Removed {n} products whose names contain major brands ({brands}). They stay out of the crawl to avoid counterfeit-goods policy.',
     listingImportCookieTitle: 'Scraper cookies + PandaMall account',
     listingImportCookieHint:
       'Paste Chrome cookie JSON (EditThisCookie / Cookie-Editor) while logged into vipomall.vn / pandamall.vn. Do not use NanoAI shop cookies.',
@@ -6780,6 +6782,8 @@ const ZH_DICTIONARY: Dictionary = {
     listingImportTitle: '抓取 Taobao / 1688 列表',
     listingImportIntro:
       '粘贴 Taobao/Tmall/1688 列表 HTML（与 188 后台相同），勾选行，经 Vipomall/PandaMall 抓取后再发布到本店库存。每个店铺同一引擎。',
+    listingImportMajorBrandDropped:
+      '已排除 {n} 个名称含国际大品牌的商品（{brands}）。不抓取，以免触及假货政策。',
     listingImportCookieTitle: '抓取 Cookie + PandaMall 账号',
     listingImportCookieHint:
       '粘贴已登录 vipomall.vn / pandamall.vn 的 Chrome Cookie JSON（EditThisCookie / Cookie-Editor）。不要使用 NanoAI 店铺 Cookie。',
@@ -11720,6 +11724,8 @@ const JA_DICTIONARY: Dictionary = {
     listingImportTitle: 'Taobao / 1688 リスティング取得',
     listingImportIntro:
       'Taobao/Tmall/1688 のリスト HTML を貼り（188 管理画面と同じ）、行を選んで Vipomall/PandaMall で取得し、この店舗在庫へ公開します。全ワークスペース共通エンジンです。',
+    listingImportMajorBrandDropped:
+      '大手ブランド名を含む商品を {n} 件除外しました（{brands}）。偽物対策のため、取得リストには入れません。',
     listingImportCookieTitle: 'スクレイプ Cookie + PandaMall アカウント',
     listingImportCookieHint:
       'vipomall.vn / pandamall.vn にログインした Chrome の Cookie JSON（EditThisCookie / Cookie-Editor）を貼ってください。NanoAI 店舗の Cookie は使わないでください。',
@@ -16714,6 +16720,8 @@ const KO_DICTIONARY: Dictionary = {
     listingImportTitle: 'Taobao / 1688 리스팅 수집',
     listingImportIntro:
       'Taobao/Tmall/1688 목록 HTML을 붙여 넣고(188 관리와 동일) 행을 고른 뒤 Vipomall/PandaMall로 가져와 이 매장 재고에 게시합니다. 모든 워크스페이스가 같은 엔진입니다.',
+    listingImportMajorBrandDropped:
+      '대형 브랜드명이 포함된 상품 {n}개를 제외했습니다({brands}). 위조품 정책을 피하기 위해 수집 목록에 넣지 않습니다.',
     listingImportCookieTitle: '스크레이프 쿠키 + PandaMall 계정',
     listingImportCookieHint:
       'vipomall.vn / pandamall.vn 에 로그인한 Chrome 쿠키 JSON(EditThisCookie / Cookie-Editor)을 붙여 넣으세요. NanoAI 매장 쿠키는 쓰지 마세요.',

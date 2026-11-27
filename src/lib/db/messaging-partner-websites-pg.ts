@@ -244,22 +244,34 @@ export async function fetchPartnerWebsiteOwnerBySlugPg(
 }
 
 export async function fetchPartnerWebsiteByPartnerIdPg(
-  partnerId: string
+  partnerId: string,
+  options?: { omitProject?: boolean }
 ): Promise<PartnerWebsiteRow | null> {
   if (!isPgConfigured()) return null
   const pid = partnerId.trim()
   if (!pid) return null
+  const omitProject = options?.omitProject === true
   try {
     const row = await pgQueryOne<Parameters<typeof mapRow>[0]>(
-      `select id::text, partner_id::text, site_slug, title, brief_text, logo_url,
-              reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
-              project_files_json, html_source, locale,
-              is_published, published_at, source_thread_id::text,
-              creation_journal_json,
-              created_at, updated_at
-       from public.messaging_partner_websites
-       where partner_id = $1::uuid
-       limit 1`,
+      omitProject
+        ? `select id::text, partner_id::text, site_slug, title, brief_text, logo_url,
+                reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
+                null::jsonb as project_files_json, null::text as html_source, locale,
+                is_published, published_at, source_thread_id::text,
+                creation_journal_json,
+                created_at, updated_at
+         from public.messaging_partner_websites
+         where partner_id = $1::uuid
+         limit 1`
+        : `select id::text, partner_id::text, site_slug, title, brief_text, logo_url,
+                reference_image_urls, render_mode, template_id, theme_json, pages_json, nav_json, footer_json,
+                project_files_json, html_source, locale,
+                is_published, published_at, source_thread_id::text,
+                creation_journal_json,
+                created_at, updated_at
+         from public.messaging_partner_websites
+         where partner_id = $1::uuid
+         limit 1`,
       [pid]
     )
     return row ? mapRow(row) : null

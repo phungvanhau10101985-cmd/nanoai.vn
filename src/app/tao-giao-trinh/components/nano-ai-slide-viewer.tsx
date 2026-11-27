@@ -20,6 +20,7 @@ import { CurriculumBlockContentWithEmbeds } from './curriculum-block-content-wit
 import { WorksheetBlockContentWithEmbeds } from './worksheet-block-content-with-embeds'
 import { EmbedInsertDialog } from './embed-insert-dialog'
 import { PresentationControlBar } from './presentation-control-bar'
+import { TeacherPhoneRemoteDialog } from './teacher-phone-remote-dialog'
 import { ExpandedImageNav, ExpandedImageStage, expandedGalleryImageUrl, useExpandedImageSwipe } from './expanded-image-nav'
 import {
   SLIDE_POINTER_CHAIN_BLOCK_CLASS,
@@ -1430,6 +1431,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const latestPhoneSlideRef = useRef<{ index: number; at: number } | null>(null)
   const latestPhoneModeRef = useRef<{ mode: 'single-slide' | 'markdown-all'; at: number } | null>(null)
   const ignoreChainScrollUntilRef = useRef(0)
+  /** Cửa sổ này vừa cuộn bằng tay — lệnh cuộn từ máy khác không được kéo ngược. */
+  const localChainScrollHostUntilRef = useRef(0)
+  const applyingChainScrollRef = useRef(false)
   const [personalViewSubMode, setPersonalViewSubMode] = useState<'current' | 'original'>('current')
   const [quizPopupOpen, setQuizPopupOpen] = useState(false)
   /** Slide mà popup trắc nghiệm đang mở. null = slide đang chiếu. */
@@ -1447,11 +1451,26 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const [phoneRemoteId, setPhoneRemoteId] = useState<string | null>(null)
   const phoneRemoteIdRef = useRef<string | null>(null)
   phoneRemoteIdRef.current = phoneRemoteId
+  const [studentPhoneOpen, setStudentPhoneOpen] = useState(false)
+  const [studentPhoneLoginUrl, setStudentPhoneLoginUrl] = useState<string | null>(null)
+  const [studentPhoneError, setStudentPhoneError] = useState('')
+  const [studentPhoneBusy, setStudentPhoneBusy] = useState(false)
   useEffect(() => {
     if (isTeacherView) return
-    const take = (data: { type?: string; id?: string } | null) => {
-      if (data?.type === 'phone-remote-bind' && typeof data.id === 'string' && data.id.trim()) {
-        setPhoneRemoteId(data.id.trim())
+    const take = (data: { type?: string; id?: string; loginUrl?: string; phoneReady?: boolean; phoneReadyServerAt?: number } | null) => {
+      if (!data || typeof data.type !== 'string') return
+      const id = typeof data.id === 'string' ? data.id.trim() : ''
+      if ((data.type === 'phone-remote-bind' || data.type === 'phone-remote-login' || data.type === 'phone-remote-ready') && id) {
+        setPhoneRemoteId(id)
+      }
+      if (data.type === 'phone-remote-login' && typeof data.loginUrl === 'string' && data.loginUrl.startsWith('https://')) {
+        setStudentPhoneLoginUrl(data.loginUrl)
+        setStudentPhoneBusy(false)
+        setStudentPhoneError('')
+      }
+      if (data.type === 'phone-remote-ready' && typeof data.phoneReadyServerAt === 'number' && data.phoneReadyServerAt > 0) {
+        setStudentPhoneBusy(false)
+        setStudentPhoneOpen(false)
       }
     }
     const onMsg = (event: MessageEvent) => {
@@ -1469,10 +1488,79 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       channel?.close()
     }
   }, [isTeacherView, presentationBroadcastChannelName])
+  const askStudentPhoneRemote = useCallback(() => {
+    setStudentPhoneOpen(true)
+    setStudentPhoneBusy(true)
+    setStudentPhoneError('')
+    const msg = { type: 'student-request-phone-remote' }
+    try { window.opener?.postMessage(msg, window.location.origin) } catch { /* cửa sổ giáo viên đã đóng */ }
+    try {
+      const ch = new BroadcastChannel(presentationBroadcastChannelName)
+      ch.postMessage(msg)
+      ch.close()
+    } catch { /* trình duyệt không có kênh */ }
+  }, [presentationBroadcastChannelName])
+  useEffect(() => {
+    if (isTeacherView || !studentPhoneOpen || !studentPhoneBusy) return
+    const id = window.setTimeout(() => {
+      setStudentPhoneBusy(false)
+      setStudentPhoneError(tr(
+        'Chưa nhận được mã. Mở lại cửa sổ giáo viên rồi bấm nút lần nữa.',
+        'No code yet. Open the teacher window again, then press the button.',
+        '还没有拿到二维码。请重新打开教师窗口后再按一次。',
+        'コードが届きません。教師画面を開き直して、もう一度押してください。',
+        '코드를 받지 못했습니다. 교사 창을 다시 연 뒤 버튼을 누르세요.'
+      ))
+    }, 8000)
+    return () => window.clearTimeout(id)
+  }, [isTeacherView, studentPhoneOpen, studentPhoneBusy, tr])
+  useEffect(() => {
+    if (isTeacherView || !studentPhoneOpen || !phoneRemoteId) return
+    const nonce = Date.now()
+    let stop = false
+    const arm = () => {
+      if (stop) return
+      void fetch('/api/giao-trinh/phone-remote', {
+        method: 'POST',
+        credentials: 'same-origin',
+        keepalive: true,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: phoneRemoteId, qrWatch: nonce }),
+      }).catch(() => { /* lần sau */ })
+    }
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/giao-trinh/phone-remote?id=${encodeURIComponent(phoneRemoteId)}&live=1`, { credentials: 'same-origin', cache: 'no-store' })
+        if (!res.ok || stop) return
+        const data = await res.json().catch(() => null)
+        if (stop || !data?.ok) return
+        if (data.qrWatch !== nonce) {
+          arm()
+          return
+        }
+        const at = typeof data.phoneReadyServerAt === 'number' ? data.phoneReadyServerAt : 0
+        const watchAt = typeof data.qrWatchAt === 'number' ? data.qrWatchAt : 0
+        if (watchAt > 0 && at > watchAt) {
+          setStudentPhoneBusy(false)
+          setStudentPhoneOpen(false)
+        }
+      } catch {
+        /* lần sau */
+      }
+    }
+    arm()
+    void tick()
+    const id = window.setInterval(() => { void tick() }, 300)
+    return () => {
+      stop = true
+      window.clearInterval(id)
+    }
+  }, [isTeacherView, studentPhoneOpen, phoneRemoteId])
   useEffect(() => {
     if (isTeacherView || !phoneRemoteId) return
     let after = 0
     let stop = false
+    const abort = new AbortController()
     const presence = (alive: boolean) => {
       void fetch('/api/giao-trinh/phone-remote/presence', {
         method: 'POST',
@@ -1493,11 +1581,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       if (busy || stop) return
       busy = true
       try {
-        const res = await fetch(`/api/giao-trinh/phone-remote/command?id=${encodeURIComponent(phoneRemoteId)}&after=${after}`, { credentials: 'same-origin' })
+        const res = await fetch(`/api/giao-trinh/phone-remote/command?id=${encodeURIComponent(phoneRemoteId)}&after=${after}&wait=${priming ? 0 : 320}`, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          signal: abort.signal,
+        })
         if (!res.ok) return
         const data = await res.json().catch(() => null)
         const list = Array.isArray(data?.commands) ? data.commands : []
-        let lastSlide: number | null = null
+        let lastSlide: Record<string, unknown> | null = null
         let lastTyping: Record<string, unknown> | null = null
         let lastTypingControl: Record<string, unknown> | null = null
         const fresh: Record<string, unknown>[] = []
@@ -1508,7 +1600,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           const msg = (item as { msg?: unknown }).msg
           if (!msg || typeof msg !== 'object' || Array.isArray(msg)) continue
           const record = msg as Record<string, unknown>
-          if (record.type === 'slide-go' && typeof record.index === 'number') lastSlide = record.index
+          if (record.type === 'slide-go' && typeof record.index === 'number') lastSlide = record
           else if (record.type === 'worksheet-answer-reveal' && record.control === true) lastTypingControl = record
           else if (record.type === 'worksheet-answer-reveal') lastTyping = record
           else fresh.push(record)
@@ -1521,7 +1613,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           return
         }
         for (const msg of fresh) deliver(msg, false)
-        if (lastSlide != null) deliver({ type: 'slide-go', index: lastSlide }, true)
+        if (lastSlide) deliver(lastSlide, false)
         if (lastTyping) deliver(lastTyping, false)
         if (lastTypingControl) deliver(lastTypingControl, false)
       } catch {
@@ -1530,14 +1622,21 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         busy = false
       }
     }
+    const loop = async () => {
+      while (!stop) {
+        const started = Date.now()
+        await pull()
+        if (stop) return
+        if (Date.now() - started < 40) await new Promise((resolve) => window.setTimeout(resolve, 40))
+      }
+    }
     presence(true)
-    void pull()
+    void loop()
     const beat = window.setInterval(() => presence(true), 4000)
-    const tick = window.setInterval(() => { void pull() }, 280)
     return () => {
       stop = true
+      abort.abort()
       window.clearInterval(beat)
-      window.clearInterval(tick)
     }
   }, [isTeacherView, phoneRemoteId])
   const [shareQrDataUrl, setShareQrDataUrl] = useState<string | null>(null)
@@ -1860,6 +1959,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const lastRenderedVirtualMouseRef = useRef<{ x: number; y: number } | null>(null)
   const lastVisualScopeMoveAtRef = useRef<number>(0)
   const processedSyncSeqRef = useRef<Set<number>>(new Set())
+  const processedWireRef = useRef<Set<string>>(new Set())
+  const processedSlideWireRef = useRef<Set<string>>(new Set())
   const quizPopupScrollApplyingRef = useRef(false)
   const closeVisualFullscreenRef = useRef<(opts?: { fromMessage?: boolean }) => void>(() => {})
   const lastLocalVisualOpenRef = useRef<number>(0)
@@ -2896,13 +2997,21 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         ? offsetPx / rect.height
         : 0
     const delta = rect.top - (line - usedRel * rect.height)
-    if (Math.abs(delta) >= 6) pane.scrollTop += delta
+    if (Math.abs(delta) >= 28) pane.scrollTop += delta
   }, [])
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
       // Deduplicate: sendToStudentView gửi cả postMessage + BroadcastChannel → student nhận 2 lần
+      const wireId = e.data?.wireId
+      if (typeof wireId === 'string' && wireId) {
+        if (processedWireRef.current.has(wireId)) return
+        processedWireRef.current.add(wireId)
+        if (processedWireRef.current.size > 180) {
+          processedWireRef.current = new Set(Array.from(processedWireRef.current).slice(-90))
+        }
+      }
       const seq = e.data?.__syncSeq
       if (typeof seq === 'number') {
         if (processedSyncSeqRef.current.has(seq)) return
@@ -3113,11 +3222,11 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       else if (t === 'slide-content-layout' && typeof e.data?.layoutW === 'number' && e.data.layoutW > 0) {
         if (!isTeacherView) {
           const lw = Math.round(e.data.layoutW)
-            setSyncedTeacherSlideLayoutW((prev) => (prev != null && Math.abs(prev - lw) < 8 ? prev : lw))
+            setSyncedTeacherSlideLayoutW((prev) => (prev != null && Math.abs(prev - lw) < 24 ? prev : lw))
           const proseW = Number(e.data?.proseW)
           if (Number.isFinite(proseW) && proseW > 0) {
             const pw = Math.round(proseW)
-            setSyncedTeacherProseW((prev) => (prev != null && Math.abs(prev - pw) < 8 ? prev : pw))
+            setSyncedTeacherProseW((prev) => (prev != null && Math.abs(prev - pw) < 24 ? prev : pw))
           }
           const incoming = e.data?.proseBreaks
           if (Array.isArray(incoming)) {
@@ -3151,12 +3260,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
       else if (t === 'chain-pane-scroll' && !isTeacherView) {
+        if (e.data?.gesture !== true || e.data?.fromStudent === true) return
         if (Date.now() < ignoreChainScrollUntilRef.current) return
+        if (Date.now() < localChainScrollHostUntilRef.current) return
         chainScrollAnchorRef.current = e.data as Record<string, unknown>
+        applyingChainScrollRef.current = true
         applyStudentChainPaneScroll(chainScrollAnchorRef.current)
         window.requestAnimationFrame(() => {
-          applyStudentChainPaneScroll(chainScrollAnchorRef.current)
-          window.requestAnimationFrame(() => applyStudentChainPaneScroll(chainScrollAnchorRef.current))
+          applyingChainScrollRef.current = false
         })
       }
       else if (t === 'infographic-draw-start' && typeof e.data?.slideIndex === 'number' && e.data?.stroke) {
@@ -4229,18 +4340,29 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         setActiveBlockIndex(0)
         setCurrentIndex((i) => Math.min(i + 1, slides.length - 1))
       } else if (e.data?.type === 'slide-go' && typeof e.data?.index === 'number') {
+        const slideWire = e.data?.wireId
+        if (typeof slideWire === 'string' && slideWire) {
+          if (processedSlideWireRef.current.has(slideWire)) return
+          processedSlideWireRef.current.add(slideWire)
+          if (processedSlideWireRef.current.size > 180) {
+            processedSlideWireRef.current = new Set(Array.from(processedSlideWireRef.current).slice(-90))
+          }
+        }
         if (slides.length <= 0) {
           pendingSlideGoIndexRef.current = e.data.index
           return
         }
         const idx = Math.max(0, Math.min(e.data.index, slides.length - 1))
-        const block = typeof e.data.blockIndex === 'number' && Number.isFinite(e.data.blockIndex)
-          ? Math.max(0, Math.floor(e.data.blockIndex))
-          : 0
+        const hasBlock = typeof e.data.blockIndex === 'number' && Number.isFinite(e.data.blockIndex)
+        const block = hasBlock ? Math.max(0, Math.floor(e.data.blockIndex)) : null
         latestPhoneSlideRef.current = { index: idx, at: Date.now() }
         ignoreChainScrollUntilRef.current = Date.now() + 700
-        setActiveBlockIndex(block)
         setCurrentIndex((prev) => {
+          if (block == null) {
+            if (idx !== prev) setActiveBlockIndex(0)
+          } else {
+            setActiveBlockIndex(block)
+          }
           setTransitionDirection(idx > prev ? 'next' : idx < prev ? 'prev' : prev)
           return idx
         })
@@ -4829,23 +4951,78 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     if (isTeacherView) return
     const pane = studentMdRightColumnScrollRef.current
     if (!pane) return
-    let raf = 0
-    const schedule = () => {
-      if (raf) return
-      raf = window.requestAnimationFrame(() => {
-        raf = 0
-        applyStudentChainPaneScroll(chainScrollAnchorRef.current)
-      })
+    const readAnchor = () => {
+      const paneRect = pane.getBoundingClientRect()
+      const line = paneRect.top + pane.clientTop + 1
+      const midX = paneRect.left + Math.min(pane.clientWidth * 0.5, Math.max(24, pane.clientWidth - 28))
+      const relOf = (el: HTMLElement) => (el.getBoundingClientRect().height < 1 ? 0 : (line - el.getBoundingClientRect().top) / el.getBoundingClientRect().height)
+      const stack = document.elementsFromPoint(midX, Math.min(line + 1, paneRect.bottom - 2))
+      for (const node of stack) {
+        if (!(node instanceof HTMLElement) || !pane.contains(node)) continue
+        const prose = node.closest('[data-pointer-prose-root]') as HTMLElement | null
+        if (prose && pane.contains(prose)) {
+          const slideIndex = Number(prose.getAttribute('data-slide-index'))
+          const blockIndex = Number(prose.getAttribute('data-block-index'))
+          if (Number.isFinite(slideIndex) && Number.isFinite(blockIndex)) {
+            return { type: 'chain-pane-scroll', fromStudent: true, gesture: true, anchor: 'prose', slideIndex, blockIndex, rel: relOf(prose) }
+          }
+        }
+        const sync = node.closest('[data-pointer-sync-id]') as HTMLElement | null
+        if (sync && pane.contains(sync)) {
+          const syncId = sync.getAttribute('data-pointer-sync-id') || ''
+          if (/^slide-[\w-]+$/.test(syncId)) {
+            return { type: 'chain-pane-scroll', fromStudent: true, gesture: true, anchor: 'sync', syncId, rel: relOf(sync) }
+          }
+        }
+        const card = node.closest('[id^="nano-student-md-slide-"]') as HTMLElement | null
+        if (card && pane.contains(card)) {
+          const slideIndex = Number(card.id.replace('nano-student-md-slide-', ''))
+          if (Number.isFinite(slideIndex)) {
+            return { type: 'chain-pane-scroll', fromStudent: true, gesture: true, anchor: 'card', slideIndex, rel: relOf(card) }
+          }
+        }
+      }
+      return null
     }
-    const ro = new ResizeObserver(schedule)
-    ro.observe(pane)
-    const content = studentSlideContentLayoutRef.current
-    if (content) ro.observe(content)
+    let lastSig = ''
+    let timer = 0
+    const emit = () => {
+      if (applyingChainScrollRef.current) return
+      if (Date.now() >= localChainScrollHostUntilRef.current) return
+      const msg = readAnchor()
+      if (!msg) return
+      const sig = `${msg.anchor}|${'slideIndex' in msg ? msg.slideIndex : ''}|${'blockIndex' in msg ? msg.blockIndex : ''}|${'syncId' in msg ? msg.syncId : ''}|${Math.round((msg.rel ?? 0) * 200)}`
+      if (sig === lastSig) return
+      lastSig = sig
+      const opener = window.opener
+      if (!opener || opener.closed) return
+      try { opener.postMessage(msg, window.location.origin) } catch { /* cửa sổ giáo viên đã đóng */ }
+    }
+    let gestureUntil = 0
+    const markGesture = () => {
+      gestureUntil = Date.now() + 800
+    }
+    const onScroll = () => {
+      if (applyingChainScrollRef.current) return
+      if (Date.now() > gestureUntil) return
+      localChainScrollHostUntilRef.current = Date.now() + 1600
+      if (timer) window.clearTimeout(timer)
+      timer = window.setTimeout(emit, 40)
+    }
+    pane.addEventListener('wheel', markGesture, { passive: true })
+    pane.addEventListener('touchmove', markGesture, { passive: true })
+    pane.addEventListener('pointerdown', markGesture)
+    pane.addEventListener('keydown', markGesture)
+    pane.addEventListener('scroll', onScroll, { passive: true })
     return () => {
-      if (raf) window.cancelAnimationFrame(raf)
-      ro.disconnect()
+      if (timer) window.clearTimeout(timer)
+      pane.removeEventListener('wheel', markGesture)
+      pane.removeEventListener('touchmove', markGesture)
+      pane.removeEventListener('pointerdown', markGesture)
+      pane.removeEventListener('keydown', markGesture)
+      pane.removeEventListener('scroll', onScroll)
     }
-  }, [isTeacherView, applyStudentChainPaneScroll, studentCurriculumRightMode, syncedTeacherSlideLayoutW, currentIndex, slides.length])
+  }, [isTeacherView, studentCurriculumRightMode, currentIndex])
 
   /** Khóa bề rộng chữ chuỗi slide bằng đúng cột chữ bên giáo viên. */
   useLayoutEffect(() => {
@@ -4969,6 +5146,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   return (
     <div key={apple.ios ? 'apple-ios' : apple.mac ? 'apple-mac' : 'win'} {...apple.shellProps} className="fixed inset-0 z-[100] bg-black flex flex-col overflow-hidden">
+      {!isTeacherView ? (
+        <TeacherPhoneRemoteDialog
+          open={studentPhoneOpen}
+          loginUrl={studentPhoneLoginUrl}
+          error={studentPhoneError}
+          busy={studentPhoneBusy}
+          onClose={() => {
+            setStudentPhoneOpen(false)
+            setStudentPhoneBusy(false)
+          }}
+          tr={tr}
+          layerClassName="z-[220]"
+        />
+      ) : null}
       <div
         className={cn(
           'print:hidden box-border',
@@ -4977,7 +5168,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           presentationMode === 'slide-interaction' && 'pointer-events-auto'
         )}
       >
-        <div className={cn(studentPhone || apple.mac ? 'w-full min-w-0' : '[direction:ltr] w-full md:w-max')}>
+        <div className={cn(studentPhone || apple.mac ? 'w-full min-w-0' : '[direction:ltr] w-full')}>
           <PresentationControlBar
             variant={isWorksheetTeacher || presentationMode === 'slide-interaction' ? 'teacher' : 'student'}
             tr={tr}
@@ -5032,6 +5223,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             onClose={presentationMode === 'slide-interaction' ? undefined : onClose}
             onShareClick={handleShareClick}
             onOpenTeacherView={openTeacherView}
+            onPhoneControl={!isTeacherView && !studentPhone ? askStudentPhoneRemote : undefined}
+            phoneControlLeading
             shareButtonClickableWhenParentDisabled={presentationMode === 'slide-interaction'}
             slideViewMode={undefined}
             onSlideViewModeChange={undefined}
@@ -6265,7 +6458,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           <div
             ref={studentMdRightColumnScrollRef}
             className={cn(
-              'min-h-0 flex-1 overflow-y-auto pb-8 [scrollbar-gutter:stable]',
+              'min-h-0 flex-1 overflow-y-auto pb-8 [overflow-anchor:none] [scrollbar-gutter:stable]',
               !isTeacherView && !worksheetPresentation ? 'px-3 py-3' : !isTeacherView && apple.mac ? 'p-4 pb-6 md:p-5' : 'p-3 pb-6 md:p-8 lg:p-12 landscape:p-8'
             )}
           >
@@ -6518,7 +6711,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     id={`nano-student-md-slide-${si}`}
                     className={cn(
                       SLIDE_POINTER_CHAIN_CARD_CLASS,
-                      'scroll-mt-6 scroll-mb-8 border-slate-200 bg-slate-50/90 shadow-sm md:scroll-mt-10 md:scroll-mb-12',
+                      'scroll-mt-6 scroll-mb-8 border-slate-200 bg-slate-50 shadow-sm [overflow-anchor:none] md:scroll-mt-10 md:scroll-mb-12',
                       studentPhone && 'p-3',
                       si === currentIndex && 'ring-2 ring-amber-400',
                       si === currentIndex && studentPhone && 'bg-amber-50'
@@ -6688,8 +6881,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       />
                     )
                     return stackCurriculumBlockChrome ? (
-                      <div key={i} className={cn(SLIDE_POINTER_SINGLE_BLOCK_CLASS, 'overflow-visible border-slate-100 bg-white shadow-sm')}>
-                        <div className={cn(SLIDE_POINTER_SINGLE_HEADER_CLASS, 'rounded-t-lg border-violet-100 bg-violet-50/90 text-violet-700')}>
+                      <div key={i} className={cn(SLIDE_POINTER_SINGLE_BLOCK_CLASS, 'border-slate-100 bg-white shadow-sm')}>
+                        <div className={cn(SLIDE_POINTER_SINGLE_HEADER_CLASS, 'rounded-t-lg border-violet-100 bg-violet-50 text-violet-700')}>
                           <span data-pointer-sync-id={`slide-block-header-${currentIndex}-${i}`}>
                             {headerLabel ? (
                               typingOpts.typingOn ? (
