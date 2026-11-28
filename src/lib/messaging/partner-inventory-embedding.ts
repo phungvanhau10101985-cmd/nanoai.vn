@@ -10,7 +10,10 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { fetchRemoteImageForCatalog, sniffImageContentType } from '@/lib/fetch-image-1688'
 import type { Database } from '@/types/database.types'
 import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
-import { inventoryImageReadyForImageEmbedding } from '@/lib/messaging/inventory-image-embedding-gate'
+import {
+  inventoryImageReadyForImageEmbedding,
+  keepInventoryRowsReadyForVectors,
+} from '@/lib/messaging/inventory-image-embedding-gate'
 import { clipGeminiError, geminiJsonHeaders, geminiModelUrl } from '@/lib/ai/gemini-http'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -310,7 +313,8 @@ export async function syncPartnerInventoryEmbeddings(
     }
   }
 
-  const candidates = rows.filter((row) => needsEmbeddingSync(row, Boolean(options?.force)))
+  const readyRows = await keepInventoryRowsReadyForVectors(partnerId, rows)
+  const candidates = readyRows.filter((row) => needsEmbeddingSync(row, Boolean(options?.force)))
   if (candidates.length === 0) return { ok: true, synced: 0, failed: 0, skipped: rows.length }
 
   let cursor = 0

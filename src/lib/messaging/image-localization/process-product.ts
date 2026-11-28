@@ -113,6 +113,15 @@ export async function processInventoryProduct(opts: {
   progressCb?: (phase: string) => void
 }): Promise<{ status: string; processed_images: number; failed_images?: number; message: string }> {
   const dryRun = Boolean(opts.ctx.dry_run)
+  const { readCounterfeitBrands } = await import('./counterfeit-gate')
+  const counterfeitBrands = await readCounterfeitBrands(opts.partnerId, opts.inventoryId)
+  if (counterfeitBrands.length) {
+    return {
+      status: 'skipped',
+      processed_images: 0,
+      message: `Nghi hàng giả: ${counterfeitBrands.join(', ')}. Không bản địa hóa.`,
+    }
+  }
   const claimed = dryRun
     ? true
     : await claimInventoryForImageLocFromPg({

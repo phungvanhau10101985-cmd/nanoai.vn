@@ -136,7 +136,8 @@ import { questionsToMarkdown } from './lib/questions-to-markdown'
 import { parseWorksheetIntoBlocks } from './lib/worksheet-parse-questions'
 import { blocksToContentJson } from './lib/markdown-to-questions'
 import type { SlideInfographic } from './lib/slide-infographic'
-import { keepSlideInk } from './lib/slide-infographic'
+import { keepSlideInk, mergeStoredSlideImages, useSharedSlideImages } from './lib/slide-infographic'
+import { publishSharedSlideImages } from './lib/persist-shared-slide-image'
 import {
   buildLessonChunksFromSlides,
   parseStoredCurriculumSlidesJson,
@@ -2389,7 +2390,7 @@ export async function saveSlidesToCurriculum(opts: {
         await fetchWorksheetCurriculumLessonSlidesJsonForLessonModePg(opts.curriculumId, safeLessonNoForInk, 'shared', user.id)
       )?.slides_json).slides as WorksheetSlideRow[]
     : []
-  const slidesToStore = keepSlideInk(opts.slides, existingInkSlides)
+  const slidesToStore = keepSlideInk(mergeStoredSlideImages(opts.slides, existingInkSlides), existingInkSlides)
   const contentJson = serializeStoredCurriculumSlidesJson(slidesToStore, infographicToStore)
 
   const up = await upsertWorksheetSlidesRowPg({
@@ -2419,8 +2420,12 @@ export async function saveSlidesToCurriculum(opts: {
       )
     )?.slides_json
     const existingLessonParsed = parseStoredCurriculumSlidesJson(existingSlidesJson)
+    const lessonSlides = keepSlideInk(
+      mergeStoredSlideImages(slidesToStore, existingLessonParsed.slides as WorksheetSlideRow[]),
+      existingLessonParsed.slides as WorksheetSlideRow[]
+    )
     // Chỉ giữ infographic theo tiết trong cache tiết — không copy ảnh cả bài vào envelope tiết.
-    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(slidesToStore, existingLessonParsed.curriculumInfographic)
+    const lessonSlidesJson = serializeStoredCurriculumSlidesJson(lessonSlides, existingLessonParsed.curriculumInfographic)
     const cacheSave = await saveLessonSlidesCacheRow({
       curriculumId: opts.curriculumId,
       mode: 'shared',
@@ -2436,6 +2441,13 @@ export async function saveSlidesToCurriculum(opts: {
       sourceSlides: opts.slides as SlideItem[],
       userId: user.id,
     })
+    const published = await publishSharedSlideImages({
+      curriculumId: opts.curriculumId,
+      lessonNo: safeLessonNo,
+      slides: lessonSlides,
+      userId: user.id,
+    })
+    if (published.error) return { error: published.error }
   }
 
   try {
@@ -2750,16 +2762,13 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
 
   const cache = await loadLessonSlidesCacheByMode(user.id, curriculumId, mode, safeLessonNo)
   if (mode === 'shared' && cache.slides.length > 0) {
+    const sharedSlides = cache.slides.slice()
     const personal = await loadLessonSlidesCacheByMode(user.id, curriculumId, 'personal', safeLessonNo)
     if (personal.slides.length > 0) {
-      const merged = cache.slides.map((slide, index) => {
-        const own = personal.slides[index]
-        if (!own) return slide
-        if (slide.assistantImage?.imageUrl && !own.assistantImage?.imageUrl) {
-          return { ...own, assistantImage: slide.assistantImage }
-        }
-        return own
-      })
+      const merged = useSharedSlideImages(
+        sharedSlides.map((slide, index) => personal.slides[index] ?? slide),
+        sharedSlides
+      )
       cache.slides.splice(0, cache.slides.length, ...merged)
     }
   }
@@ -2918,8 +2927,19 @@ async function loadLessonSlidesCacheByMode(
     resolveMergedLessonInfographic(userId, curriculumId, lessonNo),
   ])
   const parsed = parseStoredCurriculumSlidesJson(row.data?.slides_json)
+  let slides = parsed.slides as WorksheetSlideRow[]
+  if (mode !== 'shared' && slides.length > 0) {
+    const sharedRow = await fetchWorksheetCurriculumLessonSlidesJsonForLessonModePg(
+      curriculumId,
+      lessonNo,
+      'shared',
+      userId
+    )
+    const sharedSlides = parseStoredCurriculumSlidesJson(sharedRow?.slides_json).slides as WorksheetSlideRow[]
+    slides = useSharedSlideImages(slides, sharedSlides)
+  }
   return {
-    slides: parsed.slides as WorksheetSlideRow[],
+    slides,
     curriculumInfographic: loaded.curriculumInfographic,
     lessonInfographic,
   }
@@ -2945,7 +2965,7 @@ export async function readLessonAssistantImagesAction(
   for (let i = 0; i < count; i += 1) {
     const fromOwn = own.slides[i]?.assistantImage
     const fromShared = shared.slides[i]?.assistantImage
-    images.push(fromOwn?.imageUrl ? fromOwn : fromShared?.imageUrl ? fromShared : null)
+    images.push(fromShared?.imageUrl ? fromShared : fromOwn?.imageUrl ? fromOwn : null)
   }
   return { success: true as const, images }
 }
@@ -3103,9 +3123,25 @@ export async function saveUserCustomizedSlides(opts: {
       )
     )?.slides_json
     const existingLessonParsed = parseStoredCurriculumSlidesJson(existingSlidesJson)
+    const sharedSlidesJson = (
+      await fetchWorksheetCurriculumLessonSlidesJsonForLessonModePg(
+        opts.curriculumId,
+        safeLessonNo,
+        'shared',
+        user.id
+      )
+    )?.slides_json
+    const sharedSlides = parseStoredCurriculumSlidesJson(sharedSlidesJson).slides as WorksheetSlideRow[]
+    const lessonSlides = keepSlideInk(
+      mergeStoredSlideImages(
+        mergeStoredSlideImages(opts.slides, existingLessonParsed.slides as WorksheetSlideRow[]),
+        sharedSlides
+      ),
+      existingLessonParsed.slides as WorksheetSlideRow[]
+    )
     // Chỉ giữ infographic theo tiết trong cache tiết — không copy ảnh cả bài vào envelope tiết.
     const lessonSlidesJson = serializeStoredCurriculumSlidesJson(
-      keepSlideInk(opts.slides, existingLessonParsed.slides as WorksheetSlideRow[]),
+      lessonSlides,
       existingLessonParsed.curriculumInfographic
     )
     const cacheSave = await saveLessonSlidesCacheRow({
@@ -3123,6 +3159,13 @@ export async function saveUserCustomizedSlides(opts: {
       sourceSlides: opts.slides as SlideItem[],
       userId: user.id,
     })
+    const published = await publishSharedSlideImages({
+      curriculumId: opts.curriculumId,
+      lessonNo: safeLessonNo,
+      slides: lessonSlides,
+      userId: user.id,
+    })
+    if (published.error) return { error: published.error }
   }
 
   try {

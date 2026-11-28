@@ -7106,7 +7106,8 @@ export const VI_DICTIONARY: Dictionary = {
     sourceStockReportRetry: 'Thử lại',
     sourceStockReportEmpty: 'Chưa có dữ liệu báo cáo.',
     imageLocTitle: 'Bản địa hóa ảnh',
-    imageLocIntro: 'Xử lý ảnh cột O/P/Q/T: biến thể, thư viện, ảnh chi tiết và ảnh chính cho sản phẩm chưa bản địa hóa.',
+    imageLocIntro:
+      'Xử lý ảnh cột O/P/Q/T cho sản phẩm chưa bản địa hóa. Trước đó Gemini 3.8 Flash kiểm tra logo hàng giả trên một file batch. Sản phẩm có logo không được xử lý ảnh và không vào nguồn cấp Google, Facebook, TikTok.',
     imageLocRefresh: 'Làm mới trạng thái',
     imageLocAiOffBanner: 'Công tắc mọi ảnh qua GPT đang tắt. Ảnh size, hướng dẫn giặt và bảng thông số của áo, quần, váy vẫn gọi GPT nếu có OPENAI_API_KEY. Ảnh khác vẽ local.',
     imageLocBulkHint: 'Giày, túi, phụ kiện và ảnh lookbook vẽ local. Ảnh size, hướng dẫn giặt hoặc bảng thông số của áo, quần, váy qua GPT, xóa ảnh người và ảnh sản phẩm, giữ bảng chữ, rồi lưu cho cùng shop Trung Quốc, shop này và danh mục cấp 2.',
@@ -7154,7 +7155,7 @@ export const VI_DICTIONARY: Dictionary = {
     imageLocStart: 'Chạy bản địa hóa ảnh',
     imageLocStarting: 'Đang gửi job…',
     imageLocStartMore: 'Chạy thêm job ảnh',
-    imageLocQueued: 'Đã xếp hàng bản địa hóa ảnh.',
+    imageLocQueued: 'Đã xếp hàng. Kiểm hàng giả chạy trước, bản địa hóa ảnh chạy sau khi có kết quả.',
     imageLocJobsHeading: 'Tiến trình job',
     imageLocJobsEmpty: 'Không có job trên server. Bấm Chạy bản địa hóa ảnh để bắt đầu — job vẫn chạy nền khi đóng trình duyệt.',
     imageLocJobsLoading: 'Đang tải job từ server…',

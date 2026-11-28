@@ -201,6 +201,7 @@ async function transformImageBytes(
     } catch (e) {
       if (e instanceof ImageLocalizationError && e.message === 'Job đã bị hủy') throw e
       if (e instanceof ImageLocalizationGptStopError) throw e
+      if (e instanceof Error && (e.name === 'AiApiStopped' || e.message.includes('AI_API_STOPPED'))) throw e
       const detail = e instanceof Error ? e.message : String(e)
       throw new ImageLocalizationGptStopError(detail)
     }
@@ -245,6 +246,7 @@ async function transformImageBytes(
         } catch (e) {
           if (e instanceof ImageLocalizationError && e.message === 'Job đã bị hủy') throw e
           if (e instanceof ImageLocalizationGptStopError) throw e
+          if (e instanceof Error && (e.name === 'AiApiStopped' || e.message.includes('AI_API_STOPPED'))) throw e
           const detail = e instanceof Error ? e.message : String(e)
           throw new ImageLocalizationGptStopError(detail)
         }

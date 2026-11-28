@@ -776,6 +776,7 @@ describe('image localization runtime parity', () => {
     const stale = '2026-09-21T03:30:00.000Z'
     assert.equal(imageLocJobIsStalled({ status: 'running', phase: 'processing', updated_at: stale }, now), true)
     assert.equal(imageLocJobIsStalled({ status: 'running', phase: 'waiting_off_peak', updated_at: stale }, now), false)
+    assert.equal(imageLocJobIsStalled({ status: 'running', phase: 'counterfeit_check', updated_at: stale }, now), false)
     assert.equal(imageLocJobIsStalled({ status: 'done', phase: 'done', updated_at: stale }, now), false)
   })
 })

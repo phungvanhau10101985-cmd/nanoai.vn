@@ -1544,6 +1544,8 @@ export default function CurriculumViewPage() {
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   const hasHydratedFromCurriculumRef = useRef(false)
   const slidesRef = useRef<SlideItem[]>([])
+  const slideModeRef = useRef(slideMode)
+  slideModeRef.current = slideMode
   const currentIndexRef = useRef(0)
   currentIndexRef.current = currentIndex
   const phoneFollowerIdRef = useRef(phoneFollowerId)
@@ -4337,6 +4339,21 @@ export default function CurriculumViewPage() {
     const lessonNo = activeLessonNo
     void (async () => {
       const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+      if (lessonNo && lessonNo > 0) {
+        const mode = slideModeRef.current === 'personal' || slideModeRef.current === 'original' || slideModeRef.current === 'shared'
+          ? slideModeRef.current
+          : 'shared'
+        const saved = await readLessonAssistantImagesAction(curriculumId, mode, lessonNo)
+        if (saved && 'success' in saved && saved.success && Array.isArray(saved.images)) {
+          const withSaved = slidesRef.current.map((slide, index) => {
+            const incoming = saved.images[index]
+            if (!incoming?.imageUrl || String(slide.assistantImage?.imageUrl ?? '').trim()) return slide
+            return { ...slide, assistantImage: incoming }
+          })
+          slidesRef.current = withSaved
+          setSlides(withSaved)
+        }
+      }
       const paintSlide = async (index: number, reveal: boolean) => {
         for (let attempt = 0; attempt < 3; attempt += 1) {
           if (String(slidesRef.current[index]?.assistantImage?.imageUrl ?? '')) return
@@ -7178,7 +7195,13 @@ export default function CurriculumViewPage() {
           }
           setInfographicDrawStrokesBySlide((prev) => foldInfographicStrokesToCurriculumKey({ ...prev, ...normalized }))
         }
-        const sanitizedSlides = withoutAutoAddedReviewSlides(sl.map((s: SlideItem) => normalizeSlideVisualInputs(s)))
+        const sanitizedSlides = withoutAutoAddedReviewSlides(sl.map((s: SlideItem) => normalizeSlideVisualInputs(s))).map((slide, index) => {
+          if (String(slide.assistantImage?.imageUrl ?? '').trim()) return slide
+          const prev = slidesRef.current[index]
+          if (!prev || String(prev.title ?? '') !== String(slide.title ?? '')) return slide
+          if (!String(prev.assistantImage?.imageUrl ?? '').trim()) return slide
+          return { ...slide, assistantImage: prev.assistantImage }
+        })
         setSlideTitles(sanitizedSlides.map((s: SlideItem) => s?.title ?? ''))
         setSlides(sanitizedSlides)
         slidesRef.current = sanitizedSlides

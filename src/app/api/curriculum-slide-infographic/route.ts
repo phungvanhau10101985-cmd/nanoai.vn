@@ -22,6 +22,7 @@ import { generateGptImage } from '@/lib/ai/gpt-image'
 import { withTransientGeminiRetry } from '@/lib/ai/gemini-transient'
 import { parseFlashJson } from '@/lib/curriculum/infographic-flash-json'
 import { slideImageGradeStylePrompt } from '@/app/tao-giao-trinh/lib/slide-image-grade-style'
+import { persistGeneratedCurriculumImage } from '@/app/tao-giao-trinh/lib/persist-shared-slide-image'
 
 const MAX_SLIDE_TEXT = 28000
 const INFOGRAPHIC_TARGET_BYTES = 820 * 1024
@@ -404,6 +405,26 @@ ${FLASH_INSTRUCTION}`
       return NextResponse.json({ error: 'Không upload được ảnh. Thử lại sau.' }, { status: 502 })
     }
 
+    const generatedAt = new Date().toISOString()
+    const infographic = {
+      summary,
+      mermaid,
+      imageUrl: infographicPublicUrl,
+      generatedAt,
+    }
+    const stored = await persistGeneratedCurriculumImage({
+      curriculumId,
+      userId: user.id,
+      scope,
+      lessonNo,
+      slideIndex,
+      infographic,
+    })
+    if (!stored.ok && stored.reason !== 'no-slides') {
+      console.error('[curriculum-slide-infographic] persist', stored.error)
+      return NextResponse.json({ error: 'Đã tạo ảnh nhưng chưa lưu được để dùng lại. Thử lại.' }, { status: 502 })
+    }
+
     const charge = topicLesson
       ? await chargeCurriculumFullPrice({
           userId: user.id,
@@ -443,18 +464,12 @@ ${FLASH_INSTRUCTION}`
       )
     }
 
-    const generatedAt = new Date().toISOString()
     return NextResponse.json({
       success: true,
       creditsCharged: charge.creditsCharged,
       chargeReason: charge.chargeReason,
       dailyQuota: charge.dailyQuota,
-      infographic: {
-        summary,
-        mermaid,
-        imageUrl: infographicPublicUrl,
-        generatedAt,
-      },
+      infographic,
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

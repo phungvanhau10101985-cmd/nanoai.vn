@@ -49,6 +49,7 @@ const FATAL_MARKERS = [
   'could not locate credentials',
   'default credentials were not found',
   'service_disabled',
+  'AI_API_STOPPED',
 ]
 
 export function isImageLocalizationFatalDependencyError(exc: unknown): boolean {
@@ -109,7 +110,11 @@ export async function geminiProcessImage(opts: {
   removeModel?: boolean
 }): Promise<{ status: 'processed'; bytes: Buffer; message: string }> {
   const apiKey = geminiApiKey()
-  if (apiKey.length < 10) throw new ImageLocalizationError('Thiếu GEMINI_API_KEY cho chế độ Gemini API.')
+  if (apiKey.length < 10) {
+    const { notifyAiDown, AiApiStopped } = await import('@/lib/ai/ai-run-alert')
+    await notifyAiDown('Gemini', 'Thiếu GEMINI_API_KEY')
+    throw new AiApiStopped('AI_API_STOPPED Gemini: thiếu GEMINI_API_KEY')
+  }
   const model = sanitizeModelId(opts.imageModel, imageLocGeminiImageModel())
   const timeout = imageLocGeminiApiTimeoutMs()
   const url = geminiModelUrl(model, 'generateContent')

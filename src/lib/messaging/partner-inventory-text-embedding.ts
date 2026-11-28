@@ -13,6 +13,10 @@ import { insertMessagingPartnerTextEmbedUsageFromPg } from '@/lib/db/messaging-p
 import { isPgConfigured } from '@/lib/db/pool'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import { clipGeminiError, geminiJsonHeaders, geminiModelUrl } from '@/lib/ai/gemini-http'
+import {
+  inventoryImageReadyForImageEmbedding,
+  keepInventoryRowsReadyForVectors,
+} from '@/lib/messaging/inventory-image-embedding-gate'
 import type { Database } from '@/types/database.types'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
@@ -369,6 +373,9 @@ type TextEmbComparable = Pick<
 
 function needsTextEmbeddingSync(row: TextEmbComparable, force = false): boolean {
   if (!row.is_active) return false
+  if (!inventoryImageReadyForImageEmbedding((row as { image_localization_status?: string | null }).image_localization_status)) {
+    return false
+  }
   const catalog = buildCatalogTextForEmbedding(row)
   if (!catalog.trim()) return false
   if (force) return true
@@ -429,7 +436,8 @@ export async function syncPartnerInventoryTextEmbeddings(
     }
   }
 
-  const candidates = rows.filter((row) => needsTextEmbeddingSync(row, Boolean(options?.force)))
+  const readyRows = await keepInventoryRowsReadyForVectors(partnerId, rows)
+  const candidates = readyRows.filter((row) => needsTextEmbeddingSync(row, Boolean(options?.force)))
   if (candidates.length === 0) return { ok: true, synced: 0, failed: 0, skipped: rows.length }
 
   let cursor = 0

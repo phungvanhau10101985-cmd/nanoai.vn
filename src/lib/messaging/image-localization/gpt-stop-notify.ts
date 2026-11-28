@@ -1,3 +1,4 @@
+import { notifyAiDown } from '@/lib/ai/ai-run-alert'
 import { pgQuery } from '@/lib/db/pg-query'
 import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-notification-pg'
@@ -22,6 +23,7 @@ export async function notifyNanoAiAdminsImageLocGptStopped(input: {
     const shop = partnerShopEmailBrandName(partner)
     const slug = partner?.slug?.trim() || input.partnerId
     const detail = String(input.detail || '').replace(/\s+/g, ' ').trim().slice(0, 240)
+    await notifyAiDown('OpenAI', detail || 'GPT Image không chạy')
     const body = detail
       ? `${shop} (${slug}): GPT Image lỗi ở sản phẩm ${input.inventoryId}. Job đã dừng, không gọi GPT cho sản phẩm phía sau. ${detail}`
       : `${shop} (${slug}): GPT Image lỗi ở sản phẩm ${input.inventoryId}. Job đã dừng, không gọi GPT cho sản phẩm phía sau.`

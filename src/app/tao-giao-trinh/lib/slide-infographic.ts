@@ -76,6 +76,52 @@ export function sanitizeSlideInk(inf: SlideInfographic | null | undefined): {
   return { inkWidth: width, inkHeight: height, inkLines: lines }
 }
 
+export function slideAssistantImageUrl(inf: { imageUrl?: string | null } | null | undefined): string {
+  return String(inf?.imageUrl ?? '').trim()
+}
+
+/**
+ * Ảnh đã lưu ở slide đó thắng bản gửi lên không có URL.
+ * Lần lưu chữ hoặc lần lưu dở không được xóa ảnh giáo viên khác đang dùng.
+ */
+export function mergeStoredSlideImages<T extends { assistantImage?: SlideInfographic | null }>(
+  incoming: T[],
+  stored: Array<{ assistantImage?: SlideInfographic | null } | null | undefined> | null | undefined
+): T[] {
+  const prior = stored ?? []
+  return incoming.map((slide, index) => {
+    const prev = prior[index]?.assistantImage
+    if (slideAssistantImageUrl(slide.assistantImage)) return slide
+    if (!slideAssistantImageUrl(prev) || !prev) return slide
+    return { ...slide, assistantImage: prev }
+  })
+}
+
+/**
+ * Slide chung và slide riêng cùng một ảnh. URL trên bản chung thắng URL khác trên bản riêng.
+ * Cùng URL thì giữ khung chữ đã đo nếu bản đang đọc có khung.
+ */
+export function useSharedSlideImages<T extends { assistantImage?: SlideInfographic | null }>(
+  slides: T[],
+  shared: Array<{ assistantImage?: SlideInfographic | null } | null | undefined> | null | undefined
+): T[] {
+  const source = shared ?? []
+  return slides.map((slide, index) => {
+    const fromShared = source[index]?.assistantImage
+    const sharedUrl = slideAssistantImageUrl(fromShared)
+    if (!sharedUrl || !fromShared) return slide
+    const ownUrl = slideAssistantImageUrl(slide.assistantImage)
+    if (ownUrl === sharedUrl) {
+      if (sanitizeSlideInk(slide.assistantImage)) return slide
+      const ink = sanitizeSlideInk(fromShared)
+      if (!ink) return slide
+      return { ...slide, assistantImage: { ...slide.assistantImage!, ...ink } }
+    }
+    const ink = sanitizeSlideInk(fromShared)
+    return { ...slide, assistantImage: { ...fromShared, ...(ink ?? {}) } }
+  })
+}
+
 /** Giữ khung chữ đã đo khi bản lưu mới cùng ảnh nhưng chưa kèm khung. */
 export function keepSlideInk<T extends { assistantImage?: SlideInfographic | null }>(
   incoming: T[],

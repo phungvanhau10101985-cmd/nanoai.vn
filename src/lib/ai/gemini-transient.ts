@@ -1,6 +1,7 @@
 /** Gọi lại khi Gemini báo quá tải hoặc đứt mạng. Lỗi nội dung không gọi lại. */
 
 export function isTransientGeminiError(error: unknown): boolean {
+  if (error instanceof Error && (error.name === 'AiApiStopped' || error.message.includes('AI_API_STOPPED'))) return false
   const message = error instanceof Error ? error.message : String(error)
   return /\[503|\[429|\[500|service unavailable|unavailable|fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|overloaded|resource exhausted|internal server error/i.test(
     message

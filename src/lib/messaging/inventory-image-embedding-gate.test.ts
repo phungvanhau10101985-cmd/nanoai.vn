@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  inventoryCounterfeitCleared,
   inventoryImageEmbedLocalizedSql,
   inventoryImageReadyForImageEmbedding,
+  inventoryReadyForVectors,
 } from './inventory-image-embedding-gate'
 
 describe('inventory image embedding waits for localization', () => {
@@ -25,5 +27,25 @@ describe('inventory image embedding waits for localization', () => {
     assert.match(aliased, /'localized', 'skipped'/)
     assert.equal(bare.includes('mpi.'), false)
     assert.match(bare, /image_localization_status/)
+  })
+
+  it('waits for a clean counterfeit check and localization before vectors', () => {
+    assert.equal(inventoryCounterfeitCleared(null), false)
+    assert.equal(inventoryCounterfeitCleared({ checked: true, risk: false }), true)
+    assert.equal(inventoryCounterfeitCleared({ checked: true, risk: true }), false)
+    assert.equal(
+      inventoryReadyForVectors({
+        image_localization_status: 'localized',
+        counterfeit_risk: { checked: true, risk: false },
+      }),
+      true
+    )
+    assert.equal(
+      inventoryReadyForVectors({
+        image_localization_status: 'pending',
+        counterfeit_risk: { checked: true, risk: false },
+      }),
+      false
+    )
   })
 })

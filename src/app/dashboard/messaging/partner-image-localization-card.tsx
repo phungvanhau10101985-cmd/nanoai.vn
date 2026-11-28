@@ -73,6 +73,7 @@ export function PartnerImageLocalizationCard({
   const [summary, setSummary] = useState<ImageLocSummary | null>(null)
   const [jobs, setJobs] = useState<ImageLocJob[]>([])
   const [jobsLoading, setJobsLoading] = useState(false)
+  const [counterfeit, setCounterfeit] = useState<{ id: string; name: string; sku: string; brands: string[] }[]>([])
   const [startBusy, setStartBusy] = useState(false)
   const [offPeakSaving, setOffPeakSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -91,14 +92,16 @@ export function PartnerImageLocalizationCard({
 
   const loadAuthAndSummary = useCallback(async () => {
     try {
-      const [a, s, c] = await Promise.all([
+      const [a, s, c, flagged] = await Promise.all([
         imageLocalizationClient.geminiAuth(partnerId, language),
         imageLocalizationClient.summary(partnerId),
         imageLocalizationClient.candidates(partnerId),
+        imageLocalizationClient.counterfeit(partnerId),
       ])
       setAuth(a)
       setSummary(s)
       setCandidates(c.items)
+      setCounterfeit(flagged.items)
       setLogoUrl(a.logo_url || '')
       setError(null)
     } catch (e) {
@@ -226,6 +229,15 @@ export function PartnerImageLocalizationCard({
         <div>
           <h2 className="text-lg font-semibold tracking-tight">{t.imageLocTitle}</h2>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-3xl">{t.imageLocIntro}</p>
+          {counterfeit.length > 0 ? (
+            <ul className="mt-2 max-w-3xl space-y-1 text-xs text-red-800">
+              {counterfeit.slice(0, 8).map((item) => (
+                <li key={item.id}>
+                  {item.name || item.sku || item.id}: {item.brands.join(', ')}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <button
           type="button"

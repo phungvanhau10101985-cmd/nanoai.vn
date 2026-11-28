@@ -108,6 +108,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ items: await listImageLocProbeFolder(partnerId) })
   }
 
+  if (p === 'counterfeit') {
+    const { listCounterfeitProducts } = await import('@/lib/messaging/image-localization/counterfeit-gate')
+    const limit = Number(url.searchParams.get('limit') || '100')
+    return NextResponse.json({ items: await listCounterfeitProducts(partnerId, limit) })
+  }
+
   if (p === 'jobs') {
     const limit = Number(url.searchParams.get('limit') || '40')
     const activeOnly = boolParam(url.searchParams.get('active_only'), false)

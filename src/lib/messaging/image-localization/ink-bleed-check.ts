@@ -28,7 +28,9 @@ async function previewJpeg(imageBytes: Buffer): Promise<Buffer> {
 export async function detectInkBleed(imageBytes: Buffer): Promise<{ bleed: boolean; where: string }> {
   const apiKey = geminiTextKey()
   if (apiKey.length < 10) {
-    throw new ImageLocalizationError('Thiếu GOOGLE_API_KEY để kiểm tra mực loang.')
+    const { notifyAiDown, AiApiStopped } = await import('@/lib/ai/ai-run-alert')
+    await notifyAiDown('Gemini', 'Thiếu GOOGLE_API_KEY để kiểm tra mực loang.')
+    throw new AiApiStopped('AI_API_STOPPED Gemini: thiếu GOOGLE_API_KEY để kiểm tra mực loang.')
   }
   const jpeg = await previewJpeg(imageBytes)
   const model = imageLocInkBleedModel()

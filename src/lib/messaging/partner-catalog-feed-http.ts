@@ -50,6 +50,9 @@ export async function loadPartnerCatalogFeedContext(
   if (!listed.ok) {
     return NextResponse.json({ error: listed.error }, { status: 500 })
   }
+  const { distributionPendingInventoryIdSet } = await import('@/lib/messaging/image-localization/counterfeit-gate')
+  const pendingIds = await distributionPendingInventoryIdSet(partner.id)
+  const feedRows = pendingIds.size ? listed.rows.filter((row) => !pendingIds.has(row.id)) : listed.rows
 
   const platformOrigin = getPublicAppUrlForServer(request).replace(/\/$/, '')
   const website = await fetchPartnerWebsiteByPartnerIdPg(partner.id)
@@ -76,7 +79,7 @@ export async function loadPartnerCatalogFeedContext(
     shop,
     industryKey: partner.industry_key,
     productTypeByInventoryId,
-    rows: listed.rows,
+    rows: feedRows,
   }
 }
 

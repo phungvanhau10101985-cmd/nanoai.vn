@@ -3,6 +3,8 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    const { installAiFetchGuard } = await import('@/lib/ai/install-ai-fetch-guard')
+    installAiFetchGuard()
     process.on('uncaughtException', (err) => {
       console.error('[CRASH] uncaughtException:', err?.message)
       console.error('[CRASH] stack:', err?.stack)

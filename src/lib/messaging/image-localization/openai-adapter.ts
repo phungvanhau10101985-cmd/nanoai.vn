@@ -123,7 +123,11 @@ export async function openaiProcessImage(opts: {
   removeModel?: boolean
 }): Promise<{ status: 'processed'; bytes: Buffer; message: string }> {
   const key = (process.env.OPENAI_API_KEY || '').trim()
-  if (key.length < 10) throw new ImageLocalizationError('Thiếu OPENAI_API_KEY cho chế độ GPT Image.')
+  if (key.length < 10) {
+    const { notifyAiDown, AiApiStopped } = await import('@/lib/ai/ai-run-alert')
+    await notifyAiDown('OpenAI', 'Thiếu OPENAI_API_KEY cho chế độ GPT Image.')
+    throw new AiApiStopped('AI_API_STOPPED OpenAI: thiếu OPENAI_API_KEY cho chế độ GPT Image.')
+  }
   const model = sanitizeModelId(opts.imageModel, imageLocOpenaiImageModel())
   const timeout = imageLocOpenaiTimeoutMs()
   const mime = mimeForImageFilename(opts.filename)
@@ -162,6 +166,7 @@ export async function openaiProcessImage(opts: {
         signal: ac.signal,
       })
     } catch (e) {
+      if (e instanceof Error && (e.name === 'AiApiStopped' || e.message.includes('AI_API_STOPPED'))) throw e
       const message = e instanceof Error ? e.message : String(e)
       if (/abort/i.test(message)) throw new ImageLocalizationError('OpenAI images/edits quá thời gian chờ.')
       throw new ImageLocalizationError(`OpenAI images/edits lỗi mạng: ${message}`)

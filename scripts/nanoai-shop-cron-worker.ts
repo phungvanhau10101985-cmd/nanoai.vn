@@ -172,6 +172,8 @@ async function clockTick(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const { installAiFetchGuard } = await import('../src/lib/ai/install-ai-fetch-guard')
+  installAiFetchGuard()
   const { primeShopHostPressure } = await import('../src/lib/cron/shop-host-pressure')
   await primeShopHostPressure()
   console.log('[shop-cron] start', new Date().toISOString())

@@ -27,6 +27,7 @@ import { isDeepseekPeakUtc, offPeakWaitMessageVi, secondsUntilDeepseekOffPeak } 
 import { processInventoryProduct } from './process-product'
 import { loadImageLocBrandLogoBytes } from './overlay-brand-logo'
 import { ImageLocalizationError, isImageLocalizationFatalDependencyError } from './gemini-adapter'
+import { isAiApiStopped } from '@/lib/ai/ai-run-alert'
 import { isImageLocalizationGptStopError, openaiApiAuth } from './openai-adapter'
 import { notifyNanoAiAdminsImageLocGptStopped } from './gpt-stop-notify'
 import {
@@ -61,6 +62,7 @@ function shouldStopWorker(partnerId: string, jobId: string, epoch: number): bool
 export function imageLocJobIsStalled(job: Pick<ImageLocJob, 'status' | 'phase' | 'updated_at'>, now = Date.now()): boolean {
   if (String(job.status || '').toLowerCase() !== 'running') return false
   if (String(job.phase || '').toLowerCase() === 'waiting_off_peak') return false
+  if (String(job.phase || '').toLowerCase() === 'counterfeit_check') return false
   const updated = Date.parse(String(job.updated_at || ''))
   return Number.isFinite(updated) && now - updated >= imageLocStallMinutes() * 60_000
 }
@@ -183,6 +185,7 @@ async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: 
   try {
   const job = await fetchImageLocJobFromPg(partnerId, jobId)
   if (!job) return
+  if (String(job.phase || '') === 'counterfeit_check') return
   if (!(await waitImageLocTurn(partnerId, jobId, epoch, heavy))) return
   const payload = (job.payload || {}) as ImageLocStartPayload
   const processed = uniqueIds(job.processed_product_ids)
@@ -370,6 +373,16 @@ async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: 
         return
       }
     } catch (e) {
+      if (isAiApiStopped(e)) {
+        const detail = e instanceof Error ? e.message : String(e)
+        await updateImageLocJobFromPg(partnerId, jobId, {
+          status: 'error',
+          phase: 'stopped',
+          message: clip(`Dừng job: model AI không chạy. ${detail}`),
+          finished_at: new Date().toISOString(),
+        })
+        return
+      }
       if (isImageLocalizationGptStopError(e)) {
         const detail = e instanceof Error ? e.message : String(e)
         failed += 1
@@ -576,8 +589,8 @@ export async function startImageLocalizationJob(
     job_id: jobId,
     partner_id: partnerId,
     status: 'queued',
-    phase: 'queued',
-    message: 'Đã xếp hàng bản địa hóa ảnh.',
+    phase: 'counterfeit_check',
+    message: 'Chờ Gemini 3.8 Flash kiểm hàng giả trước khi bản địa hóa ảnh.',
     payload,
     current: 0,
     total: queue.length,
@@ -605,8 +618,37 @@ export async function startImageLocalizationJob(
     finished_at: null,
   }
   await insertImageLocJobFromPg(job)
-  spawn(partnerId, jobId, false)
+  if (shopBackgroundRunsHere()) void kickCounterfeitThenLocalize(partnerId, jobId)
   return { job_id: jobId, status: 'queued' }
+}
+
+async function kickCounterfeitThenLocalize(partnerId: string, jobId: string): Promise<void> {
+  try {
+    const { advanceCounterfeitGate } = await import('./counterfeit-gate')
+    for (;;) {
+      const job = await fetchImageLocJobFromPg(partnerId, jobId)
+      if (!job || job.cancel_requested || job.status === 'cancelled' || job.status === 'error') return
+      if (job.phase !== 'counterfeit_check') {
+        if (job.status === 'queued') spawn(partnerId, jobId, true)
+        return
+      }
+      const result = await advanceCounterfeitGate(job)
+      if (result === 'ready') {
+        spawn(partnerId, jobId, true)
+        return
+      }
+      if (result === 'failed') return
+      await new Promise((resolve) => setTimeout(resolve, 30_000))
+    }
+  } catch (error) {
+    console.error('[image-localization] kiểm hàng giả lỗi', jobId, error)
+    await updateImageLocJobFromPg(partnerId, jobId, {
+      status: 'error',
+      phase: 'error',
+      message: error instanceof Error ? error.message : 'Kiểm hàng giả lỗi. Chưa bản địa hóa ảnh.',
+      finished_at: new Date().toISOString(),
+    }).catch(() => undefined)
+  }
 }
 
 export async function cancelImageLocalizationJob(
@@ -641,6 +683,22 @@ export async function resumeImageLocalizationAfterRestart(): Promise<{ resumed: 
   let resumed = 0
   let skipped = 0
   for (const job of jobs) {
+    if (String(job.phase || '') === 'counterfeit_check') {
+      try {
+        const { advanceCounterfeitGate } = await import('./counterfeit-gate')
+        const result = await advanceCounterfeitGate(job)
+        if (result !== 'ready') continue
+      } catch (error) {
+        console.error('[image-localization] kiểm hàng giả lỗi', job.job_id, error)
+        await updateImageLocJobFromPg(job.partner_id, job.job_id, {
+          status: 'error',
+          phase: 'error',
+          message: error instanceof Error ? error.message : 'Kiểm hàng giả lỗi. Chưa bản địa hóa ảnh.',
+          finished_at: new Date().toISOString(),
+        }).catch(() => undefined)
+        continue
+      }
+    }
     const key = workerKey(job.partner_id, job.job_id)
     const workerAlive = imageLocWorkerAlive(job.partner_id, job.job_id)
     const decision = imageLocShouldAutoResume({

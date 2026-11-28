@@ -68,6 +68,11 @@ export const imageLocalizationClient = {
   summary(partnerId: string) {
     return json<ImageLocSummary>(`${base(partnerId)}/summary`)
   },
+  counterfeit(partnerId: string) {
+    return json<{ items: { id: string; sku: string; name: string; image_url: string; brands: string[] }[] }>(
+      `${base(partnerId)}/counterfeit`
+    )
+  },
   startJob(partnerId: string, payload: ImageLocStartPayload) {
     return json<{ job_id: string; status: string }>(`${base(partnerId)}/jobs`, {
       method: 'POST',

@@ -165,6 +165,7 @@ export async function updateImageLocJobFromPg(
     )
   }
   if ('message' in patch) add('message = ?', patch.message ?? null)
+  if ('payload' in patch) add('payload_json = ?::jsonb', JSON.stringify(patch.payload ?? {}))
   if (patch.current != null) add('current = ?', patch.current)
   if ('total' in patch) add('total = ?', patch.total ?? null)
   if (patch.done != null) add('done = ?', patch.done)
